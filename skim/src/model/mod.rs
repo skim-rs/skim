@@ -4,6 +4,7 @@ mod status;
 use options::InfoDisplay;
 use status::{ClearStrategy, Direction, Status};
 
+use std::cmp::max;
 use std::env;
 
 use std::process::Command;
@@ -35,7 +36,6 @@ use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
 use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
 use crate::{FuzzyAlgorithm, MatchEngineFactory, MatchRange, SkimItem};
-use std::cmp::max;
 
 const REFRESH_DURATION: i64 = 100;
 
@@ -216,7 +216,7 @@ impl Model {
         if let Some(preview_cmd) = options.preview.clone() {
             let tx = Arc::new(SpinLock::new(self.tx.clone()));
             self.previewer = Some(
-                Previewer::new(Some(preview_cmd.to_string()), move || {
+                Previewer::new_from_command(Some(preview_cmd.to_string()), move || {
                     let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
                 })
                 .wrap(preview_wrap)
@@ -227,6 +227,19 @@ impl Model {
 
         self.select_1 = options.select_1;
         self.exit_0 = options.exit_0;
+
+        if let Some(cb) = options.preview_fn.as_ref() {
+            let tx = Arc::new(SpinLock::new(self.tx.clone()));
+            self.previewer = Some(
+                Previewer::new_with_callback(cb.clone(), move || {
+                    let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
+                })
+                .wrap(preview_wrap)
+                .delimiter(self.delimiter.clone())
+                .preview_offset(options.preview_window.clone()),
+            )
+        }
+
         self.sync = options.sync;
         self.no_clear_if_empty = options.no_clear_if_empty;
     }

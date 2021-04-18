@@ -7,6 +7,7 @@ use derive_builder::Builder;
 use crate::item::RankCriteria;
 use crate::model::options::InfoDisplay;
 use crate::prelude::SkimItemReader;
+use crate::previewer::PreviewCallback;
 use crate::reader::CommandCollector;
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
@@ -731,6 +732,8 @@ pub struct SkimOptions {
     pub cmd_history: Vec<String>,
     #[clap(skip)]
     pub selector: Option<Rc<dyn Selector>>,
+    #[clap(skip)]
+    pub preview_fn: Option<PreviewCallback>,
 }
 
 impl Default for SkimOptions {
