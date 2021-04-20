@@ -28,7 +28,7 @@ use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::options::SkimOptions;
 use crate::output::SkimOutput;
-use crate::previewer::Previewer;
+use crate::previewer::{PreviewSource, Previewer};
 use crate::query::Query;
 use crate::reader::{Reader, ReaderControl};
 use crate::selection::Selection;
@@ -213,10 +213,18 @@ impl Model {
         self.preview_size = preview_size;
         self.preview_hidden = !preview_shown;
 
-        if let Some(preview_cmd) = options.preview.clone() {
-            let tx = Arc::new(SpinLock::new(self.tx.clone()));
+        let preview_source = if let Some(cmd) = &options.preview {
+            PreviewSource::Command(cmd.to_string())
+        } else if let Some(ref callback) = options.preview_fn {
+            PreviewSource::Callback(callback.clone())
+        } else {
+            PreviewSource::Empty
+        };
+
+        let tx = Arc::new(SpinLock::new(self.tx.clone()));
+        if !matches!(preview_source, PreviewSource::Empty) {
             self.previewer = Some(
-                Previewer::new_from_command(Some(preview_cmd.to_string()), move || {
+                Previewer::new(preview_source, move || {
                     let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
                 })
                 .wrap(preview_wrap)
@@ -227,18 +235,6 @@ impl Model {
 
         self.select_1 = options.select_1;
         self.exit_0 = options.exit_0;
-
-        if let Some(cb) = options.preview_fn.as_ref() {
-            let tx = Arc::new(SpinLock::new(self.tx.clone()));
-            self.previewer = Some(
-                Previewer::new_with_callback(cb.clone(), move || {
-                    let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
-                })
-                .wrap(preview_wrap)
-                .delimiter(self.delimiter.clone())
-                .preview_offset(options.preview_window.clone()),
-            )
-        }
 
         self.sync = options.sync;
         self.no_clear_if_empty = options.no_clear_if_empty;
