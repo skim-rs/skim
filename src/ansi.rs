@@ -145,6 +145,8 @@ impl Perform for ANSIParser {
                     }
                 },
                 49 => attr.bg = Color::Default,
+                num @ 90..=97 => attr.fg = Color::AnsiValue((num - 82) as u8),
+                num @ 100..=107 => attr.bg = Color::AnsiValue((num - 92) as u8),
                 _ => {
                     trace!("ignore CSI {:?} m", params);
                 }
