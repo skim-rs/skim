@@ -544,6 +544,7 @@ dependencies = [
  "bitflags",
  "cfg-if 1.0.0",
  "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -721,7 +722,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "skim"
-version = "0.10.1"
+version = "0.9.4"
 dependencies = [
  "atty",
  "beef",
@@ -851,9 +852,9 @@ dependencies = [
 
 [[package]]
 name = "tuikit"
-version = "0.5.0"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e19c6ab038babee3d50c8c12ff8b910bdb2196f62278776422f50390d8e53d8"
+checksum = "667c8e002675e76d98358d8869021793a472d28e3a50fbd750284a1d211abd09"
 dependencies = [
  "bitflags",
  "lazy_static",
