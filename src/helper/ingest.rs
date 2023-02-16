@@ -56,35 +56,45 @@ pub fn ingest_loop(
         // 1) its some 30ms wall clock time faster
         // 2) ANSIStrings created from this buffer, that we store,
         //    will have a static lifetime anyway
-        let static_ref = bytes_buffer.leak();
+        let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
-        if let Ok(unwrapped) = std::str::from_utf8(static_ref) {
-            let _ = unwrapped
-                .split(&['\n', line_ending as char])
-                .map(|line| {
-                    if line.ends_with("\r\n") {
-                        line.trim_end_matches("\r\n")
-                    } else if line.ends_with('\r') {
-                        line.trim_end_matches('\r')
-                    } else {
-                        line
-                    }
-                })
-                .try_for_each(|line| match &opts {
-                    SendRawOrBuild::Build(opts) => {
-                        let item = DefaultSkimItem::new(
-                            line,
-                            opts.ansi_enabled,
-                            opts.trans_fields,
-                            opts.matching_fields,
-                            opts.delimiter,
-                        );
-                        tx_item.send(Arc::new(item))
-                    }
-                    SendRawOrBuild::Raw => tx_item.send(Arc::new(line)),
-                });
-        } else {
-            break;
-        };
+        let _ = chunk
+            .split(&['\n', line_ending as char])
+            .map(|line| {
+                if line.ends_with("\r\n") {
+                    line.trim_end_matches("\r\n")
+                } else if line.ends_with('\r') {
+                    line.trim_end_matches('\r')
+                } else {
+                    line
+                }
+            })
+            .for_each(|line| {
+                send(line, &opts, tx_item.clone())
+            });
+    }
+}
+
+
+fn send(
+    line: &str,
+    opts: &SendRawOrBuild,
+    tx_item: Sender<Arc<dyn SkimItem>>,
+) {
+    match opts {
+        SendRawOrBuild::Build(opts) => {
+            let item = DefaultSkimItem::new(
+                line.into(),
+                opts.ansi_enabled,
+                opts.trans_fields,
+                opts.matching_fields,
+                opts.delimiter,
+            );
+            tx_item.send(Arc::new(item)).unwrap()
+        }
+        SendRawOrBuild::Raw => {
+            let boxed: Box<str> = line.into();
+            tx_item.send(Arc::new(boxed)).unwrap()
+        },
     }
 }

@@ -17,11 +17,11 @@ use tuikit::prelude::Attr;
 /// About the ANSI, we made assumption that it is linewise, that means no ANSI codes will affect
 /// more than one line.
 #[derive(Debug)]
-pub struct DefaultSkimItem<'b> {
+pub struct DefaultSkimItem {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
-    orig_text: &'b str,
+    orig_text: Option<Box<str>>,
 
     /// The text that will be shown on screen and matched.
     text: AnsiString,
@@ -31,9 +31,9 @@ pub struct DefaultSkimItem<'b> {
     matching_ranges: Option<Box<Vec<(usize, usize)>>>,
 }
 
-impl<'b> DefaultSkimItem<'b> {
+impl<'b> DefaultSkimItem {
     pub fn new(
-        orig_text: &'b str,
+        orig_text: Box<str>,
         ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
@@ -55,15 +55,15 @@ impl<'b> DefaultSkimItem<'b> {
 
         let (orig_text, text) = if using_transform_fields && ansi_enabled {
             // ansi and transform
-            let transformed = ansi_parser.parse_ansi(&parse_transform_fields(delimiter, orig_text, trans_fields));
-            (orig_text, transformed)
+            let transformed = ansi_parser.parse_ansi(&parse_transform_fields(delimiter, &orig_text, trans_fields));
+            (Some(orig_text), transformed)
         } else if using_transform_fields {
             // transformed, not ansi
-            let transformed = parse_transform_fields(delimiter, orig_text, trans_fields).into();
-            (orig_text, transformed)
+            let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields).into();
+            (Some(orig_text), transformed)
         } else {
             // normal case
-            (orig_text, ansi_parser.parse_ansi(orig_text))
+            (None, ansi_parser.parse_ansi(&orig_text))
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
@@ -84,19 +84,23 @@ impl<'b> DefaultSkimItem<'b> {
     }
 }
 
-impl<'b> SkimItem for DefaultSkimItem<'b> {
+impl<'b> SkimItem for DefaultSkimItem {
     #[inline]
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(self.text.stripped())
     }
 
     fn output(&self) -> Cow<str> {
-        if self.text.has_attrs() {
-            let mut ansi_parser: ANSIParser = Default::default();
-            let text = ansi_parser.parse_ansi(self.orig_text);
-            Cow::Owned(text.stripped().to_owned())
+        if self.orig_text.is_some() {
+            if self.text.has_attrs() {
+                let mut ansi_parser: ANSIParser = Default::default();
+                let text = ansi_parser.parse_ansi(self.orig_text.as_ref().unwrap());
+                Cow::Owned(text.into_inner().to_string())
+            } else {
+                Cow::Borrowed(self.orig_text.as_ref().unwrap())
+            }
         } else {
-            Cow::Borrowed(self.orig_text)
+            Cow::Borrowed(self.text.stripped())
         }
     }
 
