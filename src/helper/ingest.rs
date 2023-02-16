@@ -31,7 +31,7 @@ pub fn ingest_loop(
     tx_item: Sender<Arc<dyn SkimItem>>,
     opts: SendRawOrBuild,
 ) {
-    let mut bytes_buffer = Vec::new();
+    let mut bytes_buffer = Vec::with_capacity(65_536);
 
     loop {
         // first, read lots of bytes into the buffer
