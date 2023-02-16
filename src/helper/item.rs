@@ -17,11 +17,11 @@ use tuikit::prelude::Attr;
 /// About the ANSI, we made assumption that it is linewise, that means no ANSI codes will affect
 /// more than one line.
 #[derive(Debug)]
-pub struct DefaultSkimItem {
+pub struct DefaultSkimItem<'b> {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
-    orig_text: Option<Box<str>>,
+    orig_text: &'b str,
 
     /// The text that will be shown on screen and matched.
     text: AnsiString,
@@ -31,9 +31,9 @@ pub struct DefaultSkimItem {
     matching_ranges: Option<Box<Vec<(usize, usize)>>>,
 }
 
-impl DefaultSkimItem {
+impl<'b> DefaultSkimItem<'b> {
     pub fn new(
-        orig_text: &str,
+        orig_text: &'b str,
         ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
@@ -56,14 +56,14 @@ impl DefaultSkimItem {
         let (orig_text, text) = if using_transform_fields && ansi_enabled {
             // ansi and transform
             let transformed = ansi_parser.parse_ansi(&parse_transform_fields(delimiter, orig_text, trans_fields));
-            (Some(Box::from(orig_text)), transformed)
+            (orig_text, transformed)
         } else if using_transform_fields {
             // transformed, not ansi
             let transformed = parse_transform_fields(delimiter, orig_text, trans_fields).into();
-            (Some(Box::from(orig_text)), transformed)
+            (orig_text, transformed)
         } else {
             // normal case
-            (None, ansi_parser.parse_ansi(orig_text))
+            (orig_text, ansi_parser.parse_ansi(orig_text))
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
@@ -84,23 +84,19 @@ impl DefaultSkimItem {
     }
 }
 
-impl SkimItem for DefaultSkimItem {
+impl<'b> SkimItem for DefaultSkimItem<'b> {
     #[inline]
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(self.text.stripped())
     }
 
     fn output(&self) -> Cow<str> {
-        if let Some(orig_text) = &self.orig_text {
-            if self.text.has_attrs() {
-                let mut ansi_parser: ANSIParser = Default::default();
-                let text = ansi_parser.parse_ansi(orig_text);
-                Cow::Owned(text.stripped().to_owned())
-            } else {
-                Cow::Borrowed(orig_text)
-            }
+        if self.text.has_attrs() {
+            let mut ansi_parser: ANSIParser = Default::default();
+            let text = ansi_parser.parse_ansi(self.orig_text);
+            Cow::Owned(text.stripped().to_owned())
         } else {
-            Cow::Borrowed(self.text.stripped())
+            Cow::Borrowed(self.orig_text)
         }
     }
 
