@@ -5,7 +5,7 @@ use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam::channel::{bounded, select, Sender};
+use crossbeam::channel::{bounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -115,16 +115,22 @@ fn collect_item(
         components_to_stop.fetch_add(1, Ordering::SeqCst);
         started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
+        let mut sel = Select::new();
+        let oper1 = sel.recv(&rx_item);
+        let oper2 = sel.recv(&rx_interrupt);
+
         loop {
-            select! {
-                recv(rx_item) -> new_item => match new_item {
-                    Ok(item) => {
+            match sel.ready() {
+                i if i == oper1 => {
+                    if let Ok(item) = rx_item.recv() {
                         let mut vec = items.lock();
-                        vec.push(item);
+                        vec.push(item)
+                    } else {
+                        break;
                     }
-                    Err(_) => break,
-                },
-                recv(rx_interrupt) -> _msg => break,
+                }
+                i if i == oper2 => break,
+                _ => unreachable!(),
             }
         }
 
