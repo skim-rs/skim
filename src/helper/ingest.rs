@@ -58,7 +58,7 @@ pub fn ingest_loop(
         //    will have a static lifetime anyway
         let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
-        let _ = chunk
+        chunk
             .split(&['\n', line_ending as char])
             .map(|line| {
                 if line.ends_with("\r\n") {
@@ -69,18 +69,11 @@ pub fn ingest_loop(
                     line
                 }
             })
-            .for_each(|line| {
-                send(line, &opts, tx_item.clone())
-            });
+            .for_each(|line| send(line, &opts, tx_item.clone()));
     }
 }
 
-
-fn send(
-    line: &str,
-    opts: &SendRawOrBuild,
-    tx_item: Sender<Arc<dyn SkimItem>>,
-) {
+fn send(line: &str, opts: &SendRawOrBuild, tx_item: Sender<Arc<dyn SkimItem>>) {
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
@@ -95,6 +88,6 @@ fn send(
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
             tx_item.send(Arc::new(boxed)).unwrap()
-        },
+        }
     }
 }

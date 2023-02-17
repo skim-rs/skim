@@ -107,7 +107,7 @@ impl Matcher {
 
                 if matcher_disabled {
                     return Some(Ok(MatchedItem {
-                        item: item.clone(),
+                        item: Arc::downgrade(item),
                         metadata: None,
                     }));
                 }
@@ -119,7 +119,7 @@ impl Matcher {
                 matcher_engine.match_item(item.as_ref()).map(|match_result| {
                     matched.fetch_add(1, Ordering::Relaxed);
                     Ok(MatchedItem {
-                        item: item.clone(),
+                        item: Arc::downgrade(item),
                         metadata: {
                             Some(Box::new({
                                 MatchedItemMetadata {
