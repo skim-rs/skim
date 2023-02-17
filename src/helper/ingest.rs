@@ -69,11 +69,11 @@ pub fn ingest_loop(
                     line
                 }
             })
-            .for_each(|line| send(line, &opts, tx_item.clone()));
+            .for_each(|line| send(line, &opts, &tx_item));
     }
 }
 
-fn send(line: &str, opts: &SendRawOrBuild, tx_item: Sender<Arc<dyn SkimItem>>) {
+fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) {
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
