@@ -5,7 +5,7 @@ use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam::channel::{bounded, select, Sender};
+use crossbeam::channel::{bounded, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::thread;
 
 const CHANNEL_SIZE: usize = 1024;
+const ITEMS_INITIAL_CAPACITY: usize = 65536;
 
 pub trait CommandCollector {
     /// execute the `cmd` and produce a
@@ -79,7 +80,7 @@ impl Reader {
         mark_new_run(cmd);
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-        let items = Arc::new(SpinLock::new(Vec::new()));
+        let items = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
         let items_clone = items.clone();
 
         let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
@@ -115,15 +116,17 @@ fn collect_item(
         started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
         loop {
-            select! {
-                recv(rx_item) -> new_item => match new_item {
-                    Ok(item) => {
-                        let mut vec = items.lock();
-                        vec.push(item);
-                    }
-                    Err(_) => break,
-                },
-                recv(rx_interrupt) -> _msg => break,
+            while let Ok(item) = rx_item.recv() {
+                let mut vec = items.lock();
+                vec.push(item)
+            }
+
+            if rx_item.recv().is_err() {
+                break;
+            }
+
+            if rx_interrupt.recv().is_err() {
+                break;
             }
         }
 
