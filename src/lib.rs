@@ -87,18 +87,6 @@ impl<T: Any> AsAny for T {
 ///     }
 /// }
 ///
-/// let mut ret: Arc<dyn SkimItem> = Arc::new(MyItem{});
-/// let mutable: &mut MyItem = Arc::get_mut(&mut ret)
-///     .expect("item is referenced by others")
-///     .as_any_mut() // cast to Any
-///     .downcast_mut::<MyItem>() // downcast to (mut) concrete type
-///     .expect("something wrong with downcast");
-/// assert_eq!(mutable.mutable(), 1);
-///
-/// let immutable: &MyItem = (*ret).as_any() // cast to Any
-///     .downcast_ref::<MyItem>() // downcast to concrete type
-///     .expect("something wrong with downcast");
-/// assert_eq!(immutable.immutable(), 0)
 /// ```
 pub trait SkimItem: Send + Sync {
     /// The string to be used for matching (without color)
