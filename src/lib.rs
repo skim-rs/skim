@@ -93,7 +93,7 @@ pub trait SkimItem: Send + Sync {
     fn text(&self) -> Cow<str>;
 
     /// The content to be displayed on the item list, could contain ANSI properties
-    fn display<'a>(&self, context: DisplayContext<'a>) -> AnsiString {
+    fn display(&self, context: DisplayContext) -> AnsiString {
         AnsiString::from(context)
     }
 

@@ -31,7 +31,7 @@ pub struct DefaultSkimItem {
     matching_ranges: Option<Box<Vec<(usize, usize)>>>,
 }
 
-impl<'b> DefaultSkimItem {
+impl DefaultSkimItem {
     pub fn new(
         orig_text: Box<str>,
         ansi_enabled: bool,
@@ -84,7 +84,7 @@ impl<'b> DefaultSkimItem {
     }
 }
 
-impl<'b> SkimItem for DefaultSkimItem {
+impl SkimItem for DefaultSkimItem {
     #[inline]
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(self.text.stripped())
@@ -108,7 +108,7 @@ impl<'b> SkimItem for DefaultSkimItem {
         self.matching_ranges.as_ref().map(|vec| vec as &[(usize, usize)])
     }
 
-    fn display<'a>(&self, context: DisplayContext<'a>) -> AnsiString {
+    fn display(&self, context: DisplayContext) -> AnsiString {
         let new_fragments: Vec<(Attr, (u32, u32))> = match context.matches {
             Some(Matches::CharIndices(indices)) => indices
                 .iter()

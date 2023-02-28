@@ -306,7 +306,7 @@ impl From<&str> for AnsiString {
     }
 }
 
-impl<'a> From<String> for AnsiString {
+impl From<String> for AnsiString {
     fn from(s: String) -> Self {
         AnsiString::new_raw_string(s)
     }
