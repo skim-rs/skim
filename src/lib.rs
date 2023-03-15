@@ -282,6 +282,7 @@ impl Skim {
     /// return:
     /// - None: on internal errors.
     /// - SkimOutput: the collected key, event, query, selected items, etc.
+    #[allow(unused_variables)]
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
         let min_height = options
             .min_height
@@ -317,7 +318,7 @@ impl Skim {
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
-        let (_hangup_tx, hangup_rx): (Sender<Never>, Receiver<Never>) = bounded(0);
+        let (hangup_tx, hangup_rx): (Sender<Never>, Receiver<Never>) = bounded(0);
         let input_thread = thread::spawn(move || loop {
             if let Ok(key) = term_clone.poll_event() {
                 if key == TermEvent::User(()) {
