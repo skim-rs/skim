@@ -2,6 +2,7 @@
 use std::env;
 use std::error::Error;
 use std::io::{BufRead, BufReader};
+
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -11,14 +12,14 @@ use crossbeam::channel::{bounded, Receiver, Sender};
 use regex::Regex;
 
 use crate::field::FieldRange;
-use crate::helper::item::DefaultSkimItem;
+use crate::helper::ingest::{ingest_loop, BuildOptions, SendRawOrBuild};
 use crate::reader::CommandCollector;
 use crate::{SkimItem, SkimItemReceiver, SkimItemSender};
 
-const CMD_CHANNEL_SIZE: usize = 1024;
-const ITEM_CHANNEL_SIZE: usize = 10240;
+const CMD_CHANNEL_SIZE: usize = 1_024;
+const ITEM_CHANNEL_SIZE: usize = 16_384;
 const DELIMITER_STR: &str = r"[\t\n ]+";
-const READ_BUFFER_SIZE: usize = 1024;
+const READ_BUFFER_SIZE: usize = 65_536;
 
 pub enum CollectorInput {
     Pipe(Box<dyn BufRead + Send>),
@@ -146,7 +147,7 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
-    pub fn of_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
+    pub fn of_bufread(&self, source: Box<dyn BufRead + Send>) -> SkimItemReceiver {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
@@ -156,36 +157,12 @@ impl SkimItemReader {
     }
 
     /// helper: convert bufread into SkimItemReceiver
-    fn raw_bufread(&self, mut source: impl BufRead + Send + 'static) -> SkimItemReceiver {
+    fn raw_bufread(&self, source: Box<dyn BufRead + Send>) -> SkimItemReceiver {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(self.option.buf_size);
         let line_ending = self.option.line_ending;
+
         thread::spawn(move || {
-            let mut buffer = Vec::with_capacity(1024);
-            loop {
-                buffer.clear();
-                // start reading
-                match source.read_until(line_ending, &mut buffer) {
-                    Ok(n) => {
-                        if n == 0 {
-                            break;
-                        }
-
-                        if buffer.ends_with(&[b'\r', b'\n']) {
-                            buffer.pop();
-                            buffer.pop();
-                        } else if buffer.ends_with(&[b'\n']) || buffer.ends_with(&[b'\0']) {
-                            buffer.pop();
-                        }
-
-                        let string = String::from_utf8_lossy(&buffer);
-                        let result = tx_item.send(Arc::new(string.into_owned()));
-                        if result.is_err() {
-                            break;
-                        }
-                    }
-                    Err(_err) => {} // String not UTF8 or other error, skip.
-                }
-            }
+            ingest_loop(source, line_ending, tx_item, SendRawOrBuild::Raw);
         });
         rx_item
     }
@@ -197,7 +174,7 @@ impl SkimItemReader {
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
     ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>) {
-        let (command, mut source) = match input {
+        let (command, source) = match input {
             CollectorInput::Pipe(pipe) => (None, pipe),
             CollectorInput::Command(cmd) => get_command_output(&cmd).expect("command not found"),
         };
@@ -251,47 +228,17 @@ impl SkimItemReader {
         thread::spawn(move || {
             debug!("collector: command collector start");
             components_to_stop.fetch_add(1, Ordering::SeqCst);
-            started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
+            started_clone.store(true, Ordering::SeqCst);
+            // notify parent that it is started
 
-            let mut buffer = Vec::with_capacity(option.buf_size);
-            loop {
-                buffer.clear();
+            let opts = BuildOptions {
+                ansi_enabled: option.use_ansi_color,
+                trans_fields: &option.transform_fields,
+                matching_fields: &option.matching_fields,
+                delimiter: &option.delimiter,
+            };
 
-                // start reading
-                match source.read_until(option.line_ending, &mut buffer) {
-                    Ok(n) => {
-                        if n == 0 {
-                            break;
-                        }
-
-                        if buffer.ends_with(&[b'\r', b'\n']) {
-                            buffer.pop();
-                            buffer.pop();
-                        } else if buffer.ends_with(&[b'\n']) || buffer.ends_with(&[b'\0']) {
-                            buffer.pop();
-                        }
-
-                        let line = String::from_utf8_lossy(&buffer).to_string();
-
-                        let raw_item = DefaultSkimItem::new(
-                            line,
-                            option.use_ansi_color,
-                            &option.transform_fields,
-                            &option.matching_fields,
-                            &option.delimiter,
-                        );
-
-                        match tx_item.send(Arc::new(raw_item)) {
-                            Ok(_) => {}
-                            Err(_) => {
-                                debug!("collector: failed to send item, quit");
-                                break;
-                            }
-                        }
-                    }
-                    Err(_err) => {} // String not UTF8 or other error, skip.
-                }
-            }
+            ingest_loop(source, option.line_ending, tx_item, SendRawOrBuild::Build(opts));
 
             let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
             components_to_stop.fetch_sub(1, Ordering::SeqCst);

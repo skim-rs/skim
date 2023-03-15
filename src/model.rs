@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Duration as TimerDuration;
-use defer_drop::DeferDrop;
 use regex::Regex;
 use timer::{Guard as TimerGuard, Timer};
 use tuikit::prelude::{Event as TermEvent, *};
@@ -17,7 +16,7 @@ use crate::event::{Event, EventHandler, EventReceiver, EventSender};
 use crate::global::current_run_num;
 use crate::header::Header;
 use crate::input::parse_action_arg;
-use crate::item::{parse_criteria, ItemPool, MatchedItem, RankBuilder, RankCriteria};
+use crate::item::{parse_criteria, ItemPool, MatchedItem, MatchedItemMetadata, RankBuilder, RankCriteria};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::options::SkimOptions;
 use crate::output::SkimOutput;
@@ -54,6 +53,7 @@ pub struct Model {
     select1: bool,
     exit0: bool,
     sync: bool,
+    disabled: bool,
 
     use_regex: bool,
     regex_matcher: Matcher,
@@ -61,7 +61,7 @@ pub struct Model {
 
     term: Arc<Term>,
 
-    item_pool: Arc<DeferDrop<ItemPool>>,
+    item_pool: Arc<ItemPool>,
 
     rx: EventReceiver,
     tx: EventSender,
@@ -117,6 +117,8 @@ impl Model {
             DEFAULT_CRITERION.clone()
         };
 
+        let disabled = options.disabled;
+
         let rank_builder = Arc::new(RankBuilder::new(criterion));
 
         let selection = Selection::with_options(options).theme(theme.clone());
@@ -128,16 +130,16 @@ impl Model {
             // use provided engine
             Matcher::builder(engine_factory.clone()).case(options.case).build()
         } else {
-            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
+            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
                 ExactOrFuzzyEngineFactory::builder()
                     .exact_mode(options.exact)
                     .rank_builder(rank_builder.clone())
                     .build(),
-            ));
+            )));
             Matcher::builder(fuzzy_engine_factory).case(options.case).build()
         };
 
-        let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
+        let item_pool = Arc::new(ItemPool::new().lines_to_reserve(options.header_lines));
         let header = Header::empty()
             .with_options(options)
             .item_pool(item_pool.clone())
@@ -157,6 +159,7 @@ impl Model {
             select1: false,
             exit0: false,
             sync: false,
+            disabled,
             use_regex: options.regex,
             regex_matcher,
             matcher,
@@ -225,9 +228,12 @@ impl Model {
         if let Some(preview_cmd) = options.preview {
             let tx = Arc::new(SpinLock::new(self.tx.clone()));
             self.previewer = Some(
-                Previewer::new(Some(preview_cmd.to_string()), move || {
-                    let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
-                })
+                Previewer::new(
+                    Some(preview_cmd.to_string()),
+                    Box::new(move || {
+                        let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
+                    }),
+                )
                 .wrap(preview_wrap)
                 .delimiter(self.delimiter.clone())
                 .preview_offset(
@@ -477,10 +483,16 @@ impl Model {
         let new_len = self.item_pool.append(vec![item.clone()]);
         let item_idx = (max(new_len, 1) - 1) as u32;
         let matched_item = MatchedItem {
-            item,
-            rank: self.rank_builder.build_rank(0, 0, 0, item_len),
-            matched_range: Some(MatchRange::ByteRange(0, 0)),
-            item_idx,
+            item: Arc::downgrade(&item),
+            metadata: {
+                Some(Box::new({
+                    MatchedItemMetadata {
+                        rank: self.rank_builder.build_rank(0, 0, 0, item_len),
+                        matched_range: Some(MatchRange::ByteRange(0, 0)),
+                        item_idx,
+                    }
+                }))
+            },
         };
 
         self.selection.act_select_matched(current_run_num(), matched_item);
@@ -724,10 +736,15 @@ impl Model {
         };
 
         let tx = self.tx.clone();
-        let new_matcher_control = matcher.run(&query, self.item_pool.clone(), move |_| {
-            // notify refresh immediately
-            let _ = tx.send((Key::Null, Event::EvHeartBeat));
-        });
+        let new_matcher_control = matcher.run(
+            &query,
+            self.disabled,
+            self.item_pool.clone(),
+            Box::new(move |_| {
+                // notify refresh immediately
+                let _ = tx.send((Key::Null, Event::EvHeartBeat));
+            }),
+        );
 
         self.matcher_control.replace(new_matcher_control);
     }

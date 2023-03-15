@@ -3,13 +3,20 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+use once_cell::sync::Lazy;
 use rayon::prelude::*;
+use rayon::ThreadPool;
 
-use crate::item::{ItemPool, MatchedItem};
+use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
-use crate::{CaseMatching, MatchEngineFactory};
-use defer_drop::DeferDrop;
+use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
+
+static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
+    rayon::ThreadPoolBuilder::new()
+        .build()
+        .expect("Could not initialize rayon threadpool")
+});
 
 //==============================================================================
 pub struct MatcherControl {
@@ -67,10 +74,13 @@ impl Matcher {
         self
     }
 
-    pub fn run<C>(&self, query: &str, item_pool: Arc<DeferDrop<ItemPool>>, callback: C) -> MatcherControl
-    where
-        C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
-    {
+    pub fn run(
+        &self,
+        query: &str,
+        disabled: bool,
+        item_pool: Arc<ItemPool>,
+        callback: Box<dyn Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send>,
+    ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
         let stopped = Arc::new(AtomicBool::new(false));
@@ -82,6 +92,9 @@ impl Matcher {
         let matched_items = Arc::new(SpinLock::new(Vec::new()));
         let matched_items_clone = matched_items.clone();
 
+        // shortcut for when there is no query or query is disabled
+        let matcher_disabled = disabled || query.is_empty();
+
         let thread_matcher = thread::spawn(move || {
             let num_taken = item_pool.num_taken();
             let items = item_pool.take();
@@ -91,26 +104,45 @@ impl Matcher {
             //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
 
             trace!("matcher start, total: {}", items.len());
-            let result: Result<Vec<_>, _> = items
-                .into_par_iter()
-                .enumerate()
-                .filter_map(|(index, item)| {
-                    processed.fetch_add(1, Ordering::Relaxed);
-                    if stopped.load(Ordering::Relaxed) {
-                        Some(Err("matcher killed"))
-                    } else if let Some(match_result) = matcher_engine.match_item(item.clone()) {
-                        matched.fetch_add(1, Ordering::Relaxed);
-                        Some(Ok(MatchedItem {
-                            item: item.clone(),
-                            rank: match_result.rank,
-                            matched_range: Some(match_result.matched_range),
-                            item_idx: (num_taken + index) as u32,
-                        }))
-                    } else {
-                        None
-                    }
+
+            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<Result<MatchedItem, &str>> {
+                processed.fetch_add(1, Ordering::Relaxed);
+
+                if matcher_disabled {
+                    return Some(Ok(MatchedItem {
+                        item: Arc::downgrade(item),
+                        metadata: None,
+                    }));
+                }
+
+                if stopped.load(Ordering::Relaxed) {
+                    return Some(Err("matcher killed"));
+                }
+
+                matcher_engine.match_item(item.as_ref()).map(|match_result| {
+                    matched.fetch_add(1, Ordering::Relaxed);
+                    Ok(MatchedItem {
+                        item: Arc::downgrade(item),
+                        metadata: {
+                            Some(Box::new({
+                                MatchedItemMetadata {
+                                    rank: match_result.rank,
+                                    matched_range: Some(match_result.matched_range),
+                                    item_idx: (num_taken + index) as u32,
+                                }
+                            }))
+                        },
+                    })
                 })
-                .collect();
+            };
+
+            let result: Result<Vec<_>, _> = MATCHER_POOL.install(|| {
+                items
+                    .par_iter()
+                    .enumerate()
+                    .filter_map(|(index, item)| filter_op(index, item))
+                    .collect()
+            });
 
             if let Ok(items) = result {
                 let mut pool = matched_items.lock();

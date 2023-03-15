@@ -132,6 +132,7 @@ Usage: sk [options]
 ";
 
 const DEFAULT_HISTORY_SIZE: usize = 1000;
+const READ_BUFFER_CAPACITY: usize = 65_536;
 
 //------------------------------------------------------------------------------
 fn main() {
@@ -178,9 +179,10 @@ fn real_main() -> Result<i32, std::io::Error> {
         .arg(Arg::with_name("cmd-prompt").long("cmd-prompt").multiple(true).takes_value(true).default_value("c> "))
         .arg(Arg::with_name("expect").long("expect").multiple(true).takes_value(true))
         .arg(Arg::with_name("tac").long("tac").multiple(true))
-        .arg(Arg::with_name("tiebreak").long("tiebreak").short('t').multiple(true).takes_value(true))
+        .arg(Arg::with_name("tiebreak").long("tiebreak").short('t').multiple(true).takes_value(true).default_value("length,index"))
         .arg(Arg::with_name("ansi").long("ansi").multiple(true))
         .arg(Arg::with_name("exact").long("exact").short('e').multiple(true))
+        .arg(Arg::with_name("disabled").long("disabled").multiple(true))
         .arg(Arg::with_name("cmd").long("cmd").short('c').multiple(true).takes_value(true))
         .arg(Arg::with_name("interactive").long("interactive").short('i').multiple(true))
         .arg(Arg::with_name("query").long("query").short('q').multiple(true).takes_value(true))
@@ -316,7 +318,7 @@ fn real_main() -> Result<i32, std::io::Error> {
     //------------------------------------------------------------------------------
     // read from pipe or command
     let rx_item = if atty::isnt(atty::Stream::Stdin) {
-            let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
+            let rx_item = cmd_collector.borrow().of_bufread(Box::new(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin())));
             Some(rx_item)
         } else {
          None
@@ -422,6 +424,7 @@ fn parse_options(options: &ArgMatches) -> SkimOptions<'_> {
         .tac(options.is_present("tac"))
         .nosort(options.is_present("no-sort"))
         .exact(options.is_present("exact"))
+        .disabled(options.is_present("disabled"))
         .regex(options.is_present("regex"))
         .delimiter(options.values_of("delimiter").and_then(|vals| vals.last()))
         .inline_info(options.is_present("inline-info"))
@@ -530,7 +533,7 @@ pub fn filter(
             .fuzzy_algorithm(options.algorithm)
             .exact_mode(options.exact)
             .build();
-        Box::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+        Box::new(AndOrEngineFactory::new(Box::new(fuzzy_engine_factory)))
     };
 
     let engine = engine_factory.create_engine_with_case(query, options.case);
@@ -548,7 +551,7 @@ pub fn filter(
     let mut num_matched = 0;
     stream_of_item
         .into_iter()
-        .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
+        .filter_map(|item| engine.match_item(item.as_ref()).map(|result| (item, result)))
         .try_for_each(|(item, _match_result)| {
             num_matched += 1;
             write!(stdout, "{}{}", item.output(), bin_option.output_ending)

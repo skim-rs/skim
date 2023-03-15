@@ -21,10 +21,10 @@ pub struct DefaultSkimItem {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
-    orig_text: Option<String>,
+    orig_text: Option<Box<str>>,
 
     /// The text that will be shown on screen and matched.
-    text: AnsiString<'static>,
+    text: AnsiString,
 
     // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
     #[allow(clippy::box_collection)]
@@ -33,7 +33,7 @@ pub struct DefaultSkimItem {
 
 impl DefaultSkimItem {
     pub fn new(
-        orig_text: String,
+        orig_text: Box<str>,
         ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
@@ -61,12 +61,9 @@ impl DefaultSkimItem {
             // transformed, not ansi
             let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields).into();
             (Some(orig_text), transformed)
-        } else if ansi_enabled {
-            // not transformed, ansi
-            (None, ansi_parser.parse_ansi(&orig_text))
         } else {
             // normal case
-            (None, orig_text.into())
+            (None, ansi_parser.parse_ansi(&orig_text))
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
@@ -98,7 +95,7 @@ impl SkimItem for DefaultSkimItem {
             if self.text.has_attrs() {
                 let mut ansi_parser: ANSIParser = Default::default();
                 let text = ansi_parser.parse_ansi(self.orig_text.as_ref().unwrap());
-                text.into_inner()
+                Cow::Owned(text.into_inner().to_string())
             } else {
                 Cow::Borrowed(self.orig_text.as_ref().unwrap())
             }
@@ -111,19 +108,19 @@ impl SkimItem for DefaultSkimItem {
         self.matching_ranges.as_ref().map(|vec| vec as &[(usize, usize)])
     }
 
-    fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString<'a> {
+    fn display(&self, context: DisplayContext) -> AnsiString {
         let new_fragments: Vec<(Attr, (u32, u32))> = match context.matches {
-            Matches::CharIndices(indices) => indices
+            Some(Matches::CharIndices(indices)) => indices
                 .iter()
                 .map(|&idx| (context.highlight_attr, (idx as u32, idx as u32 + 1)))
                 .collect(),
-            Matches::CharRange(start, end) => vec![(context.highlight_attr, (start as u32, end as u32))],
-            Matches::ByteRange(start, end) => {
+            Some(Matches::CharRange(start, end)) => vec![(context.highlight_attr, (start as u32, end as u32))],
+            Some(Matches::ByteRange(start, end)) => {
                 let ch_start = context.text[..start].chars().count();
                 let ch_end = ch_start + context.text[start..end].chars().count();
                 vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))]
             }
-            Matches::None => vec![],
+            None => vec![],
         };
         let mut ret = self.text.clone();
         ret.override_attrs(new_fragments);

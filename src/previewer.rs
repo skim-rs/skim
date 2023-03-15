@@ -24,7 +24,7 @@ const DELIMITER_STR: &str = r"[\t\n ]+";
 
 pub struct Previewer {
     tx_preview: Sender<PreviewEvent>,
-    content_lines: Arc<SpinLock<Vec<AnsiString<'static>>>>,
+    content_lines: Arc<SpinLock<Vec<AnsiString>>>,
 
     width: Arc<AtomicUsize>,
     height: Arc<AtomicUsize>,
@@ -44,10 +44,7 @@ pub struct Previewer {
 }
 
 impl Previewer {
-    pub fn new<C>(preview_cmd: Option<String>, callback: C) -> Self
-    where
-        C: Fn() + Send + Sync + 'static,
-    {
+    pub fn new(preview_cmd: Option<String>, callback: Box<dyn Fn() + Send + Sync>) -> Self {
         let content_lines = Arc::new(SpinLock::new(Vec::new()));
         let (tx_preview, rx_preview) = channel();
         let width = Arc::new(AtomicUsize::new(80));
@@ -61,21 +58,24 @@ impl Previewer {
         let hscroll_offset_clone = hscroll_offset.clone();
         let vscroll_offset_clone = vscroll_offset.clone();
         let thread_previewer = thread::spawn(move || {
-            run(rx_preview, move |lines, pos| {
-                let width = width_clone.load(Ordering::SeqCst);
-                let height = height_clone.load(Ordering::SeqCst);
+            run(
+                rx_preview,
+                Box::new(move |lines, pos| {
+                    let width = width_clone.load(Ordering::SeqCst);
+                    let height = height_clone.load(Ordering::SeqCst);
 
-                let hscroll = pos.h_scroll.calc_fixed_size(lines.len(), 0);
-                let hoffset = pos.h_offset.calc_fixed_size(width, 0);
-                let vscroll = pos.v_scroll.calc_fixed_size(usize::MAX, 0);
-                let voffset = pos.v_offset.calc_fixed_size(height, 0);
+                    let hscroll = pos.h_scroll.calc_fixed_size(lines.len(), 0);
+                    let hoffset = pos.h_offset.calc_fixed_size(width, 0);
+                    let vscroll = pos.v_scroll.calc_fixed_size(usize::MAX, 0);
+                    let voffset = pos.v_offset.calc_fixed_size(height, 0);
 
-                hscroll_offset_clone.store(max(1, max(hscroll, hoffset) - hoffset), Ordering::SeqCst);
-                vscroll_offset_clone.store(max(1, max(vscroll, voffset) - voffset), Ordering::SeqCst);
-                *content_clone.lock() = lines;
+                    hscroll_offset_clone.store(max(1, max(hscroll, hoffset) - hoffset), Ordering::SeqCst);
+                    vscroll_offset_clone.store(max(1, max(vscroll, voffset) - voffset), Ordering::SeqCst);
+                    *content_clone.lock() = lines;
 
-                callback();
-            })
+                    callback();
+                }),
+            )
         });
 
         Self {
@@ -427,15 +427,12 @@ impl PreviewThread {
     }
 }
 
-fn run<C>(rx_preview: Receiver<PreviewEvent>, on_return: C)
-where
-    C: Fn(Vec<AnsiString<'static>>, PreviewPosition) + Send + Sync + 'static,
-{
+fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>, PreviewPosition) + Send + Sync>) {
     let callback = Arc::new(on_return);
     let mut preview_thread: Option<PreviewThread> = None;
     while let Ok(_event) = rx_preview.recv() {
-        if preview_thread.is_some() {
-            preview_thread.unwrap().kill();
+        if let Some(thread) = preview_thread {
+            thread.kill();
             preview_thread = None;
         }
 
@@ -464,7 +461,7 @@ where
                     .env("LINES", preview_cmd.lines.to_string())
                     .env("COLUMNS", preview_cmd.columns.to_string())
                     .arg("-c")
-                    .arg(&cmd)
+                    .arg(cmd)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .spawn();
@@ -506,7 +503,7 @@ where
 
 fn wait<C>(spawned: std::process::Child, callback: C)
 where
-    C: Fn(Vec<AnsiString<'static>>),
+    C: Fn(Vec<AnsiString>),
 {
     let output = spawned.wait_with_output();
 

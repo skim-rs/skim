@@ -87,25 +87,13 @@ impl<T: Any> AsAny for T {
 ///     }
 /// }
 ///
-/// let mut ret: Arc<dyn SkimItem> = Arc::new(MyItem{});
-/// let mutable: &mut MyItem = Arc::get_mut(&mut ret)
-///     .expect("item is referenced by others")
-///     .as_any_mut() // cast to Any
-///     .downcast_mut::<MyItem>() // downcast to (mut) concrete type
-///     .expect("something wrong with downcast");
-/// assert_eq!(mutable.mutable(), 1);
-///
-/// let immutable: &MyItem = (*ret).as_any() // cast to Any
-///     .downcast_ref::<MyItem>() // downcast to concrete type
-///     .expect("something wrong with downcast");
-/// assert_eq!(immutable.immutable(), 0)
 /// ```
-pub trait SkimItem: AsAny + Send + Sync + 'static {
+pub trait SkimItem: Send + Sync {
     /// The string to be used for matching (without color)
     fn text(&self) -> Cow<str>;
 
     /// The content to be displayed on the item list, could contain ANSI properties
-    fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString<'a> {
+    fn display(&self, context: DisplayContext) -> AnsiString {
         AnsiString::from(context)
     }
 
@@ -133,7 +121,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
 //------------------------------------------------------------------------------
 // Implement SkimItem for raw strings
 
-impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
+impl<T: AsRef<str> + Send + Sync> SkimItem for T {
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(self.as_ref())
     }
@@ -142,7 +130,6 @@ impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
 //------------------------------------------------------------------------------
 // Display Context
 pub enum Matches<'a> {
-    None,
     CharIndices(&'a [usize]),
     CharRange(usize, usize),
     ByteRange(usize, usize),
@@ -151,19 +138,19 @@ pub enum Matches<'a> {
 pub struct DisplayContext<'a> {
     pub text: &'a str,
     pub score: i32,
-    pub matches: Matches<'a>,
+    pub matches: Option<Matches<'a>>,
     pub container_width: usize,
     pub highlight_attr: Attr,
 }
 
-impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
+impl<'a> From<DisplayContext<'a>> for AnsiString {
     fn from(context: DisplayContext<'a>) -> Self {
         match context.matches {
-            Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_attr)),
-            Matches::CharRange(start, end) => {
+            Some(Matches::CharIndices(indices)) => AnsiString::from((context.text, indices, context.highlight_attr)),
+            Some(Matches::CharRange(start, end)) => {
                 AnsiString::new_str(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
             }
-            Matches::ByteRange(start, end) => {
+            Some(Matches::ByteRange(start, end)) => {
                 let ch_start = context.text[..start].chars().count();
                 let ch_end = ch_start + context.text[start..end].chars().count();
                 AnsiString::new_str(
@@ -171,7 +158,7 @@ impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
                     vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))],
                 )
             }
-            Matches::None => AnsiString::new_str(context.text, vec![]),
+            None => AnsiString::new_str(context.text, vec![]),
         }
     }
 }
@@ -262,7 +249,7 @@ impl MatchResult {
 }
 
 pub trait MatchEngine: Sync + Send + Display {
-    fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult>;
+    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult>;
 }
 
 pub trait MatchEngineFactory {
