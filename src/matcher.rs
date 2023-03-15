@@ -76,7 +76,7 @@ impl Matcher {
 
     pub fn run<C>(&self, query: &str, disabled: bool, item_pool: Arc<ItemPool>, callback: C) -> MatcherControl
     where
-        C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
+        for<'a> C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'a,
     {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);

@@ -533,7 +533,7 @@ pub fn filter(
             .fuzzy_algorithm(options.algorithm)
             .exact_mode(options.exact)
             .build();
-        Box::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+        Box::new(AndOrEngineFactory::new(Box::new(fuzzy_engine_factory)))
     };
 
     let engine = engine_factory.create_engine_with_case(query, options.case);

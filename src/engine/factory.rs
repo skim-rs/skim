@@ -136,10 +136,8 @@ pub struct AndOrEngineFactory {
 }
 
 impl AndOrEngineFactory {
-    pub fn new(factory: impl MatchEngineFactory + 'static) -> Self {
-        Self {
-            inner: Box::new(factory),
-        }
+    pub fn new(factory: Box<dyn MatchEngineFactory>) -> Self {
+        Self { inner: factory }
     }
 
     // we want to treat `\ ` as plain white space
@@ -260,7 +258,7 @@ mod test {
         assert_eq!(format!("{}", x), "(Exact|!(?i)^abc$)");
 
         let regex_factory = RegexEngineFactory::builder();
-        let and_or_factory = AndOrEngineFactory::new(exact_or_fuzzy);
+        let and_or_factory = AndOrEngineFactory::new(Box::new(exact_or_fuzzy));
 
         let x = and_or_factory.create_engine("'abc | def ^gh ij | kl mn");
         assert_eq!(

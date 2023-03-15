@@ -46,7 +46,7 @@ pub struct Previewer {
 impl Previewer {
     pub fn new<C>(preview_cmd: Option<String>, callback: C) -> Self
     where
-        C: Fn() + Send + Sync + 'static,
+        for<'a> C: Fn() + Send + Sync + 'a,
     {
         let content_lines = Arc::new(SpinLock::new(Vec::new()));
         let (tx_preview, rx_preview) = channel();
@@ -429,7 +429,7 @@ impl PreviewThread {
 
 fn run<C>(rx_preview: Receiver<PreviewEvent>, on_return: C)
 where
-    C: Fn(Vec<AnsiString>, PreviewPosition) + Send + Sync + 'static,
+    for<'a> C: Fn(Vec<AnsiString>, PreviewPosition) + Send + Sync + 'a,
 {
     let callback = Arc::new(on_return);
     let mut preview_thread: Option<PreviewThread> = None;

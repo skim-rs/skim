@@ -130,12 +130,12 @@ impl Model {
             // use provided engine
             Matcher::builder(engine_factory.clone()).case(options.case).build()
         } else {
-            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
+            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
                 ExactOrFuzzyEngineFactory::builder()
                     .exact_mode(options.exact)
                     .rank_builder(rank_builder.clone())
                     .build(),
-            ));
+            )));
             Matcher::builder(fuzzy_engine_factory).case(options.case).build()
         };
 
