@@ -318,7 +318,7 @@ fn real_main() -> Result<i32, std::io::Error> {
     //------------------------------------------------------------------------------
     // read from pipe or command
     let rx_item = if atty::isnt(atty::Stream::Stdin) {
-            let rx_item = cmd_collector.borrow().of_bufread(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin()));
+            let rx_item = cmd_collector.borrow().of_bufread(Box::new(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin())));
             Some(rx_item)
         } else {
          None
