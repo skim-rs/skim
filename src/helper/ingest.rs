@@ -26,7 +26,7 @@ pub struct BuildOptions<'a> {
 
 #[allow(unused_assignments)]
 pub fn ingest_loop(
-    mut source: impl BufRead + Send + 'static,
+    mut source: Box<dyn BufRead + Send>,
     line_ending: u8,
     tx_item: Sender<Arc<dyn SkimItem>>,
     opts: SendRawOrBuild,

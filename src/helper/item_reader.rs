@@ -147,7 +147,7 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
-    pub fn of_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
+    pub fn of_bufread(&self, source: Box<dyn BufRead + Send>) -> SkimItemReceiver {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
@@ -157,7 +157,7 @@ impl SkimItemReader {
     }
 
     /// helper: convert bufread into SkimItemReceiver
-    fn raw_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
+    fn raw_bufread(&self, source: Box<dyn BufRead + Send>) -> SkimItemReceiver {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(self.option.buf_size);
         let line_ending = self.option.line_ending;
 

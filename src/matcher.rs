@@ -74,10 +74,13 @@ impl Matcher {
         self
     }
 
-    pub fn run<C>(&self, query: &str, disabled: bool, item_pool: Arc<ItemPool>, callback: C) -> MatcherControl
-    where
-        C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
-    {
+    pub fn run(
+        &self,
+        query: &str,
+        disabled: bool,
+        item_pool: Arc<ItemPool>,
+        callback: Box<dyn Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send>,
+    ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
         let stopped = Arc::new(AtomicBool::new(false));
