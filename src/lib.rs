@@ -10,7 +10,7 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender, bounded, TryRecvError};
 use tuikit::prelude::{Event as TermEvent, *};
 
 pub use crate::ansi::AnsiString;
@@ -317,17 +317,26 @@ impl Skim {
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
-        let input_thread = thread::spawn(move || loop {
-            if let Ok(key) = term_clone.poll_event() {
-                if key == TermEvent::User(()) {
-                    break;
-                }
+        let (hangup_tx, hangup_rx): (Sender<Never>, Receiver<Never>) = bounded(0);
+        let input_thread = thread::spawn(move || {
 
-                let (key, action_chain) = input.translate_event(key);
-                for event in action_chain.into_iter() {
-                    let _ = tx_clone.send((key, event));
+            loop {
+                if let Ok(key) = term_clone.poll_event() {
+                    if key == TermEvent::User(()) {
+                        break;
+                    }
+
+                    if is_channel_closed(&hangup_rx) {
+                        break
+                    }
+    
+                    let (key, action_chain) = input.translate_event(key);
+                    for event in action_chain.into_iter() {
+                        let _ = tx_clone.send((key, event));
+                    }
                 }
             }
+
         });
 
         //------------------------------------------------------------------------------
@@ -352,5 +361,15 @@ impl Skim {
         } else {
             TermHeight::Fixed(string.parse().unwrap_or(0))
         }
+    }
+}
+
+pub enum Never {}
+
+pub fn is_channel_closed(chan: &Receiver<Never>) -> bool {
+    match chan.try_recv() {
+        Ok(never) => match never {},
+        Err(TryRecvError::Disconnected) => true,
+        Err(TryRecvError::Empty) => false,
     }
 }
