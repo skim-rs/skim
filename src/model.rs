@@ -228,9 +228,12 @@ impl Model {
         if let Some(preview_cmd) = options.preview {
             let tx = Arc::new(SpinLock::new(self.tx.clone()));
             self.previewer = Some(
-                Previewer::new(Some(preview_cmd.to_string()), move || {
-                    let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
-                })
+                Previewer::new(
+                    Some(preview_cmd.to_string()),
+                    Box::new(move || {
+                        let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
+                    }),
+                )
                 .wrap(preview_wrap)
                 .delimiter(self.delimiter.clone())
                 .preview_offset(
