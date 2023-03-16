@@ -1,11 +1,11 @@
 [package]
-name = "skim"
+name = "two_percent"
 version = "0.10.4"
-authors = ["Zhang Jinzhou <lotabout@gmail.com>"]
+authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Robert Swinford <robert.swinford@gmail.com>"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
-homepage = "https://github.com/lotabout/skim"
-repository = "https://github.com/lotabout/skim"
+homepage = "https://github.com/kimono-koans/two_percent"
+repository = "https://github.com/kimono-koans/two_percent"
 readme  = "README.md"
 keywords = ["fuzzy", "menu", "util"]
 license = "MIT"
