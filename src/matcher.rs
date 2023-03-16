@@ -3,10 +3,20 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+use once_cell::sync::Lazy;
+use rayon::prelude::*;
+use rayon::ThreadPool;
+
 use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
+
+static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
+    rayon::ThreadPoolBuilder::new()
+        .build()
+        .expect("Could not initialize rayon threadpool")
+});
 
 //==============================================================================
 pub struct MatcherControl {
@@ -95,23 +105,23 @@ impl Matcher {
 
             trace!("matcher start, total: {}", items.len());
 
-            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<MatchedItem> {
+            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<Result<MatchedItem, &str>> {
                 processed.fetch_add(1, Ordering::Relaxed);
 
                 if matcher_disabled {
-                    return Some(MatchedItem {
+                    return Some(Ok(MatchedItem {
                         item: Arc::downgrade(item),
                         metadata: None,
-                    });
+                    }));
                 }
 
                 if stopped.load(Ordering::Relaxed) {
-                    return None;
+                    return Some(Err("matcher killed"));
                 }
 
                 matcher_engine.match_item(item.as_ref()).map(|match_result| {
                     matched.fetch_add(1, Ordering::Relaxed);
-                    MatchedItem {
+                    Ok(MatchedItem {
                         item: Arc::downgrade(item),
                         metadata: {
                             Some(Box::new({
@@ -122,17 +132,19 @@ impl Matcher {
                                 }
                             }))
                         },
-                    }
+                    })
                 })
             };
 
-            let result: Option<Vec<_>> = items
-                .iter()
-                .enumerate()
-                .map(|(index, item)| filter_op(index, item))
-                .collect();
+            let result: Result<Vec<_>, _> = MATCHER_POOL.install(|| {
+                items
+                    .par_iter()
+                    .enumerate()
+                    .filter_map(|(index, item)| filter_op(index, item))
+                    .collect()
+            });
 
-            if let Some(items) = result {
+            if let Ok(items) = result {
                 let mut pool = matched_items.lock();
                 *pool = items;
                 trace!("matcher stop, total matched: {}", pool.len());
