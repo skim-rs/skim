@@ -52,10 +52,6 @@ pub fn ingest_loop(
             break;
         }
 
-        // logic to intentionally leaking here:
-        // 1) its some 30ms wall clock time faster
-        // 2) ANSIStrings created from this buffer, that we store,
-        //    will have a static lifetime anyway
         let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
         chunk
