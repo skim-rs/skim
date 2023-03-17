@@ -150,7 +150,7 @@ impl Matcher {
                 trace!("matcher stop, total matched: {}", pool.len());
             }
 
-            callback(matched_items.clone());
+            callback(matched_items);
             stopped.store(true, Ordering::Relaxed);
         });
 
