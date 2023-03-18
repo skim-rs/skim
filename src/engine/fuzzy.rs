@@ -137,9 +137,9 @@ impl MatchEngine for FuzzyEngine {
                 self.fuzzy_match(&item_text[start..end], &self.query).map(|(s, vec)| {
                     if start != 0 {
                         let start_char = &item_text[..start].len();
-                        return (s, vec.iter().map(|x| x + start_char).collect())
-                    } 
-                    
+                        return (s, vec.iter().map(|x| x + start_char).collect());
+                    }
+
                     (s, vec)
                 })
             });

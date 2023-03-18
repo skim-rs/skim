@@ -65,11 +65,13 @@ pub fn ingest_loop(
                     line
                 }
             })
-            .for_each(|line| send(line, &opts, &tx_item));
+            .for_each(|line| {
+                let _ = send(line, &opts, &tx_item);
+            });
     }
 }
 
-fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) {
+fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
@@ -79,11 +81,11 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.send(Arc::new(item)).unwrap()
+            tx_item.send(Arc::new(item)).ok()
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.send(Arc::new(boxed)).unwrap()
+            tx_item.send(Arc::new(boxed)).ok()
         }
     }
 }
