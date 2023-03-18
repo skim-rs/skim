@@ -105,23 +105,12 @@ impl Matcher {
 
             trace!("matcher start, total: {}", items.len());
 
-            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<Result<MatchedItem, &str>> {
+            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<MatchedItem> {
                 processed.fetch_add(1, Ordering::Relaxed);
-
-                if matcher_disabled {
-                    return Some(Ok(MatchedItem {
-                        item: Arc::downgrade(item),
-                        metadata: None,
-                    }));
-                }
-
-                if stopped.load(Ordering::Relaxed) {
-                    return Some(Err("matcher killed"));
-                }
 
                 matcher_engine.match_item(item.as_ref()).map(|match_result| {
                     matched.fetch_add(1, Ordering::Relaxed);
-                    Ok(MatchedItem {
+                    MatchedItem {
                         item: Arc::downgrade(item),
                         metadata: {
                             Some(Box::new({
@@ -132,17 +121,31 @@ impl Matcher {
                                 }
                             }))
                         },
-                    })
+                    }
                 })
             };
 
-            let result: Result<Vec<_>, _> = MATCHER_POOL.install(|| {
-                items
-                    .par_iter()
-                    .enumerate()
-                    .filter_map(|(index, item)| filter_op(index, item))
-                    .collect()
-            });
+            let result: Result<Vec<_>, _> = if matcher_disabled {
+                Ok(MATCHER_POOL.install(|| {
+                    items
+                        .iter()
+                        .map(|item| MatchedItem {
+                            item: Arc::downgrade(item),
+                            metadata: None,
+                        })
+                        .collect()
+                }))
+            } else if stopped.load(Ordering::Relaxed) {
+                Err("matcher killed")
+            } else {
+                Ok(MATCHER_POOL.install(|| {
+                    items
+                        .par_iter()
+                        .enumerate()
+                        .filter_map(|(index, item)| filter_op(index, item))
+                        .collect()
+                }))
+            };
 
             if let Ok(items) = result {
                 let mut pool = matched_items.lock();
