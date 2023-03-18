@@ -116,8 +116,8 @@ impl SkimItem for DefaultSkimItem {
                 .collect(),
             Some(Matches::CharRange(start, end)) => vec![(context.highlight_attr, (start as u32, end as u32))],
             Some(Matches::ByteRange(start, end)) => {
-                let ch_start = context.text[..start].chars().count();
-                let ch_end = ch_start + context.text[start..end].chars().count();
+                let ch_start = context.text[..start].len();
+                let ch_end = ch_start + context.text[start..end].len();
                 vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))]
             }
             None => vec![],

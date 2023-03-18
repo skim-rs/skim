@@ -485,8 +485,8 @@ impl Selection {
                     }
                 }
                 Some(MatchRange::ByteRange(match_start, match_end)) => {
-                    let match_start_char = item_text[..match_start].chars().count();
-                    let diff = item_text[match_start..match_end].chars().count();
+                    let match_start_char = item_text[..match_start].len();
+                    let diff = item_text[match_start..match_end].len();
                     (match_start_char, match_start_char + diff)
                 }
                 None => (0, 0),

@@ -166,7 +166,7 @@ impl ANSIParser {
         }
 
         let string = std::mem::take(&mut self.partial_str);
-        let string_char_count = string.chars().count();
+        let string_char_count = string.len();
         self.fragments.push((
             self.last_attr,
             (

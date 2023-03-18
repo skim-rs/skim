@@ -151,8 +151,8 @@ impl<'a> From<DisplayContext<'a>> for AnsiString {
                 AnsiString::new_str(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
             }
             Some(Matches::ByteRange(start, end)) => {
-                let ch_start = context.text[..start].chars().count();
-                let ch_end = ch_start + context.text[start..end].chars().count();
+                let ch_start = context.text[..start].len();
+                let ch_end = ch_start + context.text[start..end].len();
                 AnsiString::new_str(
                     context.text,
                     vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))],
@@ -239,8 +239,8 @@ impl MatchResult {
     pub fn range_char_indices(&self, text: &str) -> Vec<usize> {
         match &self.matched_range {
             &MatchRange::ByteRange(start, end) => {
-                let first = text[..start].chars().count();
-                let last = first + text[start..end].chars().count();
+                let first = text[..start].len();
+                let last = first + text[start..end].len();
                 (first..last).collect()
             }
             MatchRange::Chars(vec) => vec.clone(),
