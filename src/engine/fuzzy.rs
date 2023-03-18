@@ -136,28 +136,24 @@ impl MatchEngine for FuzzyEngine {
                 let end = min(*end, item_text.len());
                 self.fuzzy_match(&item_text[start..end], &self.query).map(|(s, vec)| {
                     if start != 0 {
-                        let start_char = &item_text[..start].chars().count();
-                        (s, vec.iter().map(|x| x + start_char).collect())
-                    } else {
-                        (s, vec)
-                    }
+                        let start_char = &item_text[..start].len();
+                        return (s, vec.iter().map(|x| x + start_char).collect())
+                    } 
+                    
+                    (s, vec)
                 })
             });
 
-        let (score, matched_range) = if let Some((score, matched_range)) = matched_result {
-            (score, matched_range)
-        } else {
-            return None;
-        };
+        matched_result.map(|(score, matched_range)| {
+            let begin = *matched_range.first().unwrap_or(&0);
+            let end = *matched_range.last().unwrap_or(&0);
 
-        let begin = *matched_range.first().unwrap_or(&0);
-        let end = *matched_range.last().unwrap_or(&0);
+            let item_len = item_text.len();
 
-        let item_len = item_text.len();
-
-        Some(MatchResult {
-            rank: self.rank_builder.build_rank(score as i32, begin, end, item_len),
-            matched_range: MatchRange::Chars(matched_range),
+            MatchResult {
+                rank: self.rank_builder.build_rank(score as i32, begin, end, item_len),
+                matched_range: MatchRange::Chars(matched_range),
+            }
         })
     }
 }
