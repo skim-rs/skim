@@ -121,7 +121,7 @@ pub struct ItemPool {
     taken: AtomicUsize,
 
     /// reverse first N lines as header
-    reserved_items: SpinLock<Vec<Arc<dyn SkimItem>>>,
+    reserved_items: SpinLock<Vec<Weak<dyn SkimItem>>>,
     lines_to_reserve: usize,
 }
 
@@ -178,7 +178,8 @@ impl ItemPool {
         let to_reserve = self.lines_to_reserve - header_items.len();
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
-            header_items.extend_from_slice(&items[..to_reserve]);
+            let reserved = items[..to_reserve].iter().map(|item| Arc::downgrade(item)).collect::<Vec<_>>();
+            header_items.extend_from_slice(&reserved);
             pool.extend_from_slice(&items[to_reserve..]);
         } else {
             pool.append(&mut items);
@@ -194,7 +195,7 @@ impl ItemPool {
         ItemPoolGuard { guard, start: taken }
     }
 
-    pub fn reserved(&self) -> ItemPoolGuard<Arc<dyn SkimItem>> {
+    pub fn reserved(&self) -> ItemPoolGuard<Weak<dyn SkimItem>> {
         let guard = self.reserved_items.lock();
         ItemPoolGuard { guard, start: 0 }
     }
