@@ -173,7 +173,7 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
-    ) -> (Receiver<Arc<dyn SkimItem + Send + Sync>>, Sender<i32>) {
+    ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>) {
         let (command, source) = match input {
             CollectorInput::Pipe(pipe) => (None, pipe),
             CollectorInput::Command(cmd) => get_command_output(&cmd).expect("command not found"),

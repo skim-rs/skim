@@ -32,7 +32,7 @@ pub struct Previewer {
     vscroll_offset: Arc<AtomicUsize>,
     wrap: bool,
 
-    prev_item: Option<Arc<dyn SkimItem + Send + Sync>>,
+    prev_item: Option<Arc<dyn SkimItem>>,
     prev_query: Option<String>,
     prev_cmd_query: Option<String>,
     prev_num_selected: usize,
@@ -120,11 +120,11 @@ impl Previewer {
     pub fn on_item_change(
         &mut self,
         new_item_index: usize,
-        new_item: impl Into<Option<Arc<dyn SkimItem + Send + Sync>>>,
+        new_item: impl Into<Option<Arc<dyn SkimItem>>>,
         new_query: impl Into<Option<String>>,
         new_cmd_query: impl Into<Option<String>>,
         num_selected: usize,
-        get_selected_items: impl Fn() -> (Vec<usize>, Vec<Arc<dyn SkimItem + Send + Sync>>), // lazy get
+        get_selected_items: impl Fn() -> (Vec<usize>, Vec<Arc<dyn SkimItem>>), // lazy get
         force: bool,
     ) {
         let new_item = new_item.into();

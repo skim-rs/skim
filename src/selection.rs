@@ -24,7 +24,7 @@ type ItemIndex = (u32, u32);
 pub struct Selection {
     // all items
     items: OrderedVec<MatchedItem>,
-    selected: BTreeMap<ItemIndex, Arc<dyn SkimItem + Send + Sync>>,
+    selected: BTreeMap<ItemIndex, Arc<dyn SkimItem>>,
 
     //
     // |>------ items[items.len()-1]
@@ -257,7 +257,7 @@ impl Selection {
         self.act_select_raw_item(run_num, matched.md_infallible().item_idx, matched.item);
     }
 
-    pub fn act_select_raw_item(&mut self, run_num: u32, item_index: u32, item: Arc<dyn SkimItem + Send + Sync>) {
+    pub fn act_select_raw_item(&mut self, run_num: u32, item_index: u32, item: Arc<dyn SkimItem>) {
         if !self.multi_selection {
             return;
         }
@@ -285,10 +285,10 @@ impl Selection {
         self.hscroll_offset += offset as i64;
     }
 
-    pub fn get_selected_indices_and_items(&self) -> (Vec<usize>, Vec<Arc<dyn SkimItem + Send + Sync>>) {
+    pub fn get_selected_indices_and_items(&self) -> (Vec<usize>, Vec<Arc<dyn SkimItem>>) {
         // select the current one
         let select_cursor = !self.multi_selection || self.selected.is_empty();
-        let mut selected: Vec<Arc<dyn SkimItem + Send + Sync>> = self.selected.values().cloned().collect();
+        let mut selected: Vec<Arc<dyn SkimItem>> = self.selected.values().cloned().collect();
         let mut item_indices: Vec<usize> = self.selected.keys().map(|(_run, idx)| *idx as usize).collect();
 
         if select_cursor && !self.items.is_empty() {
@@ -321,7 +321,7 @@ impl Selection {
         self.multi_selection
     }
 
-    pub fn get_current_item(&self) -> Option<Arc<dyn SkimItem + Send + Sync>> {
+    pub fn get_current_item(&self) -> Option<Arc<dyn SkimItem>> {
         let item_idx = self.get_current_item_idx();
         self.items.get(item_idx).map(|item| item.item.clone())
     }
