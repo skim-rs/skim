@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::default::Default;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
 use crate::{MatchRange, Rank, SkimItem};
@@ -63,7 +63,7 @@ impl RankBuilder {
 //------------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct MatchedItem {
-    pub item: Weak<dyn SkimItem>,
+    pub item: Arc<dyn SkimItem>,
     pub metadata: Option<Box<MatchedItemMetadata>>,
 }
 
@@ -121,7 +121,7 @@ pub struct ItemPool {
     taken: AtomicUsize,
 
     /// reverse first N lines as header
-    reserved_items: SpinLock<Vec<Weak<dyn SkimItem>>>,
+    reserved_items: SpinLock<Vec<Arc<dyn SkimItem>>>,
     lines_to_reserve: usize,
 }
 
@@ -178,7 +178,7 @@ impl ItemPool {
         let to_reserve = self.lines_to_reserve - header_items.len();
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
-            let reserved = items[..to_reserve].iter().map(|item| Arc::downgrade(item)).collect::<Vec<_>>();
+            let reserved = items[..to_reserve].to_vec();
             header_items.extend_from_slice(&reserved);
             pool.extend_from_slice(&items[to_reserve..]);
         } else {
@@ -195,7 +195,7 @@ impl ItemPool {
         ItemPoolGuard { guard, start: taken }
     }
 
-    pub fn reserved(&self) -> ItemPoolGuard<Weak<dyn SkimItem>> {
+    pub fn reserved(&self) -> ItemPoolGuard<Arc<dyn SkimItem>> {
         let guard = self.reserved_items.lock();
         ItemPoolGuard { guard, start: 0 }
     }

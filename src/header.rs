@@ -10,7 +10,6 @@ use crate::{DisplayContext, SkimOptions};
 use std::cmp::max;
 use std::sync::Arc;
 use tuikit::prelude::*;
-use std::sync::Weak;
 
 pub struct Header {
     header: Vec<AnsiString>,
@@ -111,12 +110,6 @@ impl Draw for Header {
 
         // print "reserved" header lines (--header-lines)
         for (idx, item) in self.item_pool.reserved().iter().enumerate() {
-            let upgraded= if let Some(unwrapped) = Weak::upgrade(item) {
-                unwrapped
-            } else {
-                continue
-            };
-
             let mut printer = LinePrinter::builder()
                 .row(self.adjust_row(idx + lines_used, screen_height))
                 .col(2)
@@ -127,14 +120,14 @@ impl Draw for Header {
                 .build();
 
             let context = DisplayContext {
-                text: &upgraded.text(),
+                text: &item.text(),
                 score: 0,
                 matches: None,
                 container_width: screen_width - 2,
                 highlight_attr: self.theme.header(),
             };
 
-            print_item(canvas, &mut printer, upgraded.display(context), self.theme.header());
+            print_item(canvas, &mut printer, item.display(context), self.theme.header());
         }
 
         Ok(())
