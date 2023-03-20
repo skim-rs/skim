@@ -88,7 +88,7 @@ impl<T: Any> AsAny for T {
 /// }
 ///
 /// ```
-pub trait SkimItem: Send + Sync {
+pub trait SkimItem<'a>: Send + Sync + 'a {
     /// The string to be used for matching (without color)
     fn text(&self) -> Cow<str>;
 
@@ -121,7 +121,7 @@ pub trait SkimItem: Send + Sync {
 //------------------------------------------------------------------------------
 // Implement SkimItem for raw strings
 
-impl<T: AsRef<str> + Send + Sync> SkimItem for T {
+impl<'a, T: AsRef<str> + Send + Sync + 'a> SkimItem<'a> for T {
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(self.as_ref())
     }
@@ -268,8 +268,8 @@ pub trait Selector {
 }
 
 //------------------------------------------------------------------------------
-pub type SkimItemSender = Sender<Arc<dyn SkimItem + Send + Sync>>;
-pub type SkimItemReceiver = Receiver<Arc<dyn SkimItem + Send + Sync>>;
+pub type SkimItemSender = Sender<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>;
+pub type SkimItemReceiver = Receiver<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>;
 
 pub struct Skim {}
 

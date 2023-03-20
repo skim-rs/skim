@@ -30,7 +30,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem + Send + Sync>>>>,
+    items: Arc<SpinLock<Vec<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>>>,
 }
 
 impl ReaderControl {
@@ -45,7 +45,7 @@ impl ReaderControl {
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
 
-    pub fn take(&self) -> Vec<Arc<dyn SkimItem + Send + Sync>> {
+    pub fn take(&self) -> Vec<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>> {
         let mut items = self.items.lock();
         let mut ret = Vec::with_capacity(items.len());
         ret.append(&mut items);
@@ -104,7 +104,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem + Send + Sync>>>>,
+    items: Arc<SpinLock<Vec<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>>>,
 ) -> Sender<i32> {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
