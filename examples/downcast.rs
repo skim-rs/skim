@@ -9,7 +9,7 @@ struct Item {
     text: String,
 }
 
-impl SkimItem for Item {
+impl SkimItem<'_> for Item {
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(&self.text)
     }
