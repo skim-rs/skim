@@ -63,7 +63,7 @@ impl RankBuilder {
 //------------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct MatchedItem {
-    pub item: Arc<dyn for<'a> SkimItem<'a> + Send + Sync>,
+    pub item: Arc<dyn SkimItem + Send + Sync>,
     pub metadata: Option<Box<MatchedItemMetadata>>,
 }
 
@@ -116,12 +116,12 @@ const ITEM_POOL_CAPACITY: usize = 1024;
 
 pub struct ItemPool {
     length: AtomicUsize,
-    pool: SpinLock<Vec<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>>,
+    pool: SpinLock<Vec<Arc<dyn SkimItem + Send + Sync>>>,
     /// number of items that was `take`n
     taken: AtomicUsize,
 
     /// reverse first N lines as header
-    reserved_items: SpinLock<Vec<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>>,
+    reserved_items: SpinLock<Vec<Arc<dyn SkimItem + Send + Sync>>>,
     lines_to_reserve: usize,
 }
 
@@ -169,7 +169,7 @@ impl ItemPool {
     }
 
     /// append the items and return the new_size of the pool
-    pub fn append(&self, mut items: Vec<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>>) -> usize {
+    pub fn append(&self, mut items: Vec<Arc<dyn SkimItem + Send + Sync>>) -> usize {
         let len = items.len();
         trace!("item pool, append {} items", len);
         let mut pool = self.pool.lock();
@@ -189,13 +189,13 @@ impl ItemPool {
         pool.len()
     }
 
-    pub fn take(&self) -> ItemPoolGuard<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>> {
+    pub fn take(&self) -> ItemPoolGuard<Arc<dyn SkimItem + Send + Sync>> {
         let guard = self.pool.lock();
         let taken = self.taken.swap(guard.len(), Ordering::SeqCst);
         ItemPoolGuard { guard, start: taken }
     }
 
-    pub fn reserved(&self) -> ItemPoolGuard<Arc<dyn for<'a> SkimItem<'a> + Send + Sync>> {
+    pub fn reserved(&self) -> ItemPoolGuard<Arc<dyn SkimItem + Send + Sync>> {
         let guard = self.reserved_items.lock();
         ItemPoolGuard { guard, start: 0 }
     }

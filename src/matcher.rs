@@ -105,38 +105,37 @@ impl Matcher {
 
             trace!("matcher start, total: {}", items.len());
 
-            let filter_op = |index: usize,
-                             item: &Arc<dyn for<'a> SkimItem<'a> + Sync + Send>|
-             -> Option<Result<MatchedItem, &str>> {
-                processed.fetch_add(1, Ordering::Relaxed);
+            let filter_op =
+                |index: usize, item: &Arc<dyn SkimItem + Sync + Send>| -> Option<Result<MatchedItem, &str>> {
+                    processed.fetch_add(1, Ordering::Relaxed);
 
-                if matcher_disabled {
-                    return Some(Ok(MatchedItem {
-                        item: item.clone(),
-                        metadata: None,
-                    }));
-                }
+                    if matcher_disabled {
+                        return Some(Ok(MatchedItem {
+                            item: item.clone(),
+                            metadata: None,
+                        }));
+                    }
 
-                if stopped.load(Ordering::Relaxed) {
-                    return Some(Err("matcher killed"));
-                }
+                    if stopped.load(Ordering::Relaxed) {
+                        return Some(Err("matcher killed"));
+                    }
 
-                matcher_engine.match_item(item.as_ref()).map(|match_result| {
-                    matched.fetch_add(1, Ordering::Relaxed);
-                    Ok(MatchedItem {
-                        item: item.clone(),
-                        metadata: {
-                            Some(Box::new({
-                                MatchedItemMetadata {
-                                    rank: match_result.rank,
-                                    matched_range: Some(match_result.matched_range),
-                                    item_idx: (num_taken + index) as u32,
-                                }
-                            }))
-                        },
+                    matcher_engine.match_item(item.as_ref()).map(|match_result| {
+                        matched.fetch_add(1, Ordering::Relaxed);
+                        Ok(MatchedItem {
+                            item: item.clone(),
+                            metadata: {
+                                Some(Box::new({
+                                    MatchedItemMetadata {
+                                        rank: match_result.rank,
+                                        matched_range: Some(match_result.matched_range),
+                                        item_idx: (num_taken + index) as u32,
+                                    }
+                                }))
+                            },
+                        })
                     })
-                })
-            };
+                };
 
             let result: Result<Vec<_>, _> = MATCHER_POOL.install(|| {
                 items

@@ -84,7 +84,7 @@ impl DefaultSkimItem {
     }
 }
 
-impl SkimItem<'_> for DefaultSkimItem {
+impl SkimItem for DefaultSkimItem {
     #[inline]
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(self.text.stripped())

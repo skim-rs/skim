@@ -5,7 +5,7 @@ struct MyItem {
     inner: String,
 }
 
-impl SkimItem<'_> for MyItem {
+impl SkimItem for MyItem {
     fn text(&self) -> Cow<str> {
         Cow::Borrowed(&self.inner)
     }
