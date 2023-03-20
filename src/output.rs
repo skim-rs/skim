@@ -23,5 +23,5 @@ pub struct SkimOutput {
     pub cmd: String,
 
     /// The selected items.
-    pub selected_items: Vec<Arc<dyn SkimItem>>,
+    pub selected_items: Vec<Arc<dyn SkimItem + Send + Sync>>,
 }

@@ -28,7 +28,7 @@ pub struct BuildOptions<'a> {
 pub fn ingest_loop(
     mut source: Box<dyn BufRead + Send>,
     line_ending: u8,
-    tx_item: Sender<Arc<dyn SkimItem>>,
+    tx_item: Sender<Arc<dyn SkimItem + Send + Sync>>,
     opts: SendRawOrBuild,
 ) {
     let mut bytes_buffer = Vec::with_capacity(65_536);
@@ -71,7 +71,7 @@ pub fn ingest_loop(
     }
 }
 
-fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
+fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem + Send + Sync>>) -> Option<()> {
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
