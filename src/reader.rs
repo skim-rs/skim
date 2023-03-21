@@ -116,12 +116,12 @@ fn collect_item(
         started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
         let mut sel = Select::new();
-        let oper1 = sel.recv(&rx_item);
-        let oper2 = sel.recv(&rx_interrupt);
+        let item_channel = sel.recv(&rx_item);
+        let interrupt_channel = sel.recv(&rx_interrupt);
 
         loop {
             match sel.ready() {
-                i if i == oper1 => {
+                i if i == item_channel => {
                     if let Ok(item) = rx_item.recv() {
                         let mut vec = items.lock();
                         vec.push(item)
@@ -129,7 +129,7 @@ fn collect_item(
                         break;
                     }
                 }
-                i if i == oper2 => break,
+                i if i == interrupt_channel => break,
                 _ => unreachable!(),
             }
         }
