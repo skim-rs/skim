@@ -8,7 +8,6 @@ use fuzzy_matcher::FuzzyMatcher;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
 use crate::{MatchRange, MatchResult, SkimItem};
-use bitflags::_core::cmp::min;
 
 //------------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
@@ -132,8 +131,8 @@ impl MatchEngine for FuzzyEngine {
             .unwrap_or(&default_range)
             .iter()
             .find_map(|(start, end)| {
-                let start = min(*start, item_text.len());
-                let end = min(*end, item_text.len());
+                let start = std::cmp::min(*start, item_text.len());
+                let end = std::cmp::min(*end, item_text.len());
                 self.fuzzy_match(&item_text[start..end], &self.query).map(|(s, vec)| {
                     if start != 0 {
                         let start_char = &item_text[..start].len();
