@@ -105,23 +105,19 @@ impl Matcher {
 
             trace!("matcher start, total: {}", items.len());
 
-            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<Result<MatchedItem, &str>> {
+            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<MatchedItem> {
                 processed.fetch_add(1, Ordering::Relaxed);
 
                 if matcher_disabled {
-                    return Some(Ok(MatchedItem {
+                    return Some(MatchedItem {
                         item: item.clone(),
                         metadata: None,
-                    }));
-                }
-
-                if stopped.load(Ordering::Relaxed) {
-                    return Some(Err("matcher killed"));
+                    });
                 }
 
                 matcher_engine.match_item(item.as_ref()).map(|match_result| {
                     matched.fetch_add(1, Ordering::Relaxed);
-                    Ok(MatchedItem {
+                    MatchedItem {
                         item: item.clone(),
                         metadata: {
                             Some(Box::new({
@@ -132,21 +128,24 @@ impl Matcher {
                                 }
                             }))
                         },
-                    })
+                    }
                 })
             };
 
-            let result: Result<Vec<_>, _> = MATCHER_POOL.install(|| {
+            let new_items: Vec<_> = MATCHER_POOL.install(|| {
                 items
                     .par_iter()
                     .enumerate()
+                    .take_any_while(|_| {
+                        !stopped.load(Ordering::Relaxed)
+                    })
                     .filter_map(|(index, item)| filter_op(index, item))
                     .collect()
             });
 
-            if let Ok(items) = result {
+            if !stopped.load(Ordering::Relaxed) {
                 let mut pool = matched_items.lock();
-                *pool = items;
+                *pool = new_items;
                 trace!("matcher stop, total matched: {}", pool.len());
             }
 
