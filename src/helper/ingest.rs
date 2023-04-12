@@ -54,8 +54,8 @@ pub fn ingest_loop(
 
         let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
-        chunk
-            .split(&['\n', line_ending as char])
+        let line_iter = chunk
+            .split(['\n', line_ending as char])
             .map(|line| {
                 if line.ends_with("\r\n") {
                     line.trim_end_matches("\r\n")
@@ -64,15 +64,18 @@ pub fn ingest_loop(
                 } else {
                     line
                 }
-            })
-            .for_each(|line| {
-                let _ = send(line, &opts, &tx_item);
             });
+
+        for line in line_iter {
+            if let None = send(line, &opts, &tx_item) {
+                return
+            }
+        } 
     }
 }
 
 fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
-    match opts {
+    let res = match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
                 line.into(),
@@ -81,11 +84,16 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.send(Arc::new(item)).ok()
+            tx_item.try_send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.send(Arc::new(boxed)).ok()
+            tx_item.try_send(Arc::new(boxed))
         }
+    };
+
+    match res {
+        Err(err) if err.is_disconnected() => None,
+        _ => Some(())
     }
 }
