@@ -113,7 +113,9 @@ impl FuzzyEngine {
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<(i64, Vec<usize>)> {
         if pattern.is_empty() {
             return Some((0, Vec::new()));
-        } else if choice.is_empty() {
+        }
+        
+        if choice.is_empty() {
             return None;
         }
 
@@ -125,15 +127,18 @@ impl MatchEngine for FuzzyEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         // iterate over all matching fields:
         let item_text = item.text();
-        let default_range = [(0, item_text.len())];
+        let item_len = item_text.len();
+        let query_text = &self.query;
+        let default_range = [(0, item_len)];
+        
         let matched_result: Option<(i64, Vec<usize>)> = item
             .get_matching_ranges()
             .unwrap_or(&default_range)
             .iter()
             .find_map(|(start, end)| {
-                let start = std::cmp::min(*start, item_text.len());
-                let end = std::cmp::min(*end, item_text.len());
-                self.fuzzy_match(&item_text[start..end], &self.query).map(|(s, vec)| {
+                let start = std::cmp::min(*start, item_len);
+                let end = std::cmp::min(*end, item_len);
+                self.fuzzy_match(&item_text[start..end], &query_text).map(|(s, vec)| {
                     if start != 0 {
                         let start_char = &item_text[..start].len();
                         return (s, vec.iter().map(|x| x + start_char).collect());
@@ -146,8 +151,6 @@ impl MatchEngine for FuzzyEngine {
         matched_result.map(|(score, matched_range)| {
             let begin = *matched_range.first().unwrap_or(&0);
             let end = *matched_range.last().unwrap_or(&0);
-
-            let item_len = item_text.len();
 
             MatchResult {
                 rank: self.rank_builder.build_rank(score as i32, begin, end, item_len),
