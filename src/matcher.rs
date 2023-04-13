@@ -136,9 +136,7 @@ impl Matcher {
                 items
                     .par_iter()
                     .enumerate()
-                    .take_any_while(|_| {
-                        !stopped.load(Ordering::Relaxed)
-                    })
+                    .take_any_while(|_| !stopped.load(Ordering::Relaxed))
                     .filter_map(|(index, item)| filter_op(index, item))
                     .collect()
             });

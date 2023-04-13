@@ -114,7 +114,7 @@ impl FuzzyEngine {
         if pattern.is_empty() {
             return Some((0, Vec::new()));
         }
-        
+
         if choice.is_empty() {
             return None;
         }
@@ -130,7 +130,7 @@ impl MatchEngine for FuzzyEngine {
         let item_len = item_text.len();
         let query_text = &self.query;
         let default_range = [(0, item_len)];
-        
+
         let matched_result: Option<(i64, Vec<usize>)> = item
             .get_matching_ranges()
             .unwrap_or(&default_range)
@@ -138,7 +138,7 @@ impl MatchEngine for FuzzyEngine {
             .find_map(|(start, end)| {
                 let start = std::cmp::min(*start, item_len);
                 let end = std::cmp::min(*end, item_len);
-                self.fuzzy_match(&item_text[start..end], &query_text).map(|(s, vec)| {
+                self.fuzzy_match(&item_text[start..end], query_text).map(|(s, vec)| {
                     if start != 0 {
                         let start_char = &item_text[..start].len();
                         return (s, vec.iter().map(|x| x + start_char).collect());

@@ -54,23 +54,21 @@ pub fn ingest_loop(
 
         let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
-        let line_iter = chunk
-            .split(['\n', line_ending as char])
-            .map(|line| {
-                if line.ends_with("\r\n") {
-                    line.trim_end_matches("\r\n")
-                } else if line.ends_with('\r') {
-                    line.trim_end_matches('\r')
-                } else {
-                    line
-                }
-            });
+        let line_iter = chunk.split(['\n', line_ending as char]).map(|line| {
+            if line.ends_with("\r\n") {
+                line.trim_end_matches("\r\n")
+            } else if line.ends_with('\r') {
+                line.trim_end_matches('\r')
+            } else {
+                line
+            }
+        });
 
         for line in line_iter {
-            if let None = send(line, &opts, &tx_item) {
-                return
+            if send(line, &opts, &tx_item).is_none() {
+                return;
             }
-        } 
+        }
     }
 }
 
@@ -94,6 +92,6 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
 
     match res {
         Err(err) if err.is_disconnected() => None,
-        _ => Some(())
+        _ => Some(()),
     }
 }
