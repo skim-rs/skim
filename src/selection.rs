@@ -166,13 +166,14 @@ impl Selection {
 
         let current_run_num = current_run_num();
         for item in items {
+            let upgraded = item.upgrade_item_infallible();
             if self
                 .selector
                 .as_ref()
-                .map(|s| s.should_select(item.md_infallible().item_idx as usize, item.item.as_ref()))
+                .map(|s| s.should_select(item.md_infallible().item_idx as usize, upgraded.as_ref()))
                 .unwrap_or(false)
             {
-                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, item.item.clone());
+                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, upgraded.clone());
             }
         }
         debug!("done perform pre selection for {} items", items.len());
@@ -230,7 +231,7 @@ impl Selection {
             .unwrap_or_else(|| panic!("model:act_toggle: failed to get item {}", cursor));
         let index = (current_run_num(), current_item.md_infallible().item_idx);
         if !self.selected.contains_key(&index) {
-            self.selected.insert(index, current_item.item.clone());
+            self.selected.insert(index, current_item.upgrade_item_infallible());
         } else {
             self.selected.remove(&index);
         }
@@ -246,7 +247,7 @@ impl Selection {
         for current_item in self.items.iter() {
             let index = (run_num, current_item.md_infallible().item_idx);
             if !self.selected.contains_key(&index) {
-                self.selected.insert(index, current_item.item.clone());
+                self.selected.insert(index, current_item.upgrade_item_infallible());
             } else {
                 self.selected.remove(&index);
             }
@@ -254,7 +255,11 @@ impl Selection {
     }
 
     pub fn act_select_matched(&mut self, run_num: u32, matched: MatchedItem) {
-        self.act_select_raw_item(run_num, matched.md_infallible().item_idx, matched.item);
+        self.act_select_raw_item(
+            run_num,
+            matched.md_infallible().item_idx,
+            matched.upgrade_item_infallible(),
+        );
     }
 
     pub fn act_select_raw_item(&mut self, run_num: u32, item_index: u32, item: Arc<dyn SkimItem>) {
@@ -271,7 +276,7 @@ impl Selection {
 
         let run_num = current_run_num();
         for current_item in self.items.iter() {
-            let item = current_item.item.clone();
+            let item = current_item.upgrade_item_infallible();
             self.selected
                 .insert((run_num, current_item.md_infallible().item_idx), item);
         }
@@ -297,7 +302,7 @@ impl Selection {
                 .items
                 .get(cursor)
                 .unwrap_or_else(|| panic!("model:act_output: failed to get item {}", cursor));
-            let item = current_item.item.clone();
+            let item = current_item.upgrade_item_infallible();
             item_indices.push(cursor);
             selected.push(item);
         }
@@ -323,7 +328,7 @@ impl Selection {
 
     pub fn get_current_item(&self) -> Option<Arc<dyn SkimItem>> {
         let item_idx = self.get_current_item_idx();
-        self.items.get(item_idx).map(|item| item.item.clone())
+        self.items.get(item_idx).map(|item| item.upgrade_item_infallible())
     }
 
     pub fn get_hscroll_offset(&self) -> i64 {
@@ -439,7 +444,7 @@ impl Selection {
             let _ = canvas.print_with_attr(row, 1, " ", default_attr);
         }
 
-        let item = &matched_item.item;
+        let item = &matched_item.upgrade_item_infallible();
         let item_text = item.text();
         let container_width = screen_width - 2;
 

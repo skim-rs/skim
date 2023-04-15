@@ -483,7 +483,7 @@ impl Model {
         let new_len = self.item_pool.append(vec![item.clone()]);
         let item_idx = (max(new_len, 1) - 1) as u32;
         let matched_item = MatchedItem {
-            item,
+            item: Arc::downgrade(&item),
             metadata: {
                 Some(Box::new({
                     MatchedItemMetadata {

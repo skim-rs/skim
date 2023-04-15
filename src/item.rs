@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::default::Default;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
 use crate::{MatchRange, Rank, SkimItem};
@@ -63,7 +63,7 @@ impl RankBuilder {
 //------------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct MatchedItem {
-    pub item: Arc<dyn SkimItem>,
+    pub item: Weak<dyn SkimItem>,
     pub metadata: Option<Box<MatchedItemMetadata>>,
 }
 
@@ -86,6 +86,10 @@ impl MatchedItem {
             Some(md) => md.as_ref(),
             None => &DUMMY_METADATA,
         }
+    }
+
+    pub fn upgrade_item_infallible(&self) -> Arc<dyn SkimItem> {
+        self.item.upgrade().unwrap().clone()
     }
 }
 
