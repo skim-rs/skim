@@ -27,8 +27,7 @@ pub struct DefaultSkimItem {
     text: AnsiString,
 
     // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
-    #[allow(clippy::box_collection)]
-    matching_ranges: Option<Box<Vec<(usize, usize)>>>,
+    matching_ranges: Option<Box<[(usize, usize)]>>,
 }
 
 impl DefaultSkimItem {
@@ -67,11 +66,11 @@ impl DefaultSkimItem {
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
-            Some(Box::new(parse_matching_fields(
-                delimiter,
-                text.stripped(),
-                matching_fields,
-            )))
+            Some(
+                parse_matching_fields(delimiter, text.stripped(), matching_fields)
+                    .as_slice()
+                    .into(),
+            )
         } else {
             None
         };
