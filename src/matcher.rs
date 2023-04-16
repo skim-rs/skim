@@ -106,8 +106,9 @@ impl Matcher {
             trace!("matcher start, total: {}", items.len());
 
             let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<MatchedItem> {
+                processed.fetch_add(1, Ordering::Relaxed);
+
                 if matcher_disabled {
-                    processed.fetch_add(1, Ordering::Relaxed);
                     return Some(MatchedItem {
                         item: Arc::downgrade(item),
                         metadata: None,
