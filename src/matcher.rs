@@ -75,9 +75,8 @@ impl Matcher {
         item_pool: Arc<ItemPool>,
         callback: Box<dyn Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send>,
     ) -> MatcherControl {
-
         let opt_matcher_pool: OnceCell<ThreadPool> = OnceCell::new();
-        
+
         opt_matcher_pool.get_or_init(|| {
             rayon::ThreadPoolBuilder::new()
                 .build()
@@ -99,6 +98,7 @@ impl Matcher {
         let matcher_disabled = disabled || query.is_empty();
 
         let thread_matcher = thread::spawn(move || {
+            let matcher_pool = opt_matcher_pool.get().expect("Could not initialize rayon threadpool");
             let num_taken = item_pool.num_taken();
             let items = item_pool.take();
 
@@ -135,7 +135,7 @@ impl Matcher {
                 })
             };
 
-            let new_items: Vec<_> = opt_matcher_pool.get().expect("Could not initialize rayon threadpool").install(|| {
+            let new_items: Vec<_> = matcher_pool.install(|| {
                 items
                     .par_iter()
                     .enumerate()
