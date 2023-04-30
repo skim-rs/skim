@@ -2,7 +2,7 @@
 use std::io::BufRead;
 use std::sync::Arc;
 
-use crossbeam::channel::Sender;
+use crossbeam_channel::Sender;
 use regex::Regex;
 
 use crate::field::FieldRange;

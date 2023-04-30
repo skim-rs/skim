@@ -6,7 +6,7 @@ pub use crate::helper::selector::DefaultSkimSelector;
 pub use crate::options::{SkimOptions, SkimOptionsBuilder};
 pub use crate::output::SkimOutput;
 pub use crate::*;
-pub use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
+pub use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 pub use std::borrow::Cow;
 pub use std::cell::RefCell;
 pub use std::rc::Rc;
