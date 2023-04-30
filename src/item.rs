@@ -89,7 +89,7 @@ impl MatchedItem {
     }
 
     pub fn upgrade_item_infallible(&self) -> Arc<dyn SkimItem> {
-        self.item.upgrade().unwrap().clone()
+        self.item.upgrade().unwrap_or(Arc::new(""))
     }
 }
 
