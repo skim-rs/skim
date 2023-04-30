@@ -24,7 +24,7 @@ type ItemIndex = (u32, u32);
 pub struct Selection {
     // all items
     items: OrderedVec<MatchedItem>,
-    selected: BTreeMap<ItemIndex, Arc<dyn SkimItem>>,
+    selected: BTreeMap<ItemIndex, MatchedItem>,
 
     //
     // |>------ items[items.len()-1]
@@ -166,14 +166,13 @@ impl Selection {
 
         let current_run_num = current_run_num();
         for item in items {
-            let upgraded = item.upgrade_item_infallible();
             if self
                 .selector
                 .as_ref()
-                .map(|s| s.should_select(item.md_infallible().item_idx as usize, upgraded.as_ref()))
+                .map(|s| s.should_select(item.md_infallible().item_idx as usize, item.upgrade_item_infallible().as_ref()))
                 .unwrap_or(false)
             {
-                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, upgraded);
+                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, item.clone());
             }
         }
         debug!("done perform pre selection for {} items", items.len());
@@ -231,7 +230,7 @@ impl Selection {
             .unwrap_or_else(|| panic!("model:act_toggle: failed to get item {}", cursor));
         let index = (current_run_num(), current_item.md_infallible().item_idx);
         if !self.selected.contains_key(&index) {
-            self.selected.insert(index, current_item.upgrade_item_infallible());
+            self.selected.insert(index, current_item.clone());
         } else {
             self.selected.remove(&index);
         }
@@ -247,7 +246,7 @@ impl Selection {
         for current_item in self.items.iter() {
             let index = (run_num, current_item.md_infallible().item_idx);
             if !self.selected.contains_key(&index) {
-                self.selected.insert(index, current_item.upgrade_item_infallible());
+                self.selected.insert(index, current_item.clone());
             } else {
                 self.selected.remove(&index);
             }
@@ -258,11 +257,11 @@ impl Selection {
         self.act_select_raw_item(
             run_num,
             matched.md_infallible().item_idx,
-            matched.upgrade_item_infallible(),
+            matched,
         );
     }
 
-    pub fn act_select_raw_item(&mut self, run_num: u32, item_index: u32, item: Arc<dyn SkimItem>) {
+    pub fn act_select_raw_item(&mut self, run_num: u32, item_index: u32, item: MatchedItem) {
         if !self.multi_selection {
             return;
         }
@@ -276,9 +275,8 @@ impl Selection {
 
         let run_num = current_run_num();
         for current_item in self.items.iter() {
-            let item = current_item.upgrade_item_infallible();
             self.selected
-                .insert((run_num, current_item.md_infallible().item_idx), item);
+                .insert((run_num, current_item.md_infallible().item_idx), current_item.clone());
         }
     }
 
@@ -293,7 +291,10 @@ impl Selection {
     pub fn get_selected_indices_and_items(&self) -> (Vec<usize>, Vec<Arc<dyn SkimItem>>) {
         // select the current one
         let select_cursor = !self.multi_selection || self.selected.is_empty();
-        let mut selected: Vec<Arc<dyn SkimItem>> = self.selected.values().cloned().collect();
+        let mut selected: Vec<Arc<dyn SkimItem>> = self.selected.values().map(|item| {
+            item.upgrade_item_infallible()
+        }).collect();
+
         let mut item_indices: Vec<usize> = self.selected.keys().map(|(_run, idx)| *idx as usize).collect();
 
         if select_cursor && !self.items.is_empty() {
