@@ -9,7 +9,7 @@ use crossbeam_channel::{bounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::thread;
 
 const CHANNEL_SIZE: usize = 1024;
@@ -30,7 +30,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 }
 
 impl ReaderControl {
@@ -46,15 +46,21 @@ impl ReaderControl {
     }
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
-        let mut items = self.items.lock();
+        let upgraded = self.upgrade_items();
+        let mut items = upgraded.lock();
         let mut ret = Vec::with_capacity(items.len());
         ret.append(&mut items);
         ret
     }
 
     pub fn is_done(&self) -> bool {
-        let items = self.items.lock();
+        let upgraded = self.upgrade_items();
+        let items = upgraded.lock();
         self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
+    }
+
+    pub fn upgrade_items(&self) -> Arc<SpinLock<Vec<Arc<dyn SkimItem>>>> {
+        self.items.upgrade().unwrap_or(Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY))))
     }
 }
 
@@ -96,7 +102,7 @@ impl Reader {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
-            items,
+            items: Arc::downgrade(&items),
         }
     }
 }
