@@ -453,7 +453,7 @@ impl Model {
         let cmd_query = self.query.get_cmd_query();
 
         let (indices, selections) = self.selection.get_selected_indices_and_items();
-        let tmp: Vec<Cow<str>> = selections.iter().map(|item| item.text()).collect();
+        let tmp: Vec<String> = selections.iter().map(|item| item.upgrade_item_infallible().text().into()).collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|cow| cow.as_ref()).collect();
 
         let context = InjectContext {
@@ -571,7 +571,17 @@ impl Model {
                         final_key: key,
                         query: self.query.get_fz_query(),
                         cmd: self.query.get_cmd_query(),
-                        selected_items: self.selection.get_selected_indices_and_items().1,
+                        selected_items: {
+                            let sel = self.selection
+                                .get_selected_indices_and_items()
+                                .1
+                                .iter()
+                                .map(|item| {
+                                    item.upgrade_item_infallible()
+                                })
+                                .collect();
+                            sel
+                        },
                     });
                 }
 
@@ -589,7 +599,17 @@ impl Model {
                         final_key: key,
                         query: self.query.get_fz_query(),
                         cmd: self.query.get_cmd_query(),
-                        selected_items: self.selection.get_selected_indices_and_items().1,
+                        selected_items: {
+                            let sel = self.selection
+                                .get_selected_indices_and_items()
+                                .1
+                                .iter()
+                                .map(|item| {
+                                    item.upgrade_item_infallible()
+                                })
+                                .collect();
+                            sel
+                        },
                     });
                 }
 

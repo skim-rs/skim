@@ -288,12 +288,10 @@ impl Selection {
         self.hscroll_offset += offset as i64;
     }
 
-    pub fn get_selected_indices_and_items(&self) -> (Vec<usize>, Vec<Arc<dyn SkimItem>>) {
+    pub fn get_selected_indices_and_items(&self) -> (Vec<usize>, Vec<MatchedItem>) {
         // select the current one
         let select_cursor = !self.multi_selection || self.selected.is_empty();
-        let mut selected: Vec<Arc<dyn SkimItem>> = self.selected.values().map(|item| {
-            item.upgrade_item_infallible()
-        }).collect();
+        let mut selected: Vec<MatchedItem> = self.selected.values().cloned().collect();
 
         let mut item_indices: Vec<usize> = self.selected.keys().map(|(_run, idx)| *idx as usize).collect();
 
@@ -303,9 +301,8 @@ impl Selection {
                 .items
                 .get(cursor)
                 .unwrap_or_else(|| panic!("model:act_output: failed to get item {}", cursor));
-            let item = current_item.upgrade_item_infallible();
             item_indices.push(cursor);
-            selected.push(item);
+            selected.push(current_item.clone());
         }
 
         (item_indices, selected)
