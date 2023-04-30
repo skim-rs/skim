@@ -173,7 +173,7 @@ impl Selection {
                 .map(|s| s.should_select(item.md_infallible().item_idx as usize, upgraded.as_ref()))
                 .unwrap_or(false)
             {
-                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, upgraded.clone());
+                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, upgraded);
             }
         }
         debug!("done perform pre selection for {} items", items.len());
