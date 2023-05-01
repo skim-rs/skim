@@ -766,8 +766,7 @@ impl Model {
             }),
         );
 
-        let old = self.matcher_control.replace(new_matcher_control);
-        old.map(|inner| inner.kill());
+        self.matcher_control.replace(new_matcher_control);
     }
 
     /// construct the widget tree
