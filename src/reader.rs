@@ -60,7 +60,9 @@ impl ReaderControl {
     }
 
     pub fn upgrade_items(&self) -> Arc<SpinLock<Vec<Arc<dyn SkimItem>>>> {
-        self.items.upgrade().unwrap_or(Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY))))
+        self.items
+            .upgrade()
+            .unwrap_or(Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY))))
     }
 }
 

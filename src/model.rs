@@ -453,7 +453,10 @@ impl Model {
         let cmd_query = self.query.get_cmd_query();
 
         let (indices, selections) = self.selection.get_selected_indices_and_items();
-        let tmp: Vec<String> = selections.iter().map(|item| item.upgrade_item_infallible().text().into()).collect();
+        let tmp: Vec<String> = selections
+            .iter()
+            .map(|item| item.upgrade_item_infallible().text().into())
+            .collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|cow| cow.as_ref()).collect();
 
         let context = InjectContext {
@@ -572,13 +575,12 @@ impl Model {
                         query: self.query.get_fz_query(),
                         cmd: self.query.get_cmd_query(),
                         selected_items: {
-                            let sel = self.selection
+                            let sel = self
+                                .selection
                                 .get_selected_indices_and_items()
                                 .1
                                 .iter()
-                                .map(|item| {
-                                    item.upgrade_item_infallible()
-                                })
+                                .map(|item| item.upgrade_item_infallible())
                                 .collect();
                             sel
                         },
@@ -600,13 +602,12 @@ impl Model {
                         query: self.query.get_fz_query(),
                         cmd: self.query.get_cmd_query(),
                         selected_items: {
-                            let sel = self.selection
+                            let sel = self
+                                .selection
                                 .get_selected_indices_and_items()
                                 .1
                                 .iter()
-                                .map(|item| {
-                                    item.upgrade_item_infallible()
-                                })
+                                .map(|item| item.upgrade_item_infallible())
                                 .collect();
                             sel
                         },

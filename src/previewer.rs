@@ -14,10 +14,10 @@ use tuikit::prelude::{Event as TermEvent, *};
 
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
+use crate::item::MatchedItem;
 use crate::spinlock::SpinLock;
 use crate::util::{atoi, clear_canvas, depends_on_items, inject_command, InjectContext};
 use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
-use crate::item::MatchedItem;
 
 const TAB_STOP: usize = 8;
 const DELIMITER_STR: &str = r"[\t\n ]+";
@@ -175,7 +175,10 @@ impl Previewer {
         let cmd_query = self.prev_cmd_query.as_deref().unwrap_or("");
 
         let (indices, selections) = get_selected_items();
-        let tmp: Vec<_> = selections.iter().map(|item| item.upgrade_item_infallible().text().into_owned()).collect();
+        let tmp: Vec<_> = selections
+            .iter()
+            .map(|item| item.upgrade_item_infallible().text().into_owned())
+            .collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|item| item.as_ref()).collect();
 
         let columns = self.width.load(Ordering::Relaxed);

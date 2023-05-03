@@ -11,8 +11,10 @@ use crate::{MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
 #[derive(Debug, Copy, Clone)]
+#[derive(Default)]
 pub enum FuzzyAlgorithm {
     SkimV1,
+    #[default]
     SkimV2,
     Clangd,
 }
@@ -28,11 +30,7 @@ impl FuzzyAlgorithm {
     }
 }
 
-impl Default for FuzzyAlgorithm {
-    fn default() -> Self {
-        FuzzyAlgorithm::SkimV2
-    }
-}
+
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
 

@@ -169,7 +169,12 @@ impl Selection {
             if self
                 .selector
                 .as_ref()
-                .map(|s| s.should_select(item.md_infallible().item_idx as usize, item.upgrade_item_infallible().as_ref()))
+                .map(|s| {
+                    s.should_select(
+                        item.md_infallible().item_idx as usize,
+                        item.upgrade_item_infallible().as_ref(),
+                    )
+                })
                 .unwrap_or(false)
             {
                 self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, item.clone());
@@ -254,11 +259,7 @@ impl Selection {
     }
 
     pub fn act_select_matched(&mut self, run_num: u32, matched: MatchedItem) {
-        self.act_select_raw_item(
-            run_num,
-            matched.md_infallible().item_idx,
-            matched,
-        );
+        self.act_select_raw_item(run_num, matched.md_infallible().item_idx, matched);
     }
 
     pub fn act_select_raw_item(&mut self, run_num: u32, item_index: u32, item: MatchedItem) {
