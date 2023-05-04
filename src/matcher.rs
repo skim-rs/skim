@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
-use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use rayon::ThreadPool;
 
@@ -11,6 +11,12 @@ use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
+
+static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
+    rayon::ThreadPoolBuilder::new()
+        .build()
+        .expect("Could not initialize rayon threadpool")
+});
 
 //==============================================================================
 pub struct MatcherControl {
@@ -75,14 +81,6 @@ impl Matcher {
         item_pool: Arc<ItemPool>,
         callback: Box<dyn Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send>,
     ) -> MatcherControl {
-        let opt_matcher_pool: OnceCell<ThreadPool> = OnceCell::new();
-
-        opt_matcher_pool.get_or_init(|| {
-            rayon::ThreadPoolBuilder::new()
-                .build()
-                .expect("Could not initialize rayon threadpool")
-        });
-
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
         let stopped = Arc::new(AtomicBool::new(false));
@@ -98,7 +96,6 @@ impl Matcher {
         let matcher_disabled = disabled || query.is_empty();
 
         let thread_matcher = thread::spawn(move || {
-            let matcher_pool = opt_matcher_pool.get().expect("Could not initialize rayon threadpool");
             let num_taken = item_pool.num_taken();
             let items = item_pool.take();
 
@@ -135,7 +132,7 @@ impl Matcher {
                 })
             };
 
-            let new_items: Vec<_> = matcher_pool.install(|| {
+            let new_items: Vec<_> = MATCHER_POOL.install(|| {
                 items
                     .par_iter()
                     .enumerate()
