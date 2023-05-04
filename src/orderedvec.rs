@@ -155,8 +155,8 @@ impl<T: Send + Ord> OrderedVec<T> {
     }
 
     pub fn clear(&mut self) {
-        self.sub_vectors.replace(Vec::new());
-        self.sorted.replace(Vec::new());
+        self.sub_vectors.take();
+        self.sorted.take();
     }
 
     pub fn is_empty(&self) -> bool {
