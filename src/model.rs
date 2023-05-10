@@ -98,16 +98,6 @@ pub struct Model {
     rank_builder: Arc<RankBuilder>,
 }
 
-impl Drop for Model {
-    fn drop(&mut self) {
-        let _ = Arc::downgrade(&self.item_pool);
-        let _ = Arc::downgrade(&self.term);
-        let _ = Arc::downgrade(&self.theme);
-
-        drop(self)
-    }
-}
-
 impl Model {
     pub fn new(rx: EventReceiver, tx: EventSender, reader: Reader, term: Arc<Term>, options: &SkimOptions) -> Self {
         let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
