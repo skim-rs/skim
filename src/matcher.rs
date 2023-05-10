@@ -38,6 +38,9 @@ impl MatcherControl {
 
     pub fn kill(self) {
         self.stopped.store(true, Ordering::Relaxed);
+        let mut items = self.items;
+        let old = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
+        drop(old);
         let _ = self.thread_matcher.join();
     }
 

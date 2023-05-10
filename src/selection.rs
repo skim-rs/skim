@@ -60,6 +60,16 @@ pub struct Selection {
     selector: Option<Rc<dyn Selector>>,
 }
 
+impl Drop for Selection {
+    fn drop(&mut self) {
+        let _ = std::mem::take(&mut self.selected);
+        let _ = std::mem::take(&mut self.items);
+        let _ = Arc::downgrade(&self.theme);
+
+        drop(self)
+    }
+}
+
 impl Selection {
     pub fn new() -> Self {
         Selection {

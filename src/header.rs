@@ -21,6 +21,15 @@ pub struct Header {
     item_pool: Arc<ItemPool>,
 }
 
+impl Drop for Header {
+    fn drop(&mut self) {
+        let _ = std::mem::replace(&mut self.item_pool, Arc::new(ItemPool::new()));
+        let _ = std::mem::take(&mut self.header);
+
+        drop(self)
+    }
+}
+
 impl Header {
     pub fn empty() -> Self {
         Self {
