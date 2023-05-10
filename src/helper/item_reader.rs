@@ -161,9 +161,14 @@ impl SkimItemReader {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(self.option.buf_size);
         let line_ending = self.option.line_ending;
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             ingest_loop(source, line_ending, tx_item, SendRawOrBuild::Raw);
         });
+
+        let _ = thread::spawn(|| {
+            handle.join()
+        });
+
         rx_item
     }
 
@@ -188,7 +193,7 @@ impl SkimItemReader {
         let tx_item_clone = tx_item.clone();
         let send_error = self.option.show_error;
         // listening to close signal and kill command if needed
-        thread::spawn(move || {
+        let handle_1 = thread::spawn(move || {
             debug!("collector: command killer start");
             components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
             started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
@@ -225,7 +230,7 @@ impl SkimItemReader {
         let started_clone = started.clone();
         let tx_interrupt_clone = tx_interrupt.clone();
         let option = self.option.clone();
-        thread::spawn(move || {
+        let handle_2 = thread::spawn(move || {
             debug!("collector: command collector start");
             components_to_stop.fetch_add(1, Ordering::SeqCst);
             started_clone.store(true, Ordering::SeqCst);
@@ -243,6 +248,14 @@ impl SkimItemReader {
             let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
             components_to_stop.fetch_sub(1, Ordering::SeqCst);
             debug!("collector: command collector stop");
+        });
+
+        let _ = thread::spawn(|| {
+            handle_1.join()
+        });
+
+        let _ = thread::spawn(|| {
+            handle_2.join()
         });
 
         while !started.load(Ordering::SeqCst) {
