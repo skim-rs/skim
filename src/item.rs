@@ -3,7 +3,6 @@
 use std::cmp::min;
 use std::default::Default;
 use std::ops::Deref;
-use std::ops::DerefMut;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 
@@ -132,19 +131,8 @@ pub struct ItemPool {
 
 impl Drop for ItemPool {
     fn drop(&mut self) {
-        let old_pool = std::mem::replace(&mut self.pool, SpinLock::new(Vec::new()));
-        let old_reserved_items = std::mem::replace(&mut self.reserved_items, SpinLock::new(Vec::new()));
-
-        let mut locked_pool = old_pool.lock();
-        let mut locked_items = old_reserved_items.lock();
-
-        let vec_pool = locked_pool.deref_mut();
-        let vec_items = locked_items.deref_mut();
-
-        drop(vec_pool);
-        drop(vec_items);
-
-        drop(self)
+        let _old_pool = std::mem::replace(&mut self.pool, SpinLock::new(Vec::new()));
+        let _old_reserved_items = std::mem::replace(&mut self.reserved_items, SpinLock::new(Vec::new()));
     }
 }
 

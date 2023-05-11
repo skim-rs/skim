@@ -7,7 +7,6 @@ use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam_channel::{bounded, Select, Sender};
 use std::cell::RefCell;
-use std::ops::DerefMut;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -45,11 +44,7 @@ impl ReaderControl {
         let _ = self.tx_interrupt.send(1);
 
         let mut items = self.items;
-        let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
-        let mut locked = old_items.lock();
-
-        let vec = locked.deref_mut();
-        drop(vec);
+        let _old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }

@@ -64,8 +64,6 @@ impl Drop for Selection {
     fn drop(&mut self) {
         std::mem::take(&mut self.selected);
         std::mem::take(&mut self.items);
-
-        drop(self)
     }
 }
 
