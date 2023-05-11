@@ -18,6 +18,13 @@ pub struct OrderedVec<T: Send + Ord> {
     nosort: bool,
 }
 
+impl<T: Send + Ord> Drop for OrderedVec<T> {
+    fn drop(&mut self) {
+        self.sorted.take();
+        self.sub_vectors.take();
+    }
+}
+
 impl<T: Send + Ord> Default for OrderedVec<T> {
     fn default() -> Self {
         OrderedVec::new()
