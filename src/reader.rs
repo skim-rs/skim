@@ -118,7 +118,7 @@ fn collect_item(
 
     let started = Arc::new(AtomicBool::new(false));
     let started_clone = started.clone();
-    let handle = thread::spawn(move || {
+    thread::spawn(move || {
         debug!("reader: collect_item start");
         components_to_stop.fetch_add(1, Ordering::SeqCst);
         started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
@@ -144,10 +144,6 @@ fn collect_item(
 
         components_to_stop.fetch_sub(1, Ordering::SeqCst);
         debug!("reader: collect_item stop");
-    });
-
-    let _ = thread::spawn(|| {
-        handle.join()
     });
 
     while !started.load(Ordering::SeqCst) {
