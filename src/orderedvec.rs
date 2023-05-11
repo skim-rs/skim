@@ -18,6 +18,12 @@ pub struct OrderedVec<T: Send + Ord> {
     nosort: bool,
 }
 
+impl<T: Send + Ord> Default for OrderedVec<T> {
+    fn default() -> Self {
+        OrderedVec::new()
+    }
+}
+
 impl<T: Send + Ord> OrderedVec<T> {
     pub fn new() -> Self {
         OrderedVec {

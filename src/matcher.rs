@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+use lazy_static::__Deref;
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use rayon::ThreadPool;
@@ -38,6 +39,10 @@ impl MatcherControl {
 
     pub fn kill(self) {
         self.stopped.store(true, Ordering::Relaxed);
+        let mut items =  self.items;
+        let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
+        let locked = old_items.lock();
+        drop(&mut locked.deref());
         let _ = self.thread_matcher.join();
     }
 
