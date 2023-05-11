@@ -98,6 +98,12 @@ pub struct Model {
     rank_builder: Arc<RankBuilder>,
 }
 
+impl Drop for Model {
+    fn drop(&mut self) {
+        std::mem::take(&mut self.item_pool);
+    }
+}
+
 impl Model {
     pub fn new(rx: EventReceiver, tx: EventSender, reader: Reader, term: Arc<Term>, options: &SkimOptions) -> Self {
         let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {

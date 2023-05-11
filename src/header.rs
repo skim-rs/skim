@@ -23,7 +23,7 @@ pub struct Header {
 
 impl Drop for Header {
     fn drop(&mut self) {
-        let _ = std::mem::replace(&mut self.item_pool, Arc::new(ItemPool::new()));
+        std::mem::take(&mut self.item_pool);
     }
 }
 
