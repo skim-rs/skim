@@ -44,7 +44,7 @@ impl ReaderControl {
         let _ = self.tx_interrupt_cmd.map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        let mut items =  self.items;
+        let mut items = self.items;
         let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
         let mut locked = old_items.lock();
 
