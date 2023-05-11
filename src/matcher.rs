@@ -42,7 +42,10 @@ impl MatcherControl {
         let mut items =  self.items;
         let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
         let mut locked = old_items.lock();
-        drop(&mut locked.deref_mut());
+        
+        let vec = locked.deref_mut();
+        drop(vec);
+        
         let _ = self.thread_matcher.join();
     }
 
