@@ -814,7 +814,7 @@ dependencies = [
 
 [[package]]
 name = "two_percent"
-version = "0.10.7"
+version = "0.10.8"
 dependencies = [
  "atty",
  "beef",
