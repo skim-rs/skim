@@ -44,7 +44,8 @@ impl ReaderControl {
         let _ = self.tx_interrupt.send(1);
 
         let mut items = self.items;
-        let _old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
+        let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
+        let _locked = old_items.lock();
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
