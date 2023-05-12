@@ -198,9 +198,9 @@ impl ItemPool {
         let to_reserve = self.lines_to_reserve - header_items.len();
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
-            let reserved = items[..to_reserve].to_vec();
-            header_items.extend_from_slice(&reserved);
-            pool.extend_from_slice(&items[to_reserve..]);
+            let reserved = &items[..to_reserve];
+            header_items.extend_from_slice(reserved);
+            pool.extend_from_slice(reserved);
         } else {
             pool.append(&mut items);
         }
