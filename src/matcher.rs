@@ -135,20 +135,20 @@ impl Matcher {
                 })
             };
 
-            let new_items: Vec<_> = MATCHER_POOL.install(|| {
-                items
+            MATCHER_POOL.install(|| {
+                let new_items = items
                     .par_iter()
                     .enumerate()
                     .take_any_while(|_| !stopped.load(Ordering::Relaxed))
                     .filter_map(|(index, item)| filter_op(index, item))
-                    .collect()
-            });
+                    .collect();
 
-            if !stopped.load(Ordering::Relaxed) {
-                let mut pool = matched_items.lock();
-                *pool = new_items;
-                trace!("matcher stop, total matched: {}", pool.len());
-            }
+                if !stopped.load(Ordering::Relaxed) {
+                    let mut pool = matched_items.lock();
+                    *pool = new_items;
+                    trace!("matcher stop, total matched: {}", pool.len());
+                }
+            });
 
             callback(matched_items);
             stopped.store(true, Ordering::Relaxed);
