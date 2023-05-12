@@ -319,6 +319,9 @@ impl Previewer {
 
 impl Drop for Previewer {
     fn drop(&mut self) {
+        let old_content = std::mem::replace(&mut self.content_lines, Arc::new(SpinLock::new(Vec::new())));
+        let _locked = old_content.lock();
+        
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         self.thread_previewer.take().map(|handle| handle.join());
     }
