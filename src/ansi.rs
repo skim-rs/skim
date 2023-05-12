@@ -189,11 +189,12 @@ impl ANSIParser {
     }
 
     pub fn parse_ansi(&mut self, text: &str) -> AnsiString {
-        let mut statemachine = vte::Parser::new();
+        let mut state_machine = vte::Parser::new();
 
-        for byte in text.as_bytes() {
-            statemachine.advance(self, *byte);
-        }
+        text.as_bytes().iter().for_each(|byte| {
+            state_machine.advance(self, *byte);
+        });
+        
         self.save_str();
 
         let stripped = std::mem::take(&mut self.stripped);
