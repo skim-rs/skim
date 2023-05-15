@@ -21,18 +21,6 @@ pub struct Header {
     item_pool: Arc<ItemPool>,
 }
 
-impl Drop for Header {
-    fn drop(&mut self) {
-        std::mem::take(self);
-    }
-}
-
-impl Default for Header {
-    fn default() -> Self {
-        Self::empty()
-    }
-}
-
 impl Header {
     pub fn empty() -> Self {
         Self {
