@@ -9,7 +9,7 @@ use crossbeam_channel::{bounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::thread;
 
 const CHANNEL_SIZE: usize = 1024;
@@ -30,7 +30,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 }
 
 impl ReaderControl {
@@ -43,25 +43,23 @@ impl ReaderControl {
         let _ = self.tx_interrupt_cmd.map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
+        let mut items = self.items;
+        let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
+        let _locked = old_items.lock();
+
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
-        let items = self.upgrade_items_infallible();
-        let mut locked = items.lock();
-        let mut ret = Vec::with_capacity(locked.len());
-        ret.append(&mut locked);
+        let mut items = self.items.lock();
+        let mut ret = Vec::with_capacity(items.len());
+        ret.append(&mut items);
         ret
     }
 
     pub fn is_done(&self) -> bool {
-        let items = self.upgrade_items_infallible();
-        let locked = items.lock();
-        self.components_to_stop.load(Ordering::SeqCst) == 0 && locked.is_empty()
-    }
-
-    pub fn upgrade_items_infallible(&self) -> Arc<SpinLock<Vec<Arc<dyn SkimItem>>>> {
-        Weak::upgrade(&self.items).unwrap()
+        let items = self.items.lock();
+        self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
     }
 }
 
@@ -88,7 +86,7 @@ impl Reader {
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
-        let downgraded = Arc::downgrade(&items);
+        let items_clone = items.clone();
 
         let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
@@ -97,13 +95,13 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, items);
+        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, items_clone);
 
         ReaderControl {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
-            items: downgraded,
+            items,
         }
     }
 }
