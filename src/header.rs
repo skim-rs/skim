@@ -23,7 +23,13 @@ pub struct Header {
 
 impl Drop for Header {
     fn drop(&mut self) {
-        std::mem::take(&mut self.item_pool);
+        std::mem::take(self);
+    }
+}
+
+impl Default for Header {
+    fn default() -> Self {
+        Self::empty()
     }
 }
 
