@@ -114,6 +114,13 @@ impl<'a> Default for SkimOptions<'a> {
     }
 }
 
+impl<'a> Drop for SkimOptionsBuilder<'a> {
+    fn drop(&mut self) {  
+        self.cmd_collector.take();
+        self.engine_factory.take();
+    }
+}
+
 impl<'a> SkimOptionsBuilder<'a> {
     pub fn build(&mut self) -> Result<SkimOptions<'a>, SkimOptionsBuilderError> {
         if let Some(true) = self.no_height {
