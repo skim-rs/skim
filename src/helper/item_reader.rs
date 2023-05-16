@@ -6,7 +6,7 @@ use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 use regex::Regex;
@@ -147,25 +147,25 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
-    pub fn of_bufread(&self, source: Box<dyn BufRead + Send>) -> SkimItemReceiver {
+    pub fn of_bufread(&self, source: Box<dyn BufRead + Send>) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
-            self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)))
-                .0
+            (self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)))
+                .0,  None)
         }
     }
 
     /// helper: convert bufread into SkimItemReceiver
-    fn raw_bufread(&self, source: Box<dyn BufRead + Send>) -> SkimItemReceiver {
+    fn raw_bufread(&self, source: Box<dyn BufRead + Send>) -> (SkimItemReceiver, Option<JoinHandle<()>>) {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(self.option.buf_size);
         let line_ending = self.option.line_ending;
 
-        thread::spawn(move || {
+        let ingest_handle = thread::spawn(move || {
             ingest_loop(source, line_ending, tx_item, SendRawOrBuild::Raw);
         });
-        
-        rx_item
+
+        (rx_item, Some(ingest_handle))
     }
 
     /// components_to_stop == 0 => all the threads have been stopped
@@ -174,7 +174,7 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
-    ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>) {
+    ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>, JoinHandle<()>) {
         let (command, source) = match input {
             CollectorInput::Pipe(pipe) => (None, pipe),
             CollectorInput::Command(cmd) => get_command_output(&cmd).expect("command not found"),
@@ -226,7 +226,7 @@ impl SkimItemReader {
         let started_clone = started.clone();
         let tx_interrupt_clone = tx_interrupt.clone();
         let option = self.option.clone();
-        thread::spawn(move || {
+        let ingest_handle = thread::spawn(move || {
             debug!("collector: command collector start");
             components_to_stop.fetch_add(1, Ordering::SeqCst);
             started_clone.store(true, Ordering::SeqCst);
@@ -250,12 +250,12 @@ impl SkimItemReader {
             // busy waiting for the thread to start. (components_to_stop is added)
         }
 
-        (rx_item, tx_interrupt)
+        (rx_item, tx_interrupt, ingest_handle)
     }
 }
 
 impl CommandCollector for SkimItemReader {
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>) {
+    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, JoinHandle<()>) {
         self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
     }
 }

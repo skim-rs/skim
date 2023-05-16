@@ -317,11 +317,11 @@ fn real_main() -> Result<i32, std::io::Error> {
 
     //------------------------------------------------------------------------------
     // read from pipe or command
-    let rx_item = if atty::isnt(atty::Stream::Stdin) {
-            let rx_item = cmd_collector.borrow().of_bufread(Box::new(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin())));
-            Some(rx_item)
+    let (rx_item, opt_ingest_handle) = if atty::isnt(atty::Stream::Stdin) {
+            let (rx_item, opt_ingest_handle) = cmd_collector.borrow().of_bufread(Box::new(BufReader::with_capacity(READ_BUFFER_CAPACITY, std::io::stdin())));
+            (Some(rx_item),  opt_ingest_handle)
         } else {
-         None
+         (None, None)
     };
 
     //------------------------------------------------------------------------------
@@ -383,6 +383,8 @@ fn real_main() -> Result<i32, std::io::Error> {
             .unwrap_or(DEFAULT_HISTORY_SIZE);
         write_history_to_file(&cmd_history, &output.cmd, limit, file)?;
     }
+
+    opt_ingest_handle.map(|handle| handle.join());
 
     Ok(if output.selected_items.is_empty() { 1 } else { 0 })
 }
@@ -544,8 +546,8 @@ pub fn filter(
 
     let stream_of_item = source.unwrap_or_else(|| {
         let cmd_collector = options.cmd_collector.clone();
-        let (ret, _control) = cmd_collector.borrow_mut().invoke(cmd, components_to_stop);
-        ret
+        let (stream_of_item, _control, _ingest_handle) = cmd_collector.borrow_mut().invoke(cmd, components_to_stop);
+        stream_of_item
     });
 
     let mut num_matched = 0;

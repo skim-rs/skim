@@ -23,7 +23,7 @@ pub trait CommandCollector {
     /// Internally, the command collector may start several threads(components), the collector
     /// should add `1` on every thread creation and sub `1` on thread termination. reader would use
     /// this information to determine whether the collector had stopped or not.
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>);
+    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, JoinHandle<()>);
 }
 
 pub struct ReaderControl {
@@ -32,6 +32,7 @@ pub struct ReaderControl {
     components_to_stop: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
     thread_reader: Option<JoinHandle<()>>,
+    thread_ingest: Option<JoinHandle<()>>,
 }
 
 impl Drop for ReaderControl {
@@ -48,6 +49,7 @@ impl Drop for ReaderControl {
         let _locked = old_items.lock();
 
         self.thread_reader.take().map(|handle| handle.join());
+        self.thread_ingest.take().map(|handle| handle.join());
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
@@ -96,10 +98,10 @@ impl Reader {
         let items = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
         let items_clone = items.clone();
 
-        let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
+        let (rx_item, tx_interrupt_cmd, opt_ingest_handle) = self.rx_item.take().map(|rx| (rx, None, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
-            let (rx_item, tx_interrupt_cmd) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
-            (rx_item, Some(tx_interrupt_cmd))
+            let (rx_item, tx_interrupt_cmd, ingest_handle) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
+            (rx_item, Some(tx_interrupt_cmd), Some(ingest_handle))
         });
 
         let components_to_stop_clone = components_to_stop.clone();
@@ -111,6 +113,7 @@ impl Reader {
             components_to_stop,
             items,
             thread_reader: Some(thread_reader),
+            thread_ingest: opt_ingest_handle,
         }
     }
 }
