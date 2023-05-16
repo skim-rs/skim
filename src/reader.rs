@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 const CHANNEL_SIZE: usize = 1024;
 const ITEMS_INITIAL_CAPACITY: usize = 65536;
@@ -31,6 +31,7 @@ pub struct ReaderControl {
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    thread_reader: Option<JoinHandle<()>>,
 }
 
 impl Drop for ReaderControl {
@@ -45,6 +46,8 @@ impl Drop for ReaderControl {
 
         let old_items = std::mem::replace(&mut self.items, Arc::new(SpinLock::new(Vec::new())));
         let _locked = old_items.lock();
+
+        self.thread_reader.take().map(|handle| handle.join());
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
@@ -100,13 +103,14 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, items_clone);
+        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_clone);
 
         ReaderControl {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
             items,
+            thread_reader: Some(thread_reader),
         }
     }
 }
@@ -115,12 +119,12 @@ fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
     items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
-) -> Sender<i32> {
+) -> (Sender<i32>, JoinHandle<()>) {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
     let started = Arc::new(AtomicBool::new(false));
     let started_clone = started.clone();
-    thread::spawn(move || {
+    let thread_reader = thread::spawn(move || {
         debug!("reader: collect_item start");
         components_to_stop.fetch_add(1, Ordering::SeqCst);
         started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
@@ -152,5 +156,5 @@ fn collect_item(
         // busy waiting for the thread to start. (components_to_stop is added)
     }
 
-    tx_interrupt
+    (tx_interrupt, thread_reader)
 }
