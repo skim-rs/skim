@@ -57,9 +57,9 @@ impl MatcherControl {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(&self) -> &Arc<SpinLock<Vec<MatchedItem>>> {
+    pub fn into_items(&self) -> Arc<SpinLock<Vec<MatchedItem>>> {
         while !self.stopped.load(Ordering::Relaxed) {}
-        &self.items
+        self.items.clone()
     }
 }
 
