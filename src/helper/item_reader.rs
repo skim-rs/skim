@@ -151,8 +151,8 @@ impl SkimItemReader {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
-            let (rx_item, _tx_item, ingest_handle) = self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
-            (rx_item, Some(ingest_handle))
+            let (rx_item, _tx_item, opt_ingest_handle) = self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
+            (rx_item, opt_ingest_handle)
         }
     }
 
@@ -174,88 +174,93 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
-    ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>, JoinHandle<()>) {
-        let (command, source) = match input {
-            CollectorInput::Pipe(pipe) => (None, pipe),
-            CollectorInput::Command(cmd) => get_command_output(&cmd).expect("command not found"),
-        };
+    ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>, Option<JoinHandle<()>>) {
 
         let (tx_interrupt, rx_interrupt) = bounded(CMD_CHANNEL_SIZE);
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(ITEM_CHANNEL_SIZE);
 
-        let started = Arc::new(AtomicBool::new(false));
-        let started_clone = started.clone();
-        let components_to_stop_clone = components_to_stop.clone();
-        let tx_item_clone = tx_item.clone();
-        let send_error = self.option.show_error;
-        // listening to close signal and kill command if needed
-        thread::spawn(move || {
-            debug!("collector: command killer start");
-            components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
-            started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
+        match input {
+            CollectorInput::Pipe(source) => {
+                let started = Arc::new(AtomicBool::new(false));
+                let started_clone = started.clone();
+                let tx_interrupt_clone = tx_interrupt.clone();
+                let option = self.option.clone();
+                let ingest_handle = thread::spawn(move || {
+                    debug!("collector: command collector start");
+                    components_to_stop.fetch_add(1, Ordering::SeqCst);
+                    started_clone.store(true, Ordering::SeqCst);
+                    // notify parent that it is started
+    
+                    let opts = BuildOptions {
+                        ansi_enabled: option.use_ansi_color,
+                        trans_fields: &option.transform_fields,
+                        matching_fields: &option.matching_fields,
+                        delimiter: &option.delimiter,
+                    };
+    
+                    ingest_loop(source, option.line_ending, tx_item, SendRawOrBuild::Build(opts));
+    
+                    let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
+                    components_to_stop.fetch_sub(1, Ordering::SeqCst);
+                    debug!("collector: command collector stop");
+                });
+    
+                while !started.load(Ordering::SeqCst) {
+                    // busy waiting for the thread to start. (components_to_stop is added)
+                }
 
-            let _ = rx_interrupt.recv(); // block waiting
-            if let Some(mut child) = command {
-                // clean up resources
-                let _ = child.kill();
-                let _ = child.wait();
+                (rx_item, tx_interrupt, Some(ingest_handle))
+            },
+            CollectorInput::Command(cmd) => {
+                let command = get_command_output(&cmd).expect("command not found").0;
 
-                if send_error {
-                    let has_error = child
-                        .try_wait()
-                        .map(|os| os.map(|s| !s.success()).unwrap_or(true))
-                        .unwrap_or(false);
-                    if has_error {
-                        let output = child.wait_with_output().expect("could not retrieve error message");
-                        for line in String::from_utf8_lossy(&output.stderr).lines() {
-                            let _ = tx_item_clone.send(Arc::new(line.to_string()));
+                let started = Arc::new(AtomicBool::new(false));
+                let started_clone = started.clone();
+                let components_to_stop_clone = components_to_stop.clone();
+                let tx_item_clone = tx_item.clone();
+                let send_error = self.option.show_error;
+                // listening to close signal and kill command if needed
+                thread::spawn(move || {
+                    debug!("collector: command killer start");
+                    components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
+                    started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
+
+                    let _ = rx_interrupt.recv(); // block waiting
+                    if let Some(mut child) = command {
+                        // clean up resources
+                        let _ = child.kill();
+                        let _ = child.wait();
+
+                        if send_error {
+                            let has_error = child
+                                .try_wait()
+                                .map(|os| os.map(|s| !s.success()).unwrap_or(true))
+                                .unwrap_or(false);
+                            if has_error {
+                                let output = child.wait_with_output().expect("could not retrieve error message");
+                                for line in String::from_utf8_lossy(&output.stderr).lines() {
+                                    let _ = tx_item_clone.send(Arc::new(line.to_string()));
+                                }
+                            }
                         }
                     }
+
+                    components_to_stop_clone.fetch_sub(1, Ordering::SeqCst);
+                    debug!("collector: command killer stop");
+                });
+    
+                while !started.load(Ordering::SeqCst) {
+                    // busy waiting for the thread to start. (components_to_stop is added)
                 }
-            }
 
-            components_to_stop_clone.fetch_sub(1, Ordering::SeqCst);
-            debug!("collector: command killer stop");
-        });
-
-        while !started.load(Ordering::SeqCst) {
-            // busy waiting for the thread to start. (components_to_stop is added)
+                (rx_item, tx_interrupt, None)
+            },
         }
-
-        let started = Arc::new(AtomicBool::new(false));
-        let started_clone = started.clone();
-        let tx_interrupt_clone = tx_interrupt.clone();
-        let option = self.option.clone();
-        let ingest_handle = thread::spawn(move || {
-            debug!("collector: command collector start");
-            components_to_stop.fetch_add(1, Ordering::SeqCst);
-            started_clone.store(true, Ordering::SeqCst);
-            // notify parent that it is started
-
-            let opts = BuildOptions {
-                ansi_enabled: option.use_ansi_color,
-                trans_fields: &option.transform_fields,
-                matching_fields: &option.matching_fields,
-                delimiter: &option.delimiter,
-            };
-
-            ingest_loop(source, option.line_ending, tx_item, SendRawOrBuild::Build(opts));
-
-            let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
-            components_to_stop.fetch_sub(1, Ordering::SeqCst);
-            debug!("collector: command collector stop");
-        });
-
-        while !started.load(Ordering::SeqCst) {
-            // busy waiting for the thread to start. (components_to_stop is added)
-        }
-
-        (rx_item, tx_interrupt, ingest_handle)
     }
 }
 
 impl CommandCollector for SkimItemReader {
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, JoinHandle<()>) {
+    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>) {
         self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
     }
 }

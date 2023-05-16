@@ -23,7 +23,7 @@ pub trait CommandCollector {
     /// Internally, the command collector may start several threads(components), the collector
     /// should add `1` on every thread creation and sub `1` on thread termination. reader would use
     /// this information to determine whether the collector had stopped or not.
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, JoinHandle<()>);
+    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>);
 }
 
 pub struct ReaderControl {
@@ -100,8 +100,8 @@ impl Reader {
 
         let (rx_item, tx_interrupt_cmd, opt_ingest_handle) = self.rx_item.take().map(|rx| (rx, None, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
-            let (rx_item, tx_interrupt_cmd, ingest_handle) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
-            (rx_item, Some(tx_interrupt_cmd), Some(ingest_handle))
+            let (rx_item, tx_interrupt_cmd, opt_ingest_handle) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
+            (rx_item, Some(tx_interrupt_cmd), opt_ingest_handle)
         });
 
         let components_to_stop_clone = components_to_stop.clone();
