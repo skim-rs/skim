@@ -9,7 +9,7 @@ use crossbeam_channel::{bounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Weak, Arc};
 use std::thread::{self, JoinHandle};
 
 const CHANNEL_SIZE: usize = 1024;
@@ -30,7 +30,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
     thread_reader: Option<JoinHandle<()>>,
     thread_ingest: Option<JoinHandle<()>>,
 }
@@ -45,9 +45,6 @@ impl Drop for ReaderControl {
         let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        let mut locked = self.items.lock();
-        locked.clear();
-
         self.thread_reader.take().map(|handle| handle.join());
         self.thread_ingest.take().map(|handle| handle.join());
 
@@ -61,15 +58,16 @@ impl ReaderControl {
     }
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
-        let mut items = self.items.lock();
-        let mut ret = Vec::with_capacity(items.len());
-        ret.append(&mut items);
-        ret
+        let upgraded = Weak::upgrade(&self.items).unwrap_or(Arc::new(SpinLock::new(Vec::new())));
+        let mut locked = upgraded.lock();
+        let items = std::mem::take(&mut *locked); 
+        items
     }
 
     pub fn is_done(&self) -> bool {
-        let items = self.items.lock();
-        self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
+        let upgraded = Weak::upgrade(&self.items).unwrap_or(Arc::new(SpinLock::new(Vec::new())));
+        let locked = upgraded.lock();
+        self.components_to_stop.load(Ordering::SeqCst) == 0 && locked.is_empty()
     }
 }
 
@@ -95,8 +93,8 @@ impl Reader {
         mark_new_run(cmd);
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-        let items = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
-        let items_clone = items.clone();
+        let items_strong = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
+        let items_weak = Arc::downgrade(&items_strong);
 
         let (rx_item, tx_interrupt_cmd, opt_ingest_handle) = self.rx_item.take().map(|rx| (rx, None, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
@@ -105,13 +103,13 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_clone);
+        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_strong);
 
         ReaderControl {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
-            items,
+            items: items_weak,
             thread_reader: Some(thread_reader),
             thread_ingest: opt_ingest_handle,
         }
