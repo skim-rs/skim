@@ -67,6 +67,12 @@ pub struct MatchedItem {
     pub metadata: Option<Box<MatchedItemMetadata>>,
 }
 
+impl Drop for MatchedItem {
+    fn drop(&mut self) {
+        unsafe
+    }
+}
+
 #[derive(Clone)]
 pub struct MatchedItemMetadata {
     pub rank: Rank,
@@ -134,8 +140,8 @@ impl Drop for ItemPool {
         let mut pool_locked = self.pool.lock();
         let mut reserved_locked = self.reserved_items.lock();
 
-        *pool_locked = Vec::new();
-        *reserved_locked = Vec::new();
+        pool_locked.clear();
+        reserved_locked.clear();
     }
 }
 
