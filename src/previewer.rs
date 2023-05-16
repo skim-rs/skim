@@ -420,16 +420,22 @@ enum PreviewEvent {
 
 struct PreviewThread {
     pid: u32,
-    thread: thread::JoinHandle<()>,
+    thread: Option<JoinHandle<()>>,
     stopped: Arc<AtomicBool>,
 }
 
-impl PreviewThread {
-    fn kill(self) {
+impl Drop for PreviewThread {
+    fn drop(&mut self) {
         if !self.stopped.load(Ordering::Relaxed) {
             unsafe { libc::kill(self.pid as i32, libc::SIGKILL) };
         }
-        self.thread.join().expect("Failed to join Preview process");
+        self.thread.take().map(|handle| handle.join());
+    }
+}
+
+impl PreviewThread {
+    fn kill(&mut self) {
+        drop(self)
     }
 }
 
@@ -437,7 +443,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
     let callback = Arc::new(on_return);
     let mut preview_thread: Option<PreviewThread> = None;
     while let Ok(_event) = rx_preview.recv() {
-        if let Some(thread) = preview_thread {
+        if let Some(mut thread) = preview_thread {
             thread.kill();
             preview_thread = None;
         }
@@ -489,7 +495,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                                 callback_clone(lines, pos);
                             })
                         });
-                        preview_thread = Some(PreviewThread { pid, thread, stopped });
+                        preview_thread = Some(PreviewThread { pid, thread: Some(thread), stopped });
                     }
                 }
             }
