@@ -164,6 +164,7 @@ impl SkimItemReader {
         thread::spawn(move || {
             ingest_loop(source, line_ending, tx_item, SendRawOrBuild::Raw);
         });
+        
         rx_item
     }
 

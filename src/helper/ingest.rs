@@ -54,7 +54,7 @@ pub fn ingest_loop(
 
         let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
-        let line_iter = chunk.split(['\n', line_ending as char]).map(|line| {
+        let mut line_iter = chunk.split(['\n', line_ending as char]).map(|line| {
             if line.ends_with("\r\n") {
                 line.trim_end_matches("\r\n")
             } else if line.ends_with('\r') {
@@ -64,10 +64,13 @@ pub fn ingest_loop(
             }
         });
 
-        for line in line_iter {
+        if line_iter.try_for_each(|line| {
             if send(line, &opts, &tx_item).is_none() {
-                return;
+                return Err("ERR!!!")
             }
+            Ok(())
+        }).is_err() {
+            return
         }
     }
 }
