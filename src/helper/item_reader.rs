@@ -220,7 +220,7 @@ impl SkimItemReader {
                 let tx_item_clone = tx_item.clone();
                 let send_error = self.option.show_error;
                 // listening to close signal and kill command if needed
-                thread::spawn(move || {
+                let ingest_handle = thread::spawn(move || {
                     debug!("collector: command killer start");
                     components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
                     started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
@@ -253,7 +253,7 @@ impl SkimItemReader {
                     // busy waiting for the thread to start. (components_to_stop is added)
                 }
 
-                (rx_item, tx_interrupt, None)
+                (rx_item, tx_interrupt, Some(ingest_handle))
             },
         }
     }
