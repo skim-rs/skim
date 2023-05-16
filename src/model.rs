@@ -413,7 +413,11 @@ impl Model {
         self.num_options = 0;
 
         // restart reader
-        self.reader_control.replace(self.reader.run(&env.cmd));
+        let old_reader = self.reader_control.replace(self.reader.run(&env.cmd));
+        old_reader.map(|reader| {
+            reader.kill()
+        });
+        
         self.restart_matcher();
         self.reader_timer = Instant::now();
     }
