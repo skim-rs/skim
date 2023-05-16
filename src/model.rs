@@ -764,12 +764,11 @@ impl Model {
             &self.matcher
         };
 
-        let tx = self.tx.clone();
         let new_matcher_control = matcher.run(
             &query,
             self.disabled,
             self.item_pool.clone(),
-                tx,
+            self.tx.clone(),
         );
 
         let old_matcher = self.matcher_control.replace(new_matcher_control);
