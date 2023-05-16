@@ -151,8 +151,8 @@ impl SkimItemReader {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
-            (self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)))
-                .0,  None)
+            let (rx_item, _tx_item, ingest_handle) = self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
+            (rx_item, Some(ingest_handle))
         }
     }
 
