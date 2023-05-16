@@ -33,10 +33,11 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-
-        let _locked = self.items.lock();
-
         self.thread_matcher.take().map(|handle| handle.join());
+
+        let locked = self.items.lock();
+
+        while !locked.is_empty() {}
     }
 }
 
@@ -57,9 +58,11 @@ impl MatcherControl {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(self) -> Arc<SpinLock<Vec<MatchedItem>>> {
+    pub fn into_items(self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
-        self.items.clone()
+        let mut locked = self.items.lock();
+        let ret = std::mem::replace(&mut *locked, Vec::new());
+        ret
     }
 }
 

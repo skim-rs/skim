@@ -315,9 +315,7 @@ impl Model {
         if matcher_stopped {
             let reader_stopped = self.reader_control.as_ref().map(ReaderControl::is_done).unwrap_or(true);
             let ctrl = self.matcher_control.take().unwrap();
-            let lock = ctrl.into_items();
-            let mut items = lock.lock();
-            let matched = std::mem::take(&mut *items);
+            let matched = ctrl.into_items();
 
             match env.clear_selection {
                 ClearStrategy::DontClear => {}
