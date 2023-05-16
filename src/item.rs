@@ -131,11 +131,8 @@ pub struct ItemPool {
 
 impl Drop for ItemPool {
     fn drop(&mut self) {
-        let mut pool_locked = self.pool.lock();
-        let mut reserved_locked = self.reserved_items.lock();
-
-        pool_locked.clear();
-        reserved_locked.clear();
+        let _pool_locked = self.pool.lock();
+        let _reserved_locked = self.reserved_items.lock();
     }
 }
 

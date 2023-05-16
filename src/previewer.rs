@@ -319,8 +319,7 @@ impl Previewer {
 
 impl Drop for Previewer {
     fn drop(&mut self) {
-        let mut locked = self.content_lines.lock();
-        locked.clear();
+        let _locked = self.content_lines.lock();
         
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         self.thread_previewer.take().map(|handle| handle.join());
