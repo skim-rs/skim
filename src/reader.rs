@@ -128,8 +128,8 @@ fn collect_item(
             match sel.ready() {
                 i if i == item_channel => {
                     if let Ok(item) = rx_item.recv() {
-                        let mut vec = items.lock();
-                        vec.push(item)
+                        let mut locked = items.lock();
+                        locked.push(item)
                     } else {
                         break;
                     }
