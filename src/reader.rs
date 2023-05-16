@@ -33,21 +33,26 @@ pub struct ReaderControl {
     items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 }
 
-impl ReaderControl {
-    pub fn kill(self) {
+impl Drop for ReaderControl {
+    fn drop(&mut self) {
         debug!(
             "kill reader, components before: {}",
             self.components_to_stop.load(Ordering::SeqCst)
         );
 
-        let _ = self.tx_interrupt_cmd.map(|tx| tx.send(1));
+        let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        let mut items = self.items;
-        let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
+        let old_items = std::mem::replace(&mut self.items, Arc::new(SpinLock::new(Vec::new())));
         let _locked = old_items.lock();
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
+    }
+}
+
+impl ReaderControl {
+    pub fn kill(&mut self) {
+        drop(self)
     }
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {

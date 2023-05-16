@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
 
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
@@ -24,7 +23,18 @@ pub struct MatcherControl {
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-    thread_matcher: JoinHandle<()>,
+    thread_matcher: Option<JoinHandle<()>>,
+}
+
+impl Drop for MatcherControl {
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::Relaxed);
+
+        let old_items = std::mem::replace(&mut self.items, Arc::new(SpinLock::new(Vec::new())));
+        let _locked = old_items.lock();
+
+        self.thread_matcher.take().map(|handle| handle.join());
+    }
 }
 
 impl MatcherControl {
@@ -36,22 +46,17 @@ impl MatcherControl {
         self.matched.load(Ordering::Relaxed)
     }
 
-    pub fn kill(self) {
-        self.stopped.store(true, Ordering::Relaxed);
-        let mut items = self.items;
-        let old_items = std::mem::replace(&mut items, Arc::new(SpinLock::new(Vec::new())));
-        let _locked = old_items.lock();
-
-        let _ = self.thread_matcher.join();
+    pub fn kill(&mut self) {
+        drop(self)
     }
 
     pub fn stopped(&self) -> bool {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(self) -> Arc<SpinLock<Vec<MatchedItem>>> {
+    pub fn into_items(&self) -> Arc<SpinLock<Vec<MatchedItem>>> {
         while !self.stopped.load(Ordering::Relaxed) {}
-        self.items
+        self.items.clone()
     }
 }
 
@@ -160,7 +165,7 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items_clone,
-            thread_matcher,
+            thread_matcher: Some(thread_matcher),
         }
     }
 }
