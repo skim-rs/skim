@@ -45,8 +45,8 @@ impl Drop for ReaderControl {
         let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        let old_items = std::mem::replace(&mut self.items, Arc::new(SpinLock::new(Vec::new())));
-        let _locked = old_items.lock();
+        let mut locked = self.items.lock();
+        locked.clear();
 
         self.thread_reader.take().map(|handle| handle.join());
         self.thread_ingest.take().map(|handle| handle.join());

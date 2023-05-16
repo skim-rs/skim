@@ -131,11 +131,11 @@ pub struct ItemPool {
 
 impl Drop for ItemPool {
     fn drop(&mut self) {
-        let old_pool = std::mem::replace(&mut self.pool, SpinLock::new(Vec::new()));
-        let old_reserved_items = std::mem::replace(&mut self.reserved_items, SpinLock::new(Vec::new()));
+        let mut pool_locked = self.pool.lock();
+        let mut reserved_locked = self.reserved_items.lock();
 
-        let _pool_locked = old_pool.lock();
-        let _reserved_locked = old_reserved_items.lock();
+        *pool_locked = Vec::new();
+        *reserved_locked = Vec::new();
     }
 }
 

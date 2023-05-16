@@ -30,8 +30,8 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
 
-        let old_items = std::mem::replace(&mut self.items, Arc::new(SpinLock::new(Vec::new())));
-        let _locked = old_items.lock();
+        let mut locked = self.items.lock();
+        locked.clear();
 
         self.thread_matcher.take().map(|handle| handle.join());
     }
