@@ -67,12 +67,6 @@ pub struct MatchedItem {
     pub metadata: Option<Box<MatchedItemMetadata>>,
 }
 
-impl Drop for MatchedItem {
-    fn drop(&mut self) {
-        unsafe
-    }
-}
-
 #[derive(Clone)]
 pub struct MatchedItemMetadata {
     pub rank: Rank,
