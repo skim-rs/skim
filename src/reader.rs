@@ -53,7 +53,7 @@ impl Drop for ReaderControl {
 }
 
 impl ReaderControl {
-    pub fn kill(&mut self) {
+    pub fn kill(self) {
         drop(self)
     }
 

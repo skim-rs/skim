@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 use crossbeam_channel::Sender;
 
@@ -49,7 +49,7 @@ impl MatcherControl {
         self.matched.load(Ordering::Relaxed)
     }
 
-    pub fn kill(&mut self) {
+    pub fn kill(self) {
         drop(self)
     }
 
@@ -102,7 +102,7 @@ impl Matcher {
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
         let matched_items = Arc::new(SpinLock::new(Vec::new()));
-        let matched_items_clone = matched_items.clone();
+        let matched_items_weak = Arc::downgrade(&matched_items);
 
         // shortcut for when there is no query or query is disabled
         let matcher_disabled = disabled || query.is_empty();
@@ -152,11 +152,13 @@ impl Matcher {
                     .filter_map(|(index, item)| filter_op(index, item))
                     .collect();
 
-                if !stopped.load(Ordering::Relaxed) {
-                    let mut pool = matched_items.lock();
-                    *pool = new_items;
-                    trace!("matcher stop, total matched: {}", pool.len());
-                }
+                if let Some(strong) = Weak::upgrade(&matched_items_weak) {
+                    if !stopped.load(Ordering::Relaxed) {
+                        let mut pool = strong.lock();
+                        *pool = new_items;
+                        trace!("matcher stop, total matched: {}", pool.len());
+                    }
+                };                
             });
             
             let _ = tx.send((Key::Null, Event::EvHeartBeat));
@@ -167,7 +169,7 @@ impl Matcher {
             stopped: stopped_clone,
             matched: matched_clone,
             processed: processed_clone,
-            items: matched_items_clone,
+            items: matched_items,
             thread_matcher: Some(thread_matcher),
         }
     }

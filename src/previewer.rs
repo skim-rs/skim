@@ -433,7 +433,7 @@ impl Drop for PreviewThread {
 }
 
 impl PreviewThread {
-    fn kill(&mut self) {
+    fn kill(self) {
         drop(self)
     }
 }
@@ -442,7 +442,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
     let callback = Arc::new(on_return);
     let mut preview_thread: Option<PreviewThread> = None;
     while let Ok(_event) = rx_preview.recv() {
-        if let Some(mut thread) = preview_thread {
+        if let Some(thread) = preview_thread {
             thread.kill();
             preview_thread = None;
         }
