@@ -35,9 +35,7 @@ impl Drop for MatcherControl {
         self.stopped.store(true, Ordering::Relaxed);
         self.thread_matcher.take().map(|handle| handle.join());
 
-        let locked = self.items.lock();
-
-        while !locked.is_empty() {}
+        let _locked = self.items.lock();
     }
 }
 
