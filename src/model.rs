@@ -771,7 +771,7 @@ impl Model {
             &query,
             self.disabled,
             self.item_pool.clone(),
-            Box::new(move |_| {
+            Box::new(move || {
                 // notify refresh immediately
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             }),

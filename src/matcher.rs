@@ -87,7 +87,7 @@ impl Matcher {
         query: &str,
         disabled: bool,
         item_pool: Arc<ItemPool>,
-        callback: Box<dyn Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send>,
+        callback: Box<dyn Fn() + Send>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
@@ -155,7 +155,7 @@ impl Matcher {
                 }
             });
 
-            callback(matched_items);
+            callback();
             stopped.store(true, Ordering::Relaxed);
         });
 
