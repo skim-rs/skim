@@ -771,10 +771,7 @@ impl Model {
             &query,
             self.disabled,
             self.item_pool.clone(),
-            Box::new(move || {
-                // notify refresh immediately
-                let _ = tx.send((Key::Null, Event::EvHeartBeat));
-            }),
+                tx,
         );
 
         let old_matcher = self.matcher_control.replace(new_matcher_control);

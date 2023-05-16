@@ -81,7 +81,7 @@ impl<'a, T: ?Sized> Drop for SpinLockGuard<'a, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc::channel;
+    use crossbeam_channel::unbounded;
     use std::sync::Arc;
     use std::thread;
 
@@ -108,7 +108,7 @@ mod tests {
             }
         }
 
-        let (tx, rx) = channel();
+        let (tx, rx) = unbounded();
         for _ in 0..K {
             let tx2 = tx.clone();
             let m2 = m.clone();

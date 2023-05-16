@@ -1,15 +1,19 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+use crossbeam_channel::Sender;
 
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use rayon::ThreadPool;
 
+use tuikit::key::Key;
+
 use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
+use crate::event::Event;
 
 static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
     rayon::ThreadPoolBuilder::new()
@@ -87,7 +91,7 @@ impl Matcher {
         query: &str,
         disabled: bool,
         item_pool: Arc<ItemPool>,
-        callback: Box<dyn Fn() + Send>,
+        tx: Sender<(Key, Event)>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
@@ -154,8 +158,8 @@ impl Matcher {
                     trace!("matcher stop, total matched: {}", pool.len());
                 }
             });
-
-            callback();
+            
+            let _ = tx.send((Key::Null, Event::EvHeartBeat));
             stopped.store(true, Ordering::Relaxed);
         });
 

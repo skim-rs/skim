@@ -1,7 +1,7 @@
 // All the events that will be used
 
 use bitflags::bitflags;
-use std::sync::mpsc::{Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender};
 use tuikit::key::Key;
 
 pub type EventReceiver = Receiver<(Key, Event)>;

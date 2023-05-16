@@ -2,7 +2,7 @@ use std::cmp::{max, min};
 use std::env;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -46,7 +46,7 @@ pub struct Previewer {
 impl Previewer {
     pub fn new(preview_cmd: Option<String>, callback: Box<dyn Fn() + Send + Sync>) -> Self {
         let content_lines = Arc::new(SpinLock::new(Vec::new()));
-        let (tx_preview, rx_preview) = channel();
+        let (tx_preview, rx_preview) = unbounded();
         let width = Arc::new(AtomicUsize::new(80));
         let height = Arc::new(AtomicUsize::new(60));
         let hscroll_offset = Arc::new(AtomicUsize::new(1));

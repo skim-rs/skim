@@ -6,11 +6,10 @@ extern crate log;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Display;
-use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use tuikit::prelude::{Event as TermEvent, *};
 
 pub use crate::ansi::AnsiString;
@@ -287,7 +286,7 @@ impl Skim {
             .map(Skim::parse_height_string)
             .expect("height should have default values");
 
-        let (tx, rx): (EventSender, EventReceiver) = channel();
+        let (tx, rx): (EventSender, EventReceiver) = unbounded();
         let term = Arc::new(
             Term::with_options(
                 TermOptions::default()
