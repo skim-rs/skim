@@ -152,13 +152,13 @@ impl Matcher {
                     .filter_map(|(index, item)| filter_op(index, item))
                     .collect();
 
-                if let Some(strong) = Weak::upgrade(&matched_items_weak) {
-                    if !stopped.load(Ordering::Relaxed) {
+                if !stopped.load(Ordering::Relaxed) {
+                    if let Some(strong) = Weak::upgrade(&matched_items_weak) {
                         let mut pool = strong.lock();
                         *pool = new_items;
                         trace!("matcher stop, total matched: {}", pool.len());
                     }
-                };                
+                }             
             });
             
             let _ = tx.send((Key::Null, Event::EvHeartBeat));
