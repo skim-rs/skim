@@ -60,16 +60,6 @@ pub struct Selection {
     selector: Option<Rc<dyn Selector>>,
 }
 
-impl Drop for Selection {
-    fn drop(&mut self) {
-        let mut old_selected = std::mem::take(&mut self.selected);
-        let mut old_items = std::mem::take(&mut self.items);
-        // basically do the same replace()/take() to the underlying data with clear()
-        old_items.clear();
-        old_selected.clear();
-    }
-}
-
 impl Selection {
     pub fn new() -> Self {
         Selection {
