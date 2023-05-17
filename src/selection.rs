@@ -60,9 +60,13 @@ pub struct Selection {
     selector: Option<Rc<dyn Selector>>,
 }
 
-impl Default for Selection {
-    fn default() -> Self {
-        Self::new()
+impl Drop for Selection {
+    fn drop(&mut self) {
+        let mut old_selected = std::mem::take(&mut self.selected);
+        let mut old_items = std::mem::take(&mut self.items);
+        // basically do the same replace()/take() to the underlying data with clear()
+        old_items.clear();
+        old_selected.clear();
     }
 }
 
@@ -171,25 +175,21 @@ impl Selection {
         }
 
         let current_run_num = current_run_num();
-        items.iter().for_each(|matched_item| {
+        for item in items {
             if self
                 .selector
                 .as_ref()
                 .map(|s| {
                     s.should_select(
-                        matched_item.md_infallible().item_idx as usize,
-                        matched_item.upgrade_item_infallible().as_ref(),
+                        item.md_infallible().item_idx as usize,
+                        item.upgrade_item_infallible().as_ref(),
                     )
                 })
                 .unwrap_or(false)
             {
-                self.act_select_raw_item(
-                    current_run_num,
-                    matched_item.md_infallible().item_idx,
-                    matched_item.clone(),
-                );
+                self.act_select_raw_item(current_run_num, item.md_infallible().item_idx, item.clone());
             }
-        });
+        }
         debug!("done perform pre selection for {} items", items.len());
     }
 
@@ -337,9 +337,7 @@ impl Selection {
 
     pub fn get_current_item(&self) -> Option<Arc<dyn SkimItem>> {
         let item_idx = self.get_current_item_idx();
-        self.items
-            .get(item_idx)
-            .map(|matched_item| matched_item.upgrade_item_infallible())
+        self.items.get(item_idx).map(|item| item.upgrade_item_infallible())
     }
 
     pub fn get_hscroll_offset(&self) -> i64 {

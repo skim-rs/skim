@@ -1,3 +1,4 @@
+use std::mem;
 use std::sync::Arc;
 
 use tuikit::prelude::*;
@@ -389,7 +390,7 @@ impl Query {
         for &c in &yank {
             self.act_add_char(c);
         }
-        let _ = std::mem::replace(&mut self.yank, yank);
+        let _ = mem::replace(&mut self.yank, yank);
     }
 
     pub fn previous_history(&mut self) {

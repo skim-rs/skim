@@ -100,8 +100,7 @@ pub struct Model {
 
 impl Drop for Model {
     fn drop(&mut self) {
-        let old = std::mem::take(&mut self.item_pool);
-        old.clear()
+        std::mem::take(&mut self.item_pool);
     }
 }
 
@@ -410,8 +409,10 @@ impl Model {
 
         // restart reader
         let old_reader = self.reader_control.replace(self.reader.run(&env.cmd));
-        if let Some(reader) = old_reader { reader.kill() }
-
+        old_reader.map(|reader| {
+            reader.kill()
+        });
+        
         self.restart_matcher();
         self.reader_timer = Instant::now();
     }
@@ -459,7 +460,7 @@ impl Model {
         let (indices, selections) = self.selection.get_selected_indices_and_items();
         let tmp: Vec<String> = selections
             .iter()
-            .map(|matched_item| matched_item.upgrade_item_infallible().text().into())
+            .map(|item| item.upgrade_item_infallible().text().into())
             .collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|cow| cow.as_ref()).collect();
 
@@ -584,7 +585,7 @@ impl Model {
                                 .get_selected_indices_and_items()
                                 .1
                                 .iter()
-                                .map(|matched_item| matched_item.upgrade_item_infallible())
+                                .map(|item| item.upgrade_item_infallible())
                                 .collect();
                             sel
                         },
@@ -611,7 +612,7 @@ impl Model {
                                 .get_selected_indices_and_items()
                                 .1
                                 .iter()
-                                .map(|matched_item| matched_item.upgrade_item_infallible())
+                                .map(|item| item.upgrade_item_infallible())
                                 .collect();
                             sel
                         },
@@ -739,7 +740,9 @@ impl Model {
         let query = self.query.get_fz_query();
 
         // kill existing matcher if exits
-        if let Some(old_matcher) = self.matcher_control.take() { old_matcher.kill() }
+        self.matcher_control.take().map(|old_matcher| {
+            old_matcher.kill()
+        });
 
         // if there are new items, move them to item pool
         let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
@@ -758,11 +761,17 @@ impl Model {
             &self.matcher
         };
 
-        let new_matcher_control = matcher.run(&query, self.disabled, self.item_pool.clone(), self.tx.clone());
+        let new_matcher_control = matcher.run(
+            &query,
+            self.disabled,
+            self.item_pool.clone(),
+            self.tx.clone(),
+        );
 
         // replace None matcher
-        if let Some(old_matcher) = self.matcher_control
-            .replace(new_matcher_control) { old_matcher.kill() }
+        self.matcher_control.replace(new_matcher_control).map(|old_matcher| {
+            old_matcher.kill()
+        });
     }
 
     /// construct the widget tree
