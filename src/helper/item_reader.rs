@@ -151,7 +151,8 @@ impl SkimItemReader {
         if self.option.is_simple() {
             self.raw_bufread(source)
         } else {
-            let (rx_item, _tx_item, opt_ingest_handle) = self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
+            let (rx_item, _tx_item, opt_ingest_handle) = self
+                .read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)));
             (rx_item, opt_ingest_handle)
         }
     }
@@ -175,7 +176,6 @@ impl SkimItemReader {
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
     ) -> (Receiver<Arc<dyn SkimItem>>, Sender<i32>, Option<JoinHandle<()>>) {
-
         let (tx_interrupt, rx_interrupt) = bounded(CMD_CHANNEL_SIZE);
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(ITEM_CHANNEL_SIZE);
 
@@ -190,33 +190,33 @@ impl SkimItemReader {
                     components_to_stop.fetch_add(1, Ordering::SeqCst);
                     started_clone.store(true, Ordering::SeqCst);
                     // notify parent that it is started
-    
+
                     let opts = BuildOptions {
                         ansi_enabled: option.use_ansi_color,
                         trans_fields: &option.transform_fields,
                         matching_fields: &option.matching_fields,
                         delimiter: &option.delimiter,
                     };
-    
+
                     ingest_loop(source, option.line_ending, tx_item, SendRawOrBuild::Build(opts));
-    
+
                     let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
                     components_to_stop.fetch_sub(1, Ordering::SeqCst);
                     debug!("collector: command collector stop");
                 });
-    
+
                 while !started.load(Ordering::SeqCst) {
                     // busy waiting for the thread to start. (components_to_stop is added)
                 }
 
                 (rx_item, tx_interrupt, Some(ingest_handle))
-            },
+            }
             CollectorInput::Command(cmd) => {
                 let command = get_command_output(&cmd).expect("command not found").0;
 
                 let started = Arc::new(AtomicBool::new(false));
                 let started_clone = started.clone();
-                let components_to_stop_clone = components_to_stop.clone();
+                let components_to_stop_clone = components_to_stop;
                 let tx_item_clone = tx_item.clone();
                 let send_error = self.option.show_error;
                 // listening to close signal and kill command if needed
@@ -248,19 +248,23 @@ impl SkimItemReader {
                     components_to_stop_clone.fetch_sub(1, Ordering::SeqCst);
                     debug!("collector: command killer stop");
                 });
-    
+
                 while !started.load(Ordering::SeqCst) {
                     // busy waiting for the thread to start. (components_to_stop is added)
                 }
 
                 (rx_item, tx_interrupt, Some(ingest_handle))
-            },
+            }
         }
     }
 }
 
 impl CommandCollector for SkimItemReader {
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>) {
+    fn invoke(
+        &mut self,
+        cmd: &str,
+        components_to_stop: Arc<AtomicUsize>,
+    ) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>) {
         self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
     }
 }

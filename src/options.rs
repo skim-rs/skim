@@ -115,7 +115,7 @@ impl<'a> Default for SkimOptions<'a> {
 }
 
 impl<'a> Drop for SkimOptionsBuilder<'a> {
-    fn drop(&mut self) {  
+    fn drop(&mut self) {
         self.cmd_collector.take();
         self.engine_factory.take();
     }

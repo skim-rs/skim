@@ -1,7 +1,7 @@
+use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
-use crossbeam_channel::Sender;
 
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
@@ -9,11 +9,11 @@ use rayon::ThreadPool;
 
 use tuikit::key::Key;
 
+use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
-use crate::event::Event;
 
 static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
     rayon::ThreadPoolBuilder::new()
@@ -34,8 +34,6 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
         self.thread_matcher.take().map(|handle| handle.join());
-
-        let _locked = self.items.lock();
     }
 }
 
@@ -59,8 +57,8 @@ impl MatcherControl {
     pub fn into_items(self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
         let mut locked = self.items.lock();
-        let ret = std::mem::take(&mut *locked);
-        ret
+        
+        std::mem::take(&mut *locked)
     }
 }
 
@@ -159,9 +157,9 @@ impl Matcher {
                         *pool = new_items;
                         trace!("matcher stop, total matched: {}", pool.len());
                     }
-                }             
+                }
             });
-            
+
             let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
             stopped.store(true, Ordering::Relaxed);
         });

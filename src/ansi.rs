@@ -194,7 +194,7 @@ impl ANSIParser {
         text.as_bytes().iter().for_each(|byte| {
             state_machine.advance(self, *byte);
         });
-        
+
         self.save_str();
 
         let stripped = std::mem::take(&mut self.stripped);
