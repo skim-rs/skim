@@ -162,7 +162,7 @@ impl Matcher {
                 }             
             });
             
-            let _ = tx.send((Key::Null, Event::EvHeartBeat));
+            let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
             stopped.store(true, Ordering::Relaxed);
         });
 
