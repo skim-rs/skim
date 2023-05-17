@@ -92,7 +92,7 @@ impl Matcher {
         query: &str,
         disabled: bool,
         item_pool: Arc<ItemPool>,
-        tx: Sender<(Key, Event)>,
+        tx_heartbeat: Sender<(Key, Event)>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
