@@ -743,9 +743,9 @@ impl Model {
         let query = self.query.get_fz_query();
 
         // kill existing matcher if exits
-        if let Some(ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
+        self.matcher_control.take().map(|old_matcher| {
+            old_matcher.kill()
+        });
 
         // if there are new items, move them to item pool
         let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
@@ -771,11 +771,8 @@ impl Model {
             self.tx.clone(),
         );
 
-        let old_matcher = self.matcher_control.replace(new_matcher_control);
-
-        old_matcher.map(|matcher| {
-            matcher.kill();
-        });
+        // replace None matcher
+        let _ = self.matcher_control.replace(new_matcher_control);
     }
 
     /// construct the widget tree
