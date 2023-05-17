@@ -399,9 +399,6 @@ impl Model {
 
     fn on_cmd_query_change(&mut self, env: &mut ModelEnv) {
         // stop matcher
-        if let Some(ctrl) = self.reader_control.take() {
-            ctrl.kill();
-        }
         if let Some(ctrl) = self.matcher_control.take() {
             ctrl.kill();
         }
