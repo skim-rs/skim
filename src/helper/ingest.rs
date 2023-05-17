@@ -64,12 +64,7 @@ pub fn ingest_loop(
             }
         });
 
-        if line_iter.try_for_each(|line| {
-            if send(line, &opts, &tx_item).is_none() {
-                return Err("ERR!!!")
-            }
-            Ok(())
-        }).is_err() {
+        if line_iter.any(|line| send(line, &opts, &tx_item).is_none()) {
             return
         }
     }
