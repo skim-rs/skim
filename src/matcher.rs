@@ -34,8 +34,6 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
         self.thread_matcher.take().map(|handle| handle.join());
-
-        let _locked = self.items.lock();
     }
 }
 
