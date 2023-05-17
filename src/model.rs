@@ -772,7 +772,9 @@ impl Model {
         );
 
         // replace None matcher
-        let _ = self.matcher_control.replace(new_matcher_control);
+        self.matcher_control.replace(new_matcher_control).map(|old_matcher| {
+            old_matcher.kill()
+        });
     }
 
     /// construct the widget tree
