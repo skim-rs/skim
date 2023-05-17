@@ -44,7 +44,7 @@ once_cell = { version = "1.16.0", default-features = false }
 
 [patch.crates-io]
 timer = { git = "https://github.com/kimono-koans/timer.rs" }
-#fuzzy-matcher = { git = "https://github.com/kimono-koans/fuzzy-matcher" }
+fuzzy-matcher = { git = "https://github.com/kimono-koans/fuzzy-matcher" }
 
 [features]
 default = ["cli"]
