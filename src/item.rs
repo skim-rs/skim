@@ -129,6 +129,12 @@ pub struct ItemPool {
     lines_to_reserve: usize,
 }
 
+impl Drop for ItemPool {
+    fn drop(&mut self) {
+        self.clear();
+    }
+}
+
 impl Default for ItemPool {
     fn default() -> Self {
         ItemPool::new()
