@@ -164,12 +164,6 @@ impl Selection {
         self.items.clear();
     }
 
-    pub fn dump_items(&mut self) {
-        let mut items = std::mem::take(&mut self.items);
-        items.clear();
-        drop(items);
-    }
-
     fn pre_select(&mut self, items: &[MatchedItem]) {
         debug!("perform pre selection for {} items", items.len());
         if self.selector.is_none() || !self.multi_selection {

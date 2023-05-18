@@ -30,7 +30,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
     thread_reader: Option<JoinHandle<()>>,
     thread_ingest: Option<JoinHandle<()>>,
 }
@@ -57,15 +57,13 @@ impl ReaderControl {
     }
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
-        let upgraded = Weak::upgrade(&self.items).unwrap_or(Arc::new(SpinLock::new(Vec::new())));
-        let mut locked = upgraded.lock();
+        let mut locked = self.items.lock();
         let items = std::mem::take(&mut *locked); 
         items
     }
 
     pub fn is_done(&self) -> bool {
-        let upgraded = Weak::upgrade(&self.items).unwrap_or(Arc::new(SpinLock::new(Vec::new())));
-        let locked = upgraded.lock();
+        let locked = self.items.lock();
         self.components_to_stop.load(Ordering::SeqCst) == 0 && locked.is_empty()
     }
 }
@@ -102,13 +100,13 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_strong);
+        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_weak);
 
         ReaderControl {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
-            items: items_weak,
+            items: items_strong,
             thread_reader: Some(thread_reader),
             thread_ingest: opt_ingest_handle,
         }
@@ -118,7 +116,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items_weak: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 ) -> (Sender<i32>, JoinHandle<()>) {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
@@ -133,20 +131,22 @@ fn collect_item(
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
 
-        loop {
-            match sel.ready() {
-                i if i == item_channel => {
-                    match rx_item.recv() {
-                        Ok(item) => {
-                            items.lock().push(item);
-                        },
-                        _ => break,
-                    } 
+        if let Some(items_strong) = items_weak.upgrade() {
+            loop {
+                match sel.ready() {
+                    i if i == item_channel => {
+                        match rx_item.recv() {
+                            Ok(item) => {
+                                items_strong.lock().push(item);
+                            },
+                            _ => break,
+                        } 
+                    }
+                    i if i == interrupt_channel => break,
+                    _ => unreachable!(),
                 }
-                i if i == interrupt_channel => break,
-                _ => unreachable!(),
             }
-        }
+        } 
 
         components_to_stop.fetch_sub(1, Ordering::SeqCst);
         debug!("reader: collect_item stop");
