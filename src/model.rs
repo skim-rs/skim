@@ -104,6 +104,9 @@ impl Drop for Model {
 
         self.matcher_control.take();
         self.reader_control.take();
+
+        self.item_pool.clear();
+        std::mem::take(&mut self.item_pool);
     }
 }
 
@@ -151,7 +154,7 @@ impl Model {
         let item_pool = Arc::new(ItemPool::new().lines_to_reserve(options.header_lines));
         let header = Header::empty()
             .with_options(options)
-            .item_pool(item_pool.clone())
+            .item_pool(&item_pool)
             .theme(theme.clone());
 
         let margins = options

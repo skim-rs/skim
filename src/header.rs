@@ -8,7 +8,7 @@ use crate::theme::DEFAULT_THEME;
 use crate::util::{clear_canvas, print_item, str_lines, LinePrinter};
 use crate::{DisplayContext, SkimOptions};
 use std::cmp::max;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tuikit::prelude::*;
 
 pub struct Header {
@@ -18,7 +18,7 @@ pub struct Header {
     theme: Arc<ColorTheme>,
 
     // for reserved header items
-    item_pool: Arc<ItemPool>,
+    item_pool: Weak<ItemPool>,
 }
 
 impl Header {
@@ -28,12 +28,12 @@ impl Header {
             tabstop: 8,
             reverse: false,
             theme: Arc::new(*DEFAULT_THEME),
-            item_pool: Arc::new(ItemPool::new()),
+            item_pool: Weak::new(),
         }
     }
 
-    pub fn item_pool(mut self, item_pool: Arc<ItemPool>) -> Self {
-        self.item_pool = item_pool;
+    pub fn item_pool(mut self, item_pool: &Arc<ItemPool>) -> Self {
+        self.item_pool = Arc::downgrade(item_pool);
         self
     }
 
@@ -64,7 +64,7 @@ impl Header {
     }
 
     fn lines_of_header(&self) -> usize {
-        self.header.len() + self.item_pool.reserved().len()
+        self.header.len() + self.upgrade_item_pool().reserved().len()
     }
 
     fn adjust_row(&self, index: usize, screen_height: usize) -> usize {
@@ -73,6 +73,10 @@ impl Header {
         } else {
             screen_height - index - 1
         }
+    }
+
+    fn upgrade_item_pool(&self) -> Arc<ItemPool> {
+        Weak::upgrade(&self.item_pool).unwrap_or(Arc::new(ItemPool::new()))
     }
 }
 
@@ -109,26 +113,30 @@ impl Draw for Header {
         let lines_used = self.header.len();
 
         // print "reserved" header lines (--header-lines)
-        self.item_pool.reserved().iter().enumerate().for_each(|(idx, item)| {
-            let mut printer = LinePrinter::builder()
-                .row(self.adjust_row(idx + lines_used, screen_height))
-                .col(2)
-                .tabstop(self.tabstop)
-                .container_width(screen_width - 2)
-                .shift(0)
-                .text_width(screen_width - 2)
-                .build();
+        self.upgrade_item_pool()
+            .reserved()
+            .iter()
+            .enumerate()
+            .for_each(|(idx, item)| {
+                let mut printer = LinePrinter::builder()
+                    .row(self.adjust_row(idx + lines_used, screen_height))
+                    .col(2)
+                    .tabstop(self.tabstop)
+                    .container_width(screen_width - 2)
+                    .shift(0)
+                    .text_width(screen_width - 2)
+                    .build();
 
-            let context = DisplayContext {
-                text: &item.text(),
-                score: 0,
-                matches: None,
-                container_width: screen_width - 2,
-                highlight_attr: self.theme.header(),
-            };
+                let context = DisplayContext {
+                    text: &item.text(),
+                    score: 0,
+                    matches: None,
+                    container_width: screen_width - 2,
+                    highlight_attr: self.theme.header(),
+                };
 
-            print_item(canvas, &mut printer, item.display(context), self.theme.header());
-        });
+                print_item(canvas, &mut printer, item.display(context), self.theme.header());
+            });
 
         Ok(())
     }
