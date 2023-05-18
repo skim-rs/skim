@@ -60,6 +60,12 @@ pub struct Selection {
     selector: Option<Rc<dyn Selector>>,
 }
 
+impl Default for Selection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Selection {
     pub fn new() -> Self {
         Selection {
@@ -156,6 +162,12 @@ impl Selection {
 
     pub fn clear(&mut self) {
         self.items.clear();
+    }
+
+    pub fn dump_items(&mut self) {
+        let mut items = std::mem::take(&mut self.items);
+        items.clear();
+        drop(items);
     }
 
     fn pre_select(&mut self, items: &[MatchedItem]) {
