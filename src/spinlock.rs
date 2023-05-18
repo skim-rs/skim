@@ -52,6 +52,13 @@ impl<T: ?Sized> SpinLock<T> {
     }
 }
 
+impl<T: ?Sized> Drop for SpinLock<T> {
+    #[inline]
+    fn drop(&mut self) {
+        let _locked = self.lock();
+    }
+}
+
 impl<'mutex, T: ?Sized> Deref for SpinLockGuard<'mutex, T> {
     type Target = T;
 
