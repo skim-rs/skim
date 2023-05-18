@@ -139,8 +139,8 @@ impl Matcher {
                 })
             };
 
-            if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
-                MATCHER_POOL.install(|| {
+            MATCHER_POOL.install(|| {
+                if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
 
@@ -160,8 +160,8 @@ impl Matcher {
                             trace!("matcher stop, total matched: {}", pool.len());
                         }
                     }
-                });
-            }
+                }
+            });
 
             let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
             stopped.store(true, Ordering::Relaxed);
