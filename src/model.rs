@@ -3,7 +3,7 @@ use std::env;
 
 use std::process::Command;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
 use chrono::Duration as TimerDuration;
@@ -104,8 +104,6 @@ impl Drop for Model {
 
         self.matcher_control.take();
         self.reader_control.take();
-        
-        std::mem::take(&mut self.item_pool);
     }
 }
 
