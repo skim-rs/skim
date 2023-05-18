@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::thread;
 
-use crossbeam_channel::{Receiver, Sender, unbounded};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use tuikit::prelude::{Event as TermEvent, *};
 
 pub use crate::ansi::AnsiString;

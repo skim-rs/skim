@@ -1,7 +1,7 @@
+use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
-use crossbeam_channel::Sender;
 
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
@@ -9,11 +9,11 @@ use rayon::ThreadPool;
 
 use tuikit::key::Key;
 
+use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
-use crate::event::Event;
 
 static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
     rayon::ThreadPoolBuilder::new()
@@ -56,10 +56,13 @@ impl MatcherControl {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(&mut self) -> Vec<MatchedItem> {
+    pub fn into_items(self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
         let mut locked = self.items.lock();
+
         let ret = std::mem::take(&mut *locked);
+        drop(locked);
+        drop(self);
         ret
     }
 }
@@ -91,7 +94,7 @@ impl Matcher {
         &self,
         query: &str,
         disabled: bool,
-        item_pool: Arc<ItemPool>,
+        item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
@@ -109,16 +112,7 @@ impl Matcher {
         let matcher_disabled = disabled || query.is_empty();
 
         let thread_matcher = thread::spawn(move || {
-            let num_taken = item_pool.num_taken();
-            let items = item_pool.take();
-
-            // 1. use rayon for parallel
-            // 2. return Err to skip iteration
-            //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
-
-            trace!("matcher start, total: {}", items.len());
-
-            let filter_op = |index: usize, item: &Arc<dyn SkimItem>| -> Option<MatchedItem> {
+            let filter_op = |index: usize, item: &Arc<dyn SkimItem>, num_taken: usize| -> Option<MatchedItem> {
                 processed.fetch_add(1, Ordering::Relaxed);
 
                 if matcher_disabled {
@@ -146,22 +140,29 @@ impl Matcher {
             };
 
             MATCHER_POOL.install(|| {
-                let new_items = items
-                    .par_iter()
-                    .enumerate()
-                    .take_any_while(|_| !stopped.load(Ordering::Relaxed))
-                    .filter_map(|(index, item)| filter_op(index, item))
-                    .collect();
+                if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
+                    let num_taken = item_pool_strong.num_taken();
+                    let items = item_pool_strong.take();
 
-                if !stopped.load(Ordering::Relaxed) {
-                    if let Some(strong) = Weak::upgrade(&matched_items_weak) {
-                        let mut pool = strong.lock();
-                        *pool = new_items;
-                        trace!("matcher stop, total matched: {}", pool.len());
+                    trace!("matcher start, total: {}", items.len());
+
+                    let new_items = items
+                        .par_iter()
+                        .enumerate()
+                        .take_any_while(|_| !stopped.load(Ordering::Relaxed))
+                        .filter_map(|(index, item)| filter_op(index, item, num_taken))
+                        .collect();
+
+                    if !stopped.load(Ordering::Relaxed) {
+                        if let Some(strong) = Weak::upgrade(&matched_items_weak) {
+                            let mut pool = strong.lock();
+                            *pool = new_items;
+                            trace!("matcher stop, total matched: {}", pool.len());
+                        }
                     }
-                }             
+                }
             });
-            
+
             let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
             stopped.store(true, Ordering::Relaxed);
         });

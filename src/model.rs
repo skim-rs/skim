@@ -3,7 +3,7 @@ use std::env;
 
 use std::process::Command;
 use std::rc::Rc;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Duration as TimerDuration;
@@ -317,7 +317,7 @@ impl Model {
 
         if matcher_stopped {
             let reader_stopped = self.reader_control.as_ref().map(ReaderControl::is_done).unwrap_or(true);
-            let mut ctrl = self.matcher_control.take().unwrap();
+            let ctrl = self.matcher_control.take().unwrap();
             let matched = ctrl.into_items();
 
             match env.clear_selection {
@@ -412,10 +412,10 @@ impl Model {
 
         // restart reader
         let old_reader = self.reader_control.replace(self.reader.run(&env.cmd));
-        old_reader.map(|mut reader| {
+        if let Some(mut reader) = old_reader {
             reader.kill()
-        });
-        
+        }
+
         self.restart_matcher();
         self.reader_timer = Instant::now();
     }
@@ -743,17 +743,17 @@ impl Model {
         let query = self.query.get_fz_query();
 
         // kill existing matcher if exists
-        self.matcher_control.take().map(|mut old_matcher| {
+        if let Some(mut old_matcher) = self.matcher_control.take() {
             old_matcher.kill()
-        });
+        }
 
         // if there are new items, move them to item pool
         let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
         if !processed {
             // take out new items and put them into items
-            self.reader_control.as_ref().take().map(|c| {
+            if let Some(c) = self.reader_control.as_ref() {
                 self.item_pool.append(c.take());
-            });
+            }
         };
 
         // send heart beat (so that heartbeat/refresh is triggered)
@@ -765,17 +765,12 @@ impl Model {
             &self.matcher
         };
 
-        let new_matcher_control = matcher.run(
-            &query,
-            self.disabled,
-            self.item_pool.clone(),
-            self.tx.clone(),
-        );
+        let new_matcher_control = matcher.run(&query, self.disabled, Arc::downgrade(&self.item_pool), self.tx.clone());
 
         // replace None matcher
-        self.matcher_control.replace(new_matcher_control).map(|mut old_matcher| {
+        if let Some(mut old_matcher) = self.matcher_control.replace(new_matcher_control) {
             old_matcher.kill()
-        });
+        }
     }
 
     /// construct the widget tree

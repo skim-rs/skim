@@ -1,8 +1,8 @@
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::cmp::{max, min};
 use std::env;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use crossbeam_channel::{Receiver, Sender, unbounded};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -318,7 +318,7 @@ impl Previewer {
 }
 
 impl Drop for Previewer {
-    fn drop(&mut self) {        
+    fn drop(&mut self) {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         self.thread_previewer.take().map(|handle| handle.join());
 
@@ -495,7 +495,11 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                                 callback_clone(lines, pos);
                             })
                         });
-                        preview_thread = Some(PreviewThread { pid, thread: Some(thread), stopped });
+                        preview_thread = Some(PreviewThread {
+                            pid,
+                            thread: Some(thread),
+                            stopped,
+                        });
                     }
                 }
             }

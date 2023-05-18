@@ -65,7 +65,7 @@ pub fn ingest_loop(
         });
 
         if line_iter.any(|line| send(line, &opts, &tx_item).is_none()) {
-            return
+            return;
         }
     }
 }

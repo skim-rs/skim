@@ -90,21 +90,21 @@ impl Draw for Header {
         canvas.clear()?;
         clear_canvas(canvas)?;
 
-        self.header.iter().enumerate().for_each(|(idx, header) | {
+        self.header.iter().enumerate().for_each(|(idx, header)| {
             // print fixed header(specified by --header)
             let mut printer = LinePrinter::builder()
-            .row(self.adjust_row(idx, screen_height))
-            .col(2)
-            .tabstop(self.tabstop)
-            .container_width(screen_width - 2)
-            .shift(0)
-            .text_width(screen_width - 2)
-            .build();
+                .row(self.adjust_row(idx, screen_height))
+                .col(2)
+                .tabstop(self.tabstop)
+                .container_width(screen_width - 2)
+                .shift(0)
+                .text_width(screen_width - 2)
+                .build();
 
             header.iter().for_each(|(ch, _attr)| {
                 printer.print_char(canvas, ch, self.theme.header(), false);
             });
-        }); 
+        });
 
         let lines_used = self.header.len();
 

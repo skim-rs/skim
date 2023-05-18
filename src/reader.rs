@@ -9,7 +9,7 @@ use crossbeam_channel::{bounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Weak, Arc};
+use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
 const CHANNEL_SIZE: usize = 1024;
@@ -23,7 +23,11 @@ pub trait CommandCollector {
     /// Internally, the command collector may start several threads(components), the collector
     /// should add `1` on every thread creation and sub `1` on thread termination. reader would use
     /// this information to determine whether the collector had stopped or not.
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>);
+    fn invoke(
+        &mut self,
+        cmd: &str,
+        components_to_stop: Arc<AtomicUsize>,
+    ) -> (SkimItemReceiver, Sender<i32>, Option<JoinHandle<()>>);
 }
 
 pub struct ReaderControl {
@@ -58,8 +62,8 @@ impl ReaderControl {
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
         let mut locked = self.items.lock();
-        let items = std::mem::take(&mut *locked); 
-        items
+
+        std::mem::take(&mut *locked)
     }
 
     pub fn is_done(&self) -> bool {
@@ -93,11 +97,13 @@ impl Reader {
         let items_strong = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
         let items_weak = Arc::downgrade(&items_strong);
 
-        let (rx_item, tx_interrupt_cmd, opt_ingest_handle) = self.rx_item.take().map(|rx| (rx, None, None)).unwrap_or_else(|| {
-            let components_to_stop_clone = components_to_stop.clone();
-            let (rx_item, tx_interrupt_cmd, opt_ingest_handle) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
-            (rx_item, Some(tx_interrupt_cmd), opt_ingest_handle)
-        });
+        let (rx_item, tx_interrupt_cmd, opt_ingest_handle) =
+            self.rx_item.take().map(|rx| (rx, None, None)).unwrap_or_else(|| {
+                let components_to_stop_clone = components_to_stop.clone();
+                let (rx_item, tx_interrupt_cmd, opt_ingest_handle) =
+                    self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
+                (rx_item, Some(tx_interrupt_cmd), opt_ingest_handle)
+            });
 
         let components_to_stop_clone = components_to_stop.clone();
         let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_weak);
@@ -134,19 +140,17 @@ fn collect_item(
         if let Some(items_strong) = items_weak.upgrade() {
             loop {
                 match sel.ready() {
-                    i if i == item_channel => {
-                        match rx_item.recv() {
-                            Ok(item) => {
-                                items_strong.lock().push(item);
-                            },
-                            _ => break,
-                        } 
-                    }
+                    i if i == item_channel => match rx_item.recv() {
+                        Ok(item) => {
+                            items_strong.lock().push(item);
+                        }
+                        _ => break,
+                    },
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
                 }
             }
-        } 
+        }
 
         components_to_stop.fetch_sub(1, Ordering::SeqCst);
         debug!("reader: collect_item stop");
