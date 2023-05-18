@@ -137,12 +137,12 @@ fn collect_item(
         loop {
             match sel.ready() {
                 i if i == item_channel => {
-                    if let Ok(item) = rx_item.recv() {
-                        let mut locked = items.lock();
-                        locked.push(item)
-                    } else {
-                        break;
-                    }
+                    match rx_item.recv() {
+                        Ok(item) => {
+                            items.lock().push(item);
+                        },
+                        _ => break,
+                    } 
                 }
                 i if i == interrupt_channel => break,
                 _ => unreachable!(),
