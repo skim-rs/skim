@@ -321,9 +321,6 @@ impl Drop for Previewer {
     fn drop(&mut self) {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         self.thread_previewer.take().map(|handle| handle.join());
-
-        // must wait until you have the lock to drop!
-        let _locked = self.content_lines.lock();
     }
 }
 
