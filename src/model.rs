@@ -574,7 +574,7 @@ impl Model {
                     if let Some(mut ctrl) = self.reader_control.take() {
                         ctrl.kill();
                     }
-                    if let Some(ctrl) = self.matcher_control.take() {
+                    if let Some(mut ctrl) = self.matcher_control.take() {
                         ctrl.kill();
                     }
 
@@ -601,7 +601,7 @@ impl Model {
                     if let Some(mut ctrl) = self.reader_control.take() {
                         ctrl.kill();
                     }
-                    if let Some(ctrl) = self.matcher_control.take() {
+                    if let Some(mut ctrl) = self.matcher_control.take() {
                         ctrl.kill();
                     }
 
