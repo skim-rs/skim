@@ -426,16 +426,16 @@ struct PreviewThread {
 
 impl Drop for PreviewThread {
     fn drop(&mut self) {
-        if !self.stopped.load(Ordering::Relaxed) {
-            unsafe { libc::kill(self.pid as i32, libc::SIGKILL) };
-        }
+        self.kill();
         self.thread.take().map(|handle| handle.join());
     }
 }
 
 impl PreviewThread {
-    fn kill(self) {
-        drop(self)
+    fn kill(&mut self) {
+        if !self.stopped.load(Ordering::Relaxed) {
+            unsafe { libc::kill(self.pid as i32, libc::SIGKILL) };
+        }
     }
 }
 
@@ -443,7 +443,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
     let callback = Arc::new(on_return);
     let mut preview_thread: Option<PreviewThread> = None;
     while let Ok(_event) = rx_preview.recv() {
-        if let Some(thread) = preview_thread {
+        if let Some(mut thread) = preview_thread {
             thread.kill();
             preview_thread = None;
         }

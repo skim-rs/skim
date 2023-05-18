@@ -364,7 +364,7 @@ impl Model {
         self.use_regex = !self.use_regex;
 
         // restart matcher
-        if let Some(ctrl) = self.matcher_control.take() {
+        if let Some(mut ctrl) = self.matcher_control.take() {
             ctrl.kill();
         }
 
@@ -404,7 +404,7 @@ impl Model {
 
     fn on_cmd_query_change(&mut self, env: &mut ModelEnv) {
         // stop matcher
-        if let Some(ctrl) = self.matcher_control.take() {
+        if let Some(mut ctrl) = self.matcher_control.take() {
             ctrl.kill();
         }
 
@@ -414,7 +414,7 @@ impl Model {
 
         // restart reader
         let old_reader = self.reader_control.replace(self.reader.run(&env.cmd));
-        old_reader.map(|reader| {
+        old_reader.map(|mut reader| {
             reader.kill()
         });
         
@@ -424,7 +424,7 @@ impl Model {
 
     fn on_query_change(&mut self, env: &mut ModelEnv) {
         // restart matcher
-        if let Some(ctrl) = self.matcher_control.take() {
+        if let Some(mut ctrl) = self.matcher_control.take() {
             ctrl.kill();
         }
         env.clear_selection = ClearStrategy::Clear;
@@ -571,7 +571,7 @@ impl Model {
                 }
 
                 Event::EvActAccept(accept_key) => {
-                    if let Some(ctrl) = self.reader_control.take() {
+                    if let Some(mut ctrl) = self.reader_control.take() {
                         ctrl.kill();
                     }
 
@@ -595,7 +595,7 @@ impl Model {
                 }
 
                 Event::EvActAbort => {
-                    if let Some(ctrl) = self.reader_control.take() {
+                    if let Some(mut ctrl) = self.reader_control.take() {
                         ctrl.kill();
                     }
 
@@ -739,7 +739,7 @@ impl Model {
         let query = self.query.get_fz_query();
 
         // kill existing matcher if exists
-        self.matcher_control.take().map(|old_matcher| {
+        self.matcher_control.take().map(|mut old_matcher| {
             old_matcher.kill()
         });
 
@@ -769,7 +769,7 @@ impl Model {
         );
 
         // replace None matcher
-        self.matcher_control.replace(new_matcher_control).map(|old_matcher| {
+        self.matcher_control.replace(new_matcher_control).map(|mut old_matcher| {
             old_matcher.kill()
         });
     }
