@@ -100,8 +100,12 @@ pub struct Model {
 
 impl Drop for Model {
     fn drop(&mut self) {
+        self.selection.clear();
+
         self.matcher_control.take();
-        self.reader_control.take();        
+        self.reader_control.take();
+        
+        std::mem::take(&mut self.item_pool);
     }
 }
 

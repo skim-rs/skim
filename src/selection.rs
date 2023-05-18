@@ -60,12 +60,6 @@ pub struct Selection {
     selector: Option<Rc<dyn Selector>>,
 }
 
-impl Drop for Selection {
-    fn drop(&mut self) {
-        self.clear()
-    }
-}
-
 impl Selection {
     pub fn new() -> Self {
         Selection {

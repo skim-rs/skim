@@ -20,7 +20,8 @@ pub struct OrderedVec<T: Send + Ord> {
 
 impl<T: Send + Ord> Drop for OrderedVec<T> {
     fn drop(&mut self) {
-        self.clear()
+        self.sub_vectors.take();
+        self.sorted.take();
     }
 }
 
