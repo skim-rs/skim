@@ -319,7 +319,7 @@ impl Model {
 
         if matcher_stopped {
             let reader_stopped = self.reader_control.as_ref().map(ReaderControl::is_done).unwrap_or(true);
-            let ctrl = self.matcher_control.take().unwrap();
+            let mut ctrl = self.matcher_control.take().unwrap();
             let matched = ctrl.into_items();
 
             match env.clear_selection {

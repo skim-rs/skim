@@ -56,7 +56,7 @@ impl MatcherControl {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(self) -> Vec<MatchedItem> {
+    pub fn into_items(&mut self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
         let mut locked = self.items.lock();
         let ret = std::mem::take(&mut *locked);
