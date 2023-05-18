@@ -744,7 +744,7 @@ impl Model {
         self.matcher_timer = Instant::now();
         let query = self.query.get_fz_query();
 
-        // kill existing matcher if exits
+        // kill existing matcher if exists
         self.matcher_control.take().map(|old_matcher| {
             old_matcher.kill()
         });
@@ -753,8 +753,9 @@ impl Model {
         let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
         if !processed {
             // take out new items and put them into items
-            let new_items = self.reader_control.as_ref().map(|c| c.take()).unwrap();
-            let _ = self.item_pool.append(new_items);
+            self.reader_control.take().map(|c| {
+                self.item_pool.append(c.take());
+            });
         };
 
         // send heart beat (so that heartbeat/refresh is triggered)
