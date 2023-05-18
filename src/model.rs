@@ -574,9 +574,6 @@ impl Model {
                     if let Some(ctrl) = self.reader_control.take() {
                         ctrl.kill();
                     }
-                    if let Some(ctrl) = self.matcher_control.take() {
-                        ctrl.kill();
-                    }
 
                     return Some(SkimOutput {
                         is_abort: false,
@@ -599,9 +596,6 @@ impl Model {
 
                 Event::EvActAbort => {
                     if let Some(ctrl) = self.reader_control.take() {
-                        ctrl.kill();
-                    }
-                    if let Some(ctrl) = self.matcher_control.take() {
                         ctrl.kill();
                     }
 
