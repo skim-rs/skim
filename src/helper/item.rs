@@ -50,9 +50,8 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let mut ansi_parser: ANSIParser = Default::default();
-
         let (orig_text, text) = if using_transform_fields && ansi_enabled {
+            let mut ansi_parser: ANSIParser = Default::default();
             // ansi and transform
             let transformed = ansi_parser.parse_ansi(&parse_transform_fields(delimiter, &orig_text, trans_fields));
             (Some(orig_text.into()), transformed)
@@ -62,7 +61,7 @@ impl DefaultSkimItem {
             (Some(orig_text.into()), transformed)
         } else {
             // normal case
-            (None, ansi_parser.parse_ansi(&orig_text))
+            (None, orig_text.into())
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
