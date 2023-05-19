@@ -74,7 +74,7 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
-                line.into(),
+                line,
                 opts.ansi_enabled,
                 opts.trans_fields,
                 opts.matching_fields,
