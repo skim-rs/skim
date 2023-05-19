@@ -71,7 +71,7 @@ pub fn ingest_loop(
 }
 
 fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
-    let res = match opts {
+    match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
                 line.into(),
@@ -86,10 +86,5 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
             let boxed: Box<str> = line.into();
             tx_item.try_send(Arc::new(boxed))
         }
-    };
-
-    match res {
-        Err(err) if err.is_disconnected() => None,
-        _ => Some(()),
-    }
+    }.ok()
 }
