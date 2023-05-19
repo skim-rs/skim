@@ -139,16 +139,16 @@ fn collect_item(
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
 
-        if let Some(items_strong) = items_weak.upgrade() {
-            let mut locked = items_strong.lock();
-            
+        if let Some(items_strong) = items_weak.upgrade() {            
             loop {
                 match sel.ready() {
-                    i if i == item_channel => match rx_item.recv() {
-                        Ok(item) => {
-                            locked.push(item);
+                    i if i == item_channel => {
+                        match rx_item.recv() {
+                            Ok(item) => {
+                                items_strong.lock().push(item);
+                            }
+                            _ => break,
                         }
-                        _ => break,
                     },
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
