@@ -41,9 +41,10 @@ pub struct ReaderControl {
 
 impl Drop for ReaderControl {
     fn drop(&mut self) {
-        self.kill();
+        self.kill();        
         self.thread_reader.take().map(|handle| handle.join());
         self.thread_ingest.take().map(|handle| handle.join());
+        self.items.lock();
     }
 }
 

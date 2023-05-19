@@ -129,6 +129,13 @@ pub struct ItemPool {
     lines_to_reserve: usize,
 }
 
+impl Drop for ItemPool {
+    fn drop(&mut self) {
+        self.pool.lock();
+        self.reserved_items.lock();
+    }
+}
+
 impl Default for ItemPool {
     fn default() -> Self {
         ItemPool::new()
