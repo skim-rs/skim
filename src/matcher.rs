@@ -61,8 +61,6 @@ impl MatcherControl {
         let mut locked = self.items.lock();
 
         let ret = std::mem::take(&mut *locked);
-        drop(locked);
-        drop(self);
         ret
     }
 }
