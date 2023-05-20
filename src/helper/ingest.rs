@@ -40,7 +40,7 @@ pub fn ingest_loop(
         } else {
             break;
         };
-        
+
         source.consume(bytes_buffer.len());
 
         // now, keep reading to make sure we haven't stopped in the middle of a word.
@@ -58,17 +58,19 @@ pub fn ingest_loop(
             .split(['\n', line_ending as char])
             .map(|line| {
                 if line.ends_with("\r\n") {
-                    return line.trim_end_matches("\r\n")
+                    return line.trim_end_matches("\r\n");
                 }
-                
+
                 if line.ends_with('\r') {
-                    return line.trim_end_matches('\r')
-                } 
-                
+                    return line.trim_end_matches('\r');
+                }
+
                 line
-            }).any(|line| send(line, &opts, &tx_item).is_none()) {
-                return;
-            }
+            })
+            .any(|line| send(line, &opts, &tx_item).is_none())
+        {
+            return;
+        }
     }
 }
 
@@ -88,5 +90,6 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
             let boxed: Box<str> = line.into();
             tx_item.try_send(Arc::new(boxed))
         }
-    }.ok()
+    }
+    .ok()
 }

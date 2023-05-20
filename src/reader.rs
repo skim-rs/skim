@@ -41,7 +41,7 @@ pub struct ReaderControl {
 
 impl Drop for ReaderControl {
     fn drop(&mut self) {
-        self.kill();        
+        self.kill();
         self.items.lock();
     }
 }
@@ -139,18 +139,18 @@ fn collect_item(
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
 
-        if let Some(items_strong) = items_weak.upgrade() {            
+        if let Some(items_strong) = items_weak.upgrade() {
             loop {
                 match sel.ready() {
                     i if i == item_channel => {
                         let mut locked = items_strong.lock();
 
                         if rx_item.is_empty() {
-                            break
+                            break;
                         }
 
-                       locked.extend(rx_item.iter().take(10))
-                    },
+                        locked.extend(rx_item.iter().take(10))
+                    }
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
                 }

@@ -60,8 +60,8 @@ impl MatcherControl {
         while !self.stopped.load(Ordering::Relaxed) {}
         let mut locked = self.items.lock();
 
-        let ret = std::mem::take(&mut *locked);
-        ret
+        
+        std::mem::take(&mut *locked)
     }
 }
 
