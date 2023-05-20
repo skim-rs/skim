@@ -149,12 +149,7 @@ fn collect_item(
                             break
                         }
 
-                        rx_item
-                            .iter()
-                            .take(10)
-                            .for_each(|item| {
-                                locked.push(item)
-                            })
+                       locked.extend(rx_item.iter().take(10))
                     },
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
