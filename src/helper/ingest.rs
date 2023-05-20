@@ -40,6 +40,7 @@ pub fn ingest_loop(
         } else {
             break;
         };
+        
         source.consume(bytes_buffer.len());
 
         // now, keep reading to make sure we haven't stopped in the middle of a word.
@@ -52,23 +53,22 @@ pub fn ingest_loop(
             break;
         }
 
-        let chunk = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
-
-        let mut line_iter = chunk.split(['\n', line_ending as char]).map(|line| {
-            if line.ends_with("\r\n") {
-                return line.trim_end_matches("\r\n")
+        if std::str::from_utf8(&bytes_buffer)
+            .expect("Could not convert bytes to UTF8.")
+            .split(['\n', line_ending as char])
+            .map(|line| {
+                if line.ends_with("\r\n") {
+                    return line.trim_end_matches("\r\n")
+                }
+                
+                if line.ends_with('\r') {
+                    return line.trim_end_matches('\r')
+                } 
+                
+                line
+            }).any(|line| send(line, &opts, &tx_item).is_none()) {
+                return;
             }
-            
-            if line.ends_with('\r') {
-                return line.trim_end_matches('\r')
-            } 
-            
-            line
-        });
-
-        if line_iter.any(|line| send(line, &opts, &tx_item).is_none()) {
-            return;
-        }
     }
 }
 
