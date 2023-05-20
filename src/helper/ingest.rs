@@ -56,12 +56,14 @@ pub fn ingest_loop(
 
         let mut line_iter = chunk.split(['\n', line_ending as char]).map(|line| {
             if line.ends_with("\r\n") {
-                line.trim_end_matches("\r\n")
-            } else if line.ends_with('\r') {
-                line.trim_end_matches('\r')
-            } else {
-                line
+                return line.trim_end_matches("\r\n")
             }
+            
+            if line.ends_with('\r') {
+                return line.trim_end_matches('\r')
+            } 
+            
+            line
         });
 
         if line_iter.any(|line| send(line, &opts, &tx_item).is_none()) {
