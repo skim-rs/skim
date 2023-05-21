@@ -116,9 +116,7 @@ impl Draw for Header {
         self.upgrade_item_pool()
             .reserved()
             .iter()
-            .filter_map(|item| {
-                Weak::upgrade(item)
-            })
+            .filter_map(Weak::upgrade)
             .enumerate()
             .for_each(|(idx, item)| {
                 let mut printer = LinePrinter::builder()

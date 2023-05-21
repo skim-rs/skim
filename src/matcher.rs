@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use rayon::ThreadPool;
 
@@ -14,12 +13,6 @@ use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
-
-static MATCHER_POOL: Lazy<ThreadPool> = Lazy::new(|| {
-    rayon::ThreadPoolBuilder::new()
-        .build()
-        .expect("Could not initialize rayon threadpool")
-});
 
 //==============================================================================
 pub struct MatcherControl {
@@ -91,6 +84,7 @@ impl Matcher {
         &self,
         query: &str,
         disabled: bool,
+        thread_pool_weak: Weak<ThreadPool>,
         item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
     ) -> MatcherControl {
@@ -106,7 +100,7 @@ impl Matcher {
         let matched_items_weak = Arc::downgrade(&matched_items);
 
         // shortcut for when there is no query or query is disabled
-        let matcher_disabled = disabled || query.is_empty();
+        let matcher_disabled: bool = disabled || query.is_empty();
 
         let thread_matcher = thread::spawn(move || {
             let filter_op = |index: usize, item: &Arc<dyn SkimItem>, num_taken: usize| -> Option<MatchedItem> {
@@ -136,29 +130,31 @@ impl Matcher {
                 })
             };
 
-            MATCHER_POOL.install(|| {
-                if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
-                    let num_taken = item_pool_strong.num_taken();
-                    let items = item_pool_strong.take();
+            if let Some(thread_pool_strong) = thread_pool_weak.upgrade() {
+                thread_pool_strong.install(|| {
+                    if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
+                        let num_taken = item_pool_strong.num_taken();
+                        let items = item_pool_strong.take();
 
-                    trace!("matcher start, total: {}", items.len());
+                        trace!("matcher start, total: {}", items.len());
 
-                    let new_items = items
-                        .par_iter()
-                        .enumerate()
-                        .take_any_while(|_| !stopped.load(Ordering::Relaxed))
-                        .filter_map(|(index, item)| filter_op(index, item, num_taken))
-                        .collect();
+                        let new_items = items
+                            .par_iter()
+                            .enumerate()
+                            .take_any_while(|_| !stopped.load(Ordering::Relaxed))
+                            .filter_map(|(index, item)| filter_op(index, item, num_taken))
+                            .collect();
 
-                    if !stopped.load(Ordering::Relaxed) {
-                        if let Some(strong) = Weak::upgrade(&matched_items_weak) {
-                            let mut pool = strong.lock();
-                            *pool = new_items;
-                            trace!("matcher stop, total matched: {}", pool.len());
+                        if !stopped.load(Ordering::Relaxed) {
+                            if let Some(strong) = Weak::upgrade(&matched_items_weak) {
+                                let mut pool = strong.lock();
+                                *pool = new_items;
+                                trace!("matcher stop, total matched: {}", pool.len());
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
 
             let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
             stopped.store(true, Ordering::Relaxed);

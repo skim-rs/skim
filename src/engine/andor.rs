@@ -25,9 +25,7 @@ impl OrEngine {
 
 impl MatchEngine for OrEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
-        self.engines.iter().find_map(|engine| {
-            engine.match_item(item)
-        })
+        self.engines.iter().find_map(|engine| engine.match_item(item))
     }
 }
 

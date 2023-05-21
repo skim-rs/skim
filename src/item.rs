@@ -195,9 +195,9 @@ impl ItemPool {
         let to_reserve = self.lines_to_reserve - header_items.len();
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
-            let mut reserved_pool: &[Arc<dyn SkimItem>] = &items[..to_reserve];
-            pool.extend_from_slice(&mut reserved_pool);
-            let mut reserved_header: Vec<Weak<dyn SkimItem>> = reserved_pool.iter().map(|item| Arc::downgrade(item)).collect();
+            let reserved_pool: &[Arc<dyn SkimItem>] = &items[..to_reserve];
+            pool.extend_from_slice(reserved_pool);
+            let mut reserved_header: Vec<Weak<dyn SkimItem>> = reserved_pool.iter().map(Arc::downgrade).collect();
             header_items.append(&mut reserved_header);
         } else {
             pool.append(&mut items);
