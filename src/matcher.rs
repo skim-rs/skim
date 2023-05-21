@@ -33,6 +33,8 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
+        // lock before drop
+        self.items.lock();
     }
 }
 
@@ -48,8 +50,6 @@ impl MatcherControl {
     pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
         self.thread_matcher.take().map(|handle| handle.join());
-
-        self.items.lock();
     }
 
     pub fn stopped(&self) -> bool {
