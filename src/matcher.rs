@@ -3,6 +3,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
+use rayon::prelude::*;
+use rayon::ThreadPool;
+
 use tuikit::key::Key;
 
 use crate::event::Event;
@@ -81,6 +84,7 @@ impl Matcher {
         &self,
         query: &str,
         disabled: bool,
+        thread_pool_weak: Weak<ThreadPool>,
         item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
     ) -> MatcherControl {
@@ -126,26 +130,36 @@ impl Matcher {
                 })
             };
 
-            if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
-                let num_taken = item_pool_strong.num_taken();
-                let items = item_pool_strong.take();
+            if let Some(thread_pool_strong) = thread_pool_weak.upgrade() {
+                thread_pool_strong.install(|| {
+                    if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
+                        let num_taken = item_pool_strong.num_taken();
+                        let items = item_pool_strong.take();
 
-                trace!("matcher start, total: {}", items.len());
+                        trace!("matcher start, total: {}", items.len());
 
-                let new_items = items
-                    .iter()
-                    .take_while(|_| !stopped.load(Ordering::Relaxed))
-                    .enumerate()
-                    .filter_map(|(idx, item)| filter_op(idx, item, num_taken))
-                    .collect();
+                        let new_items = items
+                            .par_iter()
+                            .enumerate()
+                            .chunks(4096)
+                            .take_any_while(|_| !stopped.load(Ordering::Relaxed))
+                            .map(|vec| {
+                                vec.into_iter()
+                                    .filter_map(|(index, item)| filter_op(index, item, num_taken))
+                                    .par_bridge()
+                            })
+                            .flatten()
+                            .collect();
 
-                if !stopped.load(Ordering::Relaxed) {
-                    if let Some(strong) = Weak::upgrade(&matched_items_weak) {
-                        let mut pool = strong.lock();
-                        *pool = new_items;
-                        trace!("matcher stop, total matched: {}", pool.len());
+                        if !stopped.load(Ordering::Relaxed) {
+                            if let Some(strong) = Weak::upgrade(&matched_items_weak) {
+                                let mut pool = strong.lock();
+                                *pool = new_items;
+                                trace!("matcher stop, total matched: {}", pool.len());
+                            }
+                        }
                     }
-                }
+                });
             }
 
             let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));

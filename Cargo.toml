@@ -33,11 +33,12 @@ clap = { version = "3.2.25", optional = true, features = ["cargo"] }
 tuikit = { version = "0.5.0", default-features = false }
 vte = { version = "0.11.0", default-features = false }
 fuzzy-muff = { version = "0.3.9", default-features = false }
+rayon = { version = "1.7.0",  default-features = false }
 derive_builder = { version = "0.12.0", default-features = false }
 bitflags = { version = "2.3.1", default-features = false }
 timer = { version = "0.2.0", default-features = false }
 chrono = { version = "0.4.24", default-features = false }
-crossbeam-channel = { version = "0.5.8" }
+crossbeam-channel = { version = "0.5.8", default-features = false }
 
 [patch.crates-io]
 timer = { git = "https://github.com/kimono-koans/timer.rs" }
