@@ -2,7 +2,6 @@
 // Normally, user will only care about the first several options. So we only keep several of them
 // in order. Other items are kept unordered and are sorted on demand.
 
-use rayon::prelude::ParallelSliceMut;
 use std::cell::{Ref, RefCell};
 use std::cmp::Ordering;
 
@@ -95,9 +94,9 @@ impl<T: Send + Ord> OrderedVec<T> {
         );
     }
 
-    fn sort_vector(&self, vec: &mut Vec<T>, asc: bool) {
+    fn sort_vector(&self, vec: &mut [T], asc: bool) {
         let asc = asc ^ self.tac;
-        vec.par_sort();
+        vec.sort();
         if !asc {
             vec.reverse();
         }
