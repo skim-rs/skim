@@ -20,7 +20,7 @@ pub struct MatcherControl {
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-    thread_matcher: Option<JoinHandle<()>>,
+    opt_thread_handle: Option<JoinHandle<()>>,
 }
 
 impl Drop for MatcherControl {
@@ -42,7 +42,7 @@ impl MatcherControl {
 
     pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-        self.thread_matcher.take().map(|handle| handle.join());
+        self.opt_thread_handle.take().map(|handle| handle.join());
     }
 
     pub fn stopped(&self) -> bool {
@@ -102,7 +102,7 @@ impl Matcher {
         // shortcut for when there is no query or query is disabled
         let matcher_disabled: bool = disabled || query.is_empty();
 
-        let thread_matcher = thread::spawn(move || {
+        let matcher_handle = thread::spawn(move || {
             if let Some(thread_pool_strong) = thread_pool_weak.upgrade() {
                 thread_pool_strong.install(|| {
                     if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
@@ -155,7 +155,7 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items,
-            thread_matcher: Some(thread_matcher),
+            opt_thread_handle: Some(matcher_handle),
         }
     }
 }
