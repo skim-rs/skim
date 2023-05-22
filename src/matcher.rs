@@ -11,7 +11,7 @@ use tuikit::key::Key;
 use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
 use crate::spinlock::SpinLock;
-use crate::{CaseMatching, MatchEngineFactory, SkimItem};
+use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
 
 //==============================================================================
@@ -103,33 +103,6 @@ impl Matcher {
         let matcher_disabled: bool = disabled || query.is_empty();
 
         let thread_matcher = thread::spawn(move || {
-            let filter_op = |index: usize, item: &Arc<dyn SkimItem>, num_taken: usize| -> Option<MatchedItem> {
-                processed.fetch_add(1, Ordering::Relaxed);
-
-                if matcher_disabled {
-                    return Some(MatchedItem {
-                        item: Arc::downgrade(item),
-                        metadata: None,
-                    });
-                }
-
-                matcher_engine.match_item(item.as_ref()).map(|match_result| {
-                    matched.fetch_add(1, Ordering::Relaxed);
-                    MatchedItem {
-                        item: Arc::downgrade(item),
-                        metadata: {
-                            Some(Box::new({
-                                MatchedItemMetadata {
-                                    rank: match_result.rank,
-                                    matched_range: Some(match_result.matched_range),
-                                    item_idx: (num_taken + index) as u32,
-                                }
-                            }))
-                        },
-                    }
-                })
-            };
-
             if let Some(thread_pool_strong) = thread_pool_weak.upgrade() {
                 thread_pool_strong.install(|| {
                     if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
@@ -141,17 +114,21 @@ impl Matcher {
                         let new_items = items
                             .par_iter()
                             .enumerate()
-                            .chunks(4096)
-                            .take_any_while(|_| !stopped.load(Ordering::Relaxed))
+                            .chunks(8196)
+                            .take_any_while(|_| !stopped.load(Ordering::Relaxed) && !matcher_disabled )
                             .map(|vec| {
                                 vec.into_iter()
-                                    .filter_map(|(index, item)| filter_op(index, item, num_taken))
+                                    .filter_map(|(index, item)| {
+                                        processed.fetch_add(1, Ordering::Relaxed);
+
+                                        process_item(index, num_taken, &matched, item, matcher_engine.as_ref())
+                                    })
                                     .par_bridge()
                             })
                             .flatten()
                             .collect();
 
-                        if !stopped.load(Ordering::Relaxed) {
+                        if !stopped.load(Ordering::Relaxed) && !matcher_disabled {
                             if let Some(strong) = Weak::upgrade(&matched_items_weak) {
                                 let mut pool = strong.lock();
                                 *pool = new_items;
@@ -174,4 +151,28 @@ impl Matcher {
             thread_matcher: Some(thread_matcher),
         }
     }
+}
+
+fn process_item(
+    index: usize,
+    num_taken: usize,
+    matched: &Arc<AtomicUsize>,
+    item: &Arc<dyn SkimItem>,
+    matcher_engine: &dyn MatchEngine,
+) -> Option<MatchedItem> {
+    matcher_engine.match_item(item.as_ref()).map(|match_result| {
+        matched.fetch_add(1, Ordering::Relaxed);
+        MatchedItem {
+            item: Arc::downgrade(item),
+            metadata: {
+                Some(Box::new({
+                    MatchedItemMetadata {
+                        rank: match_result.rank,
+                        matched_range: Some(match_result.matched_range),
+                        item_idx: (num_taken + index) as u32,
+                    }
+                }))
+            },
+        }
+    })
 }
