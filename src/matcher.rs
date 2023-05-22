@@ -115,11 +115,18 @@ impl Matcher {
                             .par_iter()
                             .enumerate()
                             .chunks(8196)
-                            .take_any_while(|_| !stopped.load(Ordering::Relaxed) && !matcher_disabled )
+                            .take_any_while(|_| !stopped.load(Ordering::Relaxed) )
                             .map(|vec| {
                                 vec.into_iter()
                                     .filter_map(|(index, item)| {
                                         processed.fetch_add(1, Ordering::Relaxed);
+
+                                        if matcher_disabled {
+                                            return Some(MatchedItem {
+                                                item: Arc::downgrade(item),
+                                                metadata: None,
+                                            })
+                                        }
 
                                         process_item(index, num_taken, &matched, item, matcher_engine.as_ref())
                                     })
