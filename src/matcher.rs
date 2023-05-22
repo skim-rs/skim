@@ -128,7 +128,7 @@ impl Matcher {
                                             })
                                         }
 
-                                        process_item(index, num_taken, &matched, item, matcher_engine.as_ref())
+                                        process_item(index, num_taken, matched.as_ref(), item, matcher_engine.as_ref())
                                     })
                                     .par_bridge()
                             })
@@ -163,7 +163,7 @@ impl Matcher {
 fn process_item(
     index: usize,
     num_taken: usize,
-    matched: &Arc<AtomicUsize>,
+    matched: &AtomicUsize,
     item: &Arc<dyn SkimItem>,
     matcher_engine: &dyn MatchEngine,
 ) -> Option<MatchedItem> {
