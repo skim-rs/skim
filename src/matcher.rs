@@ -141,8 +141,14 @@ impl Matcher {
                         let new_items = items
                             .par_iter()
                             .enumerate()
+                            .chunks(4096)
                             .take_any_while(|_| !stopped.load(Ordering::Relaxed))
-                            .filter_map(|(index, item)| filter_op(index, item, num_taken))
+                            .map(|vec| {
+                                vec.into_iter()
+                                    .filter_map(|(index, item)| filter_op(index, item, num_taken))
+                                    .par_bridge()
+                            })
+                            .flatten()
                             .collect();
 
                         if !stopped.load(Ordering::Relaxed) {
