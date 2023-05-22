@@ -35,8 +35,8 @@ pub fn ingest_loop(
 
     loop {
         // first, read lots of bytes into the buffer
-        if let Ok(mut res) = source.fill_buf() {
-            bytes_buffer.extend_from_slice(&mut res)
+        if let Ok(res) = source.fill_buf() {
+            bytes_buffer.extend(res)
         }
 
         source.consume(bytes_buffer.len());
