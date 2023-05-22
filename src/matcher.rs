@@ -125,17 +125,17 @@ impl Matcher {
                                             return Some(MatchedItem {
                                                 item: Arc::downgrade(item),
                                                 metadata: None,
-                                            })
+                                            });
                                         }
 
-                                        process_item(index, num_taken, matched.as_ref(), item, matcher_engine.as_ref())
+                                        process_item(index, num_taken, matched.as_ref(), matcher_engine.as_ref(), item)
                                     })
                                     .par_bridge()
                             })
                             .flatten()
                             .collect();
 
-                        if !stopped.load(Ordering::Relaxed) && !matcher_disabled {
+                        if !stopped.load(Ordering::Relaxed) {
                             if let Some(strong) = Weak::upgrade(&matched_items_weak) {
                                 let mut pool = strong.lock();
                                 *pool = new_items;
@@ -164,8 +164,8 @@ fn process_item(
     index: usize,
     num_taken: usize,
     matched: &AtomicUsize,
-    item: &Arc<dyn SkimItem>,
     matcher_engine: &dyn MatchEngine,
+    item: &Arc<dyn SkimItem>,
 ) -> Option<MatchedItem> {
     matcher_engine.match_item(item.as_ref()).map(|match_result| {
         matched.fetch_add(1, Ordering::Relaxed);
