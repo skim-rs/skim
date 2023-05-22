@@ -1,4 +1,4 @@
-use std::borrow::{Cow};
+use std::borrow::Cow;
 use std::env;
 
 use std::process::Command;
@@ -475,9 +475,7 @@ impl Model {
         let (indices, selections) = self.selection.get_selected_indices_and_items();
         let selected_texts: Vec<Cow<str>> = selections
             .iter()
-            .map(|item| {
-                Cow::Owned(item.upgrade_item_infallible().text().to_string())
-            })
+            .map(|item| Cow::Owned(item.upgrade_item_infallible().text().to_string()))
             .collect();
 
         let context = InjectContext {

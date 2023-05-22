@@ -53,29 +53,31 @@ pub fn ingest_loop(
             break;
         }
 
-        if std::str::from_utf8(&bytes_buffer)
-            .expect("Could not convert bytes to UTF8.")
-            .split(['\n', line_ending as char])
-            .map(|line| {
-                if line.ends_with("\r\n") {
-                    return line.trim_end_matches("\r\n");
-                }
+        let chunk_str = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
 
-                if line.ends_with('\r') {
-                    return line.trim_end_matches('\r');
-                }
-
-                line
-            })
-            .any(|line| send(line, &opts, &tx_item).is_none())
-        {
-            return;
-        }
+        split(chunk_str, line_ending, &opts, &tx_item);
     }
 }
 
-fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
-    match opts {
+fn split(chunk_str: &str, line_ending: u8, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) {
+    chunk_str
+        .split(['\n', line_ending as char])
+        .map(|line| {
+            if line.ends_with("\r\n") {
+                return line.trim_end_matches("\r\n");
+            }
+
+            if line.ends_with('\r') {
+                return line.trim_end_matches('\r');
+            }
+
+            line
+        })
+        .for_each(|line| send(line, opts, tx_item));
+}
+
+fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) {
+    let res = match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
                 line,
@@ -84,12 +86,18 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.try_send(Arc::new(item))
+            tx_item.send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.try_send(Arc::new(boxed))
+            tx_item.send(Arc::new(boxed))
         }
+    };
+
+    if res.is_err() {
+        eprintln!("Error: Text ingest failed!");
+        std::process::exit(1)
     }
-    .ok()
 }
+
+

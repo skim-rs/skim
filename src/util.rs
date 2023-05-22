@@ -373,11 +373,11 @@ pub fn inject_command<'a>(cmd: &'a str, context: InjectContext<'a>) -> Cow<'a, s
                     let rest = &range[1..];
                     let index_str = format!("{}", i);
                     let replacement = match rest {
-                        "" => &s,
+                        "" => s,
                         "n" => index_str.as_str(),
-                        _ => get_string_by_range(context.delimiter, &s, rest).unwrap_or(""),
+                        _ => get_string_by_range(context.delimiter, s, rest).unwrap_or(""),
                     };
-                    format!("'{}'", escape_single_quote(&replacement))
+                    format!("'{}'", escape_single_quote(replacement))
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
