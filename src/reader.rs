@@ -149,7 +149,7 @@ fn collect_item(
                             break;
                         }
 
-                        locked.extend(rx_item.iter().take(512))
+                        locked.extend(rx_item.iter().take(10))
                     }
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
