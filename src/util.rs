@@ -314,7 +314,7 @@ pub struct InjectContext<'a> {
     pub current_index: usize,
     pub current_selection: &'a str,
     pub indices: &'a [usize],
-    pub selections: &'a [&'a str],
+    pub selections: &'a [Cow<'a, str>],
     pub query: &'a str,
     pub cmd_query: &'a str,
 }
@@ -353,7 +353,7 @@ pub fn inject_command<'a>(cmd: &'a str, context: InjectContext<'a>) -> Cow<'a, s
         let range = range.trim();
 
         if range.starts_with('+') {
-            let current_selection = vec![context.current_selection];
+            let current_selection = vec![Cow::Borrowed(context.current_selection)];
             let selections = if context.selections.is_empty() {
                 &current_selection
             } else {
@@ -369,15 +369,15 @@ pub fn inject_command<'a>(cmd: &'a str, context: InjectContext<'a>) -> Cow<'a, s
             return selections
                 .iter()
                 .zip(indices.iter())
-                .map(|(&s, &i)| {
+                .map(|(s, i)| {
                     let rest = &range[1..];
                     let index_str = format!("{}", i);
                     let replacement = match rest {
-                        "" => s,
-                        "n" => &index_str,
-                        _ => get_string_by_range(context.delimiter, s, rest).unwrap_or(""),
+                        "" => &s,
+                        "n" => index_str.as_str(),
+                        _ => get_string_by_range(context.delimiter, &s, rest).unwrap_or(""),
                     };
-                    format!("'{}'", escape_single_quote(replacement))
+                    format!("'{}'", escape_single_quote(&replacement))
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
@@ -431,7 +431,7 @@ mod tests {
     fn test_inject_command() {
         let delimiter = Regex::new(r",").unwrap();
         let current_selection = "a,b,c";
-        let selections = vec!["a,b,c", "x,y,z"];
+        let selections = vec![Cow::Borrowed("a,b,c"), Cow::Borrowed("x,y,z")];
         let query = "query";
         let cmd_query = "cmd_query";
 
