@@ -257,7 +257,7 @@ pub trait MatchEngineFactory {
 // Preselection
 
 /// A selector that determines whether an item should be "pre-selected" in multi-selection mode
-pub trait Selector {
+pub trait Selector: Send + Sync {
     fn should_select(&self, index: usize, item: &dyn SkimItem) -> bool;
 }
 

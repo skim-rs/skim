@@ -301,7 +301,7 @@ fn real_main() -> Result<i32, std::io::Error> {
             .regex(pattern)
             .preset(preset_items)
             .preset(preset_file);
-        options.selector = Some(Rc::new(selector));
+        options.selector = Some(Arc::new(selector));
     }
 
     let options = options;

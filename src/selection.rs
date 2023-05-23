@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tuikit::prelude::{Event as TermEvent, *};
+use defer_drop::DeferDrop;
 
 ///! Handle the selections of items
 use crate::event::{Event, EventHandler, UpdateScreen};
@@ -16,15 +17,14 @@ use crate::util::clear_canvas;
 use crate::util::{print_item, reshape_string, LinePrinter};
 use crate::{DisplayContext, MatchRange, Matches, Selector, SkimItem, SkimOptions};
 use regex::Regex;
-use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
 
 type ItemIndex = (u32, u32);
 
 pub struct Selection {
     // all items
-    items: OrderedVec<MatchedItem>,
-    selected: BTreeMap<ItemIndex, MatchedItem>,
+    items: DeferDrop<OrderedVec<MatchedItem>>,
+    selected: DeferDrop<BTreeMap<ItemIndex, MatchedItem>>,
 
     //
     // |>------ items[items.len()-1]
@@ -57,7 +57,7 @@ pub struct Selection {
     // To avoid remember all items, we'll track the latest run_num and index.
     latest_select_run_num: u32,
     pre_selected_watermark: usize,
-    selector: Option<Rc<dyn Selector>>,
+    selector: Option<Arc<dyn Selector>>,
 }
 
 impl Default for Selection {
@@ -69,8 +69,8 @@ impl Default for Selection {
 impl Selection {
     pub fn new() -> Self {
         Selection {
-            items: OrderedVec::new(),
-            selected: BTreeMap::new(),
+            items: DeferDrop::new(OrderedVec::new()),
+            selected: DeferDrop::new(BTreeMap::new()),
             item_cursor: 0,
             line_cursor: 0,
             hscroll_offset: 0,
@@ -145,7 +145,7 @@ impl Selection {
             self.pre_select(&items);
         }
 
-        self.items.append(items);
+        self.items.append(items.to_vec());
         self.pre_selected_watermark = max(self.pre_selected_watermark, self.items.len());
 
         let height = self.height.load(Ordering::Relaxed);

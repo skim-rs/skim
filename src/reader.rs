@@ -43,6 +43,11 @@ impl Drop for ReaderControl {
     fn drop(&mut self) {
         self.kill();
         self.items.lock();
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            let _ = libc::malloc_trim(0);
+        };
     }
 }
 
@@ -58,19 +63,9 @@ impl ReaderControl {
 
         if let Some(handle) = self.thread_reader.take() {
             let _ = handle.join();
-
-            #[cfg(target_os = "linux")]
-            unsafe {
-                let _ = libc::malloc_trim(0);
-            };
         }
         if let Some(handle) = self.thread_ingest.take() {
             let _ = handle.join();
-
-            #[cfg(target_os = "linux")]
-            unsafe {
-                let _ = libc::malloc_trim(0);
-            };
         }
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}

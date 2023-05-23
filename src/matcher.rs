@@ -5,6 +5,7 @@ use std::thread::{self, JoinHandle};
 
 use rayon::prelude::*;
 use rayon::ThreadPool;
+use defer_drop::DeferDrop;
 
 use tuikit::key::Key;
 
@@ -28,6 +29,11 @@ impl Drop for MatcherControl {
         self.kill();
         // lock before drop
         self.items.lock();
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            let _ = libc::malloc_trim(0);
+        };
     }
 }
 
@@ -44,11 +50,6 @@ impl MatcherControl {
         self.stopped.store(true, Ordering::Relaxed);
         if let Some(handle) = self.opt_thread_handle.take() {
             let _ = handle.join();
-
-            #[cfg(target_os = "linux")]
-            unsafe {
-                let _ = libc::malloc_trim(0);
-            };
         }
     }
 
@@ -56,7 +57,7 @@ impl MatcherControl {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(self) -> Vec<MatchedItem> {
+    pub fn into_items(&mut self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
         let mut locked = self.items.lock();
 
@@ -92,7 +93,7 @@ impl Matcher {
         query: &str,
         disabled: bool,
         thread_pool_weak: Weak<ThreadPool>,
-        item_pool_weak: Weak<ItemPool>,
+        item_pool_weak: Weak<DeferDrop<ItemPool>>,
         tx_heartbeat: Sender<(Key, Event)>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
