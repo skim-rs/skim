@@ -42,7 +42,7 @@ impl MatcherControl {
 
     pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-        self.opt_thread_handle.take().map(|handle| handle.join());
+        if let Some(handle) = self.opt_thread_handle.take() { let _ = handle.join(); }
     }
 
     pub fn stopped(&self) -> bool {

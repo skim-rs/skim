@@ -39,6 +39,7 @@ bitflags = { version = "2.3.1", default-features = false }
 timer = { version = "0.2.0", default-features = false }
 chrono = { version = "0.4.24", default-features = false }
 crossbeam-channel = { version = "0.5.8", default-features = false }
+libc = { version = "0.2.144", default-features = false }
 
 [patch.crates-io]
 timer = { git = "https://github.com/kimono-koans/timer.rs" }

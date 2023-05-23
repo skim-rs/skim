@@ -335,6 +335,12 @@ impl Skim {
         let ret = model.start();
         let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
         let _ = input_thread.join();
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            let _ = libc::malloc_trim(0);
+        };
+
         ret
     }
 

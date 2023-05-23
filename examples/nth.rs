@@ -20,5 +20,5 @@ pub fn main() {
         println!("{}", item.output());
     }
 
-    opt_ingest_handle.map(|handle| handle.join());
+    if let Some(handle) = opt_ingest_handle { let _ = handle.join(); }
 }

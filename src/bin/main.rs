@@ -384,7 +384,7 @@ fn real_main() -> Result<i32, std::io::Error> {
         write_history_to_file(&cmd_history, &output.cmd, limit, file)?;
     }
 
-    opt_ingest_handle.map(|handle| handle.join());
+    if let Some(handle) = opt_ingest_handle { let _ = handle.join(); }
 
     Ok(if output.selected_items.is_empty() { 1 } else { 0 })
 }

@@ -76,7 +76,7 @@ impl Previewer {
 
                     callback();
                 }),
-            )
+            );
         });
 
         Self {
@@ -320,7 +320,7 @@ impl Previewer {
 impl Drop for Previewer {
     fn drop(&mut self) {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
-        self.thread_previewer.take().map(|handle| handle.join());
+        if let Some(handle) = self.thread_previewer.take() { let _ = handle.join(); }
     }
 }
 
@@ -424,7 +424,7 @@ struct PreviewThread {
 impl Drop for PreviewThread {
     fn drop(&mut self) {
         self.kill();
-        self.thread.take().map(|handle| handle.join());
+        if let Some(handle) = self.thread.take() { let _ = handle.join(); }
     }
 }
 

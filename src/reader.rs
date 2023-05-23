@@ -56,8 +56,8 @@ impl ReaderControl {
         let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        self.thread_reader.take().map(|handle| handle.join());
-        self.thread_ingest.take().map(|handle| handle.join());
+        if let Some(handle) = self.thread_reader.take() { let _ = handle.join(); }
+        if let Some(handle) = self.thread_ingest.take() { let _ = handle.join(); }
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
