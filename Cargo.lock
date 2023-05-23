@@ -809,7 +809,7 @@ dependencies = [
 
 [[package]]
 name = "two_percent"
-version = "0.10.13"
+version = "0.10.14"
 dependencies = [
  "atty",
  "bitflags 2.3.1",
