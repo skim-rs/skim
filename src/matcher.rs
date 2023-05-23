@@ -42,7 +42,14 @@ impl MatcherControl {
 
     pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.opt_thread_handle.take() { let _ = handle.join(); }
+        if let Some(handle) = self.opt_thread_handle.take() {
+            let _ = handle.join();
+
+            #[cfg(target_os = "linux")]
+            unsafe {
+                let _ = libc::malloc_trim(0);
+            };
+        }
     }
 
     pub fn stopped(&self) -> bool {

@@ -56,8 +56,22 @@ impl ReaderControl {
         let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        if let Some(handle) = self.thread_reader.take() { let _ = handle.join(); }
-        if let Some(handle) = self.thread_ingest.take() { let _ = handle.join(); }
+        if let Some(handle) = self.thread_reader.take() {
+            let _ = handle.join();
+
+            #[cfg(target_os = "linux")]
+            unsafe {
+                let _ = libc::malloc_trim(0);
+            };
+        }
+        if let Some(handle) = self.thread_ingest.take() {
+            let _ = handle.join();
+
+            #[cfg(target_os = "linux")]
+            unsafe {
+                let _ = libc::malloc_trim(0);
+            };
+        }
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
