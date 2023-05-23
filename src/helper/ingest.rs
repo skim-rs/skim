@@ -67,10 +67,11 @@ pub fn ingest_loop(
 
                 line
             })
-            .any(|line| send(line, &opts, &tx_item).is_none())
-        {
-            return;
-        }
+            .any(|line| {
+                send(line, &opts, &tx_item).is_none()
+            }) {
+                break
+            }
     }
 }
 
@@ -84,12 +85,11 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.try_send(Arc::new(item))
+            tx_item.send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.try_send(Arc::new(boxed))
+            tx_item.send(Arc::new(boxed))
         }
-    }
-    .ok()
+    }.ok()
 }
