@@ -35,9 +35,17 @@ pub fn ingest_loop(
 
     loop {
         // first, read lots of bytes into the buffer
+<<<<<<< HEAD
         if let Ok(res) = source.fill_buf() {
             bytes_buffer.extend(res)
         }
+=======
+        bytes_buffer = if let Ok(res) = source.fill_buf() {
+            res.to_vec()
+        } else {
+            break;
+        };
+>>>>>>> parent of 7e0d693 (Avoid branch)
 
         source.consume(bytes_buffer.len());
 
