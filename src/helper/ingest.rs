@@ -35,17 +35,11 @@ pub fn ingest_loop(
 
     loop {
         // first, read lots of bytes into the buffer
-<<<<<<< HEAD
-        if let Ok(res) = source.fill_buf() {
-            bytes_buffer.extend(res)
-        }
-=======
         bytes_buffer = if let Ok(res) = source.fill_buf() {
             res.to_vec()
         } else {
             break;
         };
->>>>>>> parent of 7e0d693 (Avoid branch)
 
         source.consume(bytes_buffer.len());
 
@@ -59,31 +53,29 @@ pub fn ingest_loop(
             break;
         }
 
-        let chunk_str = std::str::from_utf8(&bytes_buffer).expect("Could not convert bytes to UTF8.");
+        if std::str::from_utf8(&bytes_buffer)
+            .expect("Could not convert bytes to UTF8.")
+            .split(['\n', line_ending as char])
+            .map(|line| {
+                if line.ends_with("\r\n") {
+                    return line.trim_end_matches("\r\n");
+                }
 
-        split(chunk_str, line_ending, &opts, &tx_item);
+                if line.ends_with('\r') {
+                    return line.trim_end_matches('\r');
+                }
+
+                line
+            })
+            .any(|line| send(line, &opts, &tx_item).is_none())
+        {
+            return;
+        }
     }
 }
 
-fn split(chunk_str: &str, line_ending: u8, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) {
-    chunk_str
-        .split(['\n', line_ending as char])
-        .map(|line| {
-            if line.ends_with("\r\n") {
-                return line.trim_end_matches("\r\n");
-            }
-
-            if line.ends_with('\r') {
-                return line.trim_end_matches('\r');
-            }
-
-            line
-        })
-        .for_each(|line| send(line, opts, tx_item));
-}
-
-fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) {
-    let res = match opts {
+fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
+    match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
                 line,
@@ -92,18 +84,12 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.send(Arc::new(item))
+            tx_item.try_send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.send(Arc::new(boxed))
+            tx_item.try_send(Arc::new(boxed))
         }
-    };
-
-    if res.is_err() {
-        eprintln!("Error: Text ingest failed!");
-        std::process::exit(1)
     }
+    .ok()
 }
-
-
