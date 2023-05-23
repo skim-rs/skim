@@ -2,7 +2,7 @@
 use std::io::BufRead;
 use std::sync::Arc;
 
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Sender, TrySendError};
 use regex::Regex;
 
 use crate::field::FieldRange;
@@ -53,7 +53,7 @@ pub fn ingest_loop(
             break;
         }
 
-        if std::str::from_utf8(&bytes_buffer)
+        std::str::from_utf8(&bytes_buffer)
             .expect("Could not convert bytes to UTF8.")
             .split(['\n', line_ending as char])
             .map(|line| {
@@ -67,15 +67,24 @@ pub fn ingest_loop(
 
                 line
             })
-            .any(|line| {
-                send(line, &opts, &tx_item).is_none()
-            }) {
-                break
-            }
+            .for_each(|line| {
+                // if send fails retry once, don't block or break
+                if send(line, &opts, &tx_item).is_err() {
+                    // if send fails again, exit printing an error
+                    if let Err(err) = send(line, &opts, &tx_item) {
+                        eprintln!("Error: {}", err);
+                        std::process::exit(1)
+                    }
+                }
+            })
     }
 }
 
-fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) -> Option<()> {
+fn send(
+    line: &str,
+    opts: &SendRawOrBuild,
+    tx_item: &Sender<Arc<dyn SkimItem>>,
+) -> Result<(), TrySendError<Arc<dyn SkimItem>>> {
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
@@ -85,11 +94,11 @@ fn send(line: &str, opts: &SendRawOrBuild, tx_item: &Sender<Arc<dyn SkimItem>>) 
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.send(Arc::new(item))
+            tx_item.try_send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.send(Arc::new(boxed))
+            tx_item.try_send(Arc::new(boxed))
         }
-    }.ok()
+    }
 }
