@@ -133,7 +133,7 @@ impl Matcher {
 
                                         process_item(index, num_taken, matched.clone(), matcher_engine.as_ref(), item)
                                     })
-                                    .par_bridge()
+                                    .collect::<Vec<MatchedItem>>()
                             })
                             .flatten()
                             .collect();
