@@ -386,12 +386,12 @@ fn real_main() -> Result<i32, std::io::Error> {
 
     if let Some(handle) = opt_ingest_handle { 
         let _ = handle.join(); 
-    
-        #[cfg(target_os = "linux")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
     }
+
+    #[cfg(target_os = "linux")]
+    unsafe {
+        let _ = libc::malloc_trim(0);
+    };
 
     Ok(if output.selected_items.is_empty() { 1 } else { 0 })
 }

@@ -29,11 +29,6 @@ impl Drop for MatcherControl {
         self.kill();
         // lock before drop
         self.items.lock();
-
-        #[cfg(target_os = "linux")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
     }
 }
 
@@ -122,7 +117,7 @@ impl Matcher {
                         let new_items = items
                             .par_iter()
                             .enumerate()
-                            .chunks(4_096)
+                            .chunks(2_048)
                             .take_any_while(|_| !stopped.load(Ordering::Relaxed))
                             .map(|vec| {
                                 vec.into_iter()

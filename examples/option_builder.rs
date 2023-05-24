@@ -45,10 +45,10 @@ pub fn main() {
 
     if let Some(handle) = opt_ingest_handle {
         let _ = handle.join();
-
-        #[cfg(target_os = "linux")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
     }
+
+    #[cfg(target_os = "linux")]
+    unsafe {
+        let _ = libc::malloc_trim(0);
+    };
 }

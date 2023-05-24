@@ -322,11 +322,6 @@ impl Drop for Previewer {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         if let Some(handle) = self.thread_previewer.take() {
             let _ = handle.join();
-
-            #[cfg(target_os = "linux")]
-            unsafe {
-                let _ = libc::malloc_trim(0);
-            };
         }
     }
 }
@@ -433,11 +428,6 @@ impl Drop for PreviewThread {
         self.kill();
         if let Some(handle) = self.thread.take() {
             let _ = handle.join();
-
-            #[cfg(target_os = "linux")]
-            unsafe {
-                let _ = libc::malloc_trim(0);
-            };
         }
     }
 }

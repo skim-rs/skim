@@ -43,11 +43,6 @@ impl Drop for ReaderControl {
     fn drop(&mut self) {
         self.kill();
         self.items.lock();
-
-        #[cfg(target_os = "linux")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
     }
 }
 
