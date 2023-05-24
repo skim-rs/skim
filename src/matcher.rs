@@ -3,9 +3,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
+use defer_drop::DeferDrop;
 use rayon::prelude::*;
 use rayon::ThreadPool;
-use defer_drop::DeferDrop;
 
 use tuikit::key::Key;
 
@@ -52,6 +52,7 @@ impl MatcherControl {
         self.stopped.load(Ordering::Relaxed)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn into_items(&mut self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
         let mut locked = self.items.lock();

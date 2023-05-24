@@ -7,11 +7,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Duration as TimerDuration;
+use defer_drop::DeferDrop;
 use rayon::ThreadPool;
 use regex::Regex;
 use timer::{Guard as TimerGuard, Timer};
 use tuikit::prelude::{Event as TermEvent, *};
-use defer_drop::DeferDrop;
 
 use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::event::{Event, EventHandler, EventReceiver, EventSender};
@@ -329,9 +329,7 @@ impl Model {
             .unwrap_or(false);
 
         if matcher_stopped {
-            let reader_stopped = self.reader_control.as_ref().map(|ctrl| {
-                ctrl.is_done()
-            }).unwrap_or(true);
+            let reader_stopped = self.reader_control.as_ref().map(|ctrl| ctrl.is_done()).unwrap_or(true);
             let mut ctrl = self.matcher_control.take().unwrap();
             let matched = ctrl.into_items();
 

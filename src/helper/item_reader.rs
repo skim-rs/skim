@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use crossbeam_channel::{bounded, Receiver, Sender, unbounded};
+use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use regex::Regex;
 
 use crate::field::FieldRange;
@@ -162,6 +162,7 @@ impl SkimItemReader {
 
     /// components_to_stop == 0 => all the threads have been stopped
     /// return (channel_for_receive_item, channel_to_stop_command)
+    #[allow(clippy::type_complexity)]
     fn read_and_collect_from_command(
         &self,
         components_to_stop: Arc<AtomicUsize>,

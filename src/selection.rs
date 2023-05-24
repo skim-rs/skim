@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use tuikit::prelude::{Event as TermEvent, *};
 use defer_drop::DeferDrop;
+use tuikit::prelude::{Event as TermEvent, *};
 
 ///! Handle the selections of items
 use crate::event::{Event, EventHandler, UpdateScreen};
