@@ -72,8 +72,9 @@ pub fn ingest_loop(
                 if send(line, &opts, &tx_item).is_err() {
                     // if send fails again, exit printing an error
                     if let Err(err) = send(line, &opts, &tx_item) {
-                        eprintln!("Error: {}", err);
-                        std::process::exit(1)
+                        if err.is_disconnected() {
+                            return;
+                        }
                     }
                 }
             })
