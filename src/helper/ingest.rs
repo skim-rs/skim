@@ -70,12 +70,7 @@ pub fn ingest_loop(
             .for_each(|line| {
                 // if send fails retry once, don't block or break
                 if send(line, &opts, &tx_item).is_err() {
-                    // if send fails again, exit printing an error
-                    if let Err(err) = send(line, &opts, &tx_item) {
-                        if err.is_disconnected() {
-                            return;
-                        }
-                    }
+                    let _ = send(line, &opts, &tx_item);
                 }
             })
     }

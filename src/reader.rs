@@ -149,11 +149,9 @@ fn collect_item(
                     i if i == item_channel => {
                         let mut locked = items_strong.lock();
 
-                        if rx_item.is_empty() {
-                            break;
+                        if let Ok(item) = rx_item.try_recv() {
+                            locked.push(item)
                         }
-
-                        locked.extend(rx_item.iter().take(10))
                     }
                     i if i == interrupt_channel => break,
                     _ => unreachable!(),
