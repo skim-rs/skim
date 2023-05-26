@@ -147,10 +147,14 @@ fn collect_item(
             loop {
                 match sel.ready() {
                     i if i == item_channel => {
-                        let mut locked = items_strong.lock();
-
-                        if let Ok(item) = rx_item.try_recv() {
-                            locked.push(item)
+                        match rx_item.try_recv() {
+                            Ok(item) => {
+                                let mut locked = items_strong.lock();
+                                locked.push(item)
+                            }
+                            Err(_err) => {
+                                break
+                            }
                         }
                     }
                     i if i == interrupt_channel => break,
