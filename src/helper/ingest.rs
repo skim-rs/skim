@@ -53,7 +53,7 @@ pub fn ingest_loop(
             break;
         }
 
-        std::str::from_utf8(&bytes_buffer)
+        if std::str::from_utf8(&bytes_buffer)
             .expect("Could not convert bytes to UTF8.")
             .split(['\n', line_ending as char])
             .map(|line| {
@@ -67,12 +67,19 @@ pub fn ingest_loop(
 
                 line
             })
-            .for_each(|line| {
-                // if send fails retry once, don't block or break
-                if send(line, &opts, &tx_item).is_err() {
-                    let _ = send(line, &opts, &tx_item);
+            .try_for_each(|line| {
+                // if send fails retry once, don't block or break                
+                match send(line, &opts, &tx_item) {
+                    Err(err) if err.is_disconnected() => Err(err),
+                    Err(_) => {
+                        let _ = send(line, &opts, &tx_item);
+                        Ok(())
+                    },
+                    Ok(_) => Ok(()),
                 }
-            })
+            }).is_err() {
+                return;
+            }
     }
 }
 
