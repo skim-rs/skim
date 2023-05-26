@@ -209,7 +209,6 @@ impl SkimItemReader {
                 let started = Arc::new(AtomicBool::new(false));
                 let started_clone = started.clone();
                 let components_to_stop_clone = components_to_stop;
-                let tx_item_clone = tx_item.clone();
                 let send_error = self.option.show_error;
                 // listening to close signal and kill command if needed
                 let ingest_handle = thread::spawn(move || {
@@ -231,7 +230,7 @@ impl SkimItemReader {
                             if has_error {
                                 let output = child.wait_with_output().expect("could not retrieve error message");
                                 for line in String::from_utf8_lossy(&output.stderr).lines() {
-                                    let _ = tx_item_clone.send(Arc::new(line.to_string()));
+                                    let _ = tx_item.send(Arc::new(line.to_string()));
                                 }
                             }
                         }
