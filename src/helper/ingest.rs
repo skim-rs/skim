@@ -70,12 +70,12 @@ pub fn ingest_loop(
             .try_for_each(|line| {
                 // if send fails retry once, don't block or break                
                 match send(line, &opts, &tx_item) {
+                    Ok(_) => Ok(()),
                     Err(err) if err.is_disconnected() => Err(err),
                     Err(_) => {
                         let _ = send(line, &opts, &tx_item);
                         Ok(())
                     },
-                    Ok(_) => Ok(()),
                 }
             }).is_err() {
                 return;
