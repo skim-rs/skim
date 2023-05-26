@@ -158,7 +158,10 @@ fn collect_item(
                                     if err.is_disconnected() {
                                         break 'outer;
                                     }
-                                    break 'inner;
+
+                                    if err.is_empty() {
+                                        break 'inner;
+                                    }
                                 },
                             }
                         }
