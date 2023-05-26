@@ -166,7 +166,7 @@ fn collect_item(
                             }
                         }
                     },
-                    i if i == interrupt_channel => break,
+                    i if i == interrupt_channel => break 'outer,
                     _ => unreachable!(),
                 }
             }
