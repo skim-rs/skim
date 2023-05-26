@@ -149,7 +149,7 @@ fn collect_item(
                     i if i == item_channel => {
                         let mut locked = items_strong.lock();
 
-                        'inner: for _ in 0..10 {
+                        'inner: for _ in 0..256 {
                             match rx_item.try_recv() {
                                 Ok(item) => {
                                     locked.push(item)
