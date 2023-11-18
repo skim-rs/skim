@@ -111,7 +111,6 @@ impl Drop for Model {
             DeferDrop::into_inner(reader_control);
         }
 
-        self.selection.clear();
         let selection = std::mem::take(&mut self.selection);
         DeferDrop::into_inner(selection);
 
