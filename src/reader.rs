@@ -42,9 +42,7 @@ pub struct ReaderControl {
 impl Drop for ReaderControl {
     fn drop(&mut self) {
         self.kill();
-
-        let mut locked = self.items.lock();
-        std::mem::take(&mut *locked);
+        self.items.lock();
     }
 }
 

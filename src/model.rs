@@ -103,11 +103,15 @@ pub struct Model {
 
 impl Drop for Model {
     fn drop(&mut self) {
+        if let Some(matcher_control) = self.matcher_control.take() {
+            DeferDrop::into_inner(matcher_control);
+        }
+
+        if let Some(reader_control) = self.reader_control.take() {
+            DeferDrop::into_inner(reader_control);
+        }
+
         self.selection.clear();
-
-        self.matcher_control.take();
-        self.reader_control.take();
-
         let selection = std::mem::take(&mut self.selection);
         DeferDrop::into_inner(selection);
 
