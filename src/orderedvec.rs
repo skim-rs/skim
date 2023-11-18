@@ -19,7 +19,8 @@ pub struct OrderedVec<T: Send + Ord> {
 
 impl<T: Send + Ord> Drop for OrderedVec<T> {
     fn drop(&mut self) {
-        self.clear()
+        RefCell::take(&self.sub_vectors);
+        RefCell::take(&self.sorted);
     }
 }
 
