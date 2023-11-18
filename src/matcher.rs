@@ -28,7 +28,13 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
         // lock before drop
-        self.items.lock();
+        drop(self.items.lock());
+
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        unsafe {
+            let _ = libc::malloc_trim(0);
+        };
     }
 }
 
