@@ -249,22 +249,24 @@ impl Model {
 
         if let Some(preview_cmd) = options.preview {
             let tx = Arc::new(SpinLock::new(self.tx.clone()));
-            self.previewer = Some(
-                Previewer::new(
-                    Some(preview_cmd.to_string()),
-                    Box::new(move || {
-                        let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
-                    }),
-                )
-                .wrap(preview_wrap)
-                .delimiter(self.delimiter.clone())
-                .preview_offset(
-                    options
-                        .preview_window
-                        .map(Self::parse_preview_offset)
-                        .unwrap_or_else(|| "".to_string()),
-                ),
+            let new_previewer = Previewer::new(
+                Some(preview_cmd.to_string()),
+                Box::new(move || {
+                    let _ = tx.lock().send((Key::Null, Event::EvHeartBeat));
+                }),
+            )
+            .wrap(preview_wrap)
+            .delimiter(self.delimiter.clone())
+            .preview_offset(
+                options
+                    .preview_window
+                    .map(Self::parse_preview_offset)
+                    .unwrap_or_else(|| "".to_string()),
             );
+
+            if let Some(mut old_previewer) = self.previewer.replace(new_previewer) {
+                old_previewer.kill()
+            }
         }
 
         self.select1 = options.select1;

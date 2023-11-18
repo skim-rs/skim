@@ -315,14 +315,18 @@ impl Previewer {
             v_offset,
         }
     }
-}
 
-impl Drop for Previewer {
-    fn drop(&mut self) {
+    pub fn kill(&mut self) {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         if let Some(handle) = self.thread_previewer.take() {
             let _ = handle.join();
         }
+    }
+}
+
+impl Drop for Previewer {
+    fn drop(&mut self) {
+        self.kill()
     }
 }
 
