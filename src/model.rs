@@ -170,7 +170,7 @@ impl Model {
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
         let header = Header::empty()
             .with_options(options)
-            .item_pool(item_pool.clone())
+            .item_pool(&item_pool)
             .theme(theme.clone());
 
         let margins = options

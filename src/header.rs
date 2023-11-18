@@ -21,15 +21,7 @@ pub struct Header {
     theme: Arc<ColorTheme>,
 
     // for reserved header items
-    item_pool: Arc<DeferDrop<ItemPool>>,
-}
-
-impl Drop for Header {
-    fn drop(&mut self) {
-        if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
-            DeferDrop::into_inner(item_pool);
-        }
-    }
+    item_pool: Weak<DeferDrop<ItemPool>>,
 }
 
 impl Header {
@@ -39,12 +31,20 @@ impl Header {
             tabstop: 8,
             reverse: false,
             theme: Arc::new(*DEFAULT_THEME),
-            item_pool: Arc::new(DeferDrop::new(ItemPool::new())),
+            item_pool: Weak::new(),
         }
     }
 
-    pub fn item_pool(mut self, item_pool: Arc<DeferDrop<ItemPool>>) -> Self {
-        self.item_pool = item_pool;
+    pub fn upgrade_pool(&self) -> Arc<DeferDrop<ItemPool>> {
+        if let Some(upgraded) = Weak::upgrade(&self.item_pool) {
+            upgraded
+        } else {
+            Arc::new(DeferDrop::new(ItemPool::new()))
+        }
+    }
+
+    pub fn item_pool(mut self, item_pool: &Arc<DeferDrop<ItemPool>>) -> Self {
+        self.item_pool = Arc::downgrade(&item_pool);
         self
     }
 
@@ -75,7 +75,11 @@ impl Header {
     }
 
     fn lines_of_header(&self) -> usize {
-        self.header.len() + self.item_pool.reserved().len()
+        if let Some(upgraded) = Weak::upgrade(&self.item_pool) {
+            self.header.len() + upgraded.reserved().len()
+        } else {
+            self.header.len()
+        }
     }
 
     fn adjust_row(&self, index: usize, screen_height: usize) -> usize {
@@ -120,7 +124,7 @@ impl Draw for Header {
         let lines_used = self.header.len();
 
         // print "reserved" header lines (--header-lines)
-        self.item_pool
+        self.upgrade_pool()
             .reserved()
             .iter()
             .filter_map(Weak::upgrade)
