@@ -42,7 +42,9 @@ pub struct ReaderControl {
 impl Drop for ReaderControl {
     fn drop(&mut self) {
         self.kill();
-        self.items.lock();
+
+        let mut locked = self.items.lock();
+        std::mem::take(&mut *locked);
     }
 }
 
@@ -151,9 +153,7 @@ fn collect_item(
 
                         'inner: for _ in 0..256 {
                             match rx_item.try_recv() {
-                                Ok(item) => {
-                                    locked.push(item)
-                                }
+                                Ok(item) => locked.push(item),
                                 Err(err) => {
                                     if err.is_disconnected() {
                                         break 'outer;
@@ -162,10 +162,10 @@ fn collect_item(
                                     if err.is_empty() {
                                         break 'inner;
                                     }
-                                },
+                                }
                             }
                         }
-                    },
+                    }
                     i if i == interrupt_channel => break 'outer,
                     _ => unreachable!(),
                 }

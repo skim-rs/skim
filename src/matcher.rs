@@ -28,7 +28,8 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
         // lock before drop
-        self.items.lock();
+        let mut locked = self.items.lock();
+        std::mem::take(&mut *locked);
     }
 }
 
