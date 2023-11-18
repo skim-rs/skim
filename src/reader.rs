@@ -34,7 +34,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
     thread_reader: Option<JoinHandle<()>>,
     thread_ingest: Option<JoinHandle<()>>,
 }
@@ -67,14 +67,20 @@ impl ReaderControl {
     }
 
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
-        let mut locked = self.items.lock();
-
-        std::mem::take(&mut *locked)
+        if let Some(upgraded) = Weak::upgrade(&self.items) {
+            std::mem::take(&mut upgraded.lock())
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn is_done(&self) -> bool {
-        let locked = self.items.lock();
-        self.components_to_stop.load(Ordering::SeqCst) == 0 && locked.is_empty()
+        if let Some(upgraded) = Weak::upgrade(&self.items) {
+            let locked = upgraded.lock();
+            self.components_to_stop.load(Ordering::SeqCst) == 0 && locked.is_empty()
+        } else {
+            self.components_to_stop.load(Ordering::SeqCst) == 0
+        }
     }
 }
 
@@ -112,13 +118,13 @@ impl Reader {
             });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_weak);
+        let (tx_interrupt, thread_reader) = collect_item(components_to_stop_clone, rx_item, items_strong);
 
         ReaderControl {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
-            items: items_strong,
+            items: items_weak,
             thread_reader: Some(thread_reader),
             thread_ingest: opt_ingest_handle,
         }
@@ -128,7 +134,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    items_weak: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items_strong: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 ) -> (Sender<i32>, JoinHandle<()>) {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
@@ -143,30 +149,28 @@ fn collect_item(
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
 
-        if let Some(items_strong) = items_weak.upgrade() {
-            'outer: loop {
-                match sel.ready() {
-                    i if i == item_channel => {
-                        let mut locked = items_strong.lock();
+        'outer: loop {
+            match sel.ready() {
+                i if i == item_channel => {
+                    let mut locked = items_strong.lock();
 
-                        'inner: for _ in 0..128 {
-                            match rx_item.try_recv() {
-                                Ok(item) => locked.push(item),
-                                Err(err) => {
-                                    if err.is_disconnected() {
-                                        break 'outer;
-                                    }
+                    'inner: for _ in 0..128 {
+                        match rx_item.try_recv() {
+                            Ok(item) => locked.push(item),
+                            Err(err) => {
+                                if err.is_disconnected() {
+                                    break 'outer;
+                                }
 
-                                    if err.is_empty() {
-                                        break 'inner;
-                                    }
+                                if err.is_empty() {
+                                    break 'inner;
                                 }
                             }
                         }
                     }
-                    i if i == interrupt_channel => break 'outer,
-                    _ => unreachable!(),
                 }
+                i if i == interrupt_channel => break 'outer,
+                _ => unreachable!(),
             }
         }
 
