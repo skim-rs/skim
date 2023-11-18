@@ -42,8 +42,8 @@ pub struct ReaderControl {
 impl Drop for ReaderControl {
     fn drop(&mut self) {
         self.kill();
-        let locked = self.items.lock();
-        drop(locked);
+        let taken = self.take();
+        drop(taken);
 
         #[cfg(target_os = "linux")]
         #[cfg(target_env = "gnu")]
