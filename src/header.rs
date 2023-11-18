@@ -24,6 +24,16 @@ pub struct Header {
     item_pool: Weak<DeferDrop<ItemPool>>,
 }
 
+impl Drop for Header {
+    fn drop(&mut self) {
+        let mut upgraded = self.upgrade_item_pool();
+
+        if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut upgraded)) {
+            DeferDrop::into_inner(item_pool);
+        }
+    }
+}
+
 impl Header {
     pub fn empty() -> Self {
         Self {
