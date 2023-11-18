@@ -28,7 +28,7 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
         // lock before drop
-        drop(self.items.lock());
+        drop(self.take());
 
         #[cfg(target_os = "linux")]
         #[cfg(target_env = "gnu")]
@@ -52,6 +52,11 @@ impl MatcherControl {
         if let Some(handle) = self.opt_thread_handle.take() {
             let _ = handle.join();
         }
+    }
+
+    fn take(&mut self) -> Vec<MatchedItem> {
+        let mut items = self.items.lock();
+        std::mem::take(&mut *items)
     }
 
     pub fn stopped(&self) -> bool {

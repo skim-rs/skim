@@ -131,8 +131,11 @@ pub struct ItemPool {
 
 impl Drop for ItemPool {
     fn drop(&mut self) {
-        self.pool.lock();
-        self.reserved_items.lock();
+        let mut pool = self.pool.lock();
+        let mut reserved_items = self.reserved_items.lock();
+
+        std::mem::take(&mut *pool);
+        std::mem::take(&mut *reserved_items);
     }
 }
 
