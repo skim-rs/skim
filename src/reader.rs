@@ -5,13 +5,14 @@ use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam_channel::{unbounded, Select, Sender};
+use crossbeam_channel::{bounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
+const CHANNEL_SIZE: usize = 1024;
 const ITEMS_INITIAL_CAPACITY: usize = 65536;
 
 pub trait CommandCollector {
@@ -136,7 +137,7 @@ fn collect_item(
     rx_item: SkimItemReceiver,
     items_weak: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 ) -> (Sender<i32>, JoinHandle<()>) {
-    let (tx_interrupt, rx_interrupt) = unbounded();
+    let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
     let started = Arc::new(AtomicBool::new(false));
     let started_clone = started.clone();
@@ -155,7 +156,7 @@ fn collect_item(
                     i if i == item_channel => {
                         let mut locked = items_strong.lock();
 
-                        'inner: for _ in 0..512 {
+                        'inner: for _ in 0..128 {
                             match rx_item.try_recv() {
                                 Ok(item) => locked.push(item),
                                 Err(err) => {
