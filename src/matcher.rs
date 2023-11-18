@@ -129,7 +129,7 @@ impl Matcher {
                         let new_items = items
                             .par_iter()
                             .enumerate()
-                            .chunks(2_048)
+                            .chunks(512)
                             .take_any_while(|_| !stopped.load(Ordering::Relaxed))
                             .map(|vec| {
                                 vec.into_iter()
