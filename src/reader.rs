@@ -42,14 +42,7 @@ pub struct ReaderControl {
 impl Drop for ReaderControl {
     fn drop(&mut self) {
         self.kill();
-        let taken = self.take();
-        drop(taken);
-
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
+        drop(self.take());
     }
 }
 

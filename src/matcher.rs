@@ -29,12 +29,6 @@ impl Drop for MatcherControl {
         self.kill();
         // lock before drop
         drop(self.take());
-
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
     }
 }
 

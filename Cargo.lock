@@ -817,7 +817,6 @@ dependencies = [
  "env_logger",
  "fuzzy-muff",
  "lazy_static",
- "libc",
  "log",
  "nix 0.27.1",
  "rayon",
