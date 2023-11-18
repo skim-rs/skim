@@ -8,8 +8,6 @@ use crate::theme::DEFAULT_THEME;
 use crate::util::{clear_canvas, print_item, str_lines, LinePrinter};
 use crate::{DisplayContext, SkimOptions};
 
-use defer_drop::DeferDrop;
-
 use std::cmp::max;
 use std::sync::{Arc, Weak};
 use tuikit::prelude::*;
@@ -21,15 +19,7 @@ pub struct Header {
     theme: Arc<ColorTheme>,
 
     // for reserved header items
-    item_pool: Arc<DeferDrop<ItemPool>>,
-}
-
-impl Drop for Header {
-    fn drop(&mut self) {
-        if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
-            DeferDrop::into_inner(item_pool);
-        }
-    }
+    item_pool: Arc<ItemPool>,
 }
 
 impl Header {
@@ -39,11 +29,11 @@ impl Header {
             tabstop: 8,
             reverse: false,
             theme: Arc::new(*DEFAULT_THEME),
-            item_pool: Arc::new(DeferDrop::new(ItemPool::new())),
+            item_pool: Arc::new(ItemPool::new()),
         }
     }
 
-    pub fn item_pool(mut self, item_pool: Arc<DeferDrop<ItemPool>>) -> Self {
+    pub fn item_pool(mut self, item_pool: Arc<ItemPool>) -> Self {
         self.item_pool = item_pool;
         self
     }

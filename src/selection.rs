@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use defer_drop::DeferDrop;
 use tuikit::prelude::{Event as TermEvent, *};
 
 ///! Handle the selections of items
@@ -23,8 +22,8 @@ type ItemIndex = (u32, u32);
 
 pub struct Selection {
     // all items
-    items: DeferDrop<OrderedVec<MatchedItem>>,
-    selected: DeferDrop<BTreeMap<ItemIndex, MatchedItem>>,
+    items: OrderedVec<MatchedItem>,
+    selected: BTreeMap<ItemIndex, MatchedItem>,
 
     //
     // |>------ items[items.len()-1]
@@ -60,16 +59,6 @@ pub struct Selection {
     selector: Option<Arc<dyn Selector>>,
 }
 
-impl Drop for Selection {
-    fn drop(&mut self) {
-        let items = std::mem::take(&mut self.items);
-        let selected = std::mem::take(&mut self.selected);
-
-        DeferDrop::into_inner(items);
-        DeferDrop::into_inner(selected);
-    }
-}
-
 impl Default for Selection {
     fn default() -> Self {
         Self::new()
@@ -79,8 +68,8 @@ impl Default for Selection {
 impl Selection {
     pub fn new() -> Self {
         Selection {
-            items: DeferDrop::new(OrderedVec::new()),
-            selected: DeferDrop::new(BTreeMap::new()),
+            items: OrderedVec::new(),
+            selected: BTreeMap::new(),
             item_cursor: 0,
             line_cursor: 0,
             hscroll_offset: 0,
