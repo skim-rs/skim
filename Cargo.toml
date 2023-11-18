@@ -1,6 +1,6 @@
 [package]
 name = "two_percent"
-version = "0.10.23"
+version = "0.10.24"
 authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Robert Swinford <robert.swinford@gmail.com>"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
