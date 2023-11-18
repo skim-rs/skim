@@ -108,8 +108,12 @@ impl Drop for Model {
         self.matcher_control.take();
         self.reader_control.take();
 
-        self.item_pool.clear();
-        std::mem::take(&mut self.item_pool);
+        let selection = std::mem::take(&mut self.selection);
+        DeferDrop::into_inner(selection);
+
+        if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
+            DeferDrop::into_inner(item_pool);
+        }
     }
 }
 

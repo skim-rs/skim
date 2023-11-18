@@ -60,6 +60,16 @@ pub struct Selection {
     selector: Option<Arc<dyn Selector>>,
 }
 
+impl Drop for Selection {
+    fn drop(&mut self) {
+        let items = std::mem::take(&mut self.items);
+        let selected = std::mem::take(&mut self.selected);
+
+        DeferDrop::into_inner(items);
+        DeferDrop::into_inner(selected);
+    }
+}
+
 impl Default for Selection {
     fn default() -> Self {
         Self::new()
