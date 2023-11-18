@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "two_percent"
-version = "0.10.21"
+version = "0.10.22"
 dependencies = [
  "atty",
  "bitflags 2.4.1",
