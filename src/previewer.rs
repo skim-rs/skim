@@ -426,9 +426,6 @@ struct PreviewThread {
 impl Drop for PreviewThread {
     fn drop(&mut self) {
         self.kill();
-        if let Some(handle) = self.thread.take() {
-            let _ = handle.join();
-        }
     }
 }
 
@@ -436,6 +433,9 @@ impl PreviewThread {
     fn kill(&mut self) {
         if !self.stopped.load(Ordering::Relaxed) {
             unsafe { libc::kill(self.pid as i32, libc::SIGKILL) };
+        }
+        if let Some(handle) = self.thread.take() {
+            let _ = handle.join();
         }
     }
 }
