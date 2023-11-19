@@ -22,5 +22,6 @@ pub fn main() {
 
     if let Some(handle) = opt_ingest_handle {
         let _ = handle.join();
+        malloc_trim();
     }
 }

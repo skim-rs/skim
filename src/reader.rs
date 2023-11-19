@@ -1,4 +1,5 @@
 use crate::global::mark_new_run;
+use crate::malloc_trim;
 ///! Reader is used for reading items from datasource (e.g. stdin or command output)
 ///!
 ///! After reading in a line, reader will save an item into the pool(items)
@@ -61,6 +62,7 @@ impl ReaderControl {
         }
         if let Some(handle) = self.thread_ingest.take() {
             let _ = handle.join();
+            malloc_trim();
         }
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}

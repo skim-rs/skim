@@ -16,6 +16,7 @@ use tuikit::prelude::{Event as TermEvent, *};
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::item::MatchedItem;
+use crate::malloc_trim;
 use crate::spinlock::SpinLock;
 use crate::util::{atoi, clear_canvas, depends_on_items, inject_command, InjectContext};
 use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
@@ -320,6 +321,7 @@ impl Previewer {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         if let Some(handle) = self.thread_previewer.take() {
             let _ = handle.join();
+            malloc_trim();
         }
     }
 }
@@ -441,6 +443,11 @@ impl PreviewThread {
         if let Some(handle) = self.thread.take() {
             let _ = handle.join();
         }
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        unsafe {
+            let _ = libc::malloc_trim(0);
+        };
     }
 }
 

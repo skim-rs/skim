@@ -385,7 +385,8 @@ fn real_main() -> Result<i32, std::io::Error> {
     }
 
     if let Some(handle) = opt_ingest_handle { 
-        let _ = handle.join(); 
+        let _ = handle.join();
+        malloc_trim();
     }
 
     Ok(if output.selected_items.is_empty() { 1 } else { 0 })
