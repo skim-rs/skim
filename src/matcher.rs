@@ -11,6 +11,7 @@ use tuikit::key::Key;
 
 use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
+use crate::malloc_trim;
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use std::rc::Rc;
@@ -45,6 +46,7 @@ impl MatcherControl {
         self.stopped.store(true, Ordering::Relaxed);
         if let Some(handle) = self.opt_thread_handle.take() {
             let _ = handle.join();
+            malloc_trim()
         }
     }
 
