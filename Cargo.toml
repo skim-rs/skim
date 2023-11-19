@@ -1,7 +1,7 @@
 [package]
 name = "two_percent"
-version = "0.10.24"
-authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Robert Swinford <robert.swinford@gmail.com>"]
+version = "0.10.26"
+authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Robert Swinford <robert.swinford (at) gmail.com>"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
 homepage = "https://github.com/kimono-koans/two_percent"
