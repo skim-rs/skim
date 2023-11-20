@@ -495,10 +495,10 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                         let mut split_cmd: Vec<AnsiString> =
                             cmd.split(' ').map(|line| AnsiString::parse(line)).collect();
                         let mut ret = vec![AnsiString::parse(
-                            format!("ERROR: Command failed to spawn.  Fully parsed command:", err).as_str(),
+                            format!("ERROR: Command failed to spawn.  Fully parsed command:").as_str(),
                         )];
                         ret.append(&mut split_cmd);
-                        ret.push(AnsiString::from(format!("Error: {}", err)));
+                        ret.push(AnsiString::parse(format!("Error: {}", err).as_str()));
                         callback(ret, pos);
                         preview_thread = None;
                     }
