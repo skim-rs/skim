@@ -501,11 +501,13 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                         let stopped = Arc::new(AtomicBool::new(false));
                         let stopped_clone = stopped.clone();
                         let callback_clone = callback.clone();
+                        let cmd_clone = cmd.clone();
                         let thread = thread::spawn(move || {
                             wait(spawned, move |lines| {
                                 let output = if lines.is_empty() {
                                     vec![AnsiString::parse(
-                                        format!("Command exited successfully, but output was empty: {}", cmd).as_str(),
+                                        format!("Command exited successfully, but output was empty: {}", cmd_clone)
+                                            .as_str(),
                                     )]
                                 } else {
                                     lines
