@@ -492,15 +492,13 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
 
                 match spawned {
                     Err(err) => {
-                        let split_cmd: String = cmd.replace(" ", "\n");
-                        let astdout = AnsiString::parse(
-                            format!(
-                                "Command failed to spawn.  Fully parsed command was:\n{}\nERROR: {}",
-                                split_cmd, err
-                            )
-                            .as_str(),
-                        );
-                        callback(vec![astdout], pos);
+                        let mut split_cmd: Vec<AnsiString> =
+                            cmd.split(' ').map(|line| AnsiString::parse(line)).collect();
+                        let mut ret = vec![AnsiString::parse(
+                            format!("ERROR: Command failed to spawn.\nERROR: {}\nFully parsed command:", err).as_str(),
+                        )];
+                        ret.append(&mut split_cmd);
+                        callback(ret, pos);
                         preview_thread = None;
                     }
                     Ok(spawned) => {
@@ -512,11 +510,14 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                         let thread = thread::spawn(move || {
                             wait(spawned, move |lines| {
                                 let output = if lines.is_empty() {
-                                    let split_cmd: String = cmd_clone.replace(" ", "\n");
-                                    vec![AnsiString::parse(
-                                        format!("Command exited successfully, but output was empty.  Fully parsed command was:\n{}", split_cmd)
+                                    let mut split_cmd: Vec<AnsiString> =
+                                        cmd_clone.split(' ').map(|line| AnsiString::parse(line)).collect();
+                                    let mut ret = vec![AnsiString::parse(
+                                        format!("WARN: Command exited successfully, but output was empty.\nWARN: Fully parsed command was:\n")
                                             .as_str(),
-                                    )]
+                                    )];
+                                    ret.append(&mut split_cmd);
+                                    ret
                                 } else {
                                     lines
                                 };
