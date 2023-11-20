@@ -493,8 +493,13 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                 match spawned {
                     Err(err) => {
                         let split_cmd: String = cmd.replace(" ", "\n");
-                        let astdout =
-                            AnsiString::parse(format!("Failed to spawn:\n{}\nERROR: {}", split_cmd, err).as_str());
+                        let astdout = AnsiString::parse(
+                            format!(
+                                "Command failed to spawn.  Fully parsed command was:\n{}\nERROR: {}",
+                                split_cmd, err
+                            )
+                            .as_str(),
+                        );
                         callback(vec![astdout], pos);
                         preview_thread = None;
                     }
@@ -509,7 +514,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                                 let output = if lines.is_empty() {
                                     let split_cmd: String = cmd_clone.replace(" ", "\n");
                                     vec![AnsiString::parse(
-                                        format!("Command exited successfully, but output was empty:\n{}", split_cmd)
+                                        format!("Command exited successfully, but output was empty.  Fully parsed command was:\n{}", split_cmd)
                                             .as_str(),
                                     )]
                                 } else {
