@@ -493,7 +493,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                 match spawned {
                     Err(err) => {
                         let mut split_cmd: Vec<AnsiString> =
-                            cmd.split(' ').map(|line| AnsiString::parse(line)).collect();
+                            cmd.split('\n').map(|line| AnsiString::parse(line)).collect();
                         let mut output = vec![AnsiString::parse(
                             format!("ERROR: Command failed to spawn.  Fully parsed command:").as_str(),
                         )];
@@ -512,7 +512,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                             wait(spawned, move |lines| {
                                 let output = if lines.is_empty() {
                                     let mut split_cmd: Vec<AnsiString> =
-                                        cmd_clone.split(' ').map(|line| AnsiString::parse(line)).collect();
+                                        cmd_clone.split('\n').map(|line| AnsiString::parse(line)).collect();
                                     let mut ret = vec![AnsiString::parse(
                                         format!("WARN: Command exited successfully, but output was empty.  Fully parsed command was:\n")
                                             .as_str(),
