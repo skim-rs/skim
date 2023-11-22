@@ -492,13 +492,13 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
 
                 match spawned {
                     Err(err) => {
-                        let mut split_cmd: Vec<AnsiString> =
-                            cmd.split('\n').map(|line| AnsiString::parse(line)).collect();
+                        //let mut split_cmd: Vec<AnsiString> = cmd.split('\n').map(|line| AnsiString::parse(line)).collect();
                         let mut output = vec![AnsiString::parse(
-                            format!("ERROR: Command failed to spawn.  Fully parsed command:").as_str(),
+                            // format!("ERROR: Command failed to spawn.  Fully parsed command:\n").as_str(),
+                            format!("ERROR: Command failed to spawn.  Error message:\n").as_str(),
                         )];
-                        output.append(&mut split_cmd);
-                        output.push(AnsiString::parse(format!("Error: {}", err).as_str()));
+                        // output.append(&mut split_cmd);
+                        output.push(AnsiString::parse(format!("{}", err).as_str()));
                         callback(output, pos);
                         preview_thread = None;
                     }
@@ -507,17 +507,16 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                         let stopped = Arc::new(AtomicBool::new(false));
                         let stopped_clone = stopped.clone();
                         let callback_clone = callback.clone();
-                        let cmd_clone = cmd.clone();
+                        // let cmd_clone = cmd.clone();
                         let thread = thread::spawn(move || {
                             wait(spawned, move |lines| {
                                 let output = if lines.is_empty() {
-                                    let mut split_cmd: Vec<AnsiString> =
-                                        cmd_clone.split('\n').map(|line| AnsiString::parse(line)).collect();
-                                    let mut ret = vec![AnsiString::parse(
-                                        format!("WARN: Command exited successfully, but output was empty.  Fully parsed command was:\n")
-                                            .as_str(),
+                                    // let mut split_cmd: Vec<AnsiString> = cmd_clone.split('\n').map(|line| AnsiString::parse(line)).collect();
+                                    let ret = vec![AnsiString::parse(
+                                        // format!("WARN: Command exited successfully, but output was empty.  Fully parsed command was:\n").as_str(),
+                                        format!("WARN: Command exited successfully, but output was empty.\n").as_str(),
                                     )];
-                                    ret.append(&mut split_cmd);
+                                    // ret.append(&mut split_cmd);
                                     ret
                                 } else {
                                     lines
