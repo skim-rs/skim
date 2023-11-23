@@ -2,7 +2,6 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::env;
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -481,13 +480,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                     continue;
                 }
 
-                let shell = match which::which("bash") {
-                    Ok(bash_shell) => bash_shell,
-                    Err(_) => env::var("SHELL")
-                        .map(|shell| PathBuf::from(shell))
-                        .unwrap_or_else(|_| PathBuf::from("/usr/bin/sh"))
-                        .to_path_buf(),
-                };
+                let shell = env::var("SHELL").unwrap_or_else(|_| "/usr/bin/sh".to_string());
 
                 let spawned = Command::new(&shell)
                     .env("LINES", preview_cmd.lines.to_string())
