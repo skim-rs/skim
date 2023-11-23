@@ -481,7 +481,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                 }
 
                 let shell = match env::var("SHELL") {
-                    Ok(shell) if shell.contains("fish") => shell,
+                    Ok(shell) if !shell.contains("fish") => shell,
                     _ => "bash".to_string(),
                 };
 
