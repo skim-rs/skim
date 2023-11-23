@@ -2,7 +2,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
