@@ -480,7 +480,11 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                     continue;
                 }
 
-                let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
+                let shell = match env::var("SHELL") {
+                    Ok(shell) if shell.contains("fish") => shell,
+                    _ => "bash".to_string(),
+                };
+
                 let spawned = Command::new(shell)
                     .env("LINES", preview_cmd.lines.to_string())
                     .env("COLUMNS", preview_cmd.columns.to_string())
