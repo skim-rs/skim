@@ -272,11 +272,7 @@ impl Selection {
         let run_num = current_run_num();
 
         for current_item in self.items.iter() {
-            let index = if let Some(md) = &current_item.metadata {
-                (run_num, md.item_idx)
-            } else {
-                continue;
-            };
+            let index = (run_num, current_item.md_infallible().item_idx);
 
             if !self.selected.contains_key(&index) {
                 self.selected.insert(index, current_item.clone());
