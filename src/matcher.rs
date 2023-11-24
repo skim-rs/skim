@@ -10,7 +10,7 @@ use rayon::ThreadPool;
 use tuikit::key::Key;
 
 use crate::event::Event;
-use crate::item::{ItemPool, MatchedItem, MatchedItemMetadata};
+use crate::item::{ItemPool, MatchedItem};
 use crate::malloc_trim;
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
@@ -135,7 +135,9 @@ impl Matcher {
                                         if matcher_disabled {
                                             return Some(MatchedItem {
                                                 item: Arc::downgrade(item),
-                                                metadata: None,
+                                                rank: [0i32, 0i32, 0i32, item.text().len() as i32],
+                                                matched_range: None,
+                                                item_idx: (num_taken + index) as u32,
                                             });
                                         }
 
@@ -182,15 +184,9 @@ fn process_item(
         matched.fetch_add(1, Ordering::Relaxed);
         MatchedItem {
             item: Arc::downgrade(item),
-            metadata: {
-                Some(Box::new({
-                    MatchedItemMetadata {
-                        rank: match_result.rank,
-                        matched_range: Some(match_result.matched_range),
-                        item_idx: (num_taken + index) as u32,
-                    }
-                }))
-            },
+            rank: match_result.rank,
+            matched_range: Some(match_result.matched_range),
+            item_idx: (num_taken + index) as u32,
         }
     })
 }
