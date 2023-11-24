@@ -249,7 +249,13 @@ impl Selection {
             .items
             .get(cursor)
             .unwrap_or_else(|| panic!("model:act_toggle: failed to get item {}", cursor));
-        let index = (current_run_num(), current_item.md_infallible().item_idx);
+
+        let index = if let Some(md) = &current_item.metadata {
+            (current_run_num(), md.item_idx)
+        } else {
+            return;
+        };
+
         if !self.selected.contains_key(&index) {
             self.selected.insert(index, current_item.clone());
         } else {
@@ -264,8 +270,14 @@ impl Selection {
         }
 
         let run_num = current_run_num();
+
         for current_item in self.items.iter() {
-            let index = (run_num, current_item.md_infallible().item_idx);
+            let index = if let Some(md) = &current_item.metadata {
+                (run_num, md.item_idx)
+            } else {
+                continue;
+            };
+
             if !self.selected.contains_key(&index) {
                 self.selected.insert(index, current_item.clone());
             } else {
@@ -291,9 +303,13 @@ impl Selection {
         }
 
         let run_num = current_run_num();
+
         for current_item in self.items.iter() {
-            self.selected
-                .insert((run_num, current_item.md_infallible().item_idx), current_item.clone());
+            if let Some(md) = &current_item.metadata {
+                self.selected.insert((run_num, md.item_idx), current_item.clone());
+            } else {
+                continue;
+            }
         }
     }
 
