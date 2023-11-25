@@ -14,7 +14,11 @@ use crate::item::{ItemPool, MatchedItem};
 use crate::malloc_trim;
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
+use crate::{MatchRange, Rank};
 use std::rc::Rc;
+
+static UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
+const UNMATCHED_RANGE: Option<MatchRange> = None;
 
 //==============================================================================
 pub struct MatcherControl {
@@ -138,8 +142,8 @@ impl Matcher {
                                         if matcher_disabled {
                                             return Some(MatchedItem {
                                                 item: Arc::downgrade(item),
-                                                rank: [0i32, 0i32, 0i32, 0i32],
-                                                matched_range: None,
+                                                rank: UNMATCHED_RANK,
+                                                matched_range: UNMATCHED_RANGE,
                                                 item_idx: (num_taken + index) as u32,
                                             });
                                         }
