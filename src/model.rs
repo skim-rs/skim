@@ -766,7 +766,7 @@ impl Model {
         let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
         if !processed {
             // take out new items and put them into items
-            if let Some(c) = self.reader_control.as_ref() {
+            if let Some(c) = &self.reader_control {
                 self.item_pool.append(c.take());
             }
         };
