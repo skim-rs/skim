@@ -845,7 +845,6 @@ dependencies = [
 name = "two_percent"
 version = "0.10.32"
 dependencies = [
- "atty",
  "bitflags 2.4.1",
  "chrono",
  "clap",
