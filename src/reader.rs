@@ -154,9 +154,9 @@ fn collect_item(
         'outer: loop {
             match sel.ready() {
                 i if i == item_channel => {
-                    let mut locked = items_strong.lock();
-
                     'inner: for _ in 0..128 {
+                        let mut locked = items_strong.lock();
+
                         match rx_item.try_recv() {
                             Ok(item) => locked.push(item),
                             Err(err) => {
