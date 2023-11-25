@@ -134,12 +134,13 @@ impl Matcher {
 
                                         // dummy values should not change, as changing them
                                         // may cause the disabled/query empty case disappear!
+                                        // especially item index.  Needs an index to appear!
                                         if matcher_disabled {
                                             return Some(MatchedItem {
                                                 item: Arc::downgrade(item),
                                                 rank: [0i32, 0i32, 0i32, 0i32],
                                                 matched_range: None,
-                                                item_idx: 0u32,
+                                                item_idx: (num_taken + index) as u32,
                                             });
                                         }
 
