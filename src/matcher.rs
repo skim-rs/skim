@@ -132,12 +132,14 @@ impl Matcher {
                                     .filter_map(|(index, item)| {
                                         processed.fetch_add(1, Ordering::Relaxed);
 
+                                        // dummy values should not change, as changing them
+                                        // may cause the disabled/query empty case disappear!
                                         if matcher_disabled {
                                             return Some(MatchedItem {
                                                 item: Arc::downgrade(item),
-                                                rank: [0i32, 0i32, 0i32, item.text().len() as i32],
+                                                rank: [0i32, 0i32, 0i32, 0i32],
                                                 matched_range: None,
-                                                item_idx: (num_taken + index) as u32,
+                                                item_idx: 0u32,
                                             });
                                         }
 
