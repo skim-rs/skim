@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
-use defer_drop::DeferDrop;
 use rayon::prelude::*;
 use rayon::ThreadPool;
 
@@ -100,7 +99,7 @@ impl Matcher {
         query: &str,
         disabled: bool,
         thread_pool_weak: Weak<ThreadPool>,
-        item_pool_weak: Weak<DeferDrop<ItemPool>>,
+        item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);

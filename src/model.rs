@@ -63,7 +63,7 @@ pub struct Model {
 
     term: Arc<Term>,
 
-    item_pool: Arc<DeferDrop<ItemPool>>,
+    item_pool: Arc<ItemPool>,
 
     rx: EventReceiver,
     tx: EventSender,
@@ -113,10 +113,6 @@ impl Drop for Model {
 
         let selection = std::mem::take(&mut self.selection);
         DeferDrop::into_inner(selection);
-
-        if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
-            DeferDrop::into_inner(item_pool);
-        }
     }
 }
 
@@ -167,7 +163,7 @@ impl Model {
             Matcher::builder(fuzzy_engine_factory).case(options.case).build()
         };
 
-        let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
+        let item_pool = Arc::new(ItemPool::new().lines_to_reserve(options.header_lines));
         let header = Header::empty()
             .with_options(options)
             .item_pool(&item_pool)
