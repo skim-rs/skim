@@ -71,7 +71,7 @@ pub struct Model {
     fuzzy_algorithm: FuzzyAlgorithm,
     reader_timer: Instant,
     matcher_timer: Instant,
-    reader_control: Option<ReaderControl>,
+    reader_control: Option<DeferDrop<ReaderControl>>,
     matcher_control: Option<DeferDrop<MatcherControl>>,
     matcher_thread_pool: Arc<ThreadPool>,
 
@@ -105,6 +105,10 @@ impl Drop for Model {
     fn drop(&mut self) {
         if let Some(matcher_control) = self.matcher_control.take() {
             DeferDrop::into_inner(matcher_control);
+        }
+
+        if let Some(reader_control) = self.reader_control.take() {
+            DeferDrop::into_inner(reader_control);
         }
 
         if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
@@ -421,17 +425,16 @@ impl Model {
             ctrl.kill();
         }
 
-        // restart reader
-        let old_reader = self.reader_control.replace(self.reader.run(&env.cmd));
-        if let Some(mut reader) = old_reader {
-            reader.kill()
-        }
-
         env.clear_selection = ClearStrategy::ClearIfNotNull;
         self.item_pool.clear();
         self.num_options = 0;
 
-        // restart matcher
+        // restart reader
+        let old_reader = self.reader_control.replace(DeferDrop::new(self.reader.run(&env.cmd)));
+        if let Some(mut reader) = old_reader {
+            reader.kill()
+        }
+
         self.restart_matcher();
         self.reader_timer = Instant::now();
     }
@@ -529,7 +532,7 @@ impl Model {
             clear_selection: ClearStrategy::DontClear,
         };
 
-        self.reader_control = Some(self.reader.run(&env.cmd));
+        self.reader_control = Some(DeferDrop::new(self.reader.run(&env.cmd)));
 
         // In the event loop, there might need
         let mut next_event = Some((Key::Null, Event::EvHeartBeat));
