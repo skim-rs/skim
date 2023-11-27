@@ -145,11 +145,11 @@ fn collect_item(
 
         if let Some(upgraded) = Weak::upgrade(&items_weak) {
             'outer: loop {
-                let mut locked = upgraded.lock();
-
                 match sel.ready() {
                     i if i == item_channel => {
                         'inner: for _ in 0..128 {
+                            let mut locked = upgraded.lock();
+
                             match rx_item.try_recv() {
                                 Ok(item) => locked.push(item),
                                 Err(err) => {
