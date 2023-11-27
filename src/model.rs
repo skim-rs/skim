@@ -50,7 +50,7 @@ lazy_static! {
 pub struct Model {
     reader: Reader,
     query: Query,
-    selection: Selection,
+    selection: DeferDrop<Selection>,
     num_options: usize,
     select1: bool,
     exit0: bool,
@@ -111,6 +111,9 @@ impl Drop for Model {
             DeferDrop::into_inner(reader_control);
         }
 
+        let selection = std::mem::take(&mut self.selection);
+        DeferDrop::into_inner(selection);
+
         if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
             DeferDrop::into_inner(item_pool);
         }
@@ -146,7 +149,7 @@ impl Model {
 
         let rank_builder = Arc::new(RankBuilder::new(criterion));
 
-        let selection = Selection::with_options(options).theme(theme.clone());
+        let selection = DeferDrop::new(Selection::with_options(options).theme(theme.clone()));
         let regex_engine: Rc<dyn MatchEngineFactory> =
             Rc::new(RegexEngineFactory::builder().rank_builder(rank_builder.clone()).build());
         let regex_matcher = Matcher::builder(regex_engine).build();
@@ -829,7 +832,7 @@ impl Model {
         };
         let status_inline = status.clone();
 
-        let win_selection = Win::new(&self.selection);
+        let win_selection = Win::new(&*self.selection);
         let win_query = Win::new(&self.query)
             .basis(if self.inline_info { 0 } else { 1 })
             .grow(0)
