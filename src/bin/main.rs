@@ -14,6 +14,11 @@ use std::io::{BufRead, BufReader, BufWriter, IsTerminal, Write};
 use clap::{crate_version, App, Arg, ArgMatches};
 use skim::prelude::*;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 const USAGE: &str = "
 Usage: sk [options]
 
@@ -386,6 +391,9 @@ fn real_main() -> Result<i32, std::io::Error> {
 
     if let Some(handle) = opt_ingest_handle { 
         let _ = handle.join();
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
         malloc_trim();
     }
 

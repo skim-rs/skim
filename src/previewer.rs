@@ -16,10 +16,14 @@ use tuikit::prelude::{Event as TermEvent, *};
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::item::MatchedItem;
-use crate::malloc_trim;
 use crate::spinlock::SpinLock;
 use crate::util::{atoi, clear_canvas, depends_on_items, inject_command, InjectContext};
 use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
+
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
 
 const TAB_STOP: usize = 8;
 const DELIMITER_STR: &str = r"[\t\n ]+";
@@ -321,6 +325,9 @@ impl Previewer {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
         if let Some(handle) = self.thread_previewer.take() {
             let _ = handle.join();
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
             malloc_trim();
         }
     }

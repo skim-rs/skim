@@ -11,11 +11,15 @@ use tuikit::key::Key;
 
 use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem};
-use crate::malloc_trim;
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use crate::{MatchRange, Rank};
 use std::rc::Rc;
+
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
 
 static UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
@@ -50,6 +54,9 @@ impl MatcherControl {
         self.stopped.store(true, Ordering::Relaxed);
         if let Some(handle) = self.opt_thread_handle.take() {
             let _ = handle.join();
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
             malloc_trim()
         }
     }

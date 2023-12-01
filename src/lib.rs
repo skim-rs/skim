@@ -20,6 +20,11 @@ pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use libc as raw_libc;
+
 mod ansi;
 mod engine;
 mod event;
@@ -335,6 +340,9 @@ impl Skim {
         let ret = model.start();
         let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
         let _ = input_thread.join();
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
         malloc_trim();
 
         ret
@@ -351,11 +359,11 @@ impl Skim {
     }
 }
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
 pub fn malloc_trim() {
-    #[cfg(feature = "malloc_trim")]
-    #[cfg(target_os = "linux")]
-    #[cfg(target_env = "gnu")]
     unsafe {
-        let _ = libc::malloc_trim(0);
-    };
+        let _ = raw_libc::malloc_trim(0usize);
+    }
 }
