@@ -352,6 +352,7 @@ impl Skim {
 }
 
 pub fn malloc_trim() {
+    #[cfg(feature = "malloc_trim")]
     #[cfg(target_os = "linux")]
     #[cfg(target_env = "gnu")]
     unsafe {

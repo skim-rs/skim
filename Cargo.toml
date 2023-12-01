@@ -39,7 +39,6 @@ timer = { version = "0.2.0", default-features = false }
 chrono = { version = "0.4.31", default-features = false }
 crossbeam-channel = { version = "0.5.8", default-features = false, features = ["std"] }
 defer-drop = { version = "1.3.0", default-features = false }
-libc = { version = "0.2.150", default-features = false }
 which = { version = "5.0.0", default-features = false }
 
 [patch.crates-io]
@@ -48,6 +47,10 @@ timer = { git = "https://github.com/kimono-koans/timer.rs" }
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:shlex", "dep:env_logger"]
+malloc_trim = ["libc"]
+
+[target.'cfg(linux)'.dependencies]
+libc = { version = "0.2.150", optional = true, default-features = false }
 
 [profile.release]
 debug = false
