@@ -13,6 +13,8 @@
   </a>
 </p>
 
+*Note: `two_percent` is a fork of [skim](https://github.com/lotabout/skim/tree/291fc34c58b1670a5e8c95f1e8f930b82c030b19) for use with [httm](https://github.com/kimono-koans/httm).*
+
 > Life is short, skim!
 
 Half of our life is spent on navigation: files, lines, commands… You need skim!
@@ -27,25 +29,25 @@ skim provides a single executable: `sk`. Basically anywhere you would want to us
 
 - [Installation](#installation)
 - [Usage](#usage)
-    - [As Filter](#as-filter)
-    - [As Interactive Interface](#as-interactive-interface)
-    - [Key Bindings](#key-bindings)
-    - [Search Syntax](#search-syntax)
-    - [Exit code](#exit-code)
+  - [As Filter](#as-filter)
+  - [As Interactive Interface](#as-interactive-interface)
+  - [Key Bindings](#key-bindings)
+  - [Search Syntax](#search-syntax)
+  - [Exit code](#exit-code)
 - [Customization](#customization)
-    - [Keymap to redefine](#keymap)
-    - [Sort Criteria](#sort-criteria)
-    - [Color Scheme](#color-scheme)
-    - [Misc](#misc)
+  - [Keymap to redefine](#keymap)
+  - [Sort Criteria](#sort-criteria)
+  - [Color Scheme](#color-scheme)
+  - [Misc](#misc)
 - [Advance Topics](#advance-topics)
-    - [Interactive Mode](#interactive-mode)
-    - [Executing external programs](#executing-external-programs)
-    - [Preview Window](#preview-window)
-    - [Fields Support](#fields-support)
-    - [Use as a Library](#use-as-a-library)
+  - [Interactive Mode](#interactive-mode)
+  - [Executing external programs](#executing-external-programs)
+  - [Preview Window](#preview-window)
+  - [Fields Support](#fields-support)
+  - [Use as a Library](#use-as-a-library)
 - [FAQ](#faq)
-    - [How to ignore files?](#how-to-ignore-files)
-    - [Some files are not shown in vim plugin](#some-files-are-not-shown-in-vim-plugin)
+  - [How to ignore files?](#how-to-ignore-files)
+  - [Some files are not shown in vim plugin](#some-files-are-not-shown-in-vim-plugin)
 - [Differences to fzf](#differences-to-fzf)
 - [How to contribute](#how-to-contribute)
 
@@ -70,7 +72,6 @@ The skim project contains several components:
 
 See [repology](https://repology.org/project/skim/versions) for a comprehensive overview of package availability.
 
-
 ## Install as Vim plugin
 
 Via vim-plug (recommended):
@@ -84,19 +85,22 @@ Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
 Any of the following applies:
 
 - Using Git
+
     ```sh
-    $ git clone --depth 1 git@github.com:lotabout/skim.git ~/.skim
-    $ ~/.skim/install
+    git clone --depth 1 git@github.com:lotabout/skim.git ~/.skim
+    ~/.skim/install
     ```
+
 - Using Binary: directly [download the sk executable](https://github.com/lotabout/skim/releases).
 - Install from [crates.io](https://crates.io/): `cargo install skim`
 - Build Manually
+
     ```sh
-    $ git clone --depth 1 git@github.com:lotabout/skim.git ~/.skim
-    $ cd ~/.skim
-    $ cargo install
-    $ cargo build --release
-    $ # put the resulting `target/release/sk` executable on your PATH.
+    git clone --depth 1 git@github.com:lotabout/skim.git ~/.skim
+    cd ~/.skim
+    cargo install
+    cargo build --release
+    # put the resulting `target/release/sk` executable on your PATH.
     ```
 
 # Usage
@@ -115,6 +119,7 @@ sk
 # or pipe some input to it: (press TAB key select multiple items with -m enabled)
 vim $(find . -name "*.rs" | sk -m)
 ```
+
 The above command will allow you to select files with ".rs" extension and open
 the ones you selected in Vim.
 
@@ -210,7 +215,7 @@ sk --bind 'alt-a:select-all,alt-d:deselect-all'
 
 Additionally, use `+` to concatenate actions, such as `execute-silent(echo {} | pbcopy)+abort`.
 
-See the _KEY BINDINGS_ section of the man page for details.
+See the *KEY BINDINGS* section of the man page for details.
 
 ## Sort Criteria
 
@@ -229,7 +234,6 @@ be stuck with the default colors, `skim` supports customization of the color sch
 
 The configuration of colors starts with the name of the base color scheme,
 followed by custom color mappings. For example:
-
 
 ```sh
 sk --color=current_bg:24
@@ -305,6 +309,7 @@ syntax is explained in the section "Fields Support".
 
 Last, you might want to configure the position of preview windows, use
 `--preview-window`.
+
 - `--preview-window up:30%` to put the window in the up position with height
     30% of the total height of skim.
 - `--preview-window left:10:wrap`, to specify the `wrap` allows the preview
@@ -407,8 +412,8 @@ Skim invokes `find .` to fetch a list of files for filtering. You can override
 that by setting the environment variable `SKIM_DEFAULT_COMMAND`. For example:
 
 ```sh
-$ SKIM_DEFAULT_COMMAND="fd --type f || git ls-tree -r --name-only HEAD || rg --files || find ."
-$ sk
+SKIM_DEFAULT_COMMAND="fd --type f || git ls-tree -r --name-only HEAD || rg --files || find ."
+sk
 ```
 
 You could put it in your `.bashrc` or `.zshrc` if you like it to be default.
@@ -464,8 +469,8 @@ $ for n in {1..10}; do echo "$n"; done | sk
 
 For example
 
-- https://github.com/lotabout/skim/issues/412
-- https://github.com/lotabout/skim/issues/455
+- <https://github.com/lotabout/skim/issues/412>
+- <https://github.com/lotabout/skim/issues/455>
 
 You need to set TERMINFO or TERMINFO_DIRS to the path to a correct terminfo database path
 
