@@ -76,19 +76,22 @@ impl ExactEngine {
 impl MatchEngine for ExactEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         let item_text = item.text();
+        let item_len = item_text.len();
+        let query_regex = &self.query_regex;
         let default_range = [(0, item_text.len())];
+
         let matched_result = item
             .get_matching_ranges()
             .unwrap_or(&default_range)
             .iter()
             .find_map(|(start, end)| {
-                let start = min(*start, item_text.len());
-                let end = min(*end, item_text.len());
+                let start = min(*start, item_len);
+                let end = min(*end, item_len);
                 if self.query_regex.is_none() {
                     return Some((0, 0));
                 }
 
-                let res = regex_match(&item_text[start..end], &self.query_regex).map(|(s, e)| (s + start, e + start));
+                let res = regex_match(&item_text[start..end], &query_regex).map(|(s, e)| (s + start, e + start));
 
                 if self.inverse {
                     res.xor(Some((0, 0)))
@@ -99,7 +102,6 @@ impl MatchEngine for ExactEngine {
 
         let (begin, end) = matched_result?;
         let score = (end - begin) as i32;
-        let item_len = item_text.len();
         Some(MatchResult {
             rank: self.rank_builder.build_rank(score, begin, end, item_len),
             matched_range: MatchRange::ByteRange(begin, end),
