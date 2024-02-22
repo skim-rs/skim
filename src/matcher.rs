@@ -136,7 +136,7 @@ impl Matcher {
 
                         trace!("matcher start, total: {}", items.len());
 
-                        if let Some(strong) = Weak::upgrade(&matched_items_weak) {
+                        if let Some(matched_items_strong) = Weak::upgrade(&matched_items_weak) {
                             let par_iter = items
                                 .par_iter()
                                 .enumerate()
@@ -166,7 +166,7 @@ impl Matcher {
                                     process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
                                 });
 
-                            let mut pool = strong.lock();
+                            let mut pool = matched_items_strong.lock();
                             pool.clear();
                             pool.par_extend(par_iter);
 
