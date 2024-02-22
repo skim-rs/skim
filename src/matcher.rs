@@ -130,24 +130,23 @@ impl Matcher {
                     if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                         let num_taken = item_pool_strong.num_taken();
                         let items = item_pool_strong.take();
+                        let stopped_ref = stopped.as_ref();
+                        let processed_ref = processed.as_ref();
+                        let matched_ref = matched.as_ref();
 
                         trace!("matcher start, total: {}", items.len());
 
                         if let Some(strong) = Weak::upgrade(&matched_items_weak) {
-                            let mut pool = strong.lock();
-
-                            *pool = items
+                            let par_iter = items
                                 .par_iter()
                                 .enumerate()
                                 .chunks(4096)
                                 .take_any_while(|vec| {
-                                    let stopped = stopped.load(Ordering::Relaxed);
-
-                                    if stopped {
+                                    if stopped_ref.load(Ordering::Relaxed) {
                                         return false;
                                     }
 
-                                    processed.fetch_add(vec.len(), Ordering::Relaxed);
+                                    processed_ref.fetch_add(vec.len(), Ordering::Relaxed);
                                     true
                                 })
                                 .flatten()
@@ -164,9 +163,12 @@ impl Matcher {
                                         });
                                     }
 
-                                    process_item(index, num_taken, matched.clone(), matcher_engine.as_ref(), item)
-                                })
-                                .collect();
+                                    process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
+                                });
+
+                            let mut pool = strong.lock();
+                            pool.clear();
+                            pool.par_extend(par_iter);
 
                             trace!("matcher stop, total matched: {}", pool.len());
                         }
@@ -191,7 +193,7 @@ impl Matcher {
 fn process_item(
     index: usize,
     num_taken: usize,
-    matched: Arc<AtomicUsize>,
+    matched: &AtomicUsize,
     matcher_engine: &dyn MatchEngine,
     item: &Arc<dyn SkimItem>,
 ) -> Option<MatchedItem> {
