@@ -133,41 +133,35 @@ impl Matcher {
 
                         trace!("matcher start, total: {}", items.len());
 
-                        let new_items = items
-                            .par_iter()
-                            .enumerate()
-                            .chunks(4096)
-                            .take_any_while(|_| !stopped.load(Ordering::Relaxed))
-                            .map(|vec| {
-                                vec.into_iter()
-                                    .filter_map(|(index, item)| {
-                                        processed.fetch_add(1, Ordering::Relaxed);
+                        if let Some(strong) = Weak::upgrade(&matched_items_weak) {
+                            let mut pool = strong.lock();
 
-                                        // dummy values should not change, as changing them
-                                        // may cause the disabled/query empty case disappear!
-                                        // especially item index.  Needs an index to appear!
-                                        if matcher_disabled {
-                                            return Some(MatchedItem {
-                                                item: Arc::downgrade(item),
-                                                rank: UNMATCHED_RANK,
-                                                matched_range: UNMATCHED_RANGE,
-                                                item_idx: (num_taken + index) as u32,
-                                            });
-                                        }
+                            *pool = items
+                                .par_iter()
+                                .enumerate()
+                                .chunks(4096)
+                                .take_any_while(|_| !stopped.load(Ordering::Relaxed))
+                                .flatten_iter()
+                                .filter_map(|(index, item)| {
+                                    processed.fetch_add(1, Ordering::Relaxed);
 
-                                        process_item(index, num_taken, matched.clone(), matcher_engine.as_ref(), item)
-                                    })
-                                    .collect::<Vec<MatchedItem>>()
-                            })
-                            .flatten()
-                            .collect();
+                                    // dummy values should not change, as changing them
+                                    // may cause the disabled/query empty case disappear!
+                                    // especially item index.  Needs an index to appear!
+                                    if matcher_disabled {
+                                        return Some(MatchedItem {
+                                            item: Arc::downgrade(item),
+                                            rank: UNMATCHED_RANK,
+                                            matched_range: UNMATCHED_RANGE,
+                                            item_idx: (num_taken + index) as u32,
+                                        });
+                                    }
 
-                        if !stopped.load(Ordering::Relaxed) {
-                            if let Some(strong) = Weak::upgrade(&matched_items_weak) {
-                                let mut pool = strong.lock();
-                                *pool = new_items;
-                                trace!("matcher stop, total matched: {}", pool.len());
-                            }
+                                    process_item(index, num_taken, matched.clone(), matcher_engine.as_ref(), item)
+                                })
+                                .collect();
+
+                            trace!("matcher stop, total matched: {}", pool.len());
                         }
                     }
                 });
