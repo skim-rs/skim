@@ -140,11 +140,18 @@ impl Matcher {
                                 .par_iter()
                                 .enumerate()
                                 .chunks(4096)
-                                .take_any_while(|_| !stopped.load(Ordering::Relaxed))
+                                .take_any_while(|vec| {
+                                    let stopped = stopped.load(Ordering::Relaxed);
+
+                                    if stopped {
+                                        return false;
+                                    }
+
+                                    processed.fetch_add(vec.len(), Ordering::Relaxed);
+                                    true
+                                })
                                 .flatten()
                                 .filter_map(|(index, item)| {
-                                    processed.fetch_add(1, Ordering::Relaxed);
-
                                     // dummy values should not change, as changing them
                                     // may cause the disabled/query empty case disappear!
                                     // especially item index.  Needs an index to appear!
@@ -189,7 +196,10 @@ fn process_item(
     item: &Arc<dyn SkimItem>,
 ) -> Option<MatchedItem> {
     matcher_engine.match_item(item.as_ref()).map(|match_result| {
-        matched.fetch_add(1, Ordering::Relaxed);
+        if index % 256 == 0 {
+            matched.fetch_add(256, Ordering::Relaxed);
+        }
+
         MatchedItem {
             item: Arc::downgrade(item),
             rank: match_result.rank,
