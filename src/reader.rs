@@ -5,19 +5,19 @@ use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam_channel::{bounded, Select, Sender};
+use crossbeam_channel::{unbounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
-use std::thread::{self, JoinHandle};
+use std::thread::{self, sleep, JoinHandle};
+use std::time::Duration;
 
 #[cfg(feature = "malloc_trim")]
 #[cfg(target_os = "linux")]
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-const CHANNEL_SIZE: usize = 1024;
 const ITEMS_INITIAL_CAPACITY: usize = 65536;
 
 pub trait CommandCollector {
@@ -137,7 +137,7 @@ fn collect_item(
     rx_item: SkimItemReceiver,
     items_weak: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 ) -> (Sender<i32>, JoinHandle<()>) {
-    let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
+    let (tx_interrupt, rx_interrupt) = unbounded();
 
     let started = Arc::new(AtomicBool::new(false));
     let started_clone = started.clone();
@@ -149,29 +149,22 @@ fn collect_item(
         let mut sel = Select::new();
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
+        let sleep_duration = Duration::from_micros(500);
 
-        if let Some(upgraded) = Weak::upgrade(&items_weak) {
-            'outer: loop {
+        if let Some(items_strong) = Weak::upgrade(&items_weak) {
+            loop {
                 match sel.ready() {
+                    i if i == interrupt_channel => break,
                     i if i == item_channel => {
-                        'inner: for _ in 0..128 {
-                            let mut locked = upgraded.lock();
+                        let iter = rx_item.try_iter();
+                        let mut locked = items_strong.lock();
+                        locked.extend(iter);
 
-                            match rx_item.try_recv() {
-                                Ok(item) => locked.push(item),
-                                Err(err) => {
-                                    if err.is_disconnected() {
-                                        break 'outer;
-                                    }
-
-                                    if err.is_empty() {
-                                        break 'inner;
-                                    }
-                                }
-                            }
+                        sleep(sleep_duration);
+                        if rx_item.is_empty() {
+                            break;
                         }
                     }
-                    i if i == interrupt_channel => break 'outer,
                     _ => unreachable!(),
                 }
             }
