@@ -141,7 +141,7 @@ impl Matcher {
                                 .enumerate()
                                 .chunks(4096)
                                 .take_any_while(|_| !stopped.load(Ordering::Relaxed))
-                                .flatten_iter()
+                                .flatten()
                                 .filter_map(|(index, item)| {
                                     processed.fetch_add(1, Ordering::Relaxed);
 
