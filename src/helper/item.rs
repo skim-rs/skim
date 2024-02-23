@@ -90,17 +90,17 @@ impl SkimItem for DefaultSkimItem {
     }
 
     fn output(&self) -> Cow<str> {
-        if self.orig_text.is_some() {
+        if let Some(orig_text) = &self.orig_text {
             if self.text.has_attrs() {
                 let mut ansi_parser: ANSIParser = Default::default();
-                let text = ansi_parser.parse_ansi(self.orig_text.as_ref().unwrap());
-                Cow::Owned(text.into_inner().to_string())
-            } else {
-                Cow::Borrowed(self.orig_text.as_ref().unwrap())
+                let text = ansi_parser.parse_ansi(orig_text);
+                return Cow::Owned(text.into_inner().to_string());
             }
-        } else {
-            Cow::Borrowed(self.text.stripped())
+
+            return Cow::Borrowed(orig_text);
         }
+
+        Cow::Borrowed(self.text.stripped())
     }
 
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
