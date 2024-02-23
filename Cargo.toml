@@ -1,12 +1,15 @@
 [package]
 name = "two_percent"
 version = "0.10.36"
-authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Robert Swinford <robert.swinford <...at...> gmail.com>"]
+authors = [
+    "Zhang Jinzhou <lotabout@gmail.com>",
+    "Robert Swinford <robert.swinford <...at...> gmail.com>",
+]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
 homepage = "https://github.com/kimono-koans/two_percent"
 repository = "https://github.com/kimono-koans/two_percent"
-readme  = "README.md"
+readme = "README.md"
 keywords = ["fuzzy", "menu", "util"]
 license = "MIT"
 edition = "2018"
@@ -32,12 +35,16 @@ clap = { version = "3.2.25", optional = true, features = ["cargo"] }
 tuikit = { version = "0.5.0", default-features = false }
 vte = { version = "0.13.0", default-features = false }
 fuzzy-muff = { version = "0.3.10", default-features = false }
-rayon = { version = "1.8.1",  default-features = false }
-derive_builder = { version = "0.12.0", default-features = false }
+rayon = { version = "1.8.1", default-features = false }
+derive_builder = { version = "0.20.0", default-features = false, features = [
+    "alloc",
+] }
 bitflags = { version = "2.4.2", default-features = false }
 timer = { version = "0.2.0", default-features = false }
 chrono = { version = "0.4.31", default-features = false }
-crossbeam-channel = { version = "0.5.11", default-features = false, features = ["std"] }
+crossbeam-channel = { version = "0.5.11", default-features = false, features = [
+    "std",
+] }
 defer-drop = { version = "1.3.0", default-features = false }
 which = { version = "6.0.0", default-features = false }
 libc = { version = "0.2.152", optional = true, default-features = false }
