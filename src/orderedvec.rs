@@ -5,6 +5,8 @@
 use std::cell::{Ref, RefCell};
 use std::cmp::Ordering;
 
+use rayon::slice::ParallelSliceMut;
+
 const ORDERED_SIZE: usize = 300;
 const MAX_MOVEMENT: usize = 100;
 
@@ -97,7 +99,7 @@ impl<T: Send + Ord> OrderedVec<T> {
 
     fn sort_vector(&self, vec: &mut [T], asc: bool) {
         let asc = asc ^ self.tac;
-        vec.sort();
+        vec.par_sort();
         if !asc {
             vec.reverse();
         }

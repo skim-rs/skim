@@ -1,5 +1,7 @@
 use std::fmt::{Display, Error, Formatter};
 
+use rayon::slice::ParallelSliceMut;
+
 use crate::{MatchEngine, MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
@@ -77,7 +79,7 @@ impl AndEngine {
             }
         }
 
-        ranges.sort();
+        ranges.par_sort();
         ranges.dedup();
         MatchResult {
             rank,
