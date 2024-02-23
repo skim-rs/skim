@@ -198,7 +198,7 @@ fn process_item(
     item: &Arc<dyn SkimItem>,
 ) -> Option<MatchedItem> {
     matcher_engine.match_item(item.as_ref()).map(|match_result| {
-        matched.fetch_add(256, Ordering::Relaxed);
+        matched.fetch_add(1, Ordering::Relaxed);
 
         MatchedItem {
             item: Arc::downgrade(item),
