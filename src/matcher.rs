@@ -166,11 +166,12 @@ impl Matcher {
                                     process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
                                 });
 
-                            let mut pool = matched_items_strong.lock();
-                            pool.clear();
-                            pool.par_extend(par_iter);
-
-                            trace!("matcher stop, total matched: {}", pool.len());
+                            if stopped_ref.load(Ordering::Relaxed) {
+                                let mut pool = matched_items_strong.lock();
+                                pool.clear();
+                                pool.par_extend(par_iter);
+                                trace!("matcher stop, total matched: {}", pool.len());
+                            }
                         }
                     }
                 });
