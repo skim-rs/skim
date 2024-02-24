@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "two_percent"
-version = "0.10.36"
+version = "0.10.37"
 dependencies = [
  "bitflags 2.4.2",
  "chrono",
