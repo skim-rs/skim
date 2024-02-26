@@ -24,7 +24,7 @@ impl ExactOrFuzzyEngineFactory {
     pub fn builder() -> Self {
         Self {
             exact_mode: false,
-            fuzzy_algorithm: FuzzyAlgorithm::SkimV2,
+            fuzzy_algorithm: FuzzyAlgorithm::default(),
             rank_builder: Default::default(),
         }
     }

@@ -2,6 +2,7 @@ use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
 use fuzzy_matcher::clangd::ClangdMatcher;
+use fuzzy_matcher::simple::SimpleMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 
@@ -16,6 +17,7 @@ pub enum FuzzyAlgorithm {
     #[default]
     SkimV2,
     Clangd,
+    Simple,
 }
 
 impl FuzzyAlgorithm {
@@ -24,6 +26,7 @@ impl FuzzyAlgorithm {
             "skim_v1" => FuzzyAlgorithm::SkimV1,
             "skim_v2" | "skim" => FuzzyAlgorithm::SkimV2,
             "clangd" => FuzzyAlgorithm::Clangd,
+            "simple" => FuzzyAlgorithm::Simple,
             _ => FuzzyAlgorithm::SkimV2,
         }
     }
@@ -77,6 +80,15 @@ impl FuzzyEngineBuilder {
             }
             FuzzyAlgorithm::Clangd => {
                 let matcher = ClangdMatcher::default();
+                let matcher = match self.case {
+                    CaseMatching::Respect => matcher.respect_case(),
+                    CaseMatching::Ignore => matcher.ignore_case(),
+                    CaseMatching::Smart => matcher.smart_case(),
+                };
+                Box::new(matcher)
+            }
+            FuzzyAlgorithm::Simple => {
+                let matcher = SimpleMatcher::default();
                 let matcher = match self.case {
                     CaseMatching::Respect => matcher.respect_case(),
                     CaseMatching::Ignore => matcher.ignore_case(),

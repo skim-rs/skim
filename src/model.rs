@@ -159,6 +159,7 @@ impl Model {
         } else {
             let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
                 ExactOrFuzzyEngineFactory::builder()
+                    .fuzzy_algorithm(options.algorithm)
                     .exact_mode(options.exact)
                     .rank_builder(rank_builder.clone())
                     .build(),
