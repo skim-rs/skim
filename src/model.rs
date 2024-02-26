@@ -30,7 +30,7 @@ use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
 use crate::util::clear_canvas;
 use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
-use crate::{FuzzyAlgorithm, MatchEngineFactory, MatchRange, SkimItem};
+use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
 const REFRESH_DURATION: i64 = 100;
@@ -68,7 +68,6 @@ pub struct Model {
     rx: EventReceiver,
     tx: EventSender,
 
-    fuzzy_algorithm: FuzzyAlgorithm,
     reader_timer: Instant,
     matcher_timer: Instant,
     reader_control: Option<DeferDrop<ReaderControl>>,
@@ -126,8 +125,6 @@ impl Model {
             Ok("") | Err(_) => "find .".to_owned(),
             Ok(val) => val.to_owned(),
         };
-
-        let fuzzy_algorithm = options.algorithm;
 
         let theme = Arc::new(ColorTheme::init_from_options(options));
         let query = Query::from_options(options)
@@ -203,7 +200,6 @@ impl Model {
             matcher_timer: Instant::now(),
             reader_control: None,
             matcher_control: None,
-            fuzzy_algorithm,
 
             header,
             preview_hidden: true,
