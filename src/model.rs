@@ -127,6 +127,8 @@ impl Model {
             Ok(val) => val.to_owned(),
         };
 
+        let fuzzy_algorithm = options.algorithm;
+
         let theme = Arc::new(ColorTheme::init_from_options(options));
         let query = Query::from_options(options)
             .replace_base_cmd_if_not_set(&default_command)
@@ -201,7 +203,7 @@ impl Model {
             matcher_timer: Instant::now(),
             reader_control: None,
             matcher_control: None,
-            fuzzy_algorithm: FuzzyAlgorithm::default(),
+            fuzzy_algorithm,
 
             header,
             preview_hidden: true,
@@ -242,8 +244,6 @@ impl Model {
         if options.regex {
             self.use_regex = true;
         }
-
-        self.fuzzy_algorithm = options.algorithm;
 
         // preview related
         let (preview_direction, preview_size, preview_wrap, preview_shown) = options
