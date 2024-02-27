@@ -482,7 +482,7 @@ impl Model {
         let (indices, selections) = self.selection.get_selected_indices_and_items();
         let selected_texts: Vec<Cow<str>> = selections
             .iter()
-            .map(|item| Cow::Owned(item.upgrade_item_infallible().text().to_string()))
+            .map(|item| Cow::Owned(item.upgrade_infallible().text().to_string()))
             .collect();
 
         let context = InjectContext {
@@ -600,7 +600,7 @@ impl Model {
                                 .get_selected_indices_and_items()
                                 .1
                                 .iter()
-                                .map(|item| item.upgrade_item_infallible())
+                                .map(|item| item.upgrade_infallible())
                                 .collect();
                             sel
                         },
@@ -627,7 +627,7 @@ impl Model {
                                 .get_selected_indices_and_items()
                                 .1
                                 .iter()
-                                .map(|item| item.upgrade_item_infallible())
+                                .map(|item| item.upgrade_infallible())
                                 .collect();
                             sel
                         },

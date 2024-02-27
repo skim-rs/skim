@@ -183,7 +183,7 @@ impl Previewer {
         let (indices, selections) = get_selected_items();
         let selected_texts: Vec<Cow<str>> = selections
             .iter()
-            .map(|item| Cow::Owned(item.upgrade_item_infallible().text().to_string()))
+            .map(|item| Cow::Owned(item.upgrade_infallible().text().to_string()))
             .collect();
 
         let columns = self.width.load(Ordering::Relaxed);

@@ -185,7 +185,7 @@ impl Selection {
             if self
                 .selector
                 .as_ref()
-                .map(|s| s.should_select(item.item_idx as usize, item.upgrade_item_infallible().as_ref()))
+                .map(|s| s.should_select(item.item_idx as usize, item.upgrade_infallible().as_ref()))
                 .unwrap_or(false)
             {
                 self.act_select_raw_item(current_run_num, item.item_idx, item.clone());
@@ -343,7 +343,7 @@ impl Selection {
 
     pub fn get_current_item(&self) -> Option<Arc<dyn SkimItem>> {
         let item_idx = self.get_current_item_idx();
-        self.items.get(item_idx).map(|item| item.upgrade_item_infallible())
+        self.items.get(item_idx).map(|item| item.upgrade_infallible())
     }
 
     pub fn get_hscroll_offset(&self) -> i64 {
@@ -459,7 +459,7 @@ impl Selection {
             let _ = canvas.print_with_attr(row, 1, " ", default_attr);
         }
 
-        let item = &matched_item.upgrade_item_infallible();
+        let item = &matched_item.upgrade_infallible();
         let item_text = item.text();
         let container_width = screen_width - 2;
 

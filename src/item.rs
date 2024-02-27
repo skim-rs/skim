@@ -70,7 +70,7 @@ pub struct MatchedItem {
 }
 
 impl MatchedItem {
-    pub fn upgrade_item_infallible(&self) -> Arc<dyn SkimItem> {
+    pub fn upgrade_infallible(&self) -> Arc<dyn SkimItem> {
         self.item.upgrade().unwrap_or(Arc::new(""))
     }
 }
