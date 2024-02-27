@@ -21,7 +21,7 @@ use std::rc::Rc;
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-static UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
+const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
 
 //==============================================================================
