@@ -163,7 +163,7 @@ fn collect_item(
                         let mut locked = items_strong.lock();
                         // slow path
                         if empty_count > 1 {
-                            locked.extend(rx_item.try_iter().take(512));
+                            locked.extend(rx_item.try_iter().take(1024));
                             continue;
                         }
 
