@@ -96,8 +96,7 @@ fn send(
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            let leaked = Box::leak(boxed);
-            tx_item.try_send(Arc::new(leaked))
+            tx_item.try_send(Arc::new(boxed))
         }
     }
 }
