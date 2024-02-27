@@ -7,6 +7,7 @@ use regex::Regex;
 
 use crate::field::FieldRange;
 use crate::SkimItem;
+use std::io::ErrorKind;
 
 use super::item::DefaultSkimItem;
 
@@ -35,11 +36,17 @@ pub fn ingest_loop(
 
     loop {
         // first, read lots of bytes into the buffer
-        bytes_buffer = if let Ok(res) = source.fill_buf() {
-            res.to_vec()
-        } else {
-            break;
-        };
+        match source.fill_buf() {
+            Ok(res) => {
+                bytes_buffer = res.to_vec();
+            }
+            Err(err) => match err.kind() {
+                ErrorKind::Interrupted => continue,
+                ErrorKind::UnexpectedEof | _ => {
+                    break;
+                }
+            },
+        }
 
         source.consume(bytes_buffer.len());
 
