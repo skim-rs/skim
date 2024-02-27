@@ -53,7 +53,7 @@ pub fn ingest_loop(
             break;
         }
 
-        if std::str::from_utf8(&bytes_buffer)
+        std::str::from_utf8(&bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
             .try_for_each(|line| {
@@ -67,10 +67,7 @@ pub fn ingest_loop(
                     }
                 }
             })
-            .is_err()
-        {
-            return;
-        }
+            .expect("Reader channel is disconnected.");
     }
 }
 
