@@ -60,7 +60,7 @@ pub fn ingest_loop(
             break;
         }
 
-        std::str::from_utf8(&bytes_buffer)
+        std::str::from_utf8_mut(&mut bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
             .try_for_each(|line| {
@@ -74,7 +74,7 @@ pub fn ingest_loop(
                     }
                 }
             })
-            .expect("Reader channel is disconnected.");
+            .expect("Reader channel is disconnected.")
     }
 }
 
@@ -96,7 +96,8 @@ fn send(
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.try_send(Arc::new(boxed))
+            let leaked = Box::leak(boxed);
+            tx_item.try_send(Arc::new(leaked))
         }
     }
 }
