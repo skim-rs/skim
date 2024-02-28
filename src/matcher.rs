@@ -138,11 +138,12 @@ impl Matcher {
 
                         if let Some(matched_items_strong) = Weak::upgrade(&matched_items_weak) {
                             let mut pool = matched_items_strong.lock();
-                            let pool_len = pool.len();
+                            let skip = pool.len();
 
-                            let par_iter = items[pool_len..]
+                            let par_iter = items
                                 .par_iter()
                                 .enumerate()
+                                .skip(skip)
                                 .chunks(4096)
                                 .take_any_while(|vec| {
                                     if stopped_ref.load(Ordering::Relaxed) {
