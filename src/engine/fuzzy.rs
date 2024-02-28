@@ -134,7 +134,7 @@ impl MatchEngine for FuzzyEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         // iterate over all matching fields:
         let item_text = item.text();
-        let item_len = item_text.len();
+        let item_len = item_text.chars().count();
         let query_text = &self.query;
         let default_range = [(0, item_len)];
 
