@@ -39,6 +39,7 @@ pub fn ingest_loop(
         match source.fill_buf() {
             Ok(res) => {
                 bytes_buffer = res.to_vec();
+                source.consume(bytes_buffer.len());
             }
             Err(err) => match err.kind() {
                 ErrorKind::Interrupted => continue,
@@ -47,8 +48,6 @@ pub fn ingest_loop(
                 }
             },
         }
-
-        source.consume(bytes_buffer.len());
 
         // now, keep reading to make sure we haven't stopped in the middle of a word.
         // no need to add the bytes to the total buf_len, as these bytes are auto-"consumed()",
