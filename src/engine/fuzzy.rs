@@ -142,16 +142,20 @@ impl MatchEngine for FuzzyEngine {
             .get_matching_ranges()
             .unwrap_or(&default_range)
             .iter()
-            .find_map(|(start, end)| {
+            .map(|(start, end)| {
                 let start = std::cmp::min(*start, item_len);
                 let end = std::cmp::min(*end, item_len);
-                self.fuzzy_match(&item_text[start..end], query_text).map(|(s, vec)| {
+                let choice_range = &item_text[start..end];
+                (start, choice_range)
+            })
+            .find_map(|(start, choice_range)| {
+                self.fuzzy_match(choice_range, query_text).map(|(score, indices)| {
                     if start != 0 {
                         let start_char = &item_text[..start].len();
-                        return (s, vec.iter().map(|x| x + start_char).collect());
+                        return (score, indices.iter().map(|x| x + start_char).collect());
                     }
 
-                    (s, vec)
+                    (score, indices)
                 })
             });
 
