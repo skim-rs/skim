@@ -118,14 +118,6 @@ impl FuzzyEngine {
     }
 
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<(i64, Vec<usize>)> {
-        if pattern.is_empty() {
-            return Some((0, Vec::new()));
-        }
-
-        if choice.is_empty() {
-            return None;
-        }
-
         self.matcher.fuzzy_indices(choice, pattern)
     }
 }
