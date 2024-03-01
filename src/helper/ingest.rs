@@ -2,7 +2,7 @@
 use std::io::BufRead;
 use std::sync::Arc;
 
-use crossbeam_channel::{Sender, TrySendError};
+use crossbeam_channel::{SendError, Sender};
 use regex::Regex;
 
 use crate::field::FieldRange;
@@ -38,7 +38,7 @@ pub fn ingest_loop(
         // first, read lots of bytes into the buffer
         match source.fill_buf() {
             Ok(res) => {
-                bytes_buffer = res.to_vec();
+                bytes_buffer.extend_from_slice(res);
                 source.consume(bytes_buffer.len());
             }
             Err(err) => match err.kind() {
@@ -62,18 +62,10 @@ pub fn ingest_loop(
         std::str::from_utf8_mut(&mut bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
-            .try_for_each(|line| {
-                // if send fails retry once, don't block or break
-                match send(line, &opts, &tx_item) {
-                    Ok(_) => Ok(()),
-                    Err(err) if err.is_disconnected() => Err(err),
-                    Err(_) => {
-                        let _ = send(line, &opts, &tx_item);
-                        Ok(())
-                    }
-                }
-            })
-            .expect("Reader channel is disconnected.")
+            .try_for_each(|line| send(line, &opts, &tx_item))
+            .expect("Reader channel is disconnected.");
+
+        bytes_buffer.clear();
     }
 }
 
@@ -81,7 +73,7 @@ fn send(
     line: &str,
     opts: &SendRawOrBuild,
     tx_item: &Sender<Arc<dyn SkimItem>>,
-) -> Result<(), TrySendError<Arc<dyn SkimItem>>> {
+) -> Result<(), SendError<Arc<dyn SkimItem>>> {
     match opts {
         SendRawOrBuild::Build(opts) => {
             let item = DefaultSkimItem::new(
@@ -91,11 +83,11 @@ fn send(
                 opts.matching_fields,
                 opts.delimiter,
             );
-            tx_item.try_send(Arc::new(item))
+            tx_item.send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
             let boxed: Box<str> = line.into();
-            tx_item.try_send(Arc::new(boxed))
+            tx_item.send(Arc::new(boxed))
         }
     }
 }
