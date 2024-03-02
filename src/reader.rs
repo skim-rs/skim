@@ -149,7 +149,8 @@ fn collect_item(
         let mut sel = Select::new();
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
-        let sleep_duration = Duration::from_micros(1000);
+        let sleep_fast = Duration::from_millis(1);
+        let sleep_slow = Duration::from_millis(4);
         let mut empty_count = 0usize;
 
         if let Some(items_strong) = Weak::upgrade(&items_weak) {
@@ -161,15 +162,18 @@ fn collect_item(
                 match sel.ready() {
                     i if i == item_channel && !rx_item.is_empty() => {
                         let mut locked = items_strong.lock();
+                        locked.extend(rx_item.try_iter());
+
                         // slow path
                         if empty_count > 1 {
-                            locked.extend(rx_item.try_iter().take(1024));
+                            // faster for slow path but not for fast path
+                            drop(locked);
+                            sleep(sleep_slow);
                             continue;
                         }
 
                         // fast path
-                        locked.extend(rx_item.try_iter());
-                        sleep(sleep_duration);
+                        sleep(sleep_fast);
                     }
                     i if i == item_channel => {
                         empty_count += 1;
