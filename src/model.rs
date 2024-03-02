@@ -793,9 +793,7 @@ impl Model {
         );
 
         // replace None matcher
-        if let Some(mut old_matcher) = self.matcher_control.replace(DeferDrop::new(new_matcher_control)) {
-            old_matcher.kill()
-        }
+        self.matcher_control.replace(DeferDrop::new(new_matcher_control));
     }
 
     /// construct the widget tree
