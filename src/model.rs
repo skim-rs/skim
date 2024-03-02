@@ -380,10 +380,10 @@ impl Model {
     fn act_rotate_mode(&mut self, env: &mut ModelEnv) {
         self.use_regex = !self.use_regex;
 
-        // restart matcher
-        if let Some(mut ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
+        // // restart matcher
+        // if let Some(mut ctrl) = self.matcher_control.take() {
+        //     ctrl.kill();
+        // }
 
         env.clear_selection = ClearStrategy::Clear;
         self.item_pool.reset();
@@ -420,10 +420,10 @@ impl Model {
     }
 
     fn on_cmd_query_change(&mut self, env: &mut ModelEnv) {
-        // stop matcher
-        if let Some(mut ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
+        // // stop matcher
+        // if let Some(mut ctrl) = self.matcher_control.take() {
+        //     ctrl.kill();
+        // }
 
         env.clear_selection = ClearStrategy::ClearIfNotNull;
         self.item_pool.clear();
@@ -440,10 +440,11 @@ impl Model {
     }
 
     fn on_query_change(&mut self, env: &mut ModelEnv) {
-        // restart matcher
-        if let Some(mut ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
+        // // restart matcher
+        // if let Some(mut ctrl) = self.matcher_control.take() {
+        //     ctrl.kill();
+        // }
+
         env.clear_selection = ClearStrategy::Clear;
         self.item_pool.reset();
         self.num_options = 0;
