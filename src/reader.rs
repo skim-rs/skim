@@ -75,8 +75,10 @@ impl ReaderControl {
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
 
-    pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
-        std::mem::take(&mut self.items.lock())
+    pub fn take(&mut self) -> Vec<Arc<dyn SkimItem>> {
+        let locked = &mut self.items.lock();
+        let locked_len = locked.len();
+        std::mem::replace(locked, Vec::with_capacity(locked_len))
     }
 
     pub fn is_done(&self) -> bool {
