@@ -757,8 +757,8 @@ impl Model {
 
         // kill existing matcher if exists, and reuse old matched items
         let matcher_items = if let Some(mut old_matcher) = self.matcher_control.take() {
-            let mut old_items = old_matcher.take();
             old_matcher.kill();
+            let mut old_items = old_matcher.take();
             old_items.clear();
             old_items
         } else {
