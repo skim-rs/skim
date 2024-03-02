@@ -754,10 +754,15 @@ impl Model {
         self.matcher_timer = Instant::now();
         let query = self.query.get_fz_query();
 
-        // kill existing matcher if exists
-        if let Some(mut old_matcher) = self.matcher_control.take() {
-            old_matcher.kill()
-        }
+        // kill existing matcher if exists, and reuse old matched items
+        let matcher_items = if let Some(mut old_matcher) = self.matcher_control.take() {
+            let mut old_items = old_matcher.take();
+            old_matcher.kill();
+            old_items.clear();
+            old_items
+        } else {
+            Vec::with_capacity(65_536)
+        };
 
         // if there are new items, move them to item pool
         let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
@@ -783,6 +788,7 @@ impl Model {
             Arc::downgrade(&self.matcher_thread_pool),
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
+            matcher_items,
         );
 
         // replace None matcher

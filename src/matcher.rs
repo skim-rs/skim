@@ -61,7 +61,7 @@ impl MatcherControl {
         }
     }
 
-    fn take(&mut self) -> Vec<MatchedItem> {
+    pub fn take(&mut self) -> Vec<MatchedItem> {
         let mut items = self.items.lock();
         std::mem::take(&mut *items)
     }
@@ -109,6 +109,7 @@ impl Matcher {
         thread_pool_weak: Weak<ThreadPool>,
         item_pool_weak: Weak<DeferDrop<ItemPool>>,
         tx_heartbeat: Sender<(Key, Event)>,
+        matched_items: Vec<MatchedItem>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
@@ -118,7 +119,7 @@ impl Matcher {
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
-        let matched_items = Arc::new(SpinLock::new(Vec::new()));
+        let matched_items = Arc::new(SpinLock::new(matched_items));
         let matched_items_weak = Arc::downgrade(&matched_items);
 
         // shortcut for when there is no query or query is disabled
