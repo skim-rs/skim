@@ -4,6 +4,7 @@ use std::env;
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use chrono::Duration as TimerDuration;
@@ -782,6 +783,9 @@ impl Model {
 
         if !all_stopped {
             if self.exit0 || self.select1 || self.sync {
+                // Model loop will hammer the spinlock if we don't sleep
+                const TIMEOUT: Duration = Duration::from_millis(5);
+                sleep(TIMEOUT);
                 return;
             }
         }
