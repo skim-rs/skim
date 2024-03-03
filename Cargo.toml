@@ -23,6 +23,9 @@ name = "sk"
 path = "src/bin/main.rs"
 
 [dependencies]
+nohash = { version = "0.2.0", default-features = false }
+ahash = { version = "0.8.10", default-features = false }
+hashbrown = { version = "0.14.3", default-features = false }
 nix = { version = "0.28.0", default-features = false }
 regex = { version = "1.10.2", features = ["unicode-perl"] }
 lazy_static = { version = "1.4.0", default-features = false }

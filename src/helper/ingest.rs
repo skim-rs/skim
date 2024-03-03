@@ -7,7 +7,11 @@ use regex::Regex;
 
 use crate::field::FieldRange;
 use crate::SkimItem;
+use hashbrown::HashMap;
+use nohash::NoHashHasher;
+use std::hash::BuildHasherDefault;
 use std::io::ErrorKind;
+use std::sync::Weak;
 
 use super::item::DefaultSkimItem;
 
@@ -33,6 +37,9 @@ pub fn ingest_loop(
     opts: SendRawOrBuild,
 ) {
     let mut bytes_buffer = Vec::with_capacity(65_536);
+
+    let mut string_interner: HashMap<u64, Weak<Box<str>>, BuildHasherDefault<NoHashHasher<u64>>> =
+        HashMap::with_capacity_and_hasher(65_536, BuildHasherDefault::default());
 
     loop {
         // first, read lots of bytes into the buffer
@@ -62,7 +69,7 @@ pub fn ingest_loop(
         std::str::from_utf8_mut(&mut bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
-            .try_for_each(|line| send(line, &opts, &tx_item))
+            .try_for_each(|line| send(line, &opts, &tx_item, &mut string_interner))
             .expect("Reader channel is disconnected.");
 
         bytes_buffer.clear();
@@ -73,6 +80,7 @@ fn send(
     line: &str,
     opts: &SendRawOrBuild,
     tx_item: &Sender<Arc<dyn SkimItem>>,
+    string_interner: &mut HashMap<u64, Weak<Box<str>>, BuildHasherDefault<NoHashHasher<u64>>>,
 ) -> Result<(), SendError<Arc<dyn SkimItem>>> {
     match opts {
         SendRawOrBuild::Build(opts) => {
@@ -86,8 +94,26 @@ fn send(
             tx_item.send(Arc::new(item))
         }
         SendRawOrBuild::Raw => {
-            let boxed: Box<str> = line.into();
-            tx_item.send(Arc::new(boxed))
+            let key = hash(&line.as_bytes());
+
+            match string_interner.get(&key).and_then(|value| Weak::upgrade(value)) {
+                Some(value) => tx_item.send(value),
+                None => {
+                    let boxed: Arc<Box<str>> = Arc::new(line.into());
+                    string_interner.insert_unique_unchecked(key, Arc::downgrade(&boxed));
+                    tx_item.send(boxed)
+                }
+            }
         }
     }
+}
+
+#[inline]
+fn hash(bytes: &[u8]) -> u64 {
+    use std::hash::Hasher;
+
+    let mut hash = ahash::AHasher::default();
+
+    hash.write(bytes);
+    hash.finish()
 }
