@@ -772,6 +772,13 @@ impl Model {
             }
         };
 
+        let all_stopped = self.reader_control.as_ref().map(|c| c.all_stopped()).unwrap_or(true);
+        if !all_stopped {
+            if self.exit0 || self.select1 || self.sync {
+                return;
+            }
+        }
+
         // send heart beat (so that heartbeat/refresh is triggered)
         let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
 

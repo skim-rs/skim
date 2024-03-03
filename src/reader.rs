@@ -81,9 +81,13 @@ impl ReaderControl {
         std::mem::replace(locked, Vec::with_capacity(locked_len))
     }
 
+    pub fn all_stopped(&self) -> bool {
+        self.components_to_stop.load(Ordering::SeqCst) == 0
+    }
+
     pub fn is_done(&self) -> bool {
         let locked = self.items.lock();
-        self.components_to_stop.load(Ordering::SeqCst) == 0 && locked.is_empty()
+        self.all_stopped() && locked.is_empty()
     }
 }
 
