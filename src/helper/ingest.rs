@@ -39,7 +39,7 @@ pub fn ingest_loop(
     let mut bytes_buffer = Vec::with_capacity(65_536);
 
     let mut string_interner: HashMap<u64, Weak<Box<str>>, BuildHasherDefault<NoHashHasher<u64>>> =
-        HashMap::with_capacity_and_hasher(65_536, BuildHasherDefault::default());
+        HashMap::with_capacity_and_hasher(8192, BuildHasherDefault::default());
 
     loop {
         // first, read lots of bytes into the buffer
