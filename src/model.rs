@@ -764,7 +764,12 @@ impl Model {
         });
 
         // if there are new items, move them to item pool
-        let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
+        let (all_stopped, is_empty) = self
+            .reader_control
+            .as_ref()
+            .map(|c| (c.all_stopped(), c.is_empty()))
+            .unwrap_or((true, true));
+        let processed = all_stopped && is_empty;
         if !processed {
             // take out new items and put them into items
             if let Some(c) = self.reader_control.as_mut() {
@@ -772,15 +777,14 @@ impl Model {
             }
         };
 
-        let all_stopped = self.reader_control.as_ref().map(|c| c.all_stopped()).unwrap_or(true);
+        // send heart beat (so that heartbeat/refresh is triggered)
+        let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
+
         if !all_stopped {
             if self.exit0 || self.select1 || self.sync {
                 return;
             }
         }
-
-        // send heart beat (so that heartbeat/refresh is triggered)
-        let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
 
         let matcher = if self.use_regex {
             &self.regex_matcher
@@ -794,7 +798,7 @@ impl Model {
             Arc::downgrade(&self.matcher_thread_pool),
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
-            opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(65_536)),
+            opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(self.item_pool.len())),
         );
 
         // replace None matcher

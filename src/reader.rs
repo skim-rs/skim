@@ -85,9 +85,13 @@ impl ReaderControl {
         self.components_to_stop.load(Ordering::SeqCst) == 0
     }
 
-    pub fn is_done(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         let locked = self.items.lock();
-        self.all_stopped() && locked.is_empty()
+        locked.is_empty()
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.all_stopped() && self.is_empty()
     }
 }
 
