@@ -37,7 +37,7 @@ time = { version = "0.3.31", default-features = false }
 clap = { version = "3.2.25", optional = true, features = ["cargo"] }
 tuikit = { version = "0.5.0", default-features = false }
 vte = { version = "0.13.0", default-features = false }
-fuzzy-muff = { version = "0.3.13", default-features = false }
+fuzzy-muff = { version = "0.3.14", default-features = false }
 rayon = { version = "1.8.1", default-features = false }
 derive_builder = { version = "0.20.0", default-features = false, features = [
     "alloc",
