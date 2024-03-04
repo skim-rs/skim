@@ -207,7 +207,7 @@ fn real_main() -> Result<i32, std::io::Error> {
         .arg(Arg::with_name("preview").long("preview").multiple(true).takes_value(true))
         .arg(Arg::with_name("preview-window").long("preview-window").multiple(true).takes_value(true).default_value("right:50%"))
         .arg(Arg::with_name("reverse").long("reverse").multiple(true))
-        .arg(Arg::with_name("algo").long("algo").multiple(false).takes_value(true).default_value("skim_v2"))
+        .arg(Arg::with_name("algo").long("algo").multiple(false).takes_value(true).default_value("simple"))
         .arg(Arg::with_name("case").long("case").multiple(true).takes_value(true).default_value("smart"))
         .arg(Arg::with_name("literal").long("literal").multiple(true))
         .arg(Arg::with_name("cycle").long("cycle").multiple(true))
