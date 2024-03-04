@@ -38,7 +38,7 @@ pub fn ingest_loop(
 ) {
     let mut bytes_buffer = Vec::with_capacity(65_536);
 
-    let mut string_interner: HashMap<u64, Weak<Box<str>>, BuildHasherDefault<NoHashHasher<u64>>> =
+    let mut string_interner: HashMap<u64, Weak<dyn SkimItem>, BuildHasherDefault<NoHashHasher<u64>>> =
         HashMap::with_capacity_and_hasher(8192, BuildHasherDefault::default());
 
     loop {
@@ -80,30 +80,32 @@ fn send(
     line: &str,
     opts: &SendRawOrBuild,
     tx_item: &Sender<Arc<dyn SkimItem>>,
-    string_interner: &mut HashMap<u64, Weak<Box<str>>, BuildHasherDefault<NoHashHasher<u64>>>,
+    string_interner: &mut HashMap<u64, Weak<dyn SkimItem>, BuildHasherDefault<NoHashHasher<u64>>>,
 ) -> Result<(), SendError<Arc<dyn SkimItem>>> {
-    match opts {
-        SendRawOrBuild::Build(opts) => {
-            let item = DefaultSkimItem::new(
-                line,
-                opts.ansi_enabled,
-                opts.trans_fields,
-                opts.matching_fields,
-                opts.delimiter,
-            );
-            tx_item.send(Arc::new(item))
-        }
-        SendRawOrBuild::Raw => {
-            let key = hash(&line.as_bytes());
+    let key = hash(&line.as_bytes());
 
-            match string_interner.get(&key).and_then(|value| Weak::upgrade(value)) {
-                Some(value) => tx_item.send(value),
-                None => {
-                    let boxed: Arc<Box<str>> = Arc::new(line.into());
-                    string_interner.insert_unique_unchecked(key, Arc::downgrade(&boxed));
-                    tx_item.send(boxed)
+    match string_interner.get(&key).and_then(|value| Weak::upgrade(value)) {
+        Some(value) => tx_item.send(value),
+        None => {
+            let item: Arc<dyn SkimItem> = match opts {
+                SendRawOrBuild::Build(opts) => {
+                    let item = DefaultSkimItem::new(
+                        line,
+                        opts.ansi_enabled,
+                        opts.trans_fields,
+                        opts.matching_fields,
+                        opts.delimiter,
+                    );
+                    Arc::new(item)
                 }
-            }
+                SendRawOrBuild::Raw => {
+                    let item: Box<str> = line.into();
+                    Arc::new(item)
+                }
+            };
+
+            string_interner.insert_unique_unchecked(key, Arc::downgrade(&item));
+            tx_item.send(item)
         }
     }
 }
