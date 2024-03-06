@@ -34,6 +34,8 @@ use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
 const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
+const RESTART_MATCHER_TIMEOUT: Duration = Duration::from_millis(15);
+
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -777,8 +779,7 @@ impl Model {
         if !all_stopped {
             if self.exit0 || self.select1 || self.sync {
                 // Model loop will hammer the spinlock if we don't sleep
-                const TIMEOUT: Duration = Duration::from_millis(5);
-                sleep(TIMEOUT);
+                sleep(RESTART_MATCHER_TIMEOUT);
                 return;
             }
         }
