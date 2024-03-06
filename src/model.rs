@@ -799,7 +799,7 @@ impl Model {
 
         let matcher = if self.use_regex {
             &self.regex_matcher
-        } else if self.item_pool.len() >= 65_536 {
+        } else if self.item_pool.len() >= 262_144 {
             let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
                 ExactOrFuzzyEngineFactory::builder()
                     .fuzzy_algorithm(crate::FuzzyAlgorithm::Simple)
