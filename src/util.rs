@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::prelude::v1::*;
 
+use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use tuikit::prelude::*;
 use unicode_width::UnicodeWidthChar;
@@ -9,10 +10,8 @@ use unicode_width::UnicodeWidthChar;
 use crate::field::get_string_by_range;
 use crate::AnsiString;
 
-lazy_static! {
-    static ref RE_ESCAPE: Regex = Regex::new(r"['\U{00}]").unwrap();
-    static ref RE_NUMBER: Regex = Regex::new(r"[+|-]?\d+").unwrap();
-}
+static RE_ESCAPE: Lazy<Regex> = Lazy::new(|| Regex::new(r"['\U{00}]").unwrap());
+static RE_NUMBER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[+|-]?\d+").unwrap());
 
 pub fn clear_canvas(canvas: &mut dyn Canvas) -> DrawResult<()> {
     let (screen_width, screen_height) = canvas.size()?;
@@ -319,10 +318,8 @@ pub struct InjectContext<'a> {
     pub cmd_query: &'a str,
 }
 
-lazy_static! {
-    static ref RE_ITEMS: Regex = Regex::new(r"\\?(\{ *-?[0-9.+]*? *})").unwrap();
-    static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{ *-?[0-9.,cq+n]*? *})").unwrap();
-}
+static RE_ITEMS: Lazy<Regex> = Lazy::new(|| Regex::new(r"\\?(\{ *-?[0-9.+]*? *})").unwrap());
+static RE_FIELDS: Lazy<Regex> = Lazy::new(|| Regex::new(r"\\?(\{ *-?[0-9.,cq+n]*? *})").unwrap());
 
 /// Check if a command depends on item
 /// e.g. contains `{}`, `{1..}`, `{+}`

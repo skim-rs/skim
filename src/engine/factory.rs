@@ -5,13 +5,13 @@ use crate::engine::fuzzy::{FuzzyAlgorithm, FuzzyEngine};
 use crate::engine::regexp::RegexEngine;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory};
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::sync::Arc;
 
-lazy_static! {
-    static ref RE_AND: Regex = Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap();
-    static ref RE_OR: Regex = Regex::new(r" +\| +").unwrap();
-}
+static RE_AND: Lazy<Regex> = Lazy::new(|| Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap());
+static RE_OR: Lazy<Regex> = Lazy::new(|| Regex::new(r" +\| +").unwrap());
+
 //------------------------------------------------------------------------------
 // Exact engine factory
 pub struct ExactOrFuzzyEngineFactory {

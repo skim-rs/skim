@@ -8,6 +8,7 @@ use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
 
 use defer_drop::DeferDrop;
+use once_cell::sync::Lazy;
 use rayon::ThreadPool;
 use regex::Regex;
 use tuikit::prelude::{Event as TermEvent, *};
@@ -39,12 +40,10 @@ const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const DELIMITER_STR: &str = r"[\t\n ]+";
 
-lazy_static! {
-    static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
-    static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
-    static ref DEFAULT_CRITERION: Vec<RankCriteria> =
-        vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End,];
-}
+static RE_PREVIEW_OFFSET: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
+static DEFAULT_CRITERION: Lazy<Vec<RankCriteria>> =
+    Lazy::new(|| vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End]);
 
 pub struct Model {
     reader: Reader,

@@ -1,9 +1,9 @@
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::cmp::{max, min};
 
-lazy_static! {
-    static ref FIELD_RANGE: Regex = Regex::new(r"^(?P<left>-?\d+)?(?P<sep>\.\.)?(?P<right>-?\d+)?$").unwrap();
-}
+static FIELD_RANGE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(?P<left>-?\d+)?(?P<sep>\.\.)?(?P<right>-?\d+)?$").unwrap());
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum FieldRange {

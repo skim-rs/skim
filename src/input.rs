@@ -1,6 +1,7 @@
 ///! Input will listens to user input, modify the query string, send special
 ///! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use crate::event::{parse_event, Event};
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 use tuikit::event::Event as TermEvent;
@@ -83,14 +84,17 @@ type KeyActions<'a> = (&'a str, Vec<(&'a str, Option<String>)>);
 /// parse key action string to `(key, action, argument)` tuple
 /// key_action is comma separated: 'ctrl-j:accept,ctrl-k:kill-line'
 pub fn parse_key_action(key_action: &str) -> Vec<KeyActions> {
-    lazy_static! {
-        // match `key:action` or `key:action:arg` or `key:action(arg)` etc.
-        static ref RE: Regex =
-            Regex::new(r#"(?si)([^:]+?):((?:\+?[a-z-]+?(?:"[^"]*?"|'[^']*?'|\([^\)]*?\)|\[[^\]]*?\]|:[^:]*?)?\s*)+)(?:,|$)"#)
-                .unwrap();
-        // grab key, action and arg out.
-        static ref RE_BIND: Regex = Regex::new(r#"(?si)([a-z-]+)("[^"]+?"|'[^']+?'|\([^\)]+?\)|\[[^\]]+?\]|:[^:]+?)?(?:\+|$)"#).unwrap();
-    }
+    // match `key:action` or `key:action:arg` or `key:action(arg)` etc.
+    static RE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(
+            r#"(?si)([^:]+?):((?:\+?[a-z-]+?(?:"[^"]*?"|'[^']*?'|\([^\)]*?\)|\[[^\]]*?\]|:[^:]*?)?\s*)+)(?:,|$)"#,
+        )
+        .unwrap()
+    });
+    // grab key, action and arg out.
+    static RE_BIND: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r#"(?si)([a-z-]+)("[^"]+?"|'[^']+?'|\([^\)]+?\)|\[[^\]]+?\]|:[^:]+?)?(?:\+|$)"#).unwrap()
+    });
 
     RE.captures_iter(key_action)
         .map(|caps| {
