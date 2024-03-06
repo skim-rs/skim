@@ -14,9 +14,9 @@ use crate::{MatchRange, MatchResult, SkimItem};
 #[derive(Debug, Copy, Clone, Default)]
 pub enum FuzzyAlgorithm {
     SkimV1,
+    #[default]
     SkimV2,
     Clangd,
-    #[default]
     Simple,
 }
 
@@ -27,7 +27,7 @@ impl FuzzyAlgorithm {
             "skim_v2" | "skim" => FuzzyAlgorithm::SkimV2,
             "clangd" => FuzzyAlgorithm::Clangd,
             "simple" => FuzzyAlgorithm::Simple,
-            _ => FuzzyAlgorithm::Simple,
+            _ => FuzzyAlgorithm::SkimV2,
         }
     }
 }

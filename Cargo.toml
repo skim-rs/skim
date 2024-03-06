@@ -43,17 +43,12 @@ derive_builder = { version = "0.20.0", default-features = false, features = [
     "alloc",
 ] }
 bitflags = { version = "2.4.2", default-features = false }
-timer = { version = "0.2.0", default-features = false }
-chrono = { version = "0.4.31", default-features = false }
 crossbeam-channel = { version = "0.5.11", default-features = false, features = [
     "std",
 ] }
 defer-drop = { version = "1.3.0", default-features = false }
 which = { version = "6.0.0", default-features = false }
 libc = { version = "0.2.152", optional = true, default-features = false }
-
-[patch.crates-io]
-timer = { git = "https://github.com/kimono-koans/timer.rs" }
 
 [features]
 default = ["cli"]

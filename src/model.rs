@@ -4,14 +4,12 @@ use std::env;
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::thread::sleep;
+use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
 
-use chrono::Duration as TimerDuration;
 use defer_drop::DeferDrop;
 use rayon::ThreadPool;
 use regex::Regex;
-use timer::{Guard as TimerGuard, Timer};
 use tuikit::prelude::{Event as TermEvent, *};
 
 use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
@@ -34,7 +32,7 @@ use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse
 use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
-const REFRESH_DURATION: i64 = 100;
+const REFRESH_DURATION: u64 = 100;
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -95,8 +93,7 @@ pub struct Model {
     theme: Arc<ColorTheme>,
 
     // timer thread for scheduled events
-    timer: Timer,
-    hb_timer_guard: Option<TimerGuard>,
+    hb_timer_guard: Option<JoinHandle<()>>,
 
     // for AppendAndSelect action
     rank_builder: Arc<RankBuilder>,
@@ -224,7 +221,6 @@ impl Model {
             inline_info: false,
             no_clear_if_empty: false,
             theme,
-            timer: Timer::new(),
             hb_timer_guard: None,
 
             rank_builder,
@@ -374,12 +370,15 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            let hb_timer_guard =
-                self.timer
-                    .schedule_with_delay(TimerDuration::milliseconds(REFRESH_DURATION), move || {
-                        let _ = tx.send((Key::Null, Event::EvHeartBeat));
-                    });
-            self.hb_timer_guard.replace(hb_timer_guard);
+            let hb_timer_guard = std::thread::spawn(move || {
+                const DURATION: Duration = std::time::Duration::from_millis(REFRESH_DURATION);
+                sleep(DURATION);
+                let _ = tx.send((Key::Null, Event::EvHeartBeat));
+            });
+
+            if let Some(handle) = self.hb_timer_guard.replace(hb_timer_guard) {
+                let _ = handle.join();
+            }
         }
     }
 
