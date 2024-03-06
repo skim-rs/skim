@@ -33,8 +33,17 @@ use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse
 use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
+pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
+    Arc::new(
+        rayon::ThreadPoolBuilder::new()
+            .build()
+            .expect("Could not initialize rayon threadpool"),
+    )
+});
+
 const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
-const RESTART_MATCHER_TIMEOUT: Duration = Duration::from_millis(15);
+const RESTART_TIMEOUT: Duration = Duration::from_millis(1);
+const RESTART_TIMEOUT_X10: Duration = Duration::from_millis(10);
 
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
@@ -73,7 +82,6 @@ pub struct Model {
     matcher_timer: Instant,
     reader_control: Option<DeferDrop<ReaderControl>>,
     matcher_control: Option<DeferDrop<MatcherControl>>,
-    matcher_thread_pool: Arc<ThreadPool>,
 
     header: Header,
 
@@ -137,12 +145,6 @@ impl Model {
 
         let disabled = options.disabled;
 
-        let matcher_thread_pool = Arc::new(
-            rayon::ThreadPoolBuilder::new()
-                .build()
-                .expect("Could not initialize rayon threadpool"),
-        );
-
         let rank_builder = Arc::new(RankBuilder::new(criterion));
 
         let selection = DeferDrop::new(Selection::with_options(options).theme(theme.clone()));
@@ -188,7 +190,6 @@ impl Model {
             exit0: false,
             sync: false,
             disabled,
-            matcher_thread_pool,
             use_regex: options.regex,
             regex_matcher,
             matcher,
@@ -366,7 +367,7 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            self.matcher_thread_pool.spawn(move || {
+            THREAD_POOL.spawn(move || {
                 sleep(REFRESH_DURATION);
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             });
@@ -778,10 +779,12 @@ impl Model {
 
         if !all_stopped {
             if self.exit0 || self.select1 || self.sync {
+                sleep(RESTART_TIMEOUT_X10);
                 // Model loop will hammer the spinlock if we don't sleep
-                sleep(RESTART_MATCHER_TIMEOUT);
                 return;
             }
+
+            sleep(RESTART_TIMEOUT);
         }
 
         let matcher = if self.use_regex {
@@ -804,7 +807,6 @@ impl Model {
         let new_matcher_control = matcher.run(
             &query,
             self.disabled,
-            Arc::downgrade(&self.matcher_thread_pool),
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
             opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(self.item_pool.len())),
