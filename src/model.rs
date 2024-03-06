@@ -41,8 +41,7 @@ pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     )
 });
 
-const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
-const RESTART_TIMEOUT: Duration = Duration::from_millis(10);
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(10);
 
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
@@ -760,29 +759,34 @@ impl Model {
         });
 
         // if there are new items, move them to item pool
-        let (all_stopped, is_empty) = self
-            .reader_control
-            .as_ref()
-            .map(|c| (c.all_stopped(), c.is_empty()))
-            .unwrap_or((true, true));
-        let processed = all_stopped && is_empty;
-        if !processed {
-            // take out new items and put them into items
-            if let Some(c) = self.reader_control.as_mut() {
-                self.item_pool.append(c.take());
+        let reader_ctrl = self.reader_control.as_mut();
+
+        if let Some(ctrl) = reader_ctrl {
+            let all_stopped = ctrl.all_stopped();
+            let is_empty = ctrl.is_empty();
+            let processed = all_stopped && is_empty;
+            if !processed {
+                // take out new items and put them into items
+                if let Some(c) = self.reader_control.as_mut() {
+                    self.item_pool.append(c.take());
+                }
             }
-        };
+
+            if !all_stopped {
+                if self.exit0 || self.select1 || self.sync {
+                    // Model loop will hammer the spinlock if we don't sleep
+                    let tx = self.tx.clone();
+                    THREAD_POOL.spawn(move || {
+                        sleep(REFRESH_DURATION);
+                        let _ = tx.send((Key::Null, Event::EvHeartBeat));
+                    });
+                    return;
+                }
+            }
+        }
 
         // send heart beat (so that heartbeat/refresh is triggered)
         let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
-
-        if !all_stopped {
-            if self.exit0 || self.select1 || self.sync {
-                // Model loop will hammer the spinlock if we don't sleep
-                sleep(RESTART_TIMEOUT);
-                return;
-            }
-        }
 
         if self.item_pool.len() >= 262_144 {
             static FAST_MATCHER: Once = Once::new();
