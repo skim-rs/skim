@@ -14,9 +14,9 @@ use crate::{MatchRange, MatchResult, SkimItem};
 #[derive(Debug, Copy, Clone, Default)]
 pub enum FuzzyAlgorithm {
     SkimV1,
-    #[default]
     SkimV2,
     Clangd,
+    #[default]
     Simple,
 }
 
@@ -27,7 +27,7 @@ impl FuzzyAlgorithm {
             "skim_v2" | "skim" => FuzzyAlgorithm::SkimV2,
             "clangd" => FuzzyAlgorithm::Clangd,
             "simple" => FuzzyAlgorithm::Simple,
-            _ => FuzzyAlgorithm::SkimV2,
+            _ => FuzzyAlgorithm::Simple,
         }
     }
 }
@@ -126,7 +126,7 @@ impl MatchEngine for FuzzyEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         // iterate over all matching fields:
         let item_text = item.text();
-        let item_len = item_text.chars().count();
+        let item_len = item_text.len();
         let query_text = &self.query;
         let default_range = [(0, item_len)];
 
