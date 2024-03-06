@@ -93,7 +93,11 @@ impl Matcher {
         }
     }
 
-    pub fn case(mut self, case_matching: CaseMatching) -> Self {
+    pub fn get_case(&self) -> CaseMatching {
+        self.case_matching.clone()
+    }
+
+    pub fn set_case(mut self, case_matching: CaseMatching) -> Self {
         self.case_matching = case_matching;
         self
     }

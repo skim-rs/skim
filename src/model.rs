@@ -31,7 +31,7 @@ use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
 use crate::util::clear_canvas;
 use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
-use crate::{CaseMatching, MatchEngineFactory, MatchRange, SkimItem};
+use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
 const REFRESH_DURATION: i64 = 100;
@@ -58,7 +58,6 @@ pub struct Model {
     sync: bool,
     disabled: bool,
     exact_mode: bool,
-    case_matching: CaseMatching,
 
     use_regex: bool,
     regex_matcher: Matcher,
@@ -161,7 +160,7 @@ impl Model {
 
         let matcher = if let Some(engine_factory) = options.engine_factory.as_ref() {
             // use provided engine
-            Matcher::builder(engine_factory.clone()).case(options.case).build()
+            Matcher::builder(engine_factory.clone()).set_case(options.case).build()
         } else {
             let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
                 ExactOrFuzzyEngineFactory::builder()
@@ -170,7 +169,7 @@ impl Model {
                     .rank_builder(rank_builder.clone())
                     .build(),
             )));
-            Matcher::builder(fuzzy_engine_factory).case(case_matching).build()
+            Matcher::builder(fuzzy_engine_factory).set_case(case_matching).build()
         };
 
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
@@ -201,7 +200,6 @@ impl Model {
             term,
             item_pool,
             exact_mode,
-            case_matching,
 
             rx,
             tx,
@@ -807,7 +805,8 @@ impl Model {
                     .rank_builder(self.rank_builder.clone())
                     .build(),
             )));
-            self.matcher = Matcher::builder(fuzzy_engine_factory).case(self.case_matching).build();
+            let case_matching = self.matcher.get_case();
+            self.matcher = Matcher::builder(fuzzy_engine_factory).set_case(case_matching).build();
             &self.matcher
         } else {
             &self.matcher
