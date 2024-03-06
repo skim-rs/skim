@@ -3,7 +3,7 @@ use std::env;
 
 use std::process::Command;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -784,19 +784,26 @@ impl Model {
             }
         }
 
+        if self.item_pool.len() >= 262_144 {
+            static FAST_MATCHER: Once = Once::new();
+
+            FAST_MATCHER.call_once(|| {
+                // run initialization here
+                let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
+                    ExactOrFuzzyEngineFactory::builder()
+                        .fuzzy_algorithm(crate::FuzzyAlgorithm::Simple)
+                        .exact_mode(self.exact_mode)
+                        .rank_builder(self.rank_builder.clone())
+                        .build(),
+                )));
+                let case_matching = self.matcher.get_case();
+                let fast_matcher = Matcher::builder(fuzzy_engine_factory).set_case(case_matching).build();
+                self.matcher = fast_matcher;
+            });
+        }
+
         let matcher = if self.use_regex {
             &self.regex_matcher
-        } else if self.item_pool.len() >= 262_144 {
-            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .fuzzy_algorithm(crate::FuzzyAlgorithm::Simple)
-                    .exact_mode(self.exact_mode)
-                    .rank_builder(self.rank_builder.clone())
-                    .build(),
-            )));
-            let case_matching = self.matcher.get_case();
-            self.matcher = Matcher::builder(fuzzy_engine_factory).set_case(case_matching).build();
-            &self.matcher
         } else {
             &self.matcher
         };
