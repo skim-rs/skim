@@ -4,7 +4,7 @@ use std::env;
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::thread::{sleep, JoinHandle};
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use defer_drop::DeferDrop;
@@ -33,7 +33,7 @@ use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse
 use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
-const REFRESH_DURATION: u64 = 100;
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -90,9 +90,6 @@ pub struct Model {
     inline_info: bool,
     no_clear_if_empty: bool,
     theme: Arc<ColorTheme>,
-
-    // timer thread for scheduled events
-    hb_timer_guard: Option<JoinHandle<()>>,
 
     // for AppendAndSelect action
     rank_builder: Arc<RankBuilder>,
@@ -220,8 +217,6 @@ impl Model {
             inline_info: false,
             no_clear_if_empty: false,
             theme,
-            hb_timer_guard: None,
-
             rank_builder,
         };
         ret.parse_options(options);
@@ -369,15 +364,10 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            let hb_timer_guard = std::thread::spawn(move || {
-                const DURATION: Duration = std::time::Duration::from_millis(REFRESH_DURATION);
-                sleep(DURATION);
+            self.matcher_thread_pool.spawn(move || {
+                sleep(REFRESH_DURATION);
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             });
-
-            if let Some(handle) = self.hb_timer_guard.replace(hb_timer_guard) {
-                let _ = handle.join();
-            }
         }
     }
 
