@@ -42,8 +42,7 @@ pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
 });
 
 const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
-const RESTART_TIMEOUT: Duration = Duration::from_millis(2);
-const RESTART_TIMEOUT_X5: Duration = Duration::from_millis(10);
+const RESTART_TIMEOUT: Duration = Duration::from_millis(10);
 
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
@@ -780,11 +779,9 @@ impl Model {
         if !all_stopped {
             if self.exit0 || self.select1 || self.sync {
                 // Model loop will hammer the spinlock if we don't sleep
-                sleep(RESTART_TIMEOUT_X5);
+                sleep(RESTART_TIMEOUT);
                 return;
             }
-
-            sleep(RESTART_TIMEOUT);
         }
 
         let matcher = if self.use_regex {
