@@ -31,7 +31,7 @@ use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
 use crate::util::clear_canvas;
 use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
-use crate::{MatchEngineFactory, MatchRange, SkimItem};
+use crate::{CaseMatching, MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
 const REFRESH_DURATION: i64 = 100;
@@ -57,6 +57,8 @@ pub struct Model {
     exit0: bool,
     sync: bool,
     disabled: bool,
+    exact_mode: bool,
+    case_matching: CaseMatching,
 
     use_regex: bool,
     regex_matcher: Matcher,
@@ -154,6 +156,9 @@ impl Model {
             Rc::new(RegexEngineFactory::builder().rank_builder(rank_builder.clone()).build());
         let regex_matcher = Matcher::builder(regex_engine).build();
 
+        let exact_mode = options.exact;
+        let case_matching = options.case;
+
         let matcher = if let Some(engine_factory) = options.engine_factory.as_ref() {
             // use provided engine
             Matcher::builder(engine_factory.clone()).case(options.case).build()
@@ -161,11 +166,11 @@ impl Model {
             let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
                 ExactOrFuzzyEngineFactory::builder()
                     .fuzzy_algorithm(options.algorithm)
-                    .exact_mode(options.exact)
+                    .exact_mode(exact_mode)
                     .rank_builder(rank_builder.clone())
                     .build(),
             )));
-            Matcher::builder(fuzzy_engine_factory).case(options.case).build()
+            Matcher::builder(fuzzy_engine_factory).case(case_matching).build()
         };
 
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
@@ -195,6 +200,8 @@ impl Model {
             matcher,
             term,
             item_pool,
+            exact_mode,
+            case_matching,
 
             rx,
             tx,
@@ -792,6 +799,16 @@ impl Model {
 
         let matcher = if self.use_regex {
             &self.regex_matcher
+        } else if self.item_pool.len() >= 65_536 {
+            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
+                ExactOrFuzzyEngineFactory::builder()
+                    .fuzzy_algorithm(crate::FuzzyAlgorithm::Simple)
+                    .exact_mode(self.exact_mode)
+                    .rank_builder(self.rank_builder.clone())
+                    .build(),
+            )));
+            self.matcher = Matcher::builder(fuzzy_engine_factory).case(self.case_matching).build();
+            &self.matcher
         } else {
             &self.matcher
         };
