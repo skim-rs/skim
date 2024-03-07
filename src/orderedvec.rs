@@ -2,6 +2,8 @@
 // Normally, user will only care about the first several options. So we only keep several of them
 // in order. Other items are kept unordered and are sorted on demand.
 
+use crate::model::THREAD_POOL;
+use rayon::prelude::ParallelSliceMut;
 use std::cell::{Ref, RefCell};
 use std::cmp::Ordering;
 
@@ -97,7 +99,9 @@ impl<T: Send + Ord> OrderedVec<T> {
 
     fn sort_vector(&self, vec: &mut [T], asc: bool) {
         let asc = asc ^ self.tac;
-        vec.sort();
+        THREAD_POOL.install(|| {
+            vec.par_sort();
+        });
         if !asc {
             vec.reverse();
         }
