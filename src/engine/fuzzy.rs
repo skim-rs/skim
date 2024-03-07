@@ -157,7 +157,7 @@ impl MatchEngine for FuzzyEngine {
 
             MatchResult {
                 rank: self.rank_builder.build_rank(score as i32, begin, end, item_len),
-                matched_range: MatchRange::Chars(matched_range),
+                matched_range: MatchRange::Chars(matched_range.into()),
             }
         })
     }

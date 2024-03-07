@@ -221,7 +221,7 @@ pub enum CaseMatching {
 pub enum MatchRange {
     ByteRange(usize, usize),
     // range of bytes
-    Chars(Vec<usize>), // individual character indices matched
+    Chars(Box<[usize]>), // individual character indices matched
 }
 
 pub type Rank = [i32; 4];
@@ -240,7 +240,7 @@ impl MatchResult {
                 let last = first + text[start..end].len();
                 (first..last).collect()
             }
-            MatchRange::Chars(vec) => vec.clone(),
+            MatchRange::Chars(vec) => vec.clone().into(),
         }
     }
 }

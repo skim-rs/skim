@@ -81,7 +81,7 @@ impl AndEngine {
         ranges.dedup();
         MatchResult {
             rank,
-            matched_range: MatchRange::Chars(ranges),
+            matched_range: MatchRange::Chars(ranges.into()),
         }
     }
 }
