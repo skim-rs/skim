@@ -50,7 +50,7 @@ libc = { version = "0.2.153", default-features = false }
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:shlex", "dep:env_logger"]
-#malloc_trim = ["libc"]
+malloc_trim = []
 
 [profile.release]
 debug = false
