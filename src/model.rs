@@ -773,7 +773,6 @@ impl Model {
 
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
-                    // Model loop will hammer the spinlock if we don't sleep
                     return;
                 }
             }
