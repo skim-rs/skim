@@ -33,16 +33,17 @@ use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse
 use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
-pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
+pub static BACKGROUND_THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     Arc::new(
         rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
             .build()
             .expect("Could not initialize rayon threadpool"),
     )
 });
 
 const REFRESH_DURATION: Duration = std::time::Duration::from_millis(10);
-const READ_TIMEOUT: Duration = std::time::Duration::from_millis(1);
+const READ_TIMEOUT: Duration = std::time::Duration::from_millis(2);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -365,7 +366,7 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            THREAD_POOL.spawn_fifo(move || {
+            BACKGROUND_THREAD_POOL.spawn(move || {
                 sleep(REFRESH_DURATION);
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             });
@@ -375,10 +376,10 @@ impl Model {
     fn act_rotate_mode(&mut self, env: &mut ModelEnv) {
         self.use_regex = !self.use_regex;
 
-        // // restart matcher
-        // if let Some(mut ctrl) = self.matcher_control.take() {
-        //     ctrl.kill();
-        // }
+        // restart matcher
+        if let Some(mut ctrl) = self.matcher_control.take() {
+            ctrl.kill();
+        }
 
         env.clear_selection = ClearStrategy::Clear;
         self.item_pool.reset();
@@ -415,10 +416,10 @@ impl Model {
     }
 
     fn on_cmd_query_change(&mut self, env: &mut ModelEnv) {
-        // // stop matcher
-        // if let Some(mut ctrl) = self.matcher_control.take() {
-        //     ctrl.kill();
-        // }
+        // stop matcher
+        if let Some(mut matcher) = self.matcher_control.take() {
+            matcher.kill();
+        }
 
         env.clear_selection = ClearStrategy::ClearIfNotNull;
         self.item_pool.clear();
@@ -435,10 +436,10 @@ impl Model {
     }
 
     fn on_query_change(&mut self, env: &mut ModelEnv) {
-        // // restart matcher
-        // if let Some(mut ctrl) = self.matcher_control.take() {
-        //     ctrl.kill();
-        // }
+        // restart matcher
+        if let Some(mut matcher) = self.matcher_control.take() {
+            matcher.kill();
+        }
 
         env.clear_selection = ClearStrategy::Clear;
         self.item_pool.reset();
@@ -766,7 +767,11 @@ impl Model {
 
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
-                    sleep(READ_TIMEOUT);
+                    let tx = self.tx.clone();
+                    BACKGROUND_THREAD_POOL.spawn(move || {
+                        sleep(READ_TIMEOUT);
+                        let _ = tx.send((Key::Null, Event::EvHeartBeat));
+                    });
                     return;
                 }
             }

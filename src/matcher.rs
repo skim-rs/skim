@@ -4,9 +4,9 @@ use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
 use defer_drop::DeferDrop;
+use once_cell::sync::Lazy;
 use rayon::prelude::*;
-
-use crate::model::THREAD_POOL;
+use rayon::ThreadPool;
 
 use tuikit::key::Key;
 
@@ -24,6 +24,14 @@ use crate::malloc_trim;
 
 const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
+
+pub static MATCHER_THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
+    Arc::new(
+        rayon::ThreadPoolBuilder::new()
+            .build()
+            .expect("Could not initialize rayon threadpool"),
+    )
+});
 
 //==============================================================================
 pub struct MatcherControl {
@@ -130,7 +138,7 @@ impl Matcher {
         let matcher_disabled: bool = disabled || query.is_empty();
 
         let matcher_handle = thread::spawn(move || {
-            THREAD_POOL.install(|| {
+            MATCHER_THREAD_POOL.install(|| {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
