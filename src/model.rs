@@ -41,8 +41,7 @@ pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     )
 });
 
-pub const REFRESH_DURATION: Duration = std::time::Duration::from_millis(1);
-
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
