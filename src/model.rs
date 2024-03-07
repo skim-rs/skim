@@ -105,12 +105,18 @@ pub struct Model {
 
 impl Drop for Model {
     fn drop(&mut self) {
-        self.matcher_control.take();
-        self.reader_control.take();
+        let m_ctrl = self.matcher_control.take();
+        let r_ctrl = self.reader_control.take();
 
-        std::mem::take(&mut self.selection);
+        let selection = std::mem::take(&mut self.selection);
+        let pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
 
-        let _ = Arc::try_unwrap(std::mem::take(&mut self.item_pool));
+        BACKGROUND_THREAD_POOL.spawn(|| {
+            drop(m_ctrl);
+            drop(r_ctrl);
+            drop(selection);
+            drop(pool);
+        })
     }
 }
 

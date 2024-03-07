@@ -45,12 +45,12 @@ crossbeam-channel = { version = "0.5.12", default-features = false, features = [
     "std",
 ] }
 which = { version = "6.0.0", default-features = false }
-libc = { version = "0.2.153", optional = true, default-features = false }
+libc = { version = "0.2.153", default-features = false }
 
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:shlex", "dep:env_logger"]
-malloc_trim = ["libc"]
+#malloc_trim = ["libc"]
 
 [profile.release]
 debug = false
