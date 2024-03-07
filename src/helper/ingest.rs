@@ -6,6 +6,7 @@ use crossbeam_channel::{SendError, Sender};
 use regex::Regex;
 
 use crate::field::FieldRange;
+use crate::model::BACKGROUND_THREAD_POOL;
 use crate::SkimItem;
 use hashbrown::HashMap;
 use nohash::NoHashHasher;
@@ -38,7 +39,7 @@ pub fn ingest_loop(
 ) {
     let mut bytes_buffer = Vec::with_capacity(65_536);
 
-    let mut string_interner: HashMap<u64, Weak<dyn SkimItem>, BuildHasherDefault<NoHashHasher<u64>>> =
+    let mut string_intern: HashMap<u64, Weak<dyn SkimItem>, BuildHasherDefault<NoHashHasher<u64>>> =
         HashMap::with_capacity_and_hasher(8192, BuildHasherDefault::default());
 
     loop {
@@ -69,22 +70,26 @@ pub fn ingest_loop(
         std::str::from_utf8_mut(&mut bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
-            .try_for_each(|line| send(line, &opts, &tx_item, &mut string_interner))
+            .try_for_each(|line| send(line, &opts, &tx_item, &mut string_intern))
             .expect("Reader channel is disconnected.");
 
         bytes_buffer.clear();
     }
+
+    BACKGROUND_THREAD_POOL.spawn(|| {
+        drop(string_intern);
+    })
 }
 
 fn send(
     line: &str,
     opts: &SendRawOrBuild,
     tx_item: &Sender<Arc<dyn SkimItem>>,
-    string_interner: &mut HashMap<u64, Weak<dyn SkimItem>, BuildHasherDefault<NoHashHasher<u64>>>,
+    string_intern: &mut HashMap<u64, Weak<dyn SkimItem>, BuildHasherDefault<NoHashHasher<u64>>>,
 ) -> Result<(), SendError<Arc<dyn SkimItem>>> {
     let key = hash(&line.as_bytes());
 
-    match string_interner.get(&key).and_then(|value| Weak::upgrade(value)) {
+    match string_intern.get(&key).and_then(|value| Weak::upgrade(value)) {
         Some(value) => tx_item.send(value),
         None => {
             let item: Arc<dyn SkimItem> = match opts {
@@ -104,7 +109,7 @@ fn send(
                 }
             };
 
-            string_interner.insert_unique_unchecked(key, Arc::downgrade(&item));
+            string_intern.insert_unique_unchecked(key, Arc::downgrade(&item));
             tx_item.send(item)
         }
     }
