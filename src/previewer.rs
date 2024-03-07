@@ -9,7 +9,6 @@ use std::thread;
 use std::thread::JoinHandle;
 
 use derive_builder::Builder;
-use nix::libc;
 use regex::Regex;
 use tuikit::prelude::{Event as TermEvent, *};
 
