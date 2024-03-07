@@ -175,7 +175,7 @@ impl Matcher {
                                     });
                                 }
 
-                                process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
+                                Self::process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
                             });
 
                         if !stopped_ref.load(Ordering::Relaxed) {
@@ -200,23 +200,23 @@ impl Matcher {
             opt_thread_handle: Some(matcher_handle),
         }
     }
-}
 
-fn process_item(
-    index: usize,
-    num_taken: usize,
-    matched: &AtomicUsize,
-    matcher_engine: &dyn MatchEngine,
-    item: &Arc<dyn SkimItem>,
-) -> Option<MatchedItem> {
-    matcher_engine.match_item(item.as_ref()).map(|match_result| {
-        matched.fetch_add(1, Ordering::Relaxed);
+    fn process_item(
+        index: usize,
+        num_taken: usize,
+        matched: &AtomicUsize,
+        matcher_engine: &dyn MatchEngine,
+        item: &Arc<dyn SkimItem>,
+    ) -> Option<MatchedItem> {
+        matcher_engine.match_item(item.as_ref()).map(|match_result| {
+            matched.fetch_add(1, Ordering::Relaxed);
 
-        MatchedItem {
-            item: Arc::downgrade(item),
-            rank: match_result.rank,
-            matched_range: Some(match_result.matched_range),
-            item_idx: (num_taken + index) as u32,
-        }
-    })
+            MatchedItem {
+                item: Arc::downgrade(item),
+                rank: match_result.rank,
+                matched_range: Some(match_result.matched_range),
+                item_idx: (num_taken + index) as u32,
+            }
+        })
+    }
 }
