@@ -1,6 +1,6 @@
 [package]
 name = "two_percent"
-version = "0.11.0"
+version = "0.11.1"
 authors = [
     "Zhang Jinzhou <lotabout@gmail.com>",
     "Robert Swinford <robert.swinford <...at...> gmail.com>",
