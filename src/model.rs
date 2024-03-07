@@ -41,7 +41,7 @@ pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     )
 });
 
-const REFRESH_DURATION: Duration = std::time::Duration::from_millis(100);
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(50);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -364,7 +364,7 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            THREAD_POOL.spawn(move || {
+            THREAD_POOL.spawn_fifo(move || {
                 sleep(REFRESH_DURATION);
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             });
@@ -749,14 +749,6 @@ impl Model {
         self.matcher_timer = Instant::now();
         let query = self.query.get_fz_query();
 
-        // kill existing matcher if exists, and reuse old matched items
-        let opt_matcher_items = self.matcher_control.take().map(|mut old_matcher| {
-            old_matcher.kill();
-            let mut old_items = old_matcher.take();
-            old_items.clear();
-            old_items
-        });
-
         // if there are new items, move them to item pool
         let reader_ctrl = self.reader_control.as_mut();
 
@@ -773,6 +765,7 @@ impl Model {
 
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
+                    sleep(REFRESH_DURATION);
                     return;
                 }
             }
@@ -798,6 +791,14 @@ impl Model {
                 self.matcher = fast_matcher;
             });
         }
+
+        // kill existing matcher if exists, and reuse old matched items
+        let opt_matcher_items = self.matcher_control.take().map(|mut old_matcher| {
+            old_matcher.kill();
+            let mut old_items = old_matcher.take();
+            old_items.clear();
+            old_items
+        });
 
         let matcher = if self.use_regex {
             &self.regex_matcher
