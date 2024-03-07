@@ -8,8 +8,6 @@ use crate::theme::DEFAULT_THEME;
 use crate::util::{clear_canvas, print_item, str_lines, LinePrinter};
 use crate::{DisplayContext, SkimOptions};
 
-use defer_drop::DeferDrop;
-
 use std::cmp::max;
 use std::sync::{Arc, Weak};
 use tuikit::prelude::*;
@@ -21,7 +19,7 @@ pub struct Header {
     theme: Arc<ColorTheme>,
 
     // for reserved header items
-    item_pool: Weak<DeferDrop<ItemPool>>,
+    item_pool: Weak<ItemPool>,
 }
 
 impl Header {
@@ -35,15 +33,15 @@ impl Header {
         }
     }
 
-    pub fn upgrade_pool(&self) -> Arc<DeferDrop<ItemPool>> {
+    pub fn upgrade_pool(&self) -> Arc<ItemPool> {
         if let Some(upgraded) = Weak::upgrade(&self.item_pool) {
             upgraded
         } else {
-            Arc::new(DeferDrop::new(ItemPool::new()))
+            Arc::new(ItemPool::new())
         }
     }
 
-    pub fn item_pool(mut self, item_pool: &Arc<DeferDrop<ItemPool>>) -> Self {
+    pub fn item_pool(mut self, item_pool: &Arc<ItemPool>) -> Self {
         self.item_pool = Arc::downgrade(&item_pool);
         self
     }

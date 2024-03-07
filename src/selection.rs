@@ -4,13 +4,13 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use defer_drop::DeferDrop;
 use tuikit::prelude::{Event as TermEvent, *};
 
 ///! Handle the selections of items
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
 use crate::item::MatchedItem;
+use crate::model::BACKGROUND_THREAD_POOL;
 use crate::orderedvec::OrderedVec;
 use crate::theme::{ColorTheme, DEFAULT_THEME};
 use crate::util::clear_canvas;
@@ -23,8 +23,8 @@ type ItemIndex = (u32, u32);
 
 pub struct Selection {
     // all items
-    items: DeferDrop<OrderedVec<MatchedItem>>,
-    selected: DeferDrop<BTreeMap<ItemIndex, MatchedItem>>,
+    items: OrderedVec<MatchedItem>,
+    selected: BTreeMap<ItemIndex, MatchedItem>,
 
     //
     // |>------ items[items.len()-1]
@@ -65,8 +65,10 @@ impl Drop for Selection {
         let items = std::mem::take(&mut self.items);
         let selected = std::mem::take(&mut self.selected);
 
-        DeferDrop::into_inner(items);
-        DeferDrop::into_inner(selected);
+        BACKGROUND_THREAD_POOL.spawn(|| {
+            drop(items);
+            drop(selected);
+        })
     }
 }
 
@@ -79,8 +81,8 @@ impl Default for Selection {
 impl Selection {
     pub fn new() -> Self {
         Selection {
-            items: DeferDrop::new(OrderedVec::new()),
-            selected: DeferDrop::new(BTreeMap::new()),
+            items: OrderedVec::new(),
+            selected: BTreeMap::new(),
             item_cursor: 0,
             line_cursor: 0,
             hscroll_offset: 0,

@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::{self, JoinHandle};
 
-use defer_drop::DeferDrop;
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use rayon::ThreadPool;
@@ -12,6 +11,7 @@ use tuikit::key::Key;
 
 use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem};
+use crate::model::BACKGROUND_THREAD_POOL;
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use crate::{MatchRange, Rank};
@@ -46,7 +46,10 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
         // lock before drop
-        drop(self.take());
+        let items = self.take();
+        BACKGROUND_THREAD_POOL.spawn(|| {
+            drop(items);
+        })
     }
 }
 
@@ -119,7 +122,7 @@ impl Matcher {
         &self,
         query: &str,
         disabled: bool,
-        item_pool_weak: Weak<DeferDrop<ItemPool>>,
+        item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
         matched_items: Vec<MatchedItem>,
     ) -> MatcherControl {

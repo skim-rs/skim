@@ -7,7 +7,6 @@ use std::sync::{Arc, Once};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use defer_drop::DeferDrop;
 use once_cell::sync::Lazy;
 use rayon::ThreadPool;
 use regex::Regex;
@@ -58,7 +57,7 @@ static DEFAULT_CRITERION: Lazy<Vec<RankCriteria>> =
 pub struct Model {
     reader: Reader,
     query: Query,
-    selection: DeferDrop<Selection>,
+    selection: Selection,
     num_options: usize,
     select1: bool,
     exit0: bool,
@@ -72,15 +71,15 @@ pub struct Model {
 
     term: Arc<Term>,
 
-    item_pool: Arc<DeferDrop<ItemPool>>,
+    item_pool: Arc<ItemPool>,
 
     rx: EventReceiver,
     tx: EventSender,
 
     reader_timer: Instant,
     matcher_timer: Instant,
-    reader_control: Option<DeferDrop<ReaderControl>>,
-    matcher_control: Option<DeferDrop<MatcherControl>>,
+    reader_control: Option<ReaderControl>,
+    matcher_control: Option<MatcherControl>,
 
     header: Header,
 
@@ -106,20 +105,12 @@ pub struct Model {
 
 impl Drop for Model {
     fn drop(&mut self) {
-        if let Some(matcher_control) = self.matcher_control.take() {
-            DeferDrop::into_inner(matcher_control);
-        }
+        self.matcher_control.take();
+        self.reader_control.take();
 
-        if let Some(reader_control) = self.reader_control.take() {
-            DeferDrop::into_inner(reader_control);
-        }
+        std::mem::take(&mut self.selection);
 
-        let selection = std::mem::take(&mut self.selection);
-        DeferDrop::into_inner(selection);
-
-        if let Ok(item_pool) = Arc::try_unwrap(std::mem::take(&mut self.item_pool)) {
-            DeferDrop::into_inner(item_pool);
-        }
+        let _ = Arc::try_unwrap(std::mem::take(&mut self.item_pool));
     }
 }
 
@@ -146,7 +137,7 @@ impl Model {
 
         let rank_builder = Arc::new(RankBuilder::new(criterion));
 
-        let selection = DeferDrop::new(Selection::with_options(options).theme(theme.clone()));
+        let selection = Selection::with_options(options).theme(theme.clone());
         let regex_engine: Rc<dyn MatchEngineFactory> =
             Rc::new(RegexEngineFactory::builder().rank_builder(rank_builder.clone()).build());
         let regex_matcher = Matcher::builder(regex_engine).build();
@@ -168,7 +159,7 @@ impl Model {
             Matcher::builder(fuzzy_engine_factory).set_case(case_matching).build()
         };
 
-        let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
+        let item_pool = Arc::new(ItemPool::new().lines_to_reserve(options.header_lines));
         let header = Header::empty()
             .with_options(options)
             .item_pool(&item_pool)
@@ -426,7 +417,7 @@ impl Model {
         self.num_options = 0;
 
         // restart reader
-        let old_reader = self.reader_control.replace(DeferDrop::new(self.reader.run(&env.cmd)));
+        let old_reader = self.reader_control.replace(self.reader.run(&env.cmd));
         if let Some(mut reader) = old_reader {
             reader.kill()
         }
@@ -529,7 +520,7 @@ impl Model {
             clear_selection: ClearStrategy::DontClear,
         };
 
-        self.reader_control = Some(DeferDrop::new(self.reader.run(&env.cmd)));
+        self.reader_control = Some(self.reader.run(&env.cmd));
 
         // In the event loop, there might need
         let mut next_event = Some((Key::Null, Event::EvHeartBeat));
@@ -821,7 +812,7 @@ impl Model {
         );
 
         // replace None matcher
-        self.matcher_control.replace(DeferDrop::new(new_matcher_control));
+        self.matcher_control.replace(new_matcher_control);
     }
 
     /// construct the widget tree
@@ -862,7 +853,7 @@ impl Model {
         };
         let status_inline = status.clone();
 
-        let win_selection = Win::new(&*self.selection);
+        let win_selection = Win::new(&self.selection);
         let win_query = Win::new(&self.query)
             .basis(if self.inline_info { 0 } else { 1 })
             .grow(0)
