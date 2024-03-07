@@ -774,11 +774,6 @@ impl Model {
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
                     // Model loop will hammer the spinlock if we don't sleep
-                    let tx = self.tx.clone();
-                    THREAD_POOL.spawn(move || {
-                        sleep(REFRESH_DURATION);
-                        let _ = tx.send((Key::Null, Event::EvHeartBeat));
-                    });
                     return;
                 }
             }
