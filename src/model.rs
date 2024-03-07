@@ -365,7 +365,7 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            std::thread::spawn(move || {
+            THREAD_POOL.spawn_fifo(move || {
                 sleep(REFRESH_DURATION);
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             });
@@ -766,11 +766,7 @@ impl Model {
 
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
-                    let tx = self.tx.clone();
-                    std::thread::spawn(move || {
-                        sleep(READ_TIMEOUT);
-                        let _ = tx.send((Key::Null, Event::EvHeartBeat));
-                    });
+                    sleep(READ_TIMEOUT);
                     return;
                 }
             }
