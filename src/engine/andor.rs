@@ -1,9 +1,6 @@
 use std::fmt::{Display, Error, Formatter};
 
 use crate::{MatchEngine, MatchRange, MatchResult, SkimItem};
-use rayon::prelude::ParallelSliceMut;
-
-use crate::model::THREAD_POOL;
 
 //------------------------------------------------------------------------------
 // OrEngine, a combinator
@@ -80,9 +77,7 @@ impl AndEngine {
             }
         }
 
-        THREAD_POOL.install(|| {
-            ranges.par_sort();
-        });
+        ranges.sort();
         ranges.dedup();
         MatchResult {
             rank,
