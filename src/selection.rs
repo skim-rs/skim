@@ -157,7 +157,7 @@ impl Selection {
             self.pre_select(&items);
         }
 
-        self.items.append(items.to_vec());
+        self.items.append(items);
         self.pre_selected_watermark = max(self.pre_selected_watermark, self.items.len());
 
         let height = self.height.load(Ordering::Relaxed);
