@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 const ORDERED_SIZE: usize = 300;
 const MAX_MOVEMENT: usize = 100;
 
-pub struct OrderedVec<T: Send + Ord> {
+pub struct OrderedVec<T: Sync + Send + Ord> {
     // sorted vectors for merge, reverse ordered, last one is the smallest one
     sub_vectors: RefCell<Vec<Vec<T>>>,
     // globally sorted items, the first one is the smallest one.
@@ -17,20 +17,20 @@ pub struct OrderedVec<T: Send + Ord> {
     nosort: bool,
 }
 
-impl<T: Send + Ord> Drop for OrderedVec<T> {
+impl<T: Sync + Send + Ord> Drop for OrderedVec<T> {
     fn drop(&mut self) {
         let _sub_vectors = self.sub_vectors.take();
         let _sorted = self.sorted.take();
     }
 }
 
-impl<T: Send + Ord> Default for OrderedVec<T> {
+impl<T: Sync + Send + Ord> Default for OrderedVec<T> {
     fn default() -> Self {
         OrderedVec::new()
     }
 }
 
-impl<T: Send + Ord> OrderedVec<T> {
+impl<T: Sync + Send + Ord> OrderedVec<T> {
     pub fn new() -> Self {
         OrderedVec {
             sub_vectors: RefCell::new(Vec::new()),
@@ -184,12 +184,12 @@ impl<T: Send + Ord> OrderedVec<T> {
     }
 }
 
-struct OrderedVecIter<'a, T: Send + Ord> {
+struct OrderedVecIter<'a, T: Sync + Send + Ord> {
     ordered_vec: &'a OrderedVec<T>,
     index: usize,
 }
 
-impl<'a, T: Send + Ord> Iterator for OrderedVecIter<'a, T> {
+impl<'a, T: Sync + Send + Ord> Iterator for OrderedVecIter<'a, T> {
     type Item = Ref<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
