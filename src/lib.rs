@@ -178,7 +178,7 @@ pub struct PreviewContext<'a> {
     /// selected item indices (may or may not include current item)
     pub selected_indices: &'a [usize],
     /// selected item texts (may or may not include current item)
-    pub selections: &'a [Cow<'a, str>],
+    pub selections: &'a [Box<str>],
 }
 
 //------------------------------------------------------------------------------

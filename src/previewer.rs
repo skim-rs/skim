@@ -1,5 +1,4 @@
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -180,9 +179,10 @@ impl Previewer {
         let cmd_query = self.prev_cmd_query.as_deref().unwrap_or("");
 
         let (indices, selections) = get_selected_items();
-        let selected_texts: Vec<Cow<str>> = selections
+        let selected_texts: Vec<Box<str>> = selections
             .iter()
-            .map(|item| Cow::Owned(item.upgrade_infallible().text().to_string()))
+            .map(|item| item.upgrade_infallible())
+            .map(|item| item.text().into())
             .collect();
 
         let columns = self.width.load(Ordering::Relaxed);
@@ -192,7 +192,7 @@ impl Previewer {
             current_index: new_item_index,
             delimiter: &self.delimiter,
             current_selection: &current_selection,
-            selections: &selected_texts,
+            selections: selected_texts.as_slice(),
             indices: &indices,
             query,
             cmd_query,

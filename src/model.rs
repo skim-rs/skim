@@ -474,16 +474,17 @@ impl Model {
         let cmd_query = self.query.get_cmd_query();
 
         let (indices, selections) = self.selection.get_selected_indices_and_items();
-        let selected_texts: Vec<Cow<str>> = selections
+        let selected_texts: Vec<Box<str>> = selections
             .iter()
-            .map(|item| Cow::Owned(item.upgrade_infallible().text().to_string()))
+            .map(|item| item.upgrade_infallible())
+            .map(|item| item.text().into())
             .collect();
 
         let context = InjectContext {
             current_index,
             delimiter: &self.delimiter,
             current_selection: &current_selection,
-            selections: &selected_texts,
+            selections: selected_texts.as_slice(),
             indices: &indices,
             query: &query,
             cmd_query: &cmd_query,

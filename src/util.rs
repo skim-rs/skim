@@ -313,7 +313,7 @@ pub struct InjectContext<'a> {
     pub current_index: usize,
     pub current_selection: &'a str,
     pub indices: &'a [usize],
-    pub selections: &'a [Cow<'a, str>],
+    pub selections: &'a [Box<str>],
     pub query: &'a str,
     pub cmd_query: &'a str,
 }
@@ -350,9 +350,9 @@ pub fn inject_command<'a>(cmd: &'a str, context: InjectContext<'a>) -> Cow<'a, s
         let range = range.trim();
 
         if range.starts_with('+') {
-            let current_selection = vec![Cow::Borrowed(context.current_selection)];
+            let current_selection = vec![context.current_selection.into()];
             let selections = if context.selections.is_empty() {
-                &current_selection
+                current_selection.as_slice()
             } else {
                 context.selections
             };
@@ -428,7 +428,7 @@ mod tests {
     fn test_inject_command() {
         let delimiter = Regex::new(r",").unwrap();
         let current_selection = "a,b,c";
-        let selections = vec![Cow::Borrowed("a,b,c"), Cow::Borrowed("x,y,z")];
+        let selections = vec![Box::from("a,b,c"), Box::from("x,y,z")];
         let query = "query";
         let cmd_query = "cmd_query";
 
