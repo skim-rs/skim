@@ -1,7 +1,7 @@
 use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
-use std::thread::{self, JoinHandle};
+use std::thread::JoinHandle;
 
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
@@ -140,7 +140,7 @@ impl Matcher {
         // shortcut for when there is no query or query is disabled
         let matcher_disabled: bool = disabled || query.is_empty();
 
-        let matcher_handle = thread::spawn(move || {
+        let matcher_handle = std::thread::spawn(move || {
             MATCHER_THREAD_POOL.install(|| {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
