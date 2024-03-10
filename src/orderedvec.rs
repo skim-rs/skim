@@ -2,13 +2,13 @@
 // Normally, user will only care about the first several options. So we only keep several of them
 // in order. Other items are kept unordered and are sorted on demand.
 
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::cmp::Ordering;
 
 const ORDERED_SIZE: usize = 300;
 const MAX_MOVEMENT: usize = 100;
 
-pub struct OrderedVec<T: Send + Ord> {
+pub struct OrderedVec<T: Send + Ord + Clone> {
     // sorted vectors for merge, reverse ordered, last one is the smallest one
     sub_vectors: RefCell<Vec<Vec<T>>>,
     // globally sorted items, the first one is the smallest one.
@@ -17,7 +17,7 @@ pub struct OrderedVec<T: Send + Ord> {
     nosort: bool,
 }
 
-impl<T: Send + Ord> Drop for OrderedVec<T> {
+impl<T: Send + Ord + Clone> Drop for OrderedVec<T> {
     fn drop(&mut self) {
         // guarantees not borrowed elsewhere
         let sub_vectors = std::mem::take(self.sub_vectors.get_mut());
@@ -28,13 +28,13 @@ impl<T: Send + Ord> Drop for OrderedVec<T> {
     }
 }
 
-impl<T: Send + Ord> Default for OrderedVec<T> {
+impl<T: Send + Ord + Clone> Default for OrderedVec<T> {
     fn default() -> Self {
         OrderedVec::new()
     }
 }
 
-impl<T: Send + Ord> OrderedVec<T> {
+impl<T: Send + Ord + Clone> OrderedVec<T> {
     pub fn new() -> Self {
         OrderedVec {
             sub_vectors: RefCell::new(Vec::new()),
@@ -150,7 +150,7 @@ impl<T: Send + Ord> OrderedVec<T> {
         }
     }
 
-    pub fn get(&self, index: usize) -> Option<Ref<T>> {
+    pub fn get(&self, index: usize) -> Option<T> {
         self.merge_till(index);
         if self.len() <= index {
             None
@@ -160,7 +160,7 @@ impl<T: Send + Ord> OrderedVec<T> {
             } else {
                 index
             };
-            Some(Ref::map(self.sorted.borrow(), |list| &list[index]))
+            self.sorted.borrow().get(index).cloned()
         }
     }
 
@@ -179,7 +179,7 @@ impl<T: Send + Ord> OrderedVec<T> {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Ref<T>> {
+    pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
         self.merge_till(self.len());
         OrderedVecIter {
             ordered_vec: self,
@@ -188,13 +188,13 @@ impl<T: Send + Ord> OrderedVec<T> {
     }
 }
 
-struct OrderedVecIter<'a, T: Send + Ord> {
+struct OrderedVecIter<'a, T: Send + Ord + Clone> {
     ordered_vec: &'a OrderedVec<T>,
     index: usize,
 }
 
-impl<'a, T: Send + Ord> Iterator for OrderedVecIter<'a, T> {
-    type Item = Ref<'a, T>;
+impl<'a, T: Send + Ord + Clone> Iterator for OrderedVecIter<'a, T> {
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         let ret = self.ordered_vec.get(self.index);
@@ -214,17 +214,17 @@ mod tests {
         let c = vec![2, 6, 10];
         let mut ordered_vec = OrderedVec::new();
         ordered_vec.append(a);
-        assert_eq!(*ordered_vec.get(0).unwrap(), 1);
+        assert_eq!(ordered_vec.get(0).unwrap(), 1);
 
         ordered_vec.append(b);
-        assert_eq!(*ordered_vec.get(1).unwrap(), 3);
-        assert_eq!(*ordered_vec.get(2).unwrap(), 4);
-        assert_eq!(*ordered_vec.get(3).unwrap(), 5);
+        assert_eq!(ordered_vec.get(1).unwrap(), 3);
+        assert_eq!(ordered_vec.get(2).unwrap(), 4);
+        assert_eq!(ordered_vec.get(3).unwrap(), 5);
 
         ordered_vec.append(c);
 
         for (idx, item) in ordered_vec.iter().enumerate() {
-            assert_eq!(idx + 1, *item)
+            assert_eq!(idx + 1, item)
         }
     }
 
@@ -237,16 +237,16 @@ mod tests {
         ordered_vec.tac(true);
 
         ordered_vec.append(a);
-        assert_eq!(*ordered_vec.get(0).unwrap(), 7);
+        assert_eq!(ordered_vec.get(0).unwrap(), 7);
 
         ordered_vec.append(b);
-        assert_eq!(*ordered_vec.get(1).unwrap(), 8);
-        assert_eq!(*ordered_vec.get(2).unwrap(), 7);
-        assert_eq!(*ordered_vec.get(3).unwrap(), 5);
+        assert_eq!(ordered_vec.get(1).unwrap(), 8);
+        assert_eq!(ordered_vec.get(2).unwrap(), 7);
+        assert_eq!(ordered_vec.get(3).unwrap(), 5);
 
         ordered_vec.append(c);
         for (idx, item) in ordered_vec.iter().enumerate() {
-            assert_eq!(10 - idx, *item)
+            assert_eq!(10 - idx, item)
         }
     }
 
@@ -262,7 +262,7 @@ mod tests {
         ordered_vec.append(b);
         ordered_vec.append(c);
         for (a, b) in ordered_vec.iter().zip(d.iter()) {
-            assert_eq!(*a, *b);
+            assert_eq!(&a, b);
         }
     }
 
@@ -278,7 +278,7 @@ mod tests {
         ordered_vec.append(b);
         ordered_vec.append(c);
         for (a, b) in ordered_vec.iter().zip(d.iter()) {
-            assert_eq!(*a, *b);
+            assert_eq!(&a, b);
         }
     }
 
@@ -291,7 +291,7 @@ mod tests {
         ordered_vec.append(a);
         ordered_vec.append(b);
         for (a, b) in ordered_vec.iter().zip(target.iter()) {
-            assert_eq!(*a, *b);
+            assert_eq!(&a, b);
         }
     }
 }
