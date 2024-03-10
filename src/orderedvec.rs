@@ -62,16 +62,18 @@ impl<T: Send + Ord + Clone> OrderedVec<T> {
         }
 
         self.sort_vector(&mut items, false);
-        let mut sorted = self.sorted.borrow_mut();
-
         let mut items_smaller = Vec::new();
-        if !sorted.is_empty() {
-            // move the ones <= sorted to sorted
-            while items_smaller.len() < MAX_MOVEMENT
-                && !items.is_empty()
-                && self.compare_item(items.last().unwrap(), sorted.last().unwrap()) == Ordering::Less
-            {
-                items_smaller.push(items.pop().unwrap());
+
+        {
+            let sorted = self.sorted.borrow();
+            if !sorted.is_empty() {
+                // move the ones <= sorted to sorted
+                while items_smaller.len() < MAX_MOVEMENT
+                    && !items.is_empty()
+                    && self.compare_item(items.last().unwrap(), sorted.last().unwrap()) == Ordering::Less
+                {
+                    items_smaller.push(items.pop().unwrap());
+                }
             }
         }
 
@@ -82,15 +84,18 @@ impl<T: Send + Ord + Clone> OrderedVec<T> {
         let too_many_moved = items_smaller.len() >= ORDERED_SIZE;
         trace!("append_ordered: num_moved: {}", items_smaller.len());
 
-        sorted.append(&mut items_smaller);
-        if too_many_moved {
-            // means the current sorted vector contains item that's large
-            // so we'll move the sorted vector to partially sorted candidates.
-            self.sort_vector(&mut sorted, false);
-            let old_vec = self.sorted.replace(Vec::new());
-            self.sub_vectors.borrow_mut().push(old_vec);
-        } else {
-            self.sort_vector(&mut sorted, true);
+        {
+            let mut sorted = self.sorted.borrow_mut();
+            sorted.append(&mut items_smaller);
+            if too_many_moved {
+                // means the current sorted vector contains item that's large
+                // so we'll move the sorted vector to partially sorted candidates.
+                self.sort_vector(&mut sorted, false);
+                let old_vec = self.sorted.replace(Vec::new());
+                self.sub_vectors.borrow_mut().push(old_vec);
+            } else {
+                self.sort_vector(&mut sorted, true);
+            }
         }
 
         trace!(
