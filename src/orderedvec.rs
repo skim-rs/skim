@@ -91,7 +91,7 @@ impl<T: Send + Ord + Clone> OrderedVec<T> {
                 // means the current sorted vector contains item that's large
                 // so we'll move the sorted vector to partially sorted candidates.
                 self.sort_vector(&mut sorted, false);
-                let old_vec = self.sorted.replace(Vec::new());
+                let old_vec = self.sorted.take();
                 self.sub_vectors.borrow_mut().push(old_vec);
             } else {
                 self.sort_vector(&mut sorted, true);
