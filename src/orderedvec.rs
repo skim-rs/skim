@@ -176,10 +176,8 @@ impl<T: Send + Ord + Clone> OrderedVec<T> {
     }
 
     pub fn clear(&mut self) {
-        //self.sub_vectors.get_mut().clear();
-        //self.sorted.get_mut().clear();
-        std::mem::take(self.sub_vectors.get_mut());
-        std::mem::take(self.sorted.get_mut());
+        self.sub_vectors.get_mut().clear();
+        self.sorted.get_mut().clear();
     }
 
     pub fn is_empty(&self) -> bool {
