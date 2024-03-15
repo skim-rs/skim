@@ -2,6 +2,8 @@ name: Build Debian/Redhat packages
 
 on:
   push:
+    branches:
+      - "vendored"
     # Pattern matched against refs/tags
     tags:        
       - '*'           # Push events to every tag not containing /
