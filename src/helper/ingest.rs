@@ -67,11 +67,13 @@ pub fn ingest_loop(
             break;
         }
 
-        std::str::from_utf8_mut(&mut bytes_buffer)
+        if let Err(_err) = std::str::from_utf8_mut(&mut bytes_buffer)
             .expect("Could not convert bytes to valid UTF8.")
             .lines()
             .try_for_each(|line| send(line, &opts, &tx_item, &mut string_intern))
-            .expect("Reader channel is disconnected.");
+        {
+            break;
+        }
 
         bytes_buffer.clear();
     }
