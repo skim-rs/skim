@@ -31,8 +31,7 @@ jobs:
     - name: Install alien
       run: sudo apt-get install -y alien
     - name: Convert deb to rpm with alien
-      working-directory: target/debian
-      run: sudo alien --to-rpm two_percent*.deb
+      run: sudo alien --to-rpm target/debian/two_percent*.deb
     - name: Upload binaries to release
       uses: softprops/action-gh-release@v1
       if: ${{startsWith(github.ref, 'refs/tags/') }}
