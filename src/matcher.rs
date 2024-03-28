@@ -11,7 +11,6 @@ use tuikit::key::Key;
 
 use crate::event::Event;
 use crate::item::{ItemPool, MatchedItem};
-use crate::model::BACKGROUND_THREAD_POOL;
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use crate::{MatchRange, Rank};
@@ -45,15 +44,7 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
-        let items = self.take();
-        BACKGROUND_THREAD_POOL.spawn(|| {
-            drop(items);
-
-            #[cfg(feature = "malloc_trim")]
-            #[cfg(target_os = "linux")]
-            #[cfg(target_env = "gnu")]
-            malloc_trim();
-        })
+        drop(self.take());
     }
 }
 

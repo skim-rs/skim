@@ -10,7 +10,6 @@ use tuikit::prelude::{Event as TermEvent, *};
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
 use crate::item::MatchedItem;
-use crate::model::BACKGROUND_THREAD_POOL;
 use crate::orderedvec::OrderedVec;
 use crate::theme::{ColorTheme, DEFAULT_THEME};
 use crate::util::clear_canvas;
@@ -70,15 +69,8 @@ impl Drop for Selection {
         let items = std::mem::take(&mut self.items);
         let selected = std::mem::take(&mut self.selected);
 
-        BACKGROUND_THREAD_POOL.spawn(|| {
-            drop(items);
-            drop(selected);
-
-            #[cfg(feature = "malloc_trim")]
-            #[cfg(target_os = "linux")]
-            #[cfg(target_env = "gnu")]
-            malloc_trim();
-        })
+        drop(items);
+        drop(selected);
     }
 }
 
