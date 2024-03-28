@@ -32,6 +32,11 @@ use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse
 use crate::{MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 pub static BACKGROUND_THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     Arc::new(
         rayon::ThreadPoolBuilder::new()
@@ -116,6 +121,11 @@ impl Drop for Model {
             drop(r_ctrl);
             drop(selection);
             drop(pool);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
         })
     }
 }

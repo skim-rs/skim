@@ -14,6 +14,11 @@ use std::hash::BuildHasherDefault;
 use std::io::ErrorKind;
 use std::sync::Weak;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 use super::item::DefaultSkimItem;
 
 #[derive(Clone)]
@@ -80,6 +85,11 @@ pub fn ingest_loop(
 
     BACKGROUND_THREAD_POOL.spawn(|| {
         drop(string_intern);
+
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        malloc_trim();
     })
 }
 

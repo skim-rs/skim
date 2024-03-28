@@ -19,6 +19,11 @@ use crate::{DisplayContext, MatchRange, Matches, Selector, SkimItem, SkimOptions
 use regex::Regex;
 use unicode_width::UnicodeWidthStr;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 type ItemIndex = (u32, u32);
 
 pub struct Selection {
@@ -68,6 +73,11 @@ impl Drop for Selection {
         BACKGROUND_THREAD_POOL.spawn(|| {
             drop(items);
             drop(selected);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
         })
     }
 }
