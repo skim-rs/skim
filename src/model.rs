@@ -8,7 +8,6 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use once_cell::sync::Lazy;
-use rayon::ThreadPool;
 use regex::Regex;
 use tuikit::prelude::{Event as TermEvent, *};
 
@@ -36,15 +35,6 @@ use std::cmp::max;
 #[cfg(target_os = "linux")]
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
-
-pub static BACKGROUND_THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
-    Arc::new(
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(1)
-            .build()
-            .expect("Could not initialize rayon threadpool"),
-    )
-});
 
 const REFRESH_DURATION: Duration = std::time::Duration::from_millis(10);
 const READ_TIMEOUT: Duration = std::time::Duration::from_millis(2);
@@ -116,7 +106,7 @@ impl Drop for Model {
         let selection = std::mem::take(&mut self.selection);
         let pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
 
-        BACKGROUND_THREAD_POOL.spawn(|| {
+        rayon::spawn(|| {
             drop(m_ctrl);
             drop(r_ctrl);
             drop(selection);
@@ -373,7 +363,7 @@ impl Model {
         // send next heart beat if matcher is still running or there are items not been processed.
         if self.matcher_control.is_some() || !processed {
             let tx = self.tx.clone();
-            BACKGROUND_THREAD_POOL.spawn(move || {
+            rayon::spawn(move || {
                 sleep(REFRESH_DURATION);
                 let _ = tx.send((Key::Null, Event::EvHeartBeat));
             });
@@ -776,7 +766,7 @@ impl Model {
             if !all_stopped {
                 if self.exit0 || self.select1 || self.sync {
                     let tx = self.tx.clone();
-                    BACKGROUND_THREAD_POOL.spawn(move || {
+                    rayon::spawn(move || {
                         sleep(READ_TIMEOUT);
                         let _ = tx.send((Key::Null, Event::EvHeartBeat));
                     });

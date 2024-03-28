@@ -6,7 +6,6 @@ use crossbeam_channel::{SendError, Sender};
 use regex::Regex;
 
 use crate::field::FieldRange;
-use crate::model::BACKGROUND_THREAD_POOL;
 use crate::SkimItem;
 use hashbrown::HashMap;
 use nohash::NoHashHasher;
@@ -83,7 +82,7 @@ pub fn ingest_loop(
         bytes_buffer.clear();
     }
 
-    BACKGROUND_THREAD_POOL.spawn(|| {
+    rayon::spawn(|| {
         drop(string_intern);
 
         #[cfg(feature = "malloc_trim")]
