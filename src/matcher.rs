@@ -45,10 +45,14 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
-        // lock before drop
         let items = self.take();
         BACKGROUND_THREAD_POOL.spawn(|| {
             drop(items);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
         })
     }
 }
