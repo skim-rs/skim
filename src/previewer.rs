@@ -322,13 +322,15 @@ impl Previewer {
 
     pub fn kill(&mut self) {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
+
         if let Some(handle) = self.thread_previewer.take() {
             let _ = handle.join();
-            #[cfg(feature = "malloc_trim")]
-            #[cfg(target_os = "linux")]
-            #[cfg(target_env = "gnu")]
-            malloc_trim();
         }
+
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        malloc_trim();
     }
 }
 

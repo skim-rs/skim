@@ -2,11 +2,6 @@ extern crate skim;
 use skim::prelude::*;
 use std::io::Cursor;
 
-#[cfg(feature = "malloc_trim")]
-#[cfg(target_os = "linux")]
-#[cfg(target_env = "gnu")]
-use crate::malloc_trim;
-
 /// `nth` option is supported by SkimItemReader.
 /// In the example below, with `nth=2` set, only `123` could be matched.
 
@@ -27,9 +22,5 @@ pub fn main() {
 
     if let Some(handle) = opt_ingest_handle {
         let _ = handle.join();
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim();
     }
 }

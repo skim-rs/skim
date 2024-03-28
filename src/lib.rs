@@ -338,6 +338,7 @@ impl Skim {
         let ret = model.start();
         let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
         let _ = input_thread.join();
+
         #[cfg(feature = "malloc_trim")]
         #[cfg(target_os = "linux")]
         #[cfg(target_env = "gnu")]

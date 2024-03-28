@@ -2,11 +2,6 @@ extern crate skim;
 use skim::prelude::*;
 use std::io::Cursor;
 
-#[cfg(feature = "malloc_trim")]
-#[cfg(target_os = "linux")]
-#[cfg(target_env = "gnu")]
-use crate::malloc_trim;
-
 pub fn main() {
     let options = SkimOptionsBuilder::default()
         .height(Some("50%"))
@@ -29,10 +24,6 @@ pub fn main() {
 
     if let Some(handle) = opt_ingest_handle {
         let _ = handle.join();
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim();
     }
 
     //==================================================
@@ -49,9 +40,5 @@ pub fn main() {
 
     if let Some(handle) = opt_ingest_handle {
         let _ = handle.join();
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim();
     }
 }

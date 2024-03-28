@@ -389,11 +389,12 @@ fn real_main() -> Result<i32, std::io::Error> {
 
     if let Some(handle) = opt_ingest_handle { 
         let _ = handle.join();
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim();
     }
+
+    #[cfg(feature = "malloc_trim")]
+    #[cfg(target_os = "linux")]
+    #[cfg(target_env = "gnu")]
+    malloc_trim();
 
     Ok(if output.selected_items.is_empty() { 1 } else { 0 })
 }

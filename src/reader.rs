@@ -64,13 +64,15 @@ impl ReaderControl {
         if let Some(handle) = self.thread_reader.take() {
             let _ = handle.join();
         }
+
         if let Some(handle) = self.thread_ingest.take() {
             let _ = handle.join();
-            #[cfg(feature = "malloc_trim")]
-            #[cfg(target_os = "linux")]
-            #[cfg(target_env = "gnu")]
-            malloc_trim();
         }
+
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        malloc_trim();
 
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
