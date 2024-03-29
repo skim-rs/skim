@@ -3,13 +3,12 @@ use crate::global::mark_new_run;
 ///!
 ///! After reading in a line, reader will save an item into the pool(items)
 use crate::options::SkimOptions;
-use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam_channel::{unbounded, Select, Sender};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, RwLock, Weak};
 use std::thread::{self, sleep, JoinHandle};
 use std::time::Duration;
 
@@ -39,7 +38,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items: Arc<RwLock<Vec<Arc<dyn SkimItem>>>>,
     thread_reader: Option<JoinHandle<()>>,
     thread_ingest: Option<JoinHandle<()>>,
 }
@@ -78,9 +77,12 @@ impl ReaderControl {
     }
 
     pub fn take(&mut self) -> Vec<Arc<dyn SkimItem>> {
-        let locked = &mut self.items.lock();
-        let locked_len = locked.len();
-        std::mem::replace(locked, Vec::with_capacity(locked_len))
+        if let Ok(mut locked) = self.items.write() {
+            let locked_len = locked.len();
+            return std::mem::replace(&mut locked, Vec::with_capacity(locked_len));
+        }
+
+        Vec::new()
     }
 
     pub fn all_stopped(&self) -> bool {
@@ -88,8 +90,11 @@ impl ReaderControl {
     }
 
     pub fn is_empty(&self) -> bool {
-        let locked = self.items.lock();
-        locked.is_empty()
+        if let Ok(locked) = self.items.read() {
+            return locked.is_empty();
+        }
+
+        false
     }
 
     pub fn is_done(&self) -> bool {
@@ -119,7 +124,7 @@ impl Reader {
         mark_new_run(cmd);
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-        let items_strong = Arc::new(SpinLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
+        let items_strong = Arc::new(RwLock::new(Vec::with_capacity(ITEMS_INITIAL_CAPACITY)));
         let items_weak = Arc::downgrade(&items_strong);
 
         let (rx_item, tx_interrupt_cmd, opt_ingest_handle) =
@@ -147,7 +152,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    items_weak: Weak<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    items_weak: Weak<RwLock<Vec<Arc<dyn SkimItem>>>>,
 ) -> (Sender<i32>, JoinHandle<()>) {
     let (tx_interrupt, rx_interrupt) = unbounded();
 
@@ -173,7 +178,8 @@ fn collect_item(
 
                 match sel.ready() {
                     i if i == item_channel && !rx_item.is_empty() => {
-                        let mut locked = items_strong.lock();
+                        let Ok(mut locked) = items_strong.write() else { continue };
+
                         locked.extend(rx_item.try_iter());
 
                         // slow path
