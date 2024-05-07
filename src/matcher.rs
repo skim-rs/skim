@@ -144,6 +144,7 @@ impl Matcher {
                     let items = item_pool_strong.take();
                     let stopped_ref = stopped.as_ref();
                     let processed_ref = processed.as_ref();
+                    let matched_ref = matched.as_ref();
 
                     trace!("matcher start, total: {}", items.len());
 
@@ -180,7 +181,7 @@ impl Matcher {
                                     })
                                     .collect();
 
-                                matched.fetch_add(res.len(), Ordering::Relaxed);
+                                matched_ref.fetch_add(res.len(), Ordering::Relaxed);
 
                                 res
                             })
