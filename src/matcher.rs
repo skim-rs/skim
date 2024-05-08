@@ -144,6 +144,7 @@ impl Matcher {
                     let items = item_pool_strong.take();
                     let stopped_ref = stopped.as_ref();
                     let processed_ref = processed.as_ref();
+                    let matched_ref = matched.as_ref();
 
                     trace!("matcher start, total: {}", items.len());
 
@@ -152,39 +153,30 @@ impl Matcher {
                             .par_iter()
                             .enumerate()
                             .chunks(4096)
-                            .take_any_while(|chunk| {
+                            .take_any_while(|vec| {
                                 if stopped_ref.load(Ordering::Relaxed) {
                                     return false;
                                 }
 
-                                processed_ref.fetch_add(chunk.len(), Ordering::Relaxed);
+                                processed_ref.fetch_add(vec.len(), Ordering::Relaxed);
                                 true
                             })
-                            .map(|chunk| {
-                                let res: Vec<MatchedItem> = chunk
-                                    .iter()
-                                    .filter_map(|(index, item)| {
-                                        // dummy values should not change, as changing them
-                                        // may cause the disabled/query empty case disappear!
-                                        // especially item index.  Needs an index to appear!
-                                        if matcher_disabled {
-                                            return Some(MatchedItem {
-                                                item: Arc::downgrade(item),
-                                                rank: UNMATCHED_RANK,
-                                                matched_range: UNMATCHED_RANGE,
-                                                item_idx: (num_taken + index) as u32,
-                                            });
-                                        }
+                            .flatten()
+                            .filter_map(|(index, item)| {
+                                // dummy values should not change, as changing them
+                                // may cause the disabled/query empty case disappear!
+                                // especially item index.  Needs an index to appear!
+                                if matcher_disabled {
+                                    return Some(MatchedItem {
+                                        item: Arc::downgrade(item),
+                                        rank: UNMATCHED_RANK,
+                                        matched_range: UNMATCHED_RANGE,
+                                        item_idx: (num_taken + index) as u32,
+                                    });
+                                }
 
-                                        Self::process_item(*index, num_taken, matcher_engine.as_ref(), item)
-                                    })
-                                    .collect();
-
-                                matched.fetch_add(res.len(), Ordering::Relaxed);
-
-                                res
-                            })
-                            .flatten();
+                                Self::process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
+                            });
 
                         if !stopped_ref.load(Ordering::Relaxed) {
                             let mut pool = matched_items_strong.lock();
@@ -212,16 +204,19 @@ impl Matcher {
     fn process_item(
         index: usize,
         num_taken: usize,
+        matched: &AtomicUsize,
         matcher_engine: &dyn MatchEngine,
         item: &Arc<dyn SkimItem>,
     ) -> Option<MatchedItem> {
-        matcher_engine
-            .match_item(item.as_ref())
-            .map(|match_result| MatchedItem {
+        matcher_engine.match_item(item.as_ref()).map(|match_result| {
+            matched.fetch_add(1, Ordering::Relaxed);
+
+            MatchedItem {
                 item: Arc::downgrade(item),
                 rank: match_result.rank,
                 matched_range: Some(match_result.matched_range),
                 item_idx: (num_taken + index) as u32,
-            })
+            }
+        })
     }
 }
