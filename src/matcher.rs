@@ -24,9 +24,10 @@ use crate::malloc_trim;
 const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
 
-pub static MATCHER_THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
+pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     Arc::new(
         rayon::ThreadPoolBuilder::new()
+            .num_threads(3)
             .build()
             .expect("Could not initialize rayon threadpool"),
     )
@@ -138,7 +139,7 @@ impl Matcher {
         let matcher_disabled: bool = disabled || query.is_empty();
 
         let matcher_handle = std::thread::spawn(move || {
-            MATCHER_THREAD_POOL.install(|| {
+            THREAD_POOL.install(|| {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
