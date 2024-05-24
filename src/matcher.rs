@@ -27,7 +27,6 @@ const UNMATCHED_RANGE: Option<MatchRange> = None;
 pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
     Arc::new(
         rayon::ThreadPoolBuilder::new()
-            .num_threads(3)
             .build()
             .expect("Could not initialize rayon threadpool"),
     )
