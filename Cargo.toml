@@ -23,6 +23,7 @@ name = "sk"
 path = "src/bin/main.rs"
 
 [dependencies]
+num_cpus = { version = "1.16.0", default-features = false }
 once_cell = { version = "1.19.0", default-features = false }
 nohash = { version = "0.2.0", default-features = false }
 ahash = { version = "0.8.11", default-features = false }

@@ -25,8 +25,13 @@ const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
 
 pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
+    let cpus: usize = num_cpus::get();
+
+    let half_cpus = cpus.checked_div_euclid(2).unwrap_or(1);
+
     Arc::new(
         rayon::ThreadPoolBuilder::new()
+            .num_threads(half_cpus)
             .build()
             .expect("Could not initialize rayon threadpool"),
     )

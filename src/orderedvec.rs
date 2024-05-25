@@ -106,11 +106,10 @@ impl<T: Send + Ord + Clone> OrderedVec<T> {
 
     fn sort_vector(&self, vec: &mut [T], asc: bool) {
         use crate::matcher::THREAD_POOL;
-        use rayon::prelude::ParallelSliceMut;
 
         let asc = asc ^ self.tac;
         THREAD_POOL.install(|| {
-            vec.par_sort();
+            vec.sort();
         });
 
         if !asc {
