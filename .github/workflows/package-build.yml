@@ -32,7 +32,7 @@ jobs:
       working-directory: two_percent/target/debian
       run: sudo alien --to-rpm two_percent_*.deb; pwd
     - name: Upload binaries to release
-      uses: softprops/action-gh-release@v4
+      uses: softprops/action-gh-release@v1
       if: ${{startsWith(github.ref, 'refs/tags/') }}
       with:
           files: two_percent/target/debian/two_percent*.*
