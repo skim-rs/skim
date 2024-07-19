@@ -38,7 +38,7 @@ jobs:
       uses: actions/upload-artifact@v3.1.0
       with:
         name: cargo-deb-upload
-        path: target/debian/two_percent*.*
+        path: target/debian/two-percent*.*
 
   # publish:
   #   runs-on: ubuntu-20.04
