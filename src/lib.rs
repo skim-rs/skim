@@ -16,6 +16,7 @@ use crate::event::{EventReceiver, EventSender};
 use crate::model::Model;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
+pub use crate::reader::CommandCollector;
 use crate::reader::Reader;
 
 #[cfg(feature = "malloc_trim")]
