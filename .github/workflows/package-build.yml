@@ -29,18 +29,18 @@ jobs:
     - name: Install alien
       run: sudo apt-get install -y alien
     - name: Convert deb to rpm with alien
-      working-directory: target/debian
-      run: sudo alien --to-rpm two_percent_*.deb
+      working-directory: two_percent/target/debian
+      run: sudo alien --to-rpm two_percent_*.deb; pwd
     - name: Upload binaries to release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v4
       if: ${{startsWith(github.ref, 'refs/tags/') }}
       with:
-          files: target/debian/two_percent*.*
+          files: two_percent/target/debian/two_percent*.*
     - name: Upload both build artifacts to GH action
       uses: actions/upload-artifact@v3.1.0
       with:
         name: cargo-deb-upload
-        path: target/debian/two_percent*.*
+        path: two_percent/target/debian/two_percent*.*
 
   # publish:
   #   runs-on: ubuntu-20.04
