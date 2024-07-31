@@ -69,11 +69,9 @@ impl Header {
     }
 
     fn lines_of_header(&self) -> usize {
-        if let Some(upgraded) = Weak::upgrade(&self.item_pool) {
-            self.header.len() + upgraded.reserved().len()
-        } else {
-            self.header.len()
-        }
+        Weak::upgrade(&self.item_pool)
+            .map(|upgraded| self.header.len() + upgraded.reserved().len())
+            .unwrap_or_else(|| self.header.len())
     }
 
     fn adjust_row(&self, index: usize, screen_height: usize) -> usize {
