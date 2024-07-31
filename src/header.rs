@@ -34,11 +34,7 @@ impl Header {
     }
 
     pub fn upgrade_pool(&self) -> Arc<ItemPool> {
-        if let Some(upgraded) = Weak::upgrade(&self.item_pool) {
-            upgraded
-        } else {
-            Arc::new(ItemPool::new())
-        }
+        Weak::upgrade(&self.item_pool).unwrap_or_default()
     }
 
     pub fn item_pool(mut self, item_pool: &Arc<ItemPool>) -> Self {
