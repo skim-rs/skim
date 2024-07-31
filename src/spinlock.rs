@@ -98,6 +98,7 @@ mod tests {
     use std::thread;
 
     #[derive(Eq, PartialEq, Debug)]
+    #[allow(dead_code)]
     struct NonCopy(i32);
 
     #[test]

@@ -504,10 +504,12 @@ impl Model {
 
         let item_len = query.len();
         let item: Arc<dyn SkimItem> = Arc::new(query);
-        let new_len = self.item_pool.append(vec![item.clone()]);
+        let downgraded = Arc::downgrade(&item);
+        let new_len = self.item_pool.append(vec![item]);
         let item_idx = (max(new_len, 1) - 1) as u32;
+
         let matched_item = MatchedItem {
-            item: Arc::downgrade(&item),
+            item: downgraded,
             rank: self.rank_builder.build_rank(0, 0, 0, item_len),
             matched_range: Some(MatchRange::ByteRange(0, 0)),
             item_idx,
