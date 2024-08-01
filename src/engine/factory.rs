@@ -5,12 +5,12 @@ use crate::engine::fuzzy::{FuzzyAlgorithm, FuzzyEngine};
 use crate::engine::regexp::RegexEngine;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
-static RE_AND: Lazy<Regex> = Lazy::new(|| Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap());
-static RE_OR: Lazy<Regex> = Lazy::new(|| Regex::new(r" +\| +").unwrap());
+static RE_AND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap());
+static RE_OR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +\| +").unwrap());
 
 //------------------------------------------------------------------------------
 // Exact engine factory
@@ -141,7 +141,7 @@ impl AndOrEngineFactory {
     }
 
     // we want to treat `\ ` as plain white space
-    // regex crate doesn't support look around, so I use a lazy workaround
+    // regex crate doesn't support look around, so I use a LazyLock workaround
     // that replace `\ ` with `\0` ahead of split and replace it back afterwards
     fn parse_or(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
         if query.trim().is_empty() {

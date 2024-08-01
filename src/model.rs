@@ -7,8 +7,8 @@ use std::sync::{Arc, Once};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::LazyLock;
 use tuikit::prelude::{Event as TermEvent, *};
 
 use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
@@ -44,10 +44,10 @@ const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const DELIMITER_STR: &str = r"[\t\n ]+";
 
-static RE_PREVIEW_OFFSET: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
-static DEFAULT_CRITERION: Lazy<Vec<RankCriteria>> =
-    Lazy::new(|| vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End]);
+static RE_PREVIEW_OFFSET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
+static DEFAULT_CRITERION: LazyLock<Vec<RankCriteria>> =
+    LazyLock::new(|| vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End]);
 
 pub struct Model {
     reader: Reader,

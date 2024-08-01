@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 // Consider that you invoke a command with different arguments several times
 // If you select some items each time, how will skim remember it?
@@ -10,9 +10,9 @@ use once_cell::sync::Lazy;
 // What if you invoke the same command and same arguments twice?
 // => We use NUM_MAP to specify the same run number.
 
-static RUN_NUM: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(0));
-static SEQ: Lazy<AtomicU32> = Lazy::new(|| AtomicU32::new(1));
-static NUM_MAP: Lazy<Mutex<HashMap<String, u32>>> = Lazy::new(|| {
+static RUN_NUM: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(0));
+static SEQ: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(1));
+static NUM_MAP: LazyLock<Mutex<HashMap<String, u32>>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     m.insert("".to_string(), 0);
     Mutex::new(m)

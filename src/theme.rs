@@ -1,10 +1,10 @@
 ///! Handle the color theme
 use crate::options::SkimOptions;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use tuikit::prelude::*;
 
 #[rustfmt::skip]
-pub static DEFAULT_THEME:  Lazy<ColorTheme> = Lazy::new(|| ColorTheme::dark256());
+pub static DEFAULT_THEME:  LazyLock<ColorTheme> = LazyLock::new(|| ColorTheme::dark256());
 
 /// The color scheme of skim's UI
 ///

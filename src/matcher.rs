@@ -3,9 +3,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::thread::JoinHandle;
 
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use rayon::ThreadPool;
+use std::sync::LazyLock;
 
 use tuikit::key::Key;
 
@@ -24,7 +24,7 @@ use crate::malloc_trim;
 const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
 
-pub static THREAD_POOL: Lazy<Arc<ThreadPool>> = Lazy::new(|| {
+pub static THREAD_POOL: LazyLock<Arc<ThreadPool>> = LazyLock::new(|| {
     let cpus: usize = num_cpus::get();
 
     let half_cpus = cpus.checked_div_euclid(2).unwrap_or(1);

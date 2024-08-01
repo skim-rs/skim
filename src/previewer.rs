@@ -128,7 +128,7 @@ impl Previewer {
         new_query: impl Into<Option<String>>,
         new_cmd_query: impl Into<Option<String>>,
         num_selected: usize,
-        get_selected_items: impl Fn() -> (Vec<usize>, Vec<MatchedItem>), // lazy get
+        get_selected_items: impl Fn() -> (Vec<usize>, Vec<MatchedItem>), // LazyLock get
         force: bool,
     ) {
         let new_item = new_item.into();
