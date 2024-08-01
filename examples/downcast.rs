@@ -37,11 +37,9 @@ pub fn main() {
 
     let selected_items = Skim::run_with(&options, Some(rx))
         .map(|out| out.selected_items)
-        .unwrap_or_else(Vec::new)
-        .into_iter()
-        .map(|selected_item| Item {
-            text: selected_item.text().to_string(),
-        })
+        .unwrap_or_default()
+        .iter()
+        .map(|selected_item| (**selected_item).as_any().downcast_ref::<Item>().unwrap().to_owned())
         .collect::<Vec<Item>>();
 
     for item in selected_items {
