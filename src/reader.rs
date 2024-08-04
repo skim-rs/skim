@@ -191,6 +191,7 @@ fn collect_item(
                         }
 
                         // fast path
+                        drop(locked);
                         sleep(sleep_fast);
                     }
                     i if i == item_channel => {
