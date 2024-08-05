@@ -310,9 +310,9 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "fuzzy-muff"
-version = "0.3.25"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61dd25d9f5678a19841dc2047d796980b26a7b98b5bc3262f95bedadbe5d0e15"
+checksum = "66606f021d67a5477e57099fd4734ee75ba75335c4099871632ce63499fd4087"
 dependencies = [
  "thread_local",
 ]
