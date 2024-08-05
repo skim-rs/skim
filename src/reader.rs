@@ -18,6 +18,8 @@ use std::time::Duration;
 use crate::malloc_trim;
 
 const ITEMS_INITIAL_CAPACITY: usize = 65536;
+const SLEEP_FAST: Duration = Duration::from_millis(1);
+const SLEEP_SLOW: Duration = Duration::from_millis(4);
 
 pub trait CommandCollector {
     /// execute the `cmd` and produce a
@@ -166,8 +168,6 @@ fn collect_item(
         let mut sel = Select::new();
         let item_channel = sel.recv(&rx_item);
         let interrupt_channel = sel.recv(&rx_interrupt);
-        let sleep_fast = Duration::from_millis(1);
-        let sleep_slow = Duration::from_millis(4);
         let mut empty_count = 0usize;
 
         if let Some(items_strong) = Weak::upgrade(&items_weak) {
@@ -186,13 +186,13 @@ fn collect_item(
                         if empty_count > 1 {
                             // faster for slow path but not for fast path
                             drop(locked);
-                            sleep(sleep_slow);
+                            sleep(SLEEP_SLOW);
                             continue;
                         }
 
                         // fast path
                         drop(locked);
-                        sleep(sleep_fast);
+                        sleep(SLEEP_FAST);
                     }
                     i if i == item_channel => {
                         empty_count += 1;
