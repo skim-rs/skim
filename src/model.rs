@@ -3,7 +3,7 @@ use std::env;
 
 use std::process::Command;
 use std::rc::Rc;
-use std::sync::{Arc, Once};
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -58,7 +58,6 @@ pub struct Model {
     exit0: bool,
     sync: bool,
     disabled: bool,
-    exact_mode: bool,
 
     use_regex: bool,
     regex_matcher: Matcher,
@@ -191,7 +190,6 @@ impl Model {
             matcher,
             term,
             item_pool,
-            exact_mode,
 
             rx,
             tx,
@@ -779,24 +777,6 @@ impl Model {
 
         // send heart beat (so that heartbeat/refresh is triggered)
         let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
-
-        if self.item_pool.len() >= 262_144 {
-            static FAST_MATCHER: Once = Once::new();
-
-            FAST_MATCHER.call_once(|| {
-                // run initialization here
-                let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(Box::new(
-                    ExactOrFuzzyEngineFactory::builder()
-                        .fuzzy_algorithm(crate::FuzzyAlgorithm::Simple)
-                        .exact_mode(self.exact_mode)
-                        .rank_builder(self.rank_builder.clone())
-                        .build(),
-                )));
-                let case_matching = self.matcher.get_case();
-                let fast_matcher = Matcher::builder(fuzzy_engine_factory).set_case(case_matching).build();
-                self.matcher = fast_matcher;
-            });
-        }
 
         // kill existing matcher if exists, and reuse old matched items
         let opt_matcher_items = self.matcher_control.take().map(|mut old_matcher| {
