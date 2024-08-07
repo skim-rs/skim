@@ -58,11 +58,11 @@ impl MatcherControl {
     }
 
     pub fn kill(&mut self) {
-        self.stopped.store(true, Ordering::Relaxed);
-
         if let Some(handle) = self.opt_thread_handle.take() {
             let _ = handle.join();
         }
+
+        self.stopped.store(true, Ordering::Relaxed);
 
         #[cfg(feature = "malloc_trim")]
         #[cfg(target_os = "linux")]
