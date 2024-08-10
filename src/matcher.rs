@@ -43,13 +43,11 @@ impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
 
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
         THREAD_POOL.install(|| {
-            rayon::broadcast(|_| {
-                #[cfg(feature = "malloc_trim")]
-                #[cfg(target_os = "linux")]
-                #[cfg(target_env = "gnu")]
-                malloc_trim()
-            })
+            rayon::broadcast(|_| malloc_trim());
         });
 
         drop(self.take());
