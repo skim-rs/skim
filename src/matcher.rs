@@ -94,6 +94,7 @@ pub struct Matcher {
     case_matching: CaseMatching,
 }
 
+#[allow(dead_code)]
 impl Matcher {
     pub fn builder(engine_factory: Rc<dyn MatchEngineFactory>) -> Self {
         Self {
