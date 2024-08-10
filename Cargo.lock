@@ -658,7 +658,7 @@ dependencies = [
 
 [[package]]
 name = "two_percent"
-version = "0.11.19"
+version = "0.11.20"
 dependencies = [
  "bitflags 2.6.0",
  "clap",
