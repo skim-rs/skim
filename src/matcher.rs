@@ -25,13 +25,8 @@ const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
 
 pub static THREAD_POOL: LazyLock<Arc<ThreadPool>> = LazyLock::new(|| {
-    let cpus: usize = num_cpus::get();
-
-    let half_cpus = cpus.checked_div_euclid(2).unwrap_or(1);
-
     Arc::new(
         rayon::ThreadPoolBuilder::new()
-            .num_threads(half_cpus)
             .build()
             .expect("Could not initialize rayon threadpool"),
     )
@@ -143,8 +138,8 @@ impl Matcher {
         // shortcut for when there is no query or query is disabled
         let matcher_disabled: bool = disabled || query.is_empty();
 
-        let matcher_handle = std::thread::spawn(move || {
-            THREAD_POOL.install(|| {
+        THREAD_POOL.install(|| {
+            rayon::spawn_fifo(move || {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
@@ -192,10 +187,10 @@ impl Matcher {
                         }
                     }
                 }
-            });
 
-            let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
-            stopped.store(true, Ordering::Relaxed);
+                let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
+                stopped.store(true, Ordering::Relaxed);
+            });
         });
 
         MatcherControl {
@@ -203,7 +198,7 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items,
-            opt_thread_handle: Some(matcher_handle),
+            opt_thread_handle: None,
         }
     }
 

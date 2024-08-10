@@ -4,8 +4,6 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
 
 use derive_builder::Builder;
 use regex::Regex;
@@ -17,11 +15,6 @@ use crate::item::MatchedItem;
 use crate::spinlock::SpinLock;
 use crate::util::{atoi, clear_canvas, depends_on_items, inject_command, InjectContext};
 use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
-
-#[cfg(feature = "malloc_trim")]
-#[cfg(target_os = "linux")]
-#[cfg(target_env = "gnu")]
-use crate::malloc_trim;
 
 const TAB_STOP: usize = 8;
 const DELIMITER_STR: &str = r"[\t\n ]+";
@@ -44,7 +37,6 @@ pub struct Previewer {
     preview_cmd: Option<String>,
     preview_offset: String, // e.g. +SCROLL-OFFSET
     delimiter: Regex,
-    thread_previewer: Option<JoinHandle<()>>,
 }
 
 impl Previewer {
@@ -61,7 +53,7 @@ impl Previewer {
         let height_clone = height.clone();
         let hscroll_offset_clone = hscroll_offset.clone();
         let vscroll_offset_clone = vscroll_offset.clone();
-        let thread_previewer = thread::spawn(move || {
+        rayon::spawn(move || {
             run(
                 rx_preview,
                 Box::new(move |lines, pos| {
@@ -100,7 +92,6 @@ impl Previewer {
             preview_cmd,
             preview_offset: "".to_string(),
             delimiter: Regex::new(DELIMITER_STR).unwrap(),
-            thread_previewer: Some(thread_previewer),
         }
     }
 
@@ -322,15 +313,6 @@ impl Previewer {
 
     pub fn kill(&mut self) {
         let _ = self.tx_preview.send(PreviewEvent::Abort);
-
-        if let Some(handle) = self.thread_previewer.take() {
-            let _ = handle.join();
-        }
-
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim();
     }
 }
 
@@ -433,7 +415,6 @@ enum PreviewEvent {
 
 struct PreviewThread {
     pid: u32,
-    thread: Option<JoinHandle<()>>,
     stopped: Arc<AtomicBool>,
 }
 
@@ -448,14 +429,6 @@ impl PreviewThread {
         if !self.stopped.load(Ordering::Relaxed) {
             unsafe { libc::kill(self.pid as i32, libc::SIGKILL) };
         }
-        if let Some(handle) = self.thread.take() {
-            let _ = handle.join();
-        }
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        unsafe {
-            let _ = libc::malloc_trim(0);
-        };
     }
 }
 
@@ -514,7 +487,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                         let stopped = Arc::new(AtomicBool::new(false));
                         let stopped_clone = stopped.clone();
                         let callback_clone = callback.clone();
-                        let thread = thread::spawn(move || {
+                        rayon::spawn(move || {
                             wait(spawned, move |lines| {
                                 let output = if lines.is_empty() {
                                     let ret = vec![AnsiString::parse(
@@ -528,11 +501,7 @@ fn run(rx_preview: Receiver<PreviewEvent>, on_return: Box<dyn Fn(Vec<AnsiString>
                                 callback_clone(output, pos);
                             })
                         });
-                        preview_thread = Some(PreviewThread {
-                            pid,
-                            thread: Some(thread),
-                            stopped,
-                        });
+                        preview_thread = Some(PreviewThread { pid, stopped });
                     }
                 }
             }
