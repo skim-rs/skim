@@ -9,11 +9,6 @@ use crate::field::FieldRange;
 use crate::SkimItem;
 use std::io::ErrorKind;
 
-#[cfg(feature = "malloc_trim")]
-#[cfg(target_os = "linux")]
-#[cfg(target_env = "gnu")]
-use crate::malloc_trim;
-
 use super::item::DefaultSkimItem;
 
 #[derive(Clone)]
