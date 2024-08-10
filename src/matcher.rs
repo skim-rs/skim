@@ -1,7 +1,6 @@
 use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
-use std::thread::JoinHandle;
 
 use rayon::prelude::*;
 use rayon::ThreadPool;
@@ -38,12 +37,21 @@ pub struct MatcherControl {
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-    opt_thread_handle: Option<JoinHandle<()>>,
 }
 
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
+
+        THREAD_POOL.install(|| {
+            rayon::broadcast(|_| {
+                #[cfg(feature = "malloc_trim")]
+                #[cfg(target_os = "linux")]
+                #[cfg(target_env = "gnu")]
+                malloc_trim()
+            })
+        });
+
         drop(self.take());
     }
 }
@@ -58,16 +66,7 @@ impl MatcherControl {
     }
 
     pub fn kill(&mut self) {
-        if let Some(handle) = self.opt_thread_handle.take() {
-            let _ = handle.join();
-        }
-
         self.stopped.store(true, Ordering::Relaxed);
-
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim()
     }
 
     pub fn take(&mut self) -> Vec<MatchedItem> {
@@ -198,7 +197,6 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items,
-            opt_thread_handle: None,
         }
     }
 
