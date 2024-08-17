@@ -9,9 +9,6 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
-
-const LOCK_TIMEOUT: Duration = Duration::from_millis(1);
 
 pub struct SpinLock<T: ?Sized> {
     locked: AtomicBool,
@@ -51,7 +48,7 @@ impl<T: ?Sized> SpinLock<T> {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            std::thread::sleep(LOCK_TIMEOUT)
+            std::thread::yield_now();
         }
         SpinLockGuard::new(self)
     }
