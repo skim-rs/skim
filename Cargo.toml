@@ -40,8 +40,8 @@ bitflags = { version = "2.6.0", default-features = false }
 crossbeam-channel = { version = "0.5.13", default-features = false, features = [
     "std",
 ] }
-which = { version = "6.0.2", default-features = false }
-libc = { version = "0.2.155", default-features = false }
+which = { version = "6.0.3", default-features = false }
+libc = { version = "0.2.157", default-features = false }
 
 [features]
 default = ["cli"]
