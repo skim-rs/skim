@@ -4,8 +4,6 @@ use std::sync::{Arc, Weak};
 
 use rayon::prelude::*;
 use rayon::ThreadPool;
-use std::sync::LazyLock;
-
 use tuikit::key::Key;
 
 use crate::event::Event;
@@ -15,21 +13,8 @@ use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use crate::{MatchRange, Rank};
 use std::rc::Rc;
 
-#[cfg(feature = "malloc_trim")]
-#[cfg(target_os = "linux")]
-#[cfg(target_env = "gnu")]
-use crate::malloc_trim;
-
 const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
-
-pub static THREAD_POOL: LazyLock<Arc<ThreadPool>> = LazyLock::new(|| {
-    Arc::new(
-        rayon::ThreadPoolBuilder::new()
-            .build()
-            .expect("Could not initialize rayon threadpool"),
-    )
-});
 
 //==============================================================================
 pub struct MatcherControl {
@@ -42,14 +27,6 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
-
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        THREAD_POOL.install(|| {
-            rayon::broadcast(|_| malloc_trim());
-        });
-
         drop(self.take());
     }
 }
@@ -79,9 +56,7 @@ impl MatcherControl {
     #[allow(clippy::wrong_self_convention)]
     pub fn into_items(&mut self) -> Vec<MatchedItem> {
         while !self.stopped.load(Ordering::Relaxed) {}
-        let mut locked = self.items.lock();
-
-        std::mem::take(&mut *locked)
+        self.take()
     }
 }
 
@@ -120,6 +95,7 @@ impl Matcher {
         item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
         matched_items: Vec<MatchedItem>,
+        matcher_pool: &Arc<ThreadPool>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
@@ -135,7 +111,7 @@ impl Matcher {
         // shortcut for when there is no query or query is disabled
         let matcher_disabled: bool = disabled || query.is_empty();
 
-        THREAD_POOL.install(|| {
+        matcher_pool.install(|| {
             rayon::spawn_fifo(move || {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();

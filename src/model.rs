@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use rayon::ThreadPool;
 use regex::Regex;
 use std::sync::LazyLock;
 use tuikit::prelude::{Event as TermEvent, *};
@@ -74,6 +75,7 @@ pub struct Model {
     matcher_timer: Instant,
     reader_control: Option<ReaderControl>,
     matcher_control: Option<MatcherControl>,
+    matcher_pool: Arc<ThreadPool>,
 
     header: Header,
 
@@ -176,6 +178,12 @@ impl Model {
             .expect("option margin is should be specified (by default)");
         let (margin_top, margin_right, margin_bottom, margin_left) = margins;
 
+        let matcher_pool = Arc::new(
+            rayon::ThreadPoolBuilder::new()
+                .build()
+                .expect("Could not initialize rayon threadpool"),
+        );
+
         let mut ret = Model {
             reader,
             query,
@@ -197,6 +205,7 @@ impl Model {
             matcher_timer: Instant::now(),
             reader_control: None,
             matcher_control: None,
+            matcher_pool,
 
             header,
             preview_hidden: true,
@@ -798,6 +807,7 @@ impl Model {
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
             opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(self.item_pool.len())),
+            &self.matcher_pool,
         );
 
         // replace None matcher
