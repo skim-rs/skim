@@ -108,9 +108,9 @@ impl Drop for Model {
         let selection = std::mem::take(&mut self.selection);
         let item_pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
 
+        drop(selection);
         drop(m_ctrl);
         drop(r_ctrl);
-        drop(selection);
         drop(thread_pool);
         drop(item_pool);
 
