@@ -113,7 +113,7 @@ impl Matcher {
         let matcher_disabled: bool = disabled || query.is_empty();
 
         matcher_pool.install(|| {
-            rayon::spawn_fifo(move || {
+            matcher_pool.spawn(move || {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
