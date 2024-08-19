@@ -27,7 +27,8 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
-        drop(self.take());
+        // wait until fully stopped to drop unlike take()
+        drop(self.into_items());
     }
 }
 
