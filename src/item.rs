@@ -116,8 +116,8 @@ impl Drop for ItemPool {
         let mut pool = self.pool.lock();
         let mut reserved_items = self.reserved_items.lock();
 
-        std::mem::take(&mut *pool);
         std::mem::take(&mut *reserved_items);
+        std::mem::take(&mut *pool);
     }
 }
 

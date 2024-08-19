@@ -111,8 +111,8 @@ impl Drop for Model {
         drop(m_ctrl);
         drop(r_ctrl);
         drop(selection);
-        drop(item_pool);
         drop(thread_pool);
+        drop(item_pool);
 
         #[cfg(feature = "malloc_trim")]
         #[cfg(target_os = "linux")]

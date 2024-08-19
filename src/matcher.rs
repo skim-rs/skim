@@ -27,7 +27,7 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
-        // wait until fully stopped to drop unlike take()
+        // wait until fully stopped to drop, unlike take()
         drop(self.into_items());
     }
 }
@@ -113,7 +113,7 @@ impl Matcher {
         let matcher_disabled: bool = disabled || query.is_empty();
 
         thread_pool.install(|| {
-            thread_pool.spawn(move || {
+            rayon::spawn(move || {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
