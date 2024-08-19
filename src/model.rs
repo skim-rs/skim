@@ -75,7 +75,7 @@ pub struct Model {
     matcher_timer: Instant,
     reader_control: Option<ReaderControl>,
     matcher_control: Option<MatcherControl>,
-    matcher_pool: Arc<ThreadPool>,
+    thread_pool: Option<Arc<ThreadPool>>,
 
     header: Header,
 
@@ -103,15 +103,17 @@ impl Drop for Model {
     fn drop(&mut self) {
         let m_ctrl = self.matcher_control.take();
         let r_ctrl = self.reader_control.take();
+        let thread_pool = self.thread_pool.take();
 
         let selection = std::mem::take(&mut self.selection);
-        let pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
+        let item_pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
 
         rayon::spawn(|| {
             drop(m_ctrl);
             drop(r_ctrl);
             drop(selection);
-            drop(pool);
+            drop(item_pool);
+            drop(thread_pool);
 
             #[cfg(feature = "malloc_trim")]
             #[cfg(target_os = "linux")]
@@ -178,11 +180,7 @@ impl Model {
             .expect("option margin is should be specified (by default)");
         let (margin_top, margin_right, margin_bottom, margin_left) = margins;
 
-        let matcher_pool = Arc::new(
-            rayon::ThreadPoolBuilder::new()
-                .build()
-                .expect("Could not initialize rayon threadpool"),
-        );
+        let opt_thread_pool = Self::thread_pool();
 
         let mut ret = Model {
             reader,
@@ -205,7 +203,7 @@ impl Model {
             matcher_timer: Instant::now(),
             reader_control: None,
             matcher_control: None,
-            matcher_pool,
+            thread_pool: opt_thread_pool,
 
             header,
             preview_hidden: true,
@@ -227,6 +225,10 @@ impl Model {
         };
         ret.parse_options(options);
         ret
+    }
+
+    fn thread_pool() -> Option<Arc<ThreadPool>> {
+        rayon::ThreadPoolBuilder::new().build().ok().map(|pool| Arc::new(pool))
     }
 
     fn parse_options(&mut self, options: &SkimOptions) {
@@ -807,7 +809,9 @@ impl Model {
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
             opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(self.item_pool.len())),
-            &self.matcher_pool,
+            self.thread_pool
+                .as_ref()
+                .unwrap_or_else(|| self.thread_pool.as_ref().unwrap()),
         );
 
         // replace None matcher

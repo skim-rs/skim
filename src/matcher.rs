@@ -96,7 +96,7 @@ impl Matcher {
         item_pool_weak: Weak<ItemPool>,
         tx_heartbeat: Sender<(Key, Event)>,
         matched_items: Vec<MatchedItem>,
-        matcher_pool: &Arc<ThreadPool>,
+        thread_pool: &Arc<ThreadPool>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {}", matcher_engine);
@@ -112,8 +112,8 @@ impl Matcher {
         // shortcut for when there is no query or query is disabled
         let matcher_disabled: bool = disabled || query.is_empty();
 
-        matcher_pool.install(|| {
-            matcher_pool.spawn(move || {
+        thread_pool.install(|| {
+            thread_pool.spawn(move || {
                 if let Some(item_pool_strong) = Weak::upgrade(&item_pool_weak) {
                     let num_taken = item_pool_strong.num_taken();
                     let items = item_pool_strong.take();
