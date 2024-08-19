@@ -108,18 +108,16 @@ impl Drop for Model {
         let selection = std::mem::take(&mut self.selection);
         let item_pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
 
-        rayon::spawn(|| {
-            drop(m_ctrl);
-            drop(r_ctrl);
-            drop(selection);
-            drop(item_pool);
-            drop(thread_pool);
+        drop(m_ctrl);
+        drop(r_ctrl);
+        drop(selection);
+        drop(item_pool);
+        drop(thread_pool);
 
-            #[cfg(feature = "malloc_trim")]
-            #[cfg(target_os = "linux")]
-            #[cfg(target_env = "gnu")]
-            malloc_trim();
-        })
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        malloc_trim();
     }
 }
 
