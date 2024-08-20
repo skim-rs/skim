@@ -179,6 +179,11 @@ impl Matcher {
 
                 let _ = tx_heartbeat.send((Key::Null, Event::EvHeartBeat));
                 stopped.store(true, Ordering::Relaxed);
+
+                #[cfg(feature = "malloc_trim")]
+                #[cfg(target_os = "linux")]
+                #[cfg(target_env = "gnu")]
+                malloc_trim();
             });
         });
 

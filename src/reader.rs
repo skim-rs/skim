@@ -62,20 +62,19 @@ impl ReaderControl {
         let _ = self.tx_interrupt_cmd.as_ref().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
 
-        if let Some(handle) = self.thread_reader.take() {
-            let _ = handle.join();
-        }
+        while !self.all_stopped() {}
 
-        if let Some(handle) = self.thread_ingest.take() {
-            let _ = handle.join();
-        }
+        let opt_thread_reader = self.thread_reader.take();
+        let opt_thread_ingest = self.thread_ingest.take();
 
-        #[cfg(feature = "malloc_trim")]
-        #[cfg(target_os = "linux")]
-        #[cfg(target_env = "gnu")]
-        malloc_trim();
-
-        while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
+        rayon::spawn(|| {
+            opt_thread_reader.map(|reader_handle| reader_handle.join());
+            opt_thread_ingest.map(|ingest_handle| ingest_handle.join());
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
+        });
     }
 
     pub fn take(&mut self) -> Vec<Arc<dyn SkimItem>> {
