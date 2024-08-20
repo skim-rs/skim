@@ -5,6 +5,11 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 const ORDERED_SIZE: usize = 300;
 const MAX_MOVEMENT: usize = 100;
 
@@ -26,6 +31,11 @@ impl<T: Send + Sync + Ord + Clone + 'static> Drop for OrderedVec<T> {
         rayon::spawn(|| {
             drop(sub_vectors);
             drop(sorted);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
         })
     }
 }
