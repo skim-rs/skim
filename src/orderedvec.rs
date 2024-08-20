@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 const ORDERED_SIZE: usize = 300;
 const MAX_MOVEMENT: usize = 100;
 
-pub struct OrderedVec<T: Send + Ord + Clone> {
+pub struct OrderedVec<T: Send + Sync + Ord + Clone + 'static> {
     // sorted vectors for merge, reverse ordered, last one is the smallest one
     sub_vectors: RefCell<Vec<Vec<T>>>,
     // globally sorted items, the first one is the smallest one.
@@ -17,24 +17,26 @@ pub struct OrderedVec<T: Send + Ord + Clone> {
     nosort: bool,
 }
 
-impl<T: Send + Ord + Clone> Drop for OrderedVec<T> {
+impl<T: Send + Sync + Ord + Clone + 'static> Drop for OrderedVec<T> {
     fn drop(&mut self) {
         // guarantees not borrowed elsewhere
         let sub_vectors = std::mem::take(self.sub_vectors.get_mut());
         let sorted = std::mem::take(self.sorted.get_mut());
 
-        drop(sub_vectors);
-        drop(sorted);
+        rayon::spawn(|| {
+            drop(sub_vectors);
+            drop(sorted);
+        })
     }
 }
 
-impl<T: Send + Ord + Clone> Default for OrderedVec<T> {
+impl<T: Send + Sync + Ord + Clone + 'static> Default for OrderedVec<T> {
     fn default() -> Self {
         OrderedVec::new()
     }
 }
 
-impl<T: Send + Ord + Clone> OrderedVec<T> {
+impl<T: Send + Sync + Ord + Clone + 'static> OrderedVec<T> {
     pub fn new() -> Self {
         OrderedVec {
             sub_vectors: RefCell::new(Vec::new()),
@@ -194,12 +196,12 @@ impl<T: Send + Ord + Clone> OrderedVec<T> {
     }
 }
 
-struct OrderedVecIter<'a, T: Send + Ord + Clone> {
+struct OrderedVecIter<'a, T: Send + Sync + Ord + Clone + 'static> {
     ordered_vec: &'a OrderedVec<T>,
     index: usize,
 }
 
-impl<'a, T: Send + Ord + Clone> Iterator for OrderedVecIter<'a, T> {
+impl<'a, T: Send + Sync + Ord + Clone + 'static> Iterator for OrderedVecIter<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
