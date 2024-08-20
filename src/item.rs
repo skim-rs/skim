@@ -116,8 +116,10 @@ impl Drop for ItemPool {
         let reserved_items = std::mem::take(&mut *self.reserved_items.lock());
         let pool = std::mem::take(&mut *self.pool.lock());
 
-        drop(reserved_items);
-        drop(pool);
+        rayon::spawn(|| {
+            drop(reserved_items);
+            drop(pool);
+        })
     }
 }
 
