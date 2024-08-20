@@ -814,7 +814,9 @@ impl Model {
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
             opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(self.item_pool.len())),
-            self.thread_pool.as_ref().unwrap(),
+            self.thread_pool
+                .as_ref()
+                .expect("Could not obtain a reference to a thread pool."),
         );
 
         // replace None matcher
