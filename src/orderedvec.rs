@@ -20,8 +20,8 @@ pub struct OrderedVec<T: Send + Ord + Clone> {
 impl<T: Send + Ord + Clone> Drop for OrderedVec<T> {
     fn drop(&mut self) {
         // guarantees not borrowed elsewhere
-        let sub_vectors = std::mem::take(&mut self.sub_vectors.take());
-        let sorted = std::mem::take(&mut self.sorted.take());
+        let sub_vectors = std::mem::take(self.sub_vectors.get_mut());
+        let sorted = std::mem::take(self.sorted.get_mut());
 
         drop(sub_vectors);
         drop(sorted);

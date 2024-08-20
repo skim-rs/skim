@@ -13,6 +13,11 @@ use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem};
 use crate::{MatchRange, Rank};
 use std::rc::Rc;
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 const UNMATCHED_RANK: Rank = [0i32, 0i32, 0i32, 0i32];
 const UNMATCHED_RANGE: Option<MatchRange> = None;
 
@@ -27,8 +32,18 @@ pub struct MatcherControl {
 impl Drop for MatcherControl {
     fn drop(&mut self) {
         self.kill();
+
+        let items = self.into_items();
+
         // wait until fully stopped to drop, unlike take()
-        drop(self.into_items());
+        rayon::spawn(|| {
+            drop(items);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
+        });
     }
 }
 

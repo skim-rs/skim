@@ -37,8 +37,8 @@ use std::cmp::max;
 #[cfg(target_env = "gnu")]
 use crate::malloc_trim;
 
-const REFRESH_DURATION: Duration = std::time::Duration::from_millis(10);
-const READ_TIMEOUT: Duration = std::time::Duration::from_millis(2);
+const REFRESH_DURATION: Duration = std::time::Duration::from_millis(20);
+const READ_TIMEOUT: Duration = std::time::Duration::from_millis(5);
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
@@ -108,11 +108,18 @@ impl Drop for Model {
         let selection = std::mem::take(&mut self.selection);
         let item_pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
 
-        drop(selection);
-        drop(m_ctrl);
-        drop(r_ctrl);
-        drop(thread_pool);
-        drop(item_pool);
+        rayon::spawn(|| {
+            drop(m_ctrl);
+            drop(r_ctrl);
+            drop(selection);
+            drop(item_pool);
+            drop(thread_pool);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
+        });
 
         #[cfg(feature = "malloc_trim")]
         #[cfg(target_os = "linux")]
