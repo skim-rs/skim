@@ -178,7 +178,7 @@ impl Model {
             .expect("option margin is should be specified (by default)");
         let (margin_top, margin_right, margin_bottom, margin_left) = margins;
 
-        let opt_thread_pool = Self::thread_pool();
+        let opt_thread_pool = Self::generate_thread_pool();
 
         let mut ret = Model {
             reader,
@@ -225,7 +225,7 @@ impl Model {
         ret
     }
 
-    fn thread_pool() -> Option<Arc<ThreadPool>> {
+    fn generate_thread_pool() -> Option<Arc<ThreadPool>> {
         rayon::ThreadPoolBuilder::new().build().ok().map(|pool| Arc::new(pool))
     }
 
@@ -807,9 +807,7 @@ impl Model {
             Arc::downgrade(&self.item_pool),
             self.tx.clone(),
             opt_matcher_items.unwrap_or_else(|| Vec::with_capacity(self.item_pool.len())),
-            self.thread_pool
-                .as_ref()
-                .unwrap_or_else(|| self.thread_pool.as_ref().unwrap()),
+            self.thread_pool.as_ref().unwrap(),
         );
 
         // replace None matcher
