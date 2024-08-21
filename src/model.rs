@@ -106,13 +106,15 @@ impl Drop for Model {
         let thread_pool = self.thread_pool.take();
 
         let selection = std::mem::take(&mut self.selection);
+        let header = std::mem::take(&mut self.header);
         let item_pool = std::mem::take(&mut self.item_pool);
 
         rayon::spawn(|| {
-            drop(m_ctrl);
-            drop(r_ctrl);
+            drop(header);
             drop(selection);
             drop(item_pool);
+            drop(m_ctrl);
+            drop(r_ctrl);
             drop(thread_pool);
 
             #[cfg(feature = "malloc_trim")]
@@ -174,7 +176,7 @@ impl Model {
         };
 
         let item_pool = Arc::new(ItemPool::new().lines_to_reserve(options.header_lines));
-        let header = Header::empty()
+        let header = Header::default()
             .with_options(options)
             .item_pool(&item_pool)
             .theme(theme.clone());

@@ -34,8 +34,8 @@ impl Drop for Header {
     }
 }
 
-impl Header {
-    pub fn empty() -> Self {
+impl Default for Header {
+    fn default() -> Self {
         Self {
             header: vec![],
             tabstop: 8,
@@ -44,8 +44,10 @@ impl Header {
             item_pool: Weak::new(),
         }
     }
+}
 
-    pub fn upgrade_pool(&self) -> Arc<ItemPool> {
+impl Header {
+    pub fn upgrade(&self) -> Arc<ItemPool> {
         Weak::upgrade(&self.item_pool).unwrap_or_default()
     }
 
@@ -128,7 +130,7 @@ impl Draw for Header {
         let lines_used = self.header.len();
 
         // print "reserved" header lines (--header-lines)
-        self.upgrade_pool()
+        self.upgrade()
             .reserved()
             .iter()
             .filter_map(Weak::upgrade)
