@@ -106,7 +106,7 @@ impl Drop for Model {
         let thread_pool = self.thread_pool.take();
 
         let selection = std::mem::take(&mut self.selection);
-        let item_pool = Arc::into_inner(std::mem::take(&mut self.item_pool));
+        let item_pool = std::mem::take(&mut self.item_pool);
 
         rayon::spawn(|| {
             drop(m_ctrl);
