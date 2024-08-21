@@ -22,6 +22,18 @@ pub struct Header {
     item_pool: Weak<ItemPool>,
 }
 
+impl Drop for Header {
+    fn drop(&mut self) {
+        let item_pool = std::mem::take(&mut self.item_pool);
+        let header = std::mem::take(&mut self.header);
+
+        rayon::spawn(|| {
+            drop(header);
+            drop(item_pool);
+        })
+    }
+}
+
 impl Header {
     pub fn empty() -> Self {
         Self {
