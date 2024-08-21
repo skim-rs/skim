@@ -16,6 +16,11 @@ use crate::helper::ingest::{ingest_loop, BuildOptions, SendRawOrBuild};
 use crate::reader::CommandCollector;
 use crate::{SkimItem, SkimItemReceiver, SkimItemSender};
 
+#[cfg(feature = "malloc_trim")]
+#[cfg(target_os = "linux")]
+#[cfg(target_env = "gnu")]
+use crate::malloc_trim;
+
 const CMD_CHANNEL_SIZE: usize = 1_024;
 const DELIMITER_STR: &str = r"[\t\n ]+";
 
@@ -155,6 +160,11 @@ impl SkimItemReader {
 
         let ingest_handle = thread::spawn(move || {
             ingest_loop(source, line_ending, tx_item, SendRawOrBuild::Raw);
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
         });
 
         (rx_item, Some(ingest_handle))

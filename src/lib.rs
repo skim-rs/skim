@@ -338,6 +338,11 @@ impl Skim {
                     let _ = tx_clone.send((key, event));
                 }
             }
+
+            #[cfg(feature = "malloc_trim")]
+            #[cfg(target_os = "linux")]
+            #[cfg(target_env = "gnu")]
+            malloc_trim();
         });
 
         //------------------------------------------------------------------------------

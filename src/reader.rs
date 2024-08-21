@@ -205,6 +205,11 @@ fn collect_item(
 
         components_to_stop.fetch_sub(1, Ordering::SeqCst);
         debug!("reader: collect_item stop");
+
+        #[cfg(feature = "malloc_trim")]
+        #[cfg(target_os = "linux")]
+        #[cfg(target_env = "gnu")]
+        malloc_trim();
     });
 
     while !started.load(Ordering::SeqCst) {
