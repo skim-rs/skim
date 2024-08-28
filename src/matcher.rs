@@ -165,7 +165,7 @@ impl Matcher {
                                         });
                                     }
 
-                                    Self::process_item(&index, &num_taken, matched_ref, matcher_engine.as_ref(), item)
+                                    Self::process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
                                 })
                             })
                             .flatten_iter();
@@ -198,8 +198,8 @@ impl Matcher {
     }
 
     fn process_item(
-        index: &usize,
-        num_taken: &usize,
+        index: usize,
+        num_taken: usize,
         matched: &AtomicUsize,
         matcher_engine: &dyn MatchEngine,
         item: &Arc<dyn SkimItem>,
