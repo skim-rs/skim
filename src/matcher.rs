@@ -151,22 +151,24 @@ impl Matcher {
                                 processed_ref.fetch_add(vec.len(), Ordering::Relaxed);
                                 true
                             })
-                            .flatten()
-                            .filter_map(|(index, item)| {
-                                // dummy values should not change, as changing them
-                                // may cause the disabled/query empty case disappear!
-                                // especially item index.  Needs an index to appear!
-                                if matcher_disabled {
-                                    return Some(MatchedItem {
-                                        item: Arc::downgrade(item),
-                                        rank: UNMATCHED_RANK,
-                                        matched_range: UNMATCHED_RANGE,
-                                        item_idx: (num_taken + index) as u32,
-                                    });
-                                }
+                            .map(|chunk| {
+                                chunk.into_iter().filter_map(|(index, item)| {
+                                    // dummy values should not change, as changing them
+                                    // may cause the disabled/query empty case disappear!
+                                    // especially item index.  Needs an index to appear!
+                                    if matcher_disabled {
+                                        return Some(MatchedItem {
+                                            item: Arc::downgrade(item),
+                                            rank: UNMATCHED_RANK,
+                                            matched_range: UNMATCHED_RANGE,
+                                            item_idx: (num_taken + index) as u32,
+                                        });
+                                    }
 
-                                Self::process_item(index, num_taken, matched_ref, matcher_engine.as_ref(), item)
-                            });
+                                    Self::process_item(&index, &num_taken, matched_ref, matcher_engine.as_ref(), item)
+                                })
+                            })
+                            .flatten_iter();
 
                         if !stopped_ref.load(Ordering::Relaxed) {
                             let mut pool = matched_items_strong.lock();
@@ -196,8 +198,8 @@ impl Matcher {
     }
 
     fn process_item(
-        index: usize,
-        num_taken: usize,
+        index: &usize,
+        num_taken: &usize,
         matched: &AtomicUsize,
         matcher_engine: &dyn MatchEngine,
         item: &Arc<dyn SkimItem>,
