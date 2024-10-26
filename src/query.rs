@@ -125,10 +125,10 @@ impl Query {
         self.cmd_prompt = options.cmd_prompt.clone();
 
         if let Some(histfile) = &options.history {
-            self.fz_query_history_before = read_file_lines(&histfile).unwrap_or_default();
+            self.fz_query_history_before = read_file_lines(histfile).unwrap_or_default();
         }
         if let Some(cmd_histfile) = &options.cmd_history {
-            self.cmd_history_before = read_file_lines(&cmd_histfile).unwrap_or_default();
+            self.cmd_history_before = read_file_lines(cmd_histfile).unwrap_or_default();
         }
     }
 

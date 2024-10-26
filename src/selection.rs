@@ -1,3 +1,4 @@
+//! Handle the selections of items
 use std::cmp::max;
 use std::cmp::min;
 use std::collections::BTreeMap;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 
 use tuikit::prelude::{Event as TermEvent, *};
 
-///! Handle the selections of items
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
 use crate::item::MatchedItem;
@@ -122,13 +122,12 @@ impl Selection {
             .pre_select_items
             .clone()
             .split('\n')
-            .into_iter()
             .map(|item| item.to_string())
             .collect();
 
         if options.pre_select_n > 0
-            || options.pre_select_pat.len() > 0
-            || pre_select_items.len() > 0
+            || !options.pre_select_pat.is_empty()
+            || !pre_select_items.is_empty()
             || options.pre_select_file.is_some()
         {
             let mut preset_file_items: Vec<String> = vec![];
@@ -500,7 +499,7 @@ impl Selection {
             };
 
             let (shift, full_width) = reshape_string(
-                &item_text,
+                item_text,
                 container_width,
                 match_start_char,
                 match_end_char,
@@ -514,7 +513,7 @@ impl Selection {
                 if self.keep_right {
                     max(full_width, container_width) - container_width
                 } else {
-                    self.calc_skip_width(&item_text)
+                    self.calc_skip_width(item_text)
                 }
             } else {
                 shift

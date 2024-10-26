@@ -220,21 +220,18 @@ pub enum ItemPreview {
 // A match engine will execute the matching algorithm
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Default)]
 pub enum CaseMatching {
     Respect,
     Ignore,
+    #[default]
     Smart,
 }
 
-impl Default for CaseMatching {
-    fn default() -> Self {
-        CaseMatching::Smart
-    }
-}
 
 impl clap::ValueEnum for CaseMatching {
     fn value_variants<'a>() -> &'a [Self] {
-        return &[Self::Respect, Self::Ignore, Self::Smart];
+        &[Self::Respect, Self::Ignore, Self::Smart]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {

@@ -1,5 +1,5 @@
-///! Input will listens to user input, modify the query string, send special
-///! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
+//! Input will listens to user input, modify the query string, send special
+//! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use crate::event::{parse_event, Event};
 use regex::Regex;
 use std::collections::HashMap;
@@ -39,7 +39,7 @@ impl Input {
 
     pub fn bind(&mut self, key: String, action_chain: ActionChain) {
         let key = from_keyname(&key);
-        if key == None || action_chain.is_empty() {
+        if key.is_none() || action_chain.is_empty() {
             return;
         }
 
@@ -69,13 +69,6 @@ impl Input {
         }
     }
 
-    pub fn parse_expect_keys(&mut self, keys: Option<String>) {
-        if let Some(keys) = keys {
-            for key in keys.split(',') {
-                self.bind(key.to_string(), vec![Event::EvActAccept(Some(key.to_string()))]);
-            }
-        }
-    }
     pub fn set_expect_keys(&mut self, keys: &[String]) {
         for key in keys {
             self.bind(key.to_string(), vec![Event::EvActAccept(Some(key.to_string()))]);

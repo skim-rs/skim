@@ -11,10 +11,11 @@ use crate::{MatchRange, MatchResult, SkimItem};
 use bitflags::_core::cmp::min;
 
 //------------------------------------------------------------------------------
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub enum FuzzyAlgorithm {
-    SkimV1,
+    #[default]
     SkimV2,
+    SkimV1,
     Clangd,
 }
 
@@ -29,15 +30,9 @@ impl FuzzyAlgorithm {
     }
 }
 
-impl Default for FuzzyAlgorithm {
-    fn default() -> Self {
-        FuzzyAlgorithm::SkimV2
-    }
-}
-
 impl clap::ValueEnum for FuzzyAlgorithm {
     fn value_variants<'a>() -> &'a [Self] {
-        return &[Self::SkimV1, Self::SkimV2, Self::Clangd];
+        &[Self::SkimV1, Self::SkimV2, Self::Clangd]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
@@ -160,9 +155,7 @@ impl MatchEngine for FuzzyEngine {
             }
         }
 
-        if matched_result == None {
-            return None;
-        }
+        matched_result.as_ref()?;
 
         let (score, matched_range) = matched_result.unwrap();
 

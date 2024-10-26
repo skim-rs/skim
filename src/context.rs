@@ -10,7 +10,7 @@ pub struct SkimContext {
 
 impl Default for SkimContext {
     fn default() -> Self {
-        return Self {
+        Self {
             cmd_collector: Rc::new(RefCell::new(SkimItemReader::new(Default::default()))),
             query_history: vec![],
             cmd_history: vec![]

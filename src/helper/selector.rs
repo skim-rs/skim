@@ -54,7 +54,7 @@ impl Selector for DefaultSkimSelector {
             return true;
         }
 
-        if self.regex.is_some() && self.regex.as_ref().map(|re| re.is_match(&item.text())).unwrap_or(false) {
+        if self.regex.is_some() && self.regex.as_ref().map(|re| re.is_match(item.text())).unwrap_or(false) {
             return true;
         }
 

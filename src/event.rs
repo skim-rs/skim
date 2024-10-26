@@ -81,7 +81,7 @@ pub enum Event {
 bitflags! {
     /// `Effect` is the effect of a text
     pub struct UpdateScreen: u8 {
-        const REDRAW = 0b0000_0000;
+        const REDRAW = 0b0000_0001;
         const DONT_REDRAW = 0b0000_0010;
     }
 }

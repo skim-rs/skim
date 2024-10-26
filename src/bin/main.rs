@@ -58,12 +58,12 @@ fn parse_args() -> SkimOptions {
 fn init_histories(ctx: &mut SkimContext, opts: &mut SkimOptions) {
     let history_binds = String::from("ctrl-p:previous-history,ctrl-n:next-history");
     if let Some(histfile) = &opts.history {
-        ctx.query_history.extend(read_file_lines(&histfile).unwrap_or_default().into_iter());
+        ctx.query_history.extend(read_file_lines(histfile).unwrap_or_default());
         opts.bind.insert(0, history_binds.clone());
     }
 
     if let Some(cmd_histfile) = &opts.cmd_history {
-        ctx.cmd_history.extend(read_file_lines(&cmd_histfile).unwrap_or_default().into_iter());
+        ctx.cmd_history.extend(read_file_lines(cmd_histfile).unwrap_or_default());
         opts.bind.insert(0, history_binds);
     }
 }
@@ -78,8 +78,8 @@ fn real_main() -> Result<i32, std::io::Error> {
     //------------------------------------------------------------------------------
     let bin_options = BinOptions {
         filter: opts.filter.clone(),
-        print_query: opts.print_query.clone(),
-        print_cmd: opts.print_cmd.clone(),
+        print_query: opts.print_query,
+        print_cmd: opts.print_cmd,
         output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
     };
 

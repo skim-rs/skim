@@ -106,7 +106,7 @@ impl MatchEngine for AndEngine {
         if results.is_empty() {
             None
         } else {
-            Some(self.merge_matched_items(results, &item.text()))
+            Some(self.merge_matched_items(results, item.text()))
         }
     }
 }

@@ -24,7 +24,7 @@ pub fn main() {
 
     Skim::run_with(&options, None).map(|out| match out.final_key {
         // Delete each selected item
-        Key::Backspace => out.selected_items.iter().for_each(|i| fake_delete_item(&i.text())),
+        Key::Backspace => out.selected_items.iter().for_each(|i| fake_delete_item(i.text())),
         // Create a new item based on the query
         Key::Enter => fake_create_item(out.query.as_ref()),
         _ => (),

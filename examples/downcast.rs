@@ -11,7 +11,7 @@ struct Item {
 
 impl SkimItem for Item {
     fn text(&self) -> &str {
-        &self.text.as_str()
+        self.text.as_str()
     }
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
@@ -37,7 +37,7 @@ pub fn main() {
 
     let selected_items = Skim::run_with(&options, Some(rx))
         .map(|out| out.selected_items)
-        .unwrap_or_else(Vec::new)
+        .unwrap_or_default()
         .iter()
         .map(|selected_item| (**selected_item).as_any().downcast_ref::<Item>().unwrap().to_owned())
         .collect::<Vec<Item>>();
