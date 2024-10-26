@@ -35,6 +35,20 @@ impl Default for FuzzyAlgorithm {
     }
 }
 
+impl clap::ValueEnum for FuzzyAlgorithm {
+    fn value_variants<'a>() -> &'a [Self] {
+        return &[Self::SkimV1, Self::SkimV2, Self::Clangd];
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        match self {
+            Self::SkimV1 => Some(clap::builder::PossibleValue::new("skim_v1")),
+            Self::SkimV2 => Some(clap::builder::PossibleValue::new("skim_v2")),
+            Self::Clangd => Some(clap::builder::PossibleValue::new("clangd")),
+        }
+    }
+}
+
 const BYTES_1M: usize = 1024 * 1024 * 1024;
 
 //------------------------------------------------------------------------------

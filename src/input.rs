@@ -37,8 +37,8 @@ impl Input {
         }
     }
 
-    pub fn bind(&mut self, key: &str, action_chain: ActionChain) {
-        let key = from_keyname(key);
+    pub fn bind(&mut self, key: String, action_chain: ActionChain) {
+        let key = from_keyname(&key);
         if key == None || action_chain.is_empty() {
             return;
         }
@@ -50,39 +50,44 @@ impl Input {
         self.keymap.entry(key).or_insert(action_chain);
     }
 
-    pub fn parse_keymaps(&mut self, maps: &[&str]) {
-        for &map in maps {
-            self.parse_keymap(map);
+    pub fn parse_keymaps(&mut self, maps: &[String]) {
+        for map in maps {
+            self.parse_keymap(map.clone());
         }
     }
 
     // key_action is comma separated: 'ctrl-j:accept,ctrl-k:kill-line'
-    pub fn parse_keymap(&mut self, key_action: &str) {
+    pub fn parse_keymap(&mut self, key_action: String) {
         debug!("got key_action: {:?}", key_action);
         for (key, action_chain) in parse_key_action(key_action).into_iter() {
             debug!("parsed key_action: {:?}: {:?}", key, action_chain);
             let action_chain = action_chain
                 .into_iter()
-                .filter_map(|(action, arg)| parse_event(action, arg))
+                .filter_map(|(action, arg)| parse_event(action.clone(), arg.clone()))
                 .collect();
             self.bind(key, action_chain);
         }
     }
 
-    pub fn parse_expect_keys(&mut self, keys: Option<&str>) {
+    pub fn parse_expect_keys(&mut self, keys: Option<String>) {
         if let Some(keys) = keys {
             for key in keys.split(',') {
-                self.bind(key, vec![Event::EvActAccept(Some(key.to_string()))]);
+                self.bind(key.to_string(), vec![Event::EvActAccept(Some(key.to_string()))]);
             }
+        }
+    }
+    pub fn set_expect_keys(&mut self, keys: &[String]) {
+        for key in keys {
+            self.bind(key.to_string(), vec![Event::EvActAccept(Some(key.to_string()))]);
         }
     }
 }
 
-type KeyActions<'a> = (&'a str, Vec<(&'a str, Option<String>)>);
+type KeyActions = (String, Vec<(String, Option<String>)>);
 
 /// parse key action string to `(key, action, argument)` tuple
 /// key_action is comma separated: 'ctrl-j:accept,ctrl-k:kill-line'
-pub fn parse_key_action(key_action: &str) -> Vec<KeyActions> {
+pub fn parse_key_action(key_action: String) -> Vec<KeyActions> {
     lazy_static! {
         // match `key:action` or `key:action:arg` or `key:action(arg)` etc.
         static ref RE: Regex =
@@ -92,23 +97,23 @@ pub fn parse_key_action(key_action: &str) -> Vec<KeyActions> {
         static ref RE_BIND: Regex = Regex::new(r#"(?si)([a-z-]+)("[^"]+?"|'[^']+?'|\([^\)]+?\)|\[[^\]]+?\]|:[^:]+?)?(?:\+|$)"#).unwrap();
     }
 
-    RE.captures_iter(key_action)
+    RE.captures_iter(&key_action)
         .map(|caps| {
             debug!("RE: caps: {:?}", caps);
-            let key = caps.get(1).unwrap().as_str();
-            let actions = RE_BIND
+            let key: String = caps.get(1).unwrap().as_str().to_string();
+            let actions: Vec<(String, Option<String>)> = RE_BIND
                 .captures_iter(caps.get(2).unwrap().as_str())
                 .map(|caps| {
                     debug!("RE_BIND: caps: {:?}", caps);
                     (
-                        caps.get(1).unwrap().as_str(),
+                        caps.get(1).unwrap().as_str().to_string(),
                         caps.get(2).map(|s| {
                             // (arg) => arg, :end_arg => arg
-                            let action = s.as_str();
+                            let action = s.as_str().to_string();
                             if let Some(stripped) = action.strip_prefix(':') {
-                                stripped.to_owned()
+                                stripped.to_string()
                             } else {
-                                action[1..action.len() - 1].to_string()
+                                action.as_str()[1..action.len() - 1].to_string()
                             }
                         }),
                     )
@@ -124,7 +129,7 @@ pub fn parse_action_arg(action_arg: &str) -> Option<Event> {
     // construct a fake key_action: `fake_key:action(arg)`
     let fake_key_action = format!("fake_key:{}", action_arg);
     // get keys: [(key, [(action, arg), (action, arg)]), ...]
-    let keys = parse_key_action(&fake_key_action);
+    let keys = parse_key_action(fake_key_action);
     // only get the first key(since it is faked), and get the first action
     if keys.is_empty() || keys[0].1.is_empty() {
         None
@@ -201,42 +206,42 @@ mod test {
 
         let key_action_str = format!("ctrl-s:toggle-sort,ctrl-m:execute:{},ctrl-t:toggle", cmd);
 
-        let key_action = parse_key_action(&key_action_str);
-        assert_eq!(("ctrl-s", vec![("toggle-sort", None)]), key_action[0]);
-        assert_eq!(("ctrl-m", vec![("execute", Some(cmd.to_string()))]), key_action[1]);
-        assert_eq!(("ctrl-t", vec![("toggle", None)]), key_action[2]);
+        let key_action = parse_key_action(key_action_str);
+        assert_eq!(("ctrl-s".to_string(), vec![("toggle-sort".to_string(), None)]), key_action[0]);
+        assert_eq!(("ctrl-m".to_string(), vec![("execute".to_string(), Some(cmd.to_string()))]), key_action[1]);
+        assert_eq!(("ctrl-t".to_string(), vec![("toggle".to_string(), None)]), key_action[2]);
 
         let key_action_str = "f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)";
-        let key_action = parse_key_action(key_action_str);
-        assert_eq!(("f1", vec![("execute", Some("less -f {}".to_string()))]), key_action[0]);
+        let key_action = parse_key_action(key_action_str.to_string());
+        assert_eq!(("f1".to_string(), vec![("execute".to_string(), Some("less -f {}".to_string()))]), key_action[0]);
         assert_eq!(
-            ("ctrl-y", vec![("execute-silent", Some("echo {} | pbcopy".to_string()))]),
+            ("ctrl-y".to_string(), vec![("execute-silent".to_string(), Some("echo {} | pbcopy".to_string()))]),
             key_action[1]
         );
 
         // #196
         let key_action_str = "enter:execute($EDITOR +{2} {1})";
-        let key_action = parse_key_action(key_action_str);
+        let key_action = parse_key_action(key_action_str.to_string());
         assert_eq!(
-            ("enter", vec![("execute", Some("$EDITOR +{2} {1}".to_string()))]),
+            ("enter".to_string(), vec![("execute".to_string(), Some("$EDITOR +{2} {1}".to_string()))]),
             key_action[0]
         );
     }
 
     #[test]
     fn action_chain_should_be_parsed() {
-        let key_action = parse_key_action("ctrl-t:toggle+up");
-        assert_eq!(("ctrl-t", vec![("toggle", None), ("up", None)]), key_action[0]);
+        let key_action = parse_key_action("ctrl-t:toggle+up".to_string());
+        assert_eq!(("ctrl-t".to_string(), vec![("toggle".to_string(), None), ("up".to_string(), None)]), key_action[0]);
 
         let key_action_str = "f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort";
-        let key_action = parse_key_action(key_action_str);
-        assert_eq!(("f1", vec![("execute", Some("less -f {}".to_string()))]), key_action[0]);
+        let key_action = parse_key_action(key_action_str.to_string());
+        assert_eq!(("f1".to_string(), vec![("execute".to_string(), Some("less -f {}".to_string()))]), key_action[0]);
         assert_eq!(
             (
-                "ctrl-y",
+                "ctrl-y".to_string(),
                 vec![
-                    ("execute-silent", Some("echo {} | pbcopy".to_string())),
-                    ("abort", None)
+                    ("execute-silent".to_string(), Some("echo {} | pbcopy".to_string())),
+                    ("abort".to_string(), None)
                 ]
             ),
             key_action[1]

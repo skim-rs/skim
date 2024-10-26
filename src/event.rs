@@ -92,8 +92,8 @@ pub trait EventHandler {
 }
 
 #[rustfmt::skip]
-pub fn parse_event(action: &str, arg: Option<String>) -> Option<Event> {
-    match action {
+pub fn parse_event(action: String, arg: Option<String>) -> Option<Event> {
+    match action.as_str() {
         "abort"                =>   Some(Event::EvActAbort),
         "accept"               =>   Some(Event::EvActAccept(arg)),
         "append-and-select"    =>   Some(Event::EvActAppendAndSelect),

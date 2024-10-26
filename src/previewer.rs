@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::env;
 use std::process::{Command, Stdio};
@@ -24,7 +23,7 @@ const DELIMITER_STR: &str = r"[\t\n ]+";
 
 pub struct Previewer {
     tx_preview: Sender<PreviewEvent>,
-    content_lines: Arc<SpinLock<Vec<AnsiString<'static>>>>,
+    content_lines: Arc<SpinLock<Vec<AnsiString>>>,
 
     width: Arc<AtomicUsize>,
     height: Arc<AtomicUsize>,
@@ -175,7 +174,7 @@ impl Previewer {
         let cmd_query = self.prev_cmd_query.as_deref().unwrap_or("");
 
         let (indices, selections) = get_selected_items();
-        let tmp: Vec<Cow<str>> = selections.iter().map(|item| item.text()).collect();
+        let tmp: Vec<&str> = selections.iter().map(|item| item.text()).collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|cow| cow.as_ref()).collect();
 
         let columns = self.width.load(Ordering::Relaxed);
@@ -429,7 +428,7 @@ impl PreviewThread {
 
 fn run<C>(rx_preview: Receiver<PreviewEvent>, on_return: C)
 where
-    C: Fn(Vec<AnsiString<'static>>, PreviewPosition) + Send + Sync + 'static,
+    C: Fn(Vec<AnsiString>, PreviewPosition) + Send + Sync + 'static,
 {
     let callback = Arc::new(on_return);
     let mut preview_thread: Option<PreviewThread> = None;
@@ -471,7 +470,7 @@ where
 
                 match spawned {
                     Err(err) => {
-                        let astdout = AnsiString::parse(format!("Failed to spawn: {} / {}", cmd, err).as_str());
+                        let astdout = AnsiString::parse(format!("Failed to spawn: {} / {}", cmd, err));
                         callback(vec![astdout], pos);
                         preview_thread = None;
                     }
@@ -495,7 +494,7 @@ where
             }
             PreviewEvent::PreviewAnsiText(text, pos) => {
                 let mut parser = ANSIParser::default();
-                let color_lines = text.lines().map(|line| parser.parse_ansi(line)).collect();
+                let color_lines = text.lines().map(|line| parser.parse_ansi(line.to_string())).collect();
                 callback(color_lines, pos);
             }
             PreviewEvent::Noop => {}
@@ -506,7 +505,7 @@ where
 
 fn wait<C>(spawned: std::process::Child, callback: C)
 where
-    C: Fn(Vec<AnsiString<'static>>),
+    C: Fn(Vec<AnsiString>),
 {
     let output = spawned.wait_with_output();
 
@@ -523,13 +522,17 @@ where
     }
 
     // Capture stderr in case users want to debug ...
-    let out_str = String::from_utf8_lossy(if output.status.success() {
-        &output.stdout
+    let out_str = String::from_utf8(if output.status.success() {
+        output.stdout
     } else {
-        &output.stderr
-    });
+        output.stderr
+    })
+    .unwrap();
 
-    let lines = out_str.lines().map(AnsiString::parse).collect();
+    let lines = out_str
+        .lines()
+        .map(|s| AnsiString::parse(s.to_string()))
+        .collect();
     callback(lines);
 }
 

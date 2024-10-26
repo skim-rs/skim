@@ -2,7 +2,6 @@ use crate::ansi::ANSIParser;
 use crate::field::{parse_matching_fields, parse_transform_fields, FieldRange};
 use crate::{AnsiString, DisplayContext, Matches, SkimItem};
 use regex::Regex;
-use std::borrow::Cow;
 use tuikit::prelude::Attr;
 
 //------------------------------------------------------------------------------
@@ -24,7 +23,7 @@ pub struct DefaultSkimItem {
     orig_text: Option<String>,
 
     /// The text that will be shown on screen and matched.
-    text: AnsiString<'static>,
+    text: AnsiString,
 
     // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
     #[allow(clippy::box_collection)]
@@ -55,7 +54,7 @@ impl DefaultSkimItem {
 
         let (orig_text, text) = if using_transform_fields && ansi_enabled {
             // ansi and transform
-            let transformed = ansi_parser.parse_ansi(&parse_transform_fields(delimiter, &orig_text, trans_fields));
+            let transformed = ansi_parser.parse_ansi(parse_transform_fields(delimiter, &orig_text, trans_fields));
             (Some(orig_text), transformed)
         } else if using_transform_fields {
             // transformed, not ansi
@@ -63,7 +62,7 @@ impl DefaultSkimItem {
             (Some(orig_text), transformed)
         } else if ansi_enabled {
             // not transformed, ansi
-            (None, ansi_parser.parse_ansi(&orig_text))
+            (None, ansi_parser.parse_ansi(orig_text))
         } else {
             // normal case
             (None, orig_text.into())
@@ -89,21 +88,21 @@ impl DefaultSkimItem {
 
 impl SkimItem for DefaultSkimItem {
     #[inline]
-    fn text(&self) -> Cow<str> {
-        Cow::Borrowed(self.text.stripped())
+    fn text(&self) -> &str {
+        self.text.stripped()
     }
 
-    fn output(&self) -> Cow<str> {
-        if self.orig_text.is_some() {
+    fn output(&self) -> String {
+        if let Some(orig_text) = self.orig_text.clone() {
             if self.text.has_attrs() {
                 let mut ansi_parser: ANSIParser = Default::default();
-                let text = ansi_parser.parse_ansi(self.orig_text.as_ref().unwrap());
+                let text = ansi_parser.parse_ansi(orig_text);
                 text.into_inner()
             } else {
-                Cow::Borrowed(self.orig_text.as_ref().unwrap())
+                self.orig_text.clone().unwrap()
             }
         } else {
-            Cow::Borrowed(self.text.stripped())
+            self.text.clone().into_inner()
         }
     }
 
@@ -111,7 +110,7 @@ impl SkimItem for DefaultSkimItem {
         self.matching_ranges.as_ref().map(|vec| vec as &[(usize, usize)])
     }
 
-    fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString<'a> {
+    fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString {
         let new_fragments: Vec<(Attr, (u32, u32))> = match context.matches {
             Matches::CharIndices(indices) => indices
                 .iter()

@@ -1,7 +1,6 @@
 // Parse ANSI attr code
 use std::default::Default;
 
-use beef::lean::Cow;
 use std::cmp::max;
 use tuikit::prelude::*;
 use vte::{Params, Perform};
@@ -189,7 +188,7 @@ impl ANSIParser {
         self.last_attr = new_attr;
     }
 
-    pub fn parse_ansi(&mut self, text: &str) -> AnsiString<'static> {
+    pub fn parse_ansi(&mut self, text: String) -> AnsiString {
         let mut statemachine = vte::Parser::new();
 
         for byte in text.as_bytes() {
@@ -208,40 +207,24 @@ impl ANSIParser {
 ///
 /// It is internally represented as Vec<(attr, string)>
 #[derive(Clone, Debug)]
-pub struct AnsiString<'a> {
-    stripped: Cow<'a, str>,
+pub struct AnsiString {
+    stripped: String,
     // attr: start, end
     fragments: Option<Vec<(Attr, (u32, u32))>>,
 }
 
-impl<'a> AnsiString<'a> {
+impl AnsiString {
     pub fn new_empty() -> Self {
         Self {
-            stripped: Cow::borrowed(""),
+            stripped: String::new(),
             fragments: None,
         }
     }
 
     fn new_raw_string(string: String) -> Self {
         Self {
-            stripped: Cow::owned(string),
+            stripped: string,
             fragments: None,
-        }
-    }
-
-    fn new_raw_str(str_ref: &'a str) -> Self {
-        Self {
-            stripped: Cow::borrowed(str_ref),
-            fragments: None,
-        }
-    }
-
-    /// assume the fragments are ordered by (start, end) while end is exclusive
-    pub fn new_str(stripped: &'a str, fragments: Vec<(Attr, (u32, u32))>) -> Self {
-        let fragments_empty = fragments.is_empty() || (fragments.len() == 1 && fragments[0].0 == Attr::default());
-        Self {
-            stripped: Cow::borrowed(stripped),
-            fragments: if fragments_empty { None } else { Some(fragments) },
         }
     }
 
@@ -249,12 +232,12 @@ impl<'a> AnsiString<'a> {
     pub fn new_string(stripped: String, fragments: Vec<(Attr, (u32, u32))>) -> Self {
         let fragments_empty = fragments.is_empty() || (fragments.len() == 1 && fragments[0].0 == Attr::default());
         Self {
-            stripped: Cow::owned(stripped),
+            stripped,
             fragments: if fragments_empty { None } else { Some(fragments) },
         }
     }
 
-    pub fn parse(raw: &'a str) -> AnsiString<'static> {
+    pub fn parse(raw: String) -> AnsiString {
         ANSIParser::default().parse_ansi(raw)
     }
 
@@ -264,13 +247,19 @@ impl<'a> AnsiString<'a> {
     }
 
     #[inline]
-    pub fn into_inner(self) -> std::borrow::Cow<'a, str> {
-        std::borrow::Cow::Owned(self.stripped.into_owned())
+    pub fn into_inner(self) -> String {
+        self.stripped
     }
 
-    pub fn iter(&'a self) -> Box<dyn Iterator<Item = (char, Attr)> + 'a> {
+    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (char, Attr)> + 'a> {
         if self.fragments.is_none() {
-            return Box::new(self.stripped.chars().map(|c| (c, Attr::default())));
+            return Box::new(self
+                .stripped
+                .chars()
+                .map(
+                    |c| (c, Attr::default())
+                )
+            );
         }
 
         Box::new(AnsiStringIterator::new(
@@ -301,26 +290,20 @@ impl<'a> AnsiString<'a> {
     }
 }
 
-impl<'a> From<&'a str> for AnsiString<'a> {
-    fn from(s: &'a str) -> AnsiString<'a> {
-        AnsiString::new_raw_str(s)
-    }
-}
-
-impl From<String> for AnsiString<'static> {
-    fn from(s: String) -> Self {
+impl From<String> for AnsiString {
+    fn from(s: String) -> AnsiString {
         AnsiString::new_raw_string(s)
     }
 }
 
 // (text, indices, highlight attribute) -> AnsiString
-impl<'a> From<(&'a str, &'a [usize], Attr)> for AnsiString<'a> {
-    fn from((text, indices, attr): (&'a str, &'a [usize], Attr)) -> Self {
+impl<'a> From<(String, &'a [usize], Attr)> for AnsiString {
+    fn from((text, indices, attr): (String, &'a [usize], Attr)) -> Self {
         let fragments = indices
             .iter()
             .map(|&idx| (attr, (idx as u32, 1 + idx as u32)))
             .collect();
-        AnsiString::new_str(text, fragments)
+        AnsiString::new_string(text, fragments)
     }
 }
 
@@ -431,7 +414,7 @@ mod tests {
     #[test]
     fn test_ansi_iterator() {
         let input = "\x1B[48;2;5;10;15m\x1B[38;2;70;130;180mhi\x1B[0m";
-        let ansistring = ANSIParser::default().parse_ansi(input);
+        let ansistring = ANSIParser::default().parse_ansi(input.to_string());
         let mut it = ansistring.iter();
         let attr = Attr {
             fg: Color::Rgb(70, 130, 180),
@@ -447,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_highlight_indices() {
-        let text = "abc";
+        let text = "abc".to_string();
         let indices: Vec<usize> = vec![1];
         let attr = Attr {
             fg: Color::Rgb(70, 130, 180),
@@ -466,7 +449,7 @@ mod tests {
 
     #[test]
     fn test_normal_string() {
-        let input = "ab";
+        let input = "ab".to_string();
         let ansistring = ANSIParser::default().parse_ansi(input);
 
         assert_eq!(false, ansistring.has_attrs());
@@ -481,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_multiple_attributes() {
-        let input = "\x1B[1;31mhi";
+        let input = "\x1B[1;31mhi".to_string();
         let ansistring = ANSIParser::default().parse_ansi(input);
         let mut it = ansistring.iter();
         let attr = Attr {
@@ -498,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let input = "\x1B[35mA\x1B[mB";
+        let input = "\x1B[35mA\x1B[mB".to_string();
         let ansistring = ANSIParser::default().parse_ansi(input);
         assert_eq!(ansistring.fragments.as_ref().map(|x| x.len()).unwrap(), 2);
         assert_eq!(ansistring.stripped(), "AB");
@@ -506,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_multi_bytes() {
-        let input = "中`\x1B[0m\x1B[1m\x1B[31mXYZ\x1B[0ms`";
+        let input = "中`\x1B[0m\x1B[1m\x1B[31mXYZ\x1B[0ms`".to_string();
         let ansistring = ANSIParser::default().parse_ansi(input);
         let mut it = ansistring.iter();
         let default_attr = Attr::default();
@@ -599,7 +582,7 @@ mod tests {
     fn test_multi_byte_359() {
         // https://github.com/lotabout/skim/issues/359
         let highlight = Attr::default().effect(Effect::BOLD);
-        let ansistring = AnsiString::new_str("ああa", vec![(highlight, (2, 3))]);
+        let ansistring = AnsiString::new_string("ああa".to_string(), vec![(highlight, (2, 3))]);
         let mut it = ansistring.iter();
         assert_eq!(Some(('あ', Attr::default())), it.next());
         assert_eq!(Some(('あ', Attr::default())), it.next());

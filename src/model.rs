@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::env;
 
 use std::process::Command;
@@ -17,7 +16,7 @@ use crate::event::{Event, EventHandler, EventReceiver, EventSender};
 use crate::global::current_run_num;
 use crate::header::Header;
 use crate::input::parse_action_arg;
-use crate::item::{parse_criteria, ItemPool, MatchedItem, RankBuilder, RankCriteria};
+use crate::item::{ItemPool, MatchedItem, RankBuilder, RankCriteria};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::options::SkimOptions;
 use crate::output::SkimOutput;
@@ -111,31 +110,20 @@ impl Model {
             .theme(theme.clone())
             .build();
 
-        let criterion = if let Some(ref tie_breaker) = options.tiebreak {
-            tie_breaker.split(',').filter_map(parse_criteria).collect()
-        } else {
-            DEFAULT_CRITERION.clone()
-        };
-
-        let rank_builder = Arc::new(RankBuilder::new(criterion));
+        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
 
         let selection = Selection::with_options(options).theme(theme.clone());
         let regex_engine: Rc<dyn MatchEngineFactory> =
             Rc::new(RegexEngineFactory::builder().rank_builder(rank_builder.clone()).build());
         let regex_matcher = Matcher::builder(regex_engine).build();
 
-        let matcher = if let Some(engine_factory) = options.engine_factory.as_ref() {
-            // use provided engine
-            Matcher::builder(engine_factory.clone()).case(options.case).build()
-        } else {
-            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .exact_mode(options.exact)
-                    .rank_builder(rank_builder.clone())
-                    .build(),
-            ));
-            Matcher::builder(fuzzy_engine_factory).case(options.case).build()
-        };
+        let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
+            ExactOrFuzzyEngineFactory::builder()
+                .exact_mode(options.exact)
+                .rank_builder(rank_builder.clone())
+                .build(),
+        ));
+        let matcher = Matcher::builder(fuzzy_engine_factory).case(options.case).build();
 
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
         let header = Header::empty()
@@ -143,10 +131,7 @@ impl Model {
             .item_pool(item_pool.clone())
             .theme(theme.clone());
 
-        let margins = options
-            .margin
-            .map(parse_margin)
-            .expect("option margin is should be specified (by default)");
+        let margins = parse_margin(options.margin.clone());
         let (margin_top, margin_right, margin_bottom, margin_left) = margins;
 
         let mut ret = Model {
@@ -197,9 +182,8 @@ impl Model {
     }
 
     fn parse_options(&mut self, options: &SkimOptions) {
-        if let Some(delimiter) = options.delimiter {
-            self.delimiter = Regex::new(delimiter).unwrap_or_else(|_| Regex::new(DELIMITER_STR).unwrap());
-        }
+        self.delimiter = Regex::new(&options.delimiter)
+            .unwrap_or_else(|_| Regex::new(DELIMITER_STR).unwrap());
 
         self.layout = options.layout.to_string();
 
@@ -214,15 +198,12 @@ impl Model {
         self.fuzzy_algorithm = options.algorithm;
 
         // preview related
-        let (preview_direction, preview_size, preview_wrap, preview_shown) = options
-            .preview_window
-            .map(Self::parse_preview)
-            .expect("option 'preview-window' should be set (by default)");
+        let (preview_direction, preview_size, preview_wrap, preview_shown) = Self::parse_preview(options.preview_window.clone());
         self.preview_direction = preview_direction;
         self.preview_size = preview_size;
         self.preview_hidden = !preview_shown;
 
-        if let Some(preview_cmd) = options.preview {
+        if let Some(preview_cmd) = options.preview.clone() {
             let tx = Arc::new(SpinLock::new(self.tx.clone()));
             self.previewer = Some(
                 Previewer::new(Some(preview_cmd.to_string()), move || {
@@ -231,10 +212,7 @@ impl Model {
                 .wrap(preview_wrap)
                 .delimiter(self.delimiter.clone())
                 .preview_offset(
-                    options
-                        .preview_window
-                        .map(Self::parse_preview_offset)
-                        .unwrap_or_else(|| "".to_string()),
+                    Self::parse_preview_offset(options.preview_window.clone())
                 ),
             );
         }
@@ -246,7 +224,7 @@ impl Model {
     }
 
     // -> (direction, size, wrap, shown)
-    fn parse_preview(preview_option: &str) -> (Direction, Size, bool, bool) {
+    fn parse_preview(preview_option: String) -> (Direction, Size, bool, bool) {
         let options = preview_option.split(':').collect::<Vec<&str>>();
 
         let mut direction = Direction::Right;
@@ -282,7 +260,7 @@ impl Model {
     }
 
     // -> string
-    fn parse_preview_offset(preview_window: &str) -> String {
+    fn parse_preview_offset(preview_window: String) -> String {
         for token in preview_window.split(':').rev() {
             if RE_PREVIEW_OFFSET.is_match(token) {
                 return token.to_string();
@@ -442,12 +420,12 @@ impl Model {
         let current_selection = current_item
             .as_ref()
             .map(|item| item.output())
-            .unwrap_or_else(|| Cow::Borrowed(""));
+            .unwrap_or_default();
         let query = self.query.get_fz_query();
         let cmd_query = self.query.get_cmd_query();
 
         let (indices, selections) = self.selection.get_selected_indices_and_items();
-        let tmp: Vec<Cow<str>> = selections.iter().map(|item| item.text()).collect();
+        let tmp: Vec<&str> = selections.iter().map(|item| item.text()).collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|cow| cow.as_ref()).collect();
 
         let context = InjectContext {

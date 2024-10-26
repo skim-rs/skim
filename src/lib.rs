@@ -4,7 +4,6 @@ extern crate lazy_static;
 extern crate log;
 
 use std::any::Any;
-use std::borrow::Cow;
 use std::fmt::Display;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
@@ -27,9 +26,9 @@ mod event;
 pub mod field;
 mod global;
 mod header;
-mod helper;
+pub mod helper;
 mod input;
-mod item;
+pub mod item;
 mod matcher;
 mod model;
 mod options;
@@ -38,11 +37,12 @@ mod output;
 pub mod prelude;
 mod previewer;
 mod query;
-mod reader;
+pub mod reader;
 mod selection;
 mod spinlock;
 mod theme;
-mod util;
+pub mod util;
+pub mod context;
 
 //------------------------------------------------------------------------------
 pub trait AsAny {
@@ -72,7 +72,7 @@ impl<T: Any> AsAny for T {
 ///
 /// struct MyItem {}
 /// impl SkimItem for MyItem {
-///     fn text(&self) -> Cow<str> {
+///     fn text(&self) -> &str {
 ///         unimplemented!()
 ///     }
 /// }
@@ -102,10 +102,10 @@ impl<T: Any> AsAny for T {
 /// ```
 pub trait SkimItem: AsAny + Send + Sync + 'static {
     /// The string to be used for matching (without color)
-    fn text(&self) -> Cow<str>;
+    fn text(&self) -> &str;
 
     /// The content to be displayed on the item list, could contain ANSI properties
-    fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString<'a> {
+    fn display(&self, context: DisplayContext) -> AnsiString {
         AnsiString::from(context)
     }
 
@@ -119,8 +119,8 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     /// Note that this function is intended to be used by the caller of skim and will not be used by
     /// skim. And since skim will return the item back in `SkimOutput`, if string is not what you
     /// want, you could still use `downcast` to retain the pointer to the original struct.
-    fn output(&self) -> Cow<str> {
-        self.text()
+    fn output(&self) -> String {
+        self.text().to_string()
     }
 
     /// we could limit the matching ranges of the `get_text` of the item.
@@ -134,8 +134,8 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
 // Implement SkimItem for raw strings
 
 impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
-    fn text(&self) -> Cow<str> {
-        Cow::Borrowed(self.as_ref())
+    fn text(&self) -> &str {
+        self.as_ref()
     }
 }
 
@@ -149,29 +149,29 @@ pub enum Matches<'a> {
 }
 
 pub struct DisplayContext<'a> {
-    pub text: &'a str,
+    pub text: String,
     pub score: i32,
     pub matches: Matches<'a>,
     pub container_width: usize,
     pub highlight_attr: Attr,
 }
 
-impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
-    fn from(context: DisplayContext<'a>) -> Self {
+impl<'a> From<DisplayContext<'a>> for AnsiString {
+    fn from(context: DisplayContext) -> Self {
         match context.matches {
             Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_attr)),
             Matches::CharRange(start, end) => {
-                AnsiString::new_str(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
+                AnsiString::new_string(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
             }
             Matches::ByteRange(start, end) => {
                 let ch_start = context.text[..start].chars().count();
                 let ch_end = ch_start + context.text[start..end].chars().count();
-                AnsiString::new_str(
+                AnsiString::new_string(
                     context.text,
                     vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))],
                 )
             }
-            Matches::None => AnsiString::new_str(context.text, vec![]),
+            Matches::None => AnsiString::new_string(context.text, vec![]),
         }
     }
 }
@@ -231,6 +231,21 @@ impl Default for CaseMatching {
         CaseMatching::Smart
     }
 }
+
+impl clap::ValueEnum for CaseMatching {
+    fn value_variants<'a>() -> &'a [Self] {
+        return &[Self::Respect, Self::Ignore, Self::Smart];
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        match self {
+            Self::Respect => Some(clap::builder::PossibleValue::new("respect")),
+            Self::Ignore => Some(clap::builder::PossibleValue::new("ignore")),
+            Self::Smart => Some(clap::builder::PossibleValue::new("smart")),
+        }
+    }
+}
+
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 #[allow(dead_code)]
@@ -296,14 +311,8 @@ impl Skim {
     /// - None: on internal errors.
     /// - SkimOutput: the collected key, event, query, selected items, etc.
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
-        let min_height = options
-            .min_height
-            .map(Skim::parse_height_string)
-            .expect("min_height should have default values");
-        let height = options
-            .height
-            .map(Skim::parse_height_string)
-            .expect("height should have default values");
+        let min_height = Skim::parse_height_string(&options.min_height);
+        let height = Skim::parse_height_string(&options.height);
 
         let (tx, rx): (EventSender, EventReceiver) = channel();
         let term = Arc::new(
@@ -326,7 +335,7 @@ impl Skim {
         // input
         let mut input = input::Input::new();
         input.parse_keymaps(&options.bind);
-        input.parse_expect_keys(options.expect.as_deref());
+        input.set_expect_keys(&options.expect);
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();

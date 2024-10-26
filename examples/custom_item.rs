@@ -6,8 +6,8 @@ struct MyItem {
 }
 
 impl SkimItem for MyItem {
-    fn text(&self) -> Cow<str> {
-        Cow::Borrowed(&self.inner)
+    fn text(&self) -> &str {
+        &self.inner.as_str()
     }
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
@@ -21,9 +21,9 @@ impl SkimItem for MyItem {
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(Some("50%"))
+        .height(String::from("50%"))
         .multi(true)
-        .preview(Some("")) // preview should be specified to enable preview window
+        .preview(Some(String::from(""))) // preview should be specified to enable preview window
         .build()
         .unwrap();
 

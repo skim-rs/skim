@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tuikit::prelude::*;
 
 pub struct Header {
-    header: Vec<AnsiString<'static>>,
+    header: Vec<AnsiString>,
     tabstop: usize,
     reverse: bool,
     theme: Arc<ColorTheme>,
@@ -44,18 +44,14 @@ impl Header {
     }
 
     pub fn with_options(mut self, options: &SkimOptions) -> Self {
-        if let Some(tabstop_str) = options.tabstop {
-            let tabstop = tabstop_str.parse::<usize>().unwrap_or(8);
-            self.tabstop = max(1, tabstop);
-        }
+        self.tabstop = max(1, options.tabstop);
 
         if options.layout.starts_with("reverse") {
             self.reverse = true;
         }
 
-        match options.header {
+        match options.header.clone() {
             None => {}
-            Some("") => {}
             Some(header) => {
                 let mut parser = ANSIParser::default();
                 self.header = str_lines(header).into_iter().map(|l| parser.parse_ansi(l)).collect();
@@ -121,7 +117,7 @@ impl Draw for Header {
                 .build();
 
             let context = DisplayContext {
-                text: &item.text(),
+                text: item.text().to_string(),
                 score: 0,
                 matches: Matches::None,
                 container_width: screen_width - 2,

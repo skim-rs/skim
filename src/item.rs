@@ -208,6 +208,35 @@ pub enum RankCriteria {
     NegLength,
 }
 
+impl clap::ValueEnum for RankCriteria {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            Self::Score,
+            Self::Begin,
+            Self::End,
+            Self::NegScore,
+            Self::NegBegin,
+            Self::NegEnd,
+            Self::Length,
+            Self::NegLength,
+        ]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        match self {
+            RankCriteria::Score => Some(clap::builder::PossibleValue::new("score")),
+            RankCriteria::Begin => Some(clap::builder::PossibleValue::new("begin")),
+            RankCriteria::End => Some(clap::builder::PossibleValue::new("end")),
+            RankCriteria::NegScore => Some(clap::builder::PossibleValue::new("-score")),
+            RankCriteria::NegBegin => Some(clap::builder::PossibleValue::new("-begin")),
+            RankCriteria::NegEnd => Some(clap::builder::PossibleValue::new("-end")),
+            RankCriteria::Length => Some(clap::builder::PossibleValue::new("length")),
+            RankCriteria::NegLength => Some(clap::builder::PossibleValue::new("-length")),
+
+        }
+    }
+}
+
 pub fn parse_criteria(text: &str) -> Option<RankCriteria> {
     match text.to_lowercase().as_ref() {
         "score" => Some(RankCriteria::Score),

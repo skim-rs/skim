@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 use std::cmp::{max, min};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
 
 use regex::{Captures, Regex};
@@ -278,7 +280,7 @@ pub fn margin_string_to_size(margin: &str) -> Size {
 /// - `TB,RL`    Vertical, horizontal margin
 /// - `T,RL,B`   Top, horizontal, bottom margin
 /// - `T,R,B,L`  Top, right, bottom, left margin
-pub fn parse_margin(margin_option: &str) -> (Size, Size, Size, Size) {
+pub fn parse_margin(margin_option: String) -> (Size, Size, Size, Size) {
     let margins = margin_option.split(',').collect::<Vec<&str>>();
 
     match margins.len() {
@@ -398,8 +400,8 @@ pub fn inject_command<'a>(cmd: &'a str, context: InjectContext<'a>) -> Cow<'a, s
     })
 }
 
-pub fn str_lines(string: &str) -> Vec<&str> {
-    string.trim_end().split('\n').collect()
+pub fn str_lines(string: String) -> Vec<String> {
+    string.trim_end().split('\n').map(|s| s.to_string()).collect()
 }
 
 pub fn atoi<T: FromStr>(string: &str) -> Option<T> {
@@ -487,4 +489,11 @@ mod tests {
         assert_eq!(None, atoi::<i32>("8589934592"));
         assert_eq!(Some(123), atoi::<i32>("+'123'"));
     }
+}
+
+pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
+    let file = File::open(filename)?;
+    let ret = BufReader::new(file).lines().collect();
+    debug!("file content: {:?}", ret);
+    ret
 }

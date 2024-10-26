@@ -48,7 +48,7 @@ impl Selector for DefaultSkimSelector {
             && self
                 .preset
                 .as_ref()
-                .map(|preset| preset.contains(item.text().as_ref()))
+                .map(|preset| preset.contains(item.text()))
                 .unwrap_or(false)
         {
             return true;

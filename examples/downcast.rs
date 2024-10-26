@@ -10,8 +10,8 @@ struct Item {
 }
 
 impl SkimItem for Item {
-    fn text(&self) -> Cow<str> {
-        Cow::Borrowed(&self.text)
+    fn text(&self) -> &str {
+        &self.text.as_str()
     }
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
@@ -21,9 +21,9 @@ impl SkimItem for Item {
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(Some("50%"))
+        .height(String::from("50%"))
         .multi(true)
-        .preview(Some(""))
+        .preview(Some(String::from("")))
         .build()
         .unwrap();
 
