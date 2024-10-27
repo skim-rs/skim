@@ -39,6 +39,7 @@ impl DefaultSkimItem {
         delimiter: &Regex,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
+        debug!("transforming: {}, ansi: {}", using_transform_fields, ansi_enabled);
 
         //        transformed | ANSI             | output
         //------------------------------------------------------
@@ -55,10 +56,12 @@ impl DefaultSkimItem {
         let (orig_text, text) = if using_transform_fields && ansi_enabled {
             // ansi and transform
             let transformed = ansi_parser.parse_ansi(parse_transform_fields(delimiter, &orig_text, trans_fields));
+            debug!("transformed ansi {:#?}", transformed);
             (Some(orig_text), transformed)
         } else if using_transform_fields {
             // transformed, not ansi
             let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields).into();
+            debug!("transformed raw {:#?}", transformed);
             (Some(orig_text), transformed)
         } else if ansi_enabled {
             // not transformed, ansi

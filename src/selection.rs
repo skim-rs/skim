@@ -109,7 +109,7 @@ impl Selection {
             self.items.tac(true);
         }
 
-        if options.nosort {
+        if options.no_sort {
             self.items.nosort(true);
         }
 

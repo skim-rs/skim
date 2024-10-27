@@ -1,14 +1,12 @@
+extern crate atty;
 extern crate clap;
 extern crate env_logger;
-#[macro_use]
 extern crate log;
-extern crate atty;
 extern crate shlex;
 extern crate skim;
 extern crate time;
 
 use crate::context::SkimContext;
-use crate::util::read_file_lines;
 use derive_builder::Builder;
 use reader::CommandCollector;
 use std::env;
@@ -17,22 +15,6 @@ use std::io::{BufReader, BufWriter, Write};
 
 use clap::Parser;
 use skim::prelude::*;
-
-//------------------------------------------------------------------------------
-fn main() {
-    env_logger::builder().format_timestamp_nanos().init();
-
-    match real_main() {
-        Ok(exit_code) => std::process::exit(exit_code),
-        Err(err) => {
-            // if downstream pipe is closed, exit silently, see PR#279
-            if err.kind() == std::io::ErrorKind::BrokenPipe {
-                std::process::exit(0)
-            }
-            std::process::exit(2)
-        }
-    }
-}
 
 fn parse_args() -> SkimOptions {
     let mut args = Vec::new();
@@ -52,28 +34,30 @@ fn parse_args() -> SkimOptions {
         args.push(arg);
     }
 
-    SkimOptions::parse_from(args)
+    SkimOptions::parse_from(args).build()
 }
 
-fn init_histories(ctx: &mut SkimContext, opts: &mut SkimOptions) {
-    let history_binds = String::from("ctrl-p:previous-history,ctrl-n:next-history");
-    if let Some(histfile) = &opts.history {
-        ctx.query_history.extend(read_file_lines(histfile).unwrap_or_default());
-        opts.bind.insert(0, history_binds.clone());
-    }
+//------------------------------------------------------------------------------
+fn main() {
+    env_logger::builder().format_timestamp_nanos().init();
 
-    if let Some(cmd_histfile) = &opts.cmd_history {
-        ctx.cmd_history.extend(read_file_lines(cmd_histfile).unwrap_or_default());
-        opts.bind.insert(0, history_binds);
+    match sk_main() {
+        Ok(exit_code) => std::process::exit(exit_code),
+        Err(err) => {
+            // if downstream pipe is closed, exit silently, see PR#279
+            if err.kind() == std::io::ErrorKind::BrokenPipe {
+                std::process::exit(0)
+            }
+            std::process::exit(2)
+        }
     }
 }
 
-#[rustfmt::skip]
-fn real_main() -> Result<i32, std::io::Error> {
+fn sk_main() -> Result<i32, std::io::Error> {
     let mut ctx = SkimContext::default();
-    let mut opts = parse_args();
+    let opts = parse_args();
 
-    init_histories(&mut ctx, &mut opts);
+    ctx.init_histories(&opts);
 
     //------------------------------------------------------------------------------
     let bin_options = BinOptions {
@@ -86,10 +70,10 @@ fn real_main() -> Result<i32, std::io::Error> {
     //------------------------------------------------------------------------------
     // read from pipe or command
     let rx_item = if atty::isnt(atty::Stream::Stdin) {
-            let rx_item = ctx.cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
-            Some(rx_item)
-        } else {
-         None
+        let rx_item = ctx.cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
+        Some(rx_item)
+    } else {
+        None
     };
 
     //------------------------------------------------------------------------------
@@ -99,30 +83,26 @@ fn real_main() -> Result<i32, std::io::Error> {
     }
 
     //------------------------------------------------------------------------------
-    let output = Skim::run_with(&opts, rx_item);
-    if output.is_none() { // error
-        return Ok(135);
-    }
-
-    //------------------------------------------------------------------------------
     // output
-    let output = output.unwrap();
-    if output.is_abort {
+    let Some(result) = Skim::run_with(&opts, rx_item) else {
+        return Ok(135);
+    };
+
+    if result.is_abort {
         return Ok(130);
     }
 
     // output query
     if bin_options.print_query {
-        print!("{}{}", output.query, bin_options.output_ending);
+        print!("{}{}", result.query, bin_options.output_ending);
     }
 
     if bin_options.print_cmd {
-        print!("{}{}", output.cmd, bin_options.output_ending);
+        print!("{}{}", result.cmd, bin_options.output_ending);
     }
 
-
     if !opts.expect.is_empty() {
-        match output.final_event {
+        match result.final_event {
             Event::EvActAccept(Some(accept_key)) => {
                 print!("{}{}", accept_key, bin_options.output_ending);
             }
@@ -133,7 +113,7 @@ fn real_main() -> Result<i32, std::io::Error> {
         }
     }
 
-    for item in output.selected_items.iter() {
+    for item in result.selected_items.iter() {
         print!("{}{}", item.output(), bin_options.output_ending);
     }
 
@@ -143,15 +123,15 @@ fn real_main() -> Result<i32, std::io::Error> {
     // write the history with latest item
     if let Some(file) = opts.history {
         let limit = opts.history_size;
-        write_history_to_file(&ctx.query_history, &output.query, limit, &file)?;
+        write_history_to_file(&ctx.query_history, &result.query, limit, &file)?;
     }
 
     if let Some(file) = opts.cmd_history {
         let limit = opts.cmd_history_size;
-        write_history_to_file(&ctx.cmd_history, &output.cmd, limit, &file)?;
+        write_history_to_file(&ctx.cmd_history, &result.cmd, limit, &file)?;
     }
 
-    Ok(if output.selected_items.is_empty() { 1 } else { 0 })
+    Ok(if result.selected_items.is_empty() { 1 } else { 0 })
 }
 
 fn write_history_to_file(
@@ -194,7 +174,6 @@ pub fn filter(
     options: &SkimOptions,
     source: Option<SkimItemReceiver>,
 ) -> Result<i32, std::io::Error> {
-    let mut stdout = std::io::stdout();
 
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
         Ok("") | Err(_) => "find .".to_owned(),
@@ -205,11 +184,11 @@ pub fn filter(
 
     // output query
     if bin_option.print_query {
-        write!(stdout, "{}{}", query, bin_option.output_ending)?;
+        print!("{}{}", query, bin_option.output_ending);
     }
 
     if bin_option.print_cmd {
-        write!(stdout, "{}{}", cmd, bin_option.output_ending)?;
+        print!("{}{}", cmd, bin_option.output_ending);
     }
 
     //------------------------------------------------------------------------------
@@ -239,10 +218,10 @@ pub fn filter(
     stream_of_item
         .into_iter()
         .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
-        .try_for_each(|(item, _match_result)| {
+        .for_each(|(item, _match_result)| {
             num_matched += 1;
-            write!(stdout, "{}{}", item.output(), bin_option.output_ending)
-        })?;
+            print!("{}{}", item.output(), bin_option.output_ending)
+        });
 
     Ok(if num_matched == 0 { 1 } else { 0 })
 }

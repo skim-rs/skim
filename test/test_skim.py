@@ -10,7 +10,6 @@ import os
 import time
 import re
 import inspect
-import sys
 
 INPUT_RECORD_SEPARATOR = '\n'
 DEFAULT_TIMEOUT = 3000
@@ -32,7 +31,7 @@ def wait(func, timeout_handler=None):
             return
     if timeout_handler is not None:
         timeout_handler()
-    raise BaseException('Timeout on wait')
+    assert "timeout" == 0
 
 class Shell(object):
     """The shell configurations for tmux tests"""
@@ -683,17 +682,17 @@ class TestSkim(TestBase):
     def test_reserved_options(self):
         options = [
             '--extended',
-            '--algo=TYPE',
+            '--algo=skim_v2',
             '--literal',
             '--no-mouse',
             '--cycle',
-            '--hscroll-off=COL',
+            '--hscroll-off=1',
             '--filepath-word',
             '--jump-labels=CHARS',
             '--border',
             '--inline-info',
             '--header=STR',
-            '--header-lines=N',
+            '--header-lines=1',
             '--no-bold',
             '--history-size=10',
             '--sync',
@@ -714,13 +713,12 @@ class TestSkim(TestBase):
         options = [
             '--bind=ctrl-a:cancel --bind ctrl-b:cancel',
             '--expect=ctrl-a --expect=ctrl-v',
-            '--tiebreak=index --tiebreak=score',
+            '--tiebreak=length --tiebreak=score',
             '--cmd asdf --cmd find',
             '--query asdf -q xyz',
             '--delimiter , --delimiter . -d ,',
             '--nth 1,2 --nth=1,3 -n 1,3',
             '--with-nth 1,2 --with-nth=1,3',
-            '-I {} -I XX',
             '--color base --color light',
             '--margin 30% --margin 0',
             '--min-height 30% --min-height 10',

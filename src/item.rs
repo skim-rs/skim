@@ -41,7 +41,7 @@ impl RankBuilder {
         let end = end as i32;
         let length = length as i32;
 
-        for (index, criteria) in self.criterion.iter().take(4).enumerate() {
+        for (i, criteria) in self.criterion.iter().take(4).enumerate() {
             let value = match criteria {
                 RankCriteria::Score => -score,
                 RankCriteria::Begin => begin,
@@ -53,7 +53,7 @@ impl RankBuilder {
                 RankCriteria::NegLength => -length,
             };
 
-            rank[index] = value;
+            rank[i] = value;
         }
 
         rank
@@ -135,7 +135,6 @@ impl ItemPool {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-
     }
 
     pub fn num_not_taken(&self) -> usize {
@@ -243,7 +242,6 @@ impl clap::ValueEnum for RankCriteria {
             RankCriteria::NegEnd => Some(clap::builder::PossibleValue::new("-end")),
             RankCriteria::Length => Some(clap::builder::PossibleValue::new("length")),
             RankCriteria::NegLength => Some(clap::builder::PossibleValue::new("-length")),
-
         }
     }
 }

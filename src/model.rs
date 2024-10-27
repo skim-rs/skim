@@ -36,7 +36,6 @@ const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-const DELIMITER_STR: &str = r"[\t\n ]+";
 
 lazy_static! {
     static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
@@ -50,8 +49,8 @@ pub struct Model {
     query: Query,
     selection: Selection,
     num_options: usize,
-    select1: bool,
-    exit0: bool,
+    select_1: bool,
+    exit_0: bool,
     sync: bool,
 
     use_regex: bool,
@@ -139,8 +138,8 @@ impl Model {
             query,
             selection,
             num_options: 0,
-            select1: false,
-            exit0: false,
+            select_1: false,
+            exit_0: false,
             sync: false,
             use_regex: options.regex,
             regex_matcher,
@@ -168,7 +167,7 @@ impl Model {
             margin_left,
 
             layout: "default".to_string(),
-            delimiter: Regex::new(DELIMITER_STR).unwrap(),
+            delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             inline_info: false,
             no_clear_if_empty: false,
             theme,
@@ -182,23 +181,22 @@ impl Model {
     }
 
     fn parse_options(&mut self, options: &SkimOptions) {
-        self.delimiter = Regex::new(&options.delimiter)
-            .unwrap_or_else(|_| Regex::new(DELIMITER_STR).unwrap());
+        let Ok(delimiter) = Regex::new(&options.delimiter) else {
+            panic!("Could not parse delimiter {} as a valid regex", options.delimiter);
+        };
+        self.delimiter = delimiter;
 
-        self.layout = options.layout.to_string();
+        self.layout = options.layout.clone();
 
-        if options.inline_info {
-            self.inline_info = true;
-        }
+        self.inline_info = options.inline_info;
 
-        if options.regex {
-            self.use_regex = true;
-        }
+        self.use_regex = options.regex;
 
         self.fuzzy_algorithm = options.algorithm;
 
         // preview related
-        let (preview_direction, preview_size, preview_wrap, preview_shown) = Self::parse_preview(options.preview_window.clone());
+        let (preview_direction, preview_size, preview_wrap, preview_shown) =
+            Self::parse_preview(options.preview_window.clone());
         self.preview_direction = preview_direction;
         self.preview_size = preview_size;
         self.preview_hidden = !preview_shown;
@@ -211,14 +209,12 @@ impl Model {
                 })
                 .wrap(preview_wrap)
                 .delimiter(self.delimiter.clone())
-                .preview_offset(
-                    Self::parse_preview_offset(options.preview_window.clone())
-                ),
+                .preview_offset(Self::parse_preview_offset(options.preview_window.clone())),
             );
         }
 
-        self.select1 = options.select1;
-        self.exit0 = options.exit0;
+        self.select_1 = options.select_1;
+        self.exit_0 = options.exit_0;
         self.sync = options.sync;
         self.no_clear_if_empty = options.no_clear_if_empty;
     }
@@ -267,7 +263,7 @@ impl Model {
             }
         }
 
-        "".to_string()
+        String::new()
     }
 
     fn act_heart_beat(&mut self, env: &mut ModelEnv) {
@@ -338,7 +334,7 @@ impl Model {
     }
 
     fn handle_select1_or_exit0(&mut self) {
-        if !self.select1 && !self.exit0 && !self.sync {
+        if !self.select_1 && !self.exit_0 && !self.sync {
             return;
         }
 
@@ -349,16 +345,16 @@ impl Model {
         let processed = reader_stopped && items_consumed && matcher_stopped;
         let num_matched = self.selection.get_num_options();
         if processed {
-            if num_matched == 1 && self.select1 {
+            if num_matched == 1 && self.select_1 {
                 debug!("select-1 triggered, accept");
                 let _ = self.tx.send((Key::Null, Event::EvActAccept(None)));
-            } else if num_matched == 0 && self.exit0 {
+            } else if num_matched == 0 && self.exit_0 {
                 debug!("exit-0 triggered, accept");
                 let _ = self.tx.send((Key::Null, Event::EvActAbort));
             } else {
                 // no longer need need to handle select-1, exit-1, sync, etc.
-                self.select1 = false;
-                self.exit0 = false;
+                self.select_1 = false;
+                self.exit_0 = false;
                 self.sync = false;
                 let _ = self.term.restart();
             }
@@ -417,10 +413,7 @@ impl Model {
             return;
         }
 
-        let current_selection = current_item
-            .as_ref()
-            .map(|item| item.output())
-            .unwrap_or_default();
+        let current_selection = current_item.as_ref().map(|item| item.output()).unwrap_or_default();
         let query = self.query.get_fz_query();
         let cmd_query = self.query.get_cmd_query();
 

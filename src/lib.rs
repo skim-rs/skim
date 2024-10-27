@@ -320,7 +320,7 @@ impl Skim {
                     .clear_on_exit(!options.no_clear)
                     .disable_alternate_screen(options.no_clear_start)
                     .clear_on_start(!options.no_clear_start)
-                    .hold(options.select1 || options.exit0 || options.sync),
+                    .hold(options.select_1 || options.exit_0 || options.sync),
             )
             .unwrap(),
         );
@@ -352,6 +352,7 @@ impl Skim {
         //------------------------------------------------------------------------------
         // reader
 
+        debug!(" with nth                   --- {:?}", options.with_nth);
         let reader = Reader::with_options(options).source(source);
 
         //------------------------------------------------------------------------------
