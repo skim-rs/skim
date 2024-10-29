@@ -408,6 +408,13 @@ pub fn atoi<T: FromStr>(string: &str) -> Option<T> {
     RE_NUMBER.find(string).and_then(|mat| mat.as_str().parse::<T>().ok())
 }
 
+pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
+    let file = File::open(filename)?;
+    let ret = BufReader::new(file).lines().collect();
+    debug!("file content: {:?}", ret);
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -489,11 +496,4 @@ mod tests {
         assert_eq!(None, atoi::<i32>("8589934592"));
         assert_eq!(Some(123), atoi::<i32>("+'123'"));
     }
-}
-
-pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
-    let file = File::open(filename)?;
-    let ret = BufReader::new(file).lines().collect();
-    debug!("file content: {:?}", ret);
-    ret
 }

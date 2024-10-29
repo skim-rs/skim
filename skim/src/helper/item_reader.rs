@@ -73,11 +73,8 @@ impl SkimItemReaderOption {
         self
     }
 
-    pub fn with_nth(mut self, with_nth: &Vec<String>) -> Self {
-        self.transform_fields = with_nth
-            .into_iter()
-            .filter_map(|s| FieldRange::from_str(&s))
-            .collect();
+    pub fn with_nth(mut self, with_nth: &[String]) -> Self {
+        self.transform_fields = with_nth.iter().filter_map(|s| FieldRange::from_str(s)).collect();
         self
     }
 
@@ -86,11 +83,8 @@ impl SkimItemReaderOption {
         self
     }
 
-    pub fn nth(mut self, nth: &Vec<String>) -> Self {
-        self.matching_fields = nth
-            .into_iter()
-            .filter_map(|s| FieldRange::from_str(&s))
-            .collect();
+    pub fn nth(mut self, nth: &[String]) -> Self {
+        self.matching_fields = nth.iter().filter_map(|s| FieldRange::from_str(s)).collect();
         self
     }
 

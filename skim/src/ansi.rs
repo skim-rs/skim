@@ -351,7 +351,7 @@ impl<'a> Iterator for AnsiStringIterator<'a> {
                     }
 
                     let (_attr, (_start, end)) = self.fragments[self.fragment_idx];
-                    if char_idx < (end as usize) {
+                    if char_idx < end {
                         break;
                     }
                     self.fragment_idx += 1;
@@ -363,7 +363,7 @@ impl<'a> Iterator for AnsiStringIterator<'a> {
                     self.fragments[self.fragment_idx]
                 };
 
-                if (start as usize) <= char_idx && char_idx < (end as usize) {
+                if start <= char_idx && char_idx < end {
                     Some((char, attr))
                 } else {
                     Some((char, Attr::default()))
@@ -465,7 +465,7 @@ mod tests {
         let input = "ab";
         let ansistring = ANSIParser::default().parse_ansi(input);
 
-        assert_eq!(false, ansistring.has_attrs());
+        assert!(!ansistring.has_attrs());
 
         let mut it = ansistring.iter();
         assert_eq!(Some(('a', Attr::default())), it.next());
