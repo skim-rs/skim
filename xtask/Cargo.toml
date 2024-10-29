@@ -1,0 +1,12 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+clap_complete = "4.5.35"
+clap_complete_fig = "4.5.2"
+clap_complete_nushell = "4.5.4"
+clap_mangen = "0.2.24"
+skim = { path = "../skim" }
