@@ -170,6 +170,7 @@ fn real_main() -> Result<i32, std::io::Error> {
     let opts = App::new("sk")
         .author("Jinzhou Zhang<lotabout@gmail.com>")
         .version(crate_version!())
+        .args_override_self(true)
         .arg(Arg::with_name("help").long("help").short('h'))
         .arg(Arg::with_name("bind").long("bind").short('b').multiple(true).takes_value(true))
         .arg(Arg::with_name("multi").long("multi").short('m'))
