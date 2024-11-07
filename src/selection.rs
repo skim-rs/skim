@@ -1,3 +1,4 @@
+//! Handle the selections of items
 use std::cmp::max;
 use std::cmp::min;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -5,7 +6,6 @@ use std::sync::Arc;
 
 use tuikit::prelude::{Event as TermEvent, *};
 
-///! Handle the selections of items
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
 use crate::item::MatchedItem;
