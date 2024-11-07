@@ -44,21 +44,19 @@ impl Header {
     }
 
     pub fn with_options(mut self, options: &SkimOptions) -> Self {
-        if let Some(tabstop_str) = options.tabstop {
-            let tabstop = tabstop_str.parse::<usize>().unwrap_or(8);
-            self.tabstop = max(1, tabstop);
-        }
+        self.tabstop = max(1, options.tabstop);
 
         if options.layout.starts_with("reverse") {
             self.reverse = true;
         }
 
-        match options.header {
+        match &options.header {
             None => {}
-            Some("") => {}
             Some(header) => {
                 let mut parser = ANSIParser::default();
-                self.header = str_lines(header).into_iter().map(|l| parser.parse_ansi(l)).collect();
+                if !header.is_empty() {
+                    self.header = str_lines(&header).into_iter().map(|l| parser.parse_ansi(l)).collect();
+                }
             }
         }
         self

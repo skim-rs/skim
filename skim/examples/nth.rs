@@ -8,8 +8,8 @@ use std::io::Cursor;
 pub fn main() {
     let input = "foo 123";
 
-    let options = SkimOptionsBuilder::default().query(Some("f")).build().unwrap();
-    let item_reader = SkimItemReader::new(SkimItemReaderOption::default().nth("2").build());
+    let options = SkimOptionsBuilder::default().query(Some(String::from("f"))).build().unwrap();
+    let item_reader = SkimItemReader::new(SkimItemReaderOption::default().nth(vec!["2"].into_iter()).build());
 
     let items = item_reader.of_bufread(Cursor::new(input));
     let selected_items = Skim::run_with(&options, Some(items))

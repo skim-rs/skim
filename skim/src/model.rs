@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::env;
 
 use std::process::Command;
@@ -17,7 +16,7 @@ use crate::event::{Event, EventHandler, EventReceiver, EventSender};
 use crate::global::current_run_num;
 use crate::header::Header;
 use crate::input::parse_action_arg;
-use crate::item::{parse_criteria, ItemPool, MatchedItem, RankBuilder, RankCriteria};
+use crate::item::{ItemPool, MatchedItem, RankBuilder, RankCriteria};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::options::SkimOptions;
 use crate::output::SkimOutput;
@@ -37,7 +36,6 @@ const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-const DELIMITER_STR: &str = r"[\t\n ]+";
 
 lazy_static! {
     static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
@@ -51,8 +49,8 @@ pub struct Model {
     query: Query,
     selection: Selection,
     num_options: usize,
-    select1: bool,
-    exit0: bool,
+    select_1: bool,
+    exit_0: bool,
     sync: bool,
 
     use_regex: bool,
@@ -111,31 +109,20 @@ impl Model {
             .theme(theme.clone())
             .build();
 
-        let criterion = if let Some(ref tie_breaker) = options.tiebreak {
-            tie_breaker.split(',').filter_map(parse_criteria).collect()
-        } else {
-            DEFAULT_CRITERION.clone()
-        };
-
-        let rank_builder = Arc::new(RankBuilder::new(criterion));
+        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
 
         let selection = Selection::with_options(options).theme(theme.clone());
         let regex_engine: Rc<dyn MatchEngineFactory> =
             Rc::new(RegexEngineFactory::builder().rank_builder(rank_builder.clone()).build());
         let regex_matcher = Matcher::builder(regex_engine).build();
 
-        let matcher = if let Some(engine_factory) = options.engine_factory.as_ref() {
-            // use provided engine
-            Matcher::builder(engine_factory.clone()).case(options.case).build()
-        } else {
-            let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .exact_mode(options.exact)
-                    .rank_builder(rank_builder.clone())
-                    .build(),
-            ));
-            Matcher::builder(fuzzy_engine_factory).case(options.case).build()
-        };
+        let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
+            ExactOrFuzzyEngineFactory::builder()
+                .exact_mode(options.exact)
+                .rank_builder(rank_builder.clone())
+                .build(),
+        ));
+        let matcher = Matcher::builder(fuzzy_engine_factory).case(options.case).build();
 
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new().lines_to_reserve(options.header_lines)));
         let header = Header::empty()
@@ -143,10 +130,7 @@ impl Model {
             .item_pool(item_pool.clone())
             .theme(theme.clone());
 
-        let margins = options
-            .margin
-            .map(parse_margin)
-            .expect("option margin is should be specified (by default)");
+        let margins = parse_margin(&options.margin);
         let (margin_top, margin_right, margin_bottom, margin_left) = margins;
 
         let mut ret = Model {
@@ -154,8 +138,8 @@ impl Model {
             query,
             selection,
             num_options: 0,
-            select1: false,
-            exit0: false,
+            select_1: false,
+            exit_0: false,
             sync: false,
             use_regex: options.regex,
             regex_matcher,
@@ -183,7 +167,7 @@ impl Model {
             margin_left,
 
             layout: "default".to_string(),
-            delimiter: Regex::new(DELIMITER_STR).unwrap(),
+            delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             inline_info: false,
             no_clear_if_empty: false,
             theme,
@@ -197,32 +181,27 @@ impl Model {
     }
 
     fn parse_options(&mut self, options: &SkimOptions) {
-        if let Some(delimiter) = options.delimiter {
-            self.delimiter = Regex::new(delimiter).unwrap_or_else(|_| Regex::new(DELIMITER_STR).unwrap());
-        }
+        let Ok(delimiter) = Regex::new(&options.delimiter) else {
+            panic!("Could not parse delimiter {} as a valid regex", options.delimiter);
+        };
+        self.delimiter = delimiter;
 
-        self.layout = options.layout.to_string();
+        self.layout = options.layout.clone();
 
-        if options.inline_info {
-            self.inline_info = true;
-        }
+        self.inline_info = options.inline_info;
 
-        if options.regex {
-            self.use_regex = true;
-        }
+        self.use_regex = options.regex;
 
         self.fuzzy_algorithm = options.algorithm;
 
         // preview related
-        let (preview_direction, preview_size, preview_wrap, preview_shown) = options
-            .preview_window
-            .map(Self::parse_preview)
-            .expect("option 'preview-window' should be set (by default)");
+        let (preview_direction, preview_size, preview_wrap, preview_shown) =
+            Self::parse_preview(options.preview_window.clone());
         self.preview_direction = preview_direction;
         self.preview_size = preview_size;
         self.preview_hidden = !preview_shown;
 
-        if let Some(preview_cmd) = options.preview {
+        if let Some(preview_cmd) = options.preview.clone() {
             let tx = Arc::new(SpinLock::new(self.tx.clone()));
             self.previewer = Some(
                 Previewer::new(Some(preview_cmd.to_string()), move || {
@@ -230,23 +209,18 @@ impl Model {
                 })
                 .wrap(preview_wrap)
                 .delimiter(self.delimiter.clone())
-                .preview_offset(
-                    options
-                        .preview_window
-                        .map(Self::parse_preview_offset)
-                        .unwrap_or_default(),
-                ),
+                .preview_offset(Self::parse_preview_offset(options.preview_window.clone())),
             );
         }
 
-        self.select1 = options.select1;
-        self.exit0 = options.exit0;
+        self.select_1 = options.select_1;
+        self.exit_0 = options.exit_0;
         self.sync = options.sync;
         self.no_clear_if_empty = options.no_clear_if_empty;
     }
 
     // -> (direction, size, wrap, shown)
-    fn parse_preview(preview_option: &str) -> (Direction, Size, bool, bool) {
+    fn parse_preview(preview_option: String) -> (Direction, Size, bool, bool) {
         let options = preview_option.split(':').collect::<Vec<&str>>();
 
         let mut direction = Direction::Right;
@@ -282,14 +256,14 @@ impl Model {
     }
 
     // -> string
-    fn parse_preview_offset(preview_window: &str) -> String {
+    fn parse_preview_offset(preview_window: String) -> String {
         for token in preview_window.split(':').rev() {
             if RE_PREVIEW_OFFSET.is_match(token) {
                 return token.to_string();
             }
         }
 
-        "".to_string()
+        String::new()
     }
 
     fn act_heart_beat(&mut self, env: &mut ModelEnv) {
@@ -360,7 +334,7 @@ impl Model {
     }
 
     fn handle_select1_or_exit0(&mut self) {
-        if !self.select1 && !self.exit0 && !self.sync {
+        if !self.select_1 && !self.exit_0 && !self.sync {
             return;
         }
 
@@ -371,16 +345,16 @@ impl Model {
         let processed = reader_stopped && items_consumed && matcher_stopped;
         let num_matched = self.selection.get_num_options();
         if processed {
-            if num_matched == 1 && self.select1 {
+            if num_matched == 1 && self.select_1 {
                 debug!("select-1 triggered, accept");
                 let _ = self.tx.send((Key::Null, Event::EvActAccept(None)));
-            } else if num_matched == 0 && self.exit0 {
+            } else if num_matched == 0 && self.exit_0 {
                 debug!("exit-0 triggered, accept");
                 let _ = self.tx.send((Key::Null, Event::EvActAbort));
             } else {
                 // no longer need need to handle select-1, exit-1, sync, etc.
-                self.select1 = false;
-                self.exit0 = false;
+                self.select_1 = false;
+                self.exit_0 = false;
                 self.sync = false;
                 let _ = self.term.restart();
             }
@@ -439,15 +413,12 @@ impl Model {
             return;
         }
 
-        let current_selection = current_item
-            .as_ref()
-            .map(|item| item.output())
-            .unwrap_or_else(|| Cow::Borrowed(""));
+        let current_selection = current_item.as_ref().map(|item| item.output()).unwrap_or_default();
         let query = self.query.get_fz_query();
         let cmd_query = self.query.get_cmd_query();
 
         let (indices, selections) = self.selection.get_selected_indices_and_items();
-        let tmp: Vec<Cow<str>> = selections.iter().map(|item| item.text()).collect();
+        let tmp: Vec<String> = selections.into_iter().map(|item| item.text().to_string()).collect();
         let selected_texts: Vec<&str> = tmp.iter().map(|cow| cow.as_ref()).collect();
 
         let context = InjectContext {

@@ -6,6 +6,9 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+use clap::builder::PossibleValue;
+use clap::ValueEnum;
+
 use crate::spinlock::{SpinLock, SpinLockGuard};
 use crate::{MatchRange, Rank, SkimItem};
 
@@ -208,16 +211,23 @@ pub enum RankCriteria {
     NegLength,
 }
 
-pub fn parse_criteria(text: &str) -> Option<RankCriteria> {
-    match text.to_lowercase().as_ref() {
-        "score" => Some(RankCriteria::Score),
-        "begin" => Some(RankCriteria::Begin),
-        "end" => Some(RankCriteria::End),
-        "-score" => Some(RankCriteria::NegScore),
-        "-begin" => Some(RankCriteria::NegBegin),
-        "-end" => Some(RankCriteria::NegEnd),
-        "length" => Some(RankCriteria::Length),
-        "-length" => Some(RankCriteria::NegLength),
-        _ => None,
+impl ValueEnum for RankCriteria {
+    fn value_variants<'a>() -> &'a [Self] {
+        use RankCriteria::*;
+        &[Score, NegScore, Begin, NegBegin, End, NegEnd, Length, NegLength]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        use RankCriteria::*;
+        Some(match self {
+            Score => PossibleValue::new("score"),
+            Begin => PossibleValue::new("begin"),
+            End => PossibleValue::new("end"),
+            NegScore => PossibleValue::new("-score"),
+            NegBegin => PossibleValue::new("-begin"),
+            NegEnd => PossibleValue::new("-end"),
+            Length => PossibleValue::new("length"),
+            NegLength => PossibleValue::new("-length"),
+        })
     }
 }

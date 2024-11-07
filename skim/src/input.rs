@@ -50,8 +50,11 @@ impl Input {
         self.keymap.entry(key).or_insert(action_chain);
     }
 
-    pub fn parse_keymaps(&mut self, maps: &[&str]) {
-        for &map in maps {
+    pub fn parse_keymaps<'a, T>(&mut self, maps: T)
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        for map in maps {
             self.parse_keymap(map);
         }
     }
@@ -69,11 +72,12 @@ impl Input {
         }
     }
 
-    pub fn parse_expect_keys(&mut self, keys: Option<&str>) {
-        if let Some(keys) = keys {
-            for key in keys.split(',') {
-                self.bind(key, vec![Event::EvActAccept(Some(key.to_string()))]);
-            }
+    pub fn parse_expect_keys<'a, T>(&mut self, keys: T)
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        for key in keys {
+            self.bind(key, vec![Event::EvActAccept(Some(key.to_string()))]);
         }
     }
 }
