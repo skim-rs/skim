@@ -143,6 +143,6 @@ impl Widget<Event> for Header {
 
 impl EventHandler for Header {
     fn handle(&mut self, _event: &Event) -> UpdateScreen {
-        UpdateScreen::DONT_REDRAW
+        UpdateScreen::DontRedraw
     }
 }

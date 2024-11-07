@@ -333,9 +333,9 @@ impl EventHandler for Previewer {
             EvActPreviewRight(diff) => self.act_scroll_right(*diff),
             EvActPreviewPageUp(diff) => self.act_scroll_down(-(height as i32 * *diff)),
             EvActPreviewPageDown(diff) => self.act_scroll_down(height as i32 * *diff),
-            _ => return UpdateScreen::DONT_REDRAW,
+            _ => return UpdateScreen::DontRedraw,
         }
-        UpdateScreen::REDRAW
+        UpdateScreen::Redraw
     }
 }
 

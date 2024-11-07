@@ -1,6 +1,5 @@
 // All the events that will be used
 
-use bitflags::bitflags;
 use std::sync::mpsc::{Receiver, Sender};
 use tuikit::key::Key;
 
@@ -77,12 +76,10 @@ pub enum Event {
     __Nonexhaustive,
 }
 
-bitflags! {
-    /// `Effect` is the effect of a text
-    pub struct UpdateScreen: u8 {
-        const REDRAW = 0b0000_0001;
-        const DONT_REDRAW = 0b0000_0010;
-    }
+/// `Effect` is the effect of a text
+pub enum UpdateScreen {
+    Redraw,
+    DontRedraw,
 }
 
 pub trait EventHandler {

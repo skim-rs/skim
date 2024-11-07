@@ -534,9 +534,9 @@ impl EventHandler for Query {
         }
 
         if self.query_changed(mode, query_before_len, query_after_len, cmd_before_len, cmd_after_len) {
-            UpdateScreen::REDRAW
+            UpdateScreen::Redraw
         } else {
-            UpdateScreen::DONT_REDRAW
+            UpdateScreen::DontRedraw
         }
     }
 }

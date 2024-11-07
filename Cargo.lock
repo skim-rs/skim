@@ -687,7 +687,6 @@ version = "0.10.4"
 dependencies = [
  "atty",
  "beef",
- "bitflags",
  "chrono",
  "clap",
  "crossbeam",

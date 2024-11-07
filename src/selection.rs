@@ -395,9 +395,9 @@ impl EventHandler for Selection {
             EvActScrollRight(diff) => {
                 self.act_scroll(*diff);
             }
-            _ => return UpdateScreen::DONT_REDRAW,
+            _ => return UpdateScreen::DontRedraw,
         }
-        UpdateScreen::REDRAW
+        UpdateScreen::Redraw
     }
 }
 
