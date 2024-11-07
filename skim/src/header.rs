@@ -55,7 +55,7 @@ impl Header {
             Some(header) => {
                 let mut parser = ANSIParser::default();
                 if !header.is_empty() {
-                    self.header = str_lines(&header).into_iter().map(|l| parser.parse_ansi(l)).collect();
+                    self.header = str_lines(header).into_iter().map(|l| parser.parse_ansi(l)).collect();
                 }
             }
         }

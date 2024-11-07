@@ -5,10 +5,10 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
+use self::context::SkimContext;
+use self::reader::CommandCollector;
 use clap::Parser;
 use derive_builder::Builder;
-use self::reader::CommandCollector;
-use self::context::SkimContext;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};

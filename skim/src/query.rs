@@ -101,7 +101,7 @@ impl Query {
         self
     }
 
-    fn parse_options(&mut self, options: &SkimOptions) -> std::io::Result<()>{
+    fn parse_options(&mut self, options: &SkimOptions) -> std::io::Result<()> {
         // some options accept multiple values, thus take the last one
 
         if let Some(base_cmd) = &options.cmd {
@@ -125,11 +125,11 @@ impl Query {
         self.cmd_prompt = options.cmd_prompt.clone();
 
         if let Some(filename) = &options.history {
-            self.fz_query_history_before = read_file_lines(&filename)?;
+            self.fz_query_history_before = read_file_lines(filename)?;
         }
 
         if let Some(filename) = &options.cmd_history {
-            self.cmd_history_before = read_file_lines(&filename)?;
+            self.cmd_history_before = read_file_lines(filename)?;
         }
         Ok(())
     }

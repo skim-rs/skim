@@ -23,6 +23,7 @@ pub use crate::output::SkimOutput;
 use crate::reader::Reader;
 
 mod ansi;
+pub mod context;
 mod engine;
 mod event;
 pub mod field;
@@ -44,7 +45,6 @@ mod selection;
 mod spinlock;
 mod theme;
 mod util;
-pub mod context;
 
 //------------------------------------------------------------------------------
 pub trait AsAny {
