@@ -7,7 +7,7 @@ extern crate time;
 
 use self::context::SkimContext;
 use self::reader::CommandCollector;
-use clap::Parser;
+use clap::{Error, Parser};
 use derive_builder::Builder;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
@@ -15,7 +15,7 @@ use std::{env, io};
 
 use skim::prelude::*;
 
-fn parse_args() -> SkimOptions {
+fn parse_args() -> Result<SkimOptions, Error> {
     let mut args = Vec::new();
 
     args.push(
@@ -33,27 +33,51 @@ fn parse_args() -> SkimOptions {
         args.push(arg);
     }
 
-    SkimOptions::try_parse_from(args).unwrap().build()
+    Ok(SkimOptions::try_parse_from(args)?.build())
 }
 
 //------------------------------------------------------------------------------
 fn main() {
     env_logger::builder().format_timestamp_nanos().init();
 
+    use SkMainError::*;
     match sk_main() {
         Ok(exit_code) => std::process::exit(exit_code),
         Err(err) => {
             // if downstream pipe is closed, exit silently, see PR#279
-            if err.kind() == std::io::ErrorKind::BrokenPipe {
-                std::process::exit(0)
+            match err {
+                IoError(e) => {
+                    if e.kind() == std::io::ErrorKind::BrokenPipe {
+                        std::process::exit(0)
+                    } else {
+                        std::process::exit(2)
+                    }
+                },
+                ArgError(e) => e.exit()
             }
-            std::process::exit(2)
         }
     }
 }
 
-fn sk_main() -> Result<i32, std::io::Error> {
-    let opts = parse_args();
+enum SkMainError {
+    IoError(std::io::Error),
+    ArgError(clap::Error),
+}
+
+impl From<std::io::Error> for SkMainError {
+    fn from(value: std::io::Error) -> Self {
+        Self::IoError(value)
+    }
+}
+
+impl From<clap::Error> for SkMainError {
+    fn from(value: clap::Error) -> Self {
+        Self::ArgError(value)
+    }
+}
+
+fn sk_main() -> Result<i32, SkMainError> {
+    let opts = parse_args()?;
 
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)
@@ -89,7 +113,7 @@ fn sk_main() -> Result<i32, std::io::Error> {
     //------------------------------------------------------------------------------
     // filter mode
     if opts.filter.is_some() {
-        return filter(&ctx, &bin_options, &opts, rx_item);
+        return Ok(filter(&ctx, &bin_options, &opts, rx_item)?);
     }
 
     //------------------------------------------------------------------------------
