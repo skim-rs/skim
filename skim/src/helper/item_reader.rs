@@ -73,10 +73,11 @@ impl SkimItemReaderOption {
         self
     }
 
-    pub fn with_nth(mut self, with_nth: &str) -> Self {
-        if !with_nth.is_empty() {
-            self.transform_fields = with_nth.split(',').filter_map(FieldRange::from_str).collect();
-        }
+    pub fn with_nth<'a, T>(mut self, with_nth: T) -> Self
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        self.transform_fields = with_nth.filter_map(FieldRange::from_str).collect();
         self
     }
 
@@ -85,10 +86,11 @@ impl SkimItemReaderOption {
         self
     }
 
-    pub fn nth(mut self, nth: &str) -> Self {
-        if !nth.is_empty() {
-            self.matching_fields = nth.split(',').filter_map(FieldRange::from_str).collect();
-        }
+    pub fn nth<'a, T>(mut self, nth: T) -> Self
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        self.matching_fields = nth.filter_map(FieldRange::from_str).collect();
         self
     }
 

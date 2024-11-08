@@ -21,9 +21,9 @@ impl SkimItem for Item {
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(Some("50%"))
+        .height(String::from("50%"))
         .multi(true)
-        .preview(Some(""))
+        .preview(Some(String::new()))
         .build()
         .unwrap();
 
