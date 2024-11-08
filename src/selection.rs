@@ -1,7 +1,6 @@
 //! Handle the selections of items
 use std::cmp::max;
 use std::cmp::min;
-use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -15,6 +14,7 @@ use crate::theme::{ColorTheme, DEFAULT_THEME};
 use crate::util::clear_canvas;
 use crate::util::{print_item, reshape_string, LinePrinter};
 use crate::{DisplayContext, MatchRange, Matches, Selector, SkimItem, SkimOptions};
+use indexmap::IndexMap;
 use regex::Regex;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
@@ -24,7 +24,7 @@ type ItemIndex = (u32, u32);
 pub struct Selection {
     // all items
     items: OrderedVec<MatchedItem>,
-    selected: BTreeMap<ItemIndex, Arc<dyn SkimItem>>,
+    selected: IndexMap<ItemIndex, Arc<dyn SkimItem>>,
 
     //
     // |>------ items[items.len()-1]
@@ -64,7 +64,7 @@ impl Selection {
     pub fn new() -> Self {
         Selection {
             items: OrderedVec::new(),
-            selected: BTreeMap::new(),
+            selected: IndexMap::new(),
             item_cursor: 0,
             line_cursor: 0,
             hscroll_offset: 0,
@@ -232,7 +232,7 @@ impl Selection {
         if !self.selected.contains_key(&index) {
             self.selected.insert(index, current_item.item.clone());
         } else {
-            self.selected.remove(&index);
+            self.selected.shift_remove(&index);
         }
     }
 
@@ -248,7 +248,7 @@ impl Selection {
             if !self.selected.contains_key(&index) {
                 self.selected.insert(index, current_item.item.clone());
             } else {
-                self.selected.remove(&index);
+                self.selected.shift_remove(&index);
             }
         }
     }
