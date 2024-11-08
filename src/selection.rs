@@ -14,10 +14,10 @@ use crate::theme::{ColorTheme, DEFAULT_THEME};
 use crate::util::clear_canvas;
 use crate::util::{print_item, reshape_string, LinePrinter};
 use crate::{DisplayContext, MatchRange, Matches, Selector, SkimItem, SkimOptions};
+use indexmap::IndexMap;
 use regex::Regex;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
-use indexmap::IndexMap;
 
 type ItemIndex = (u32, u32);
 
