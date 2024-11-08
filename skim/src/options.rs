@@ -321,6 +321,10 @@ pub struct SkimOptions {
     #[arg(short, long, help_heading = "Interface")]
     pub interactive: bool,
 
+    /// Replace replstr with the selected item in commands
+    #[arg(short = 'I', default_value = "{}", help_heading = "Interface")]
+    pub replstr: String,
+
     /// Set color theme
     ///
     /// Format: [BASE][,COLOR:ANSI]

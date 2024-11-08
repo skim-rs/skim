@@ -719,6 +719,7 @@ class TestSkim(TestBase):
             '--delimiter , --delimiter . -d ,',
             '--nth 1,2 --nth=1,3 -n 1,3',
             '--with-nth 1,2 --with-nth=1,3',
+            '-I {} -I XX',
             '--color base --color light',
             '--margin 30% --margin 0',
             '--min-height 30% --min-height 10',

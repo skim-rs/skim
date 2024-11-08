@@ -124,6 +124,8 @@ impl Query {
 
         self.cmd_prompt = options.cmd_prompt.clone();
 
+        self.replstr = options.replstr.clone();
+
         if let Some(filename) = &options.history {
             self.fz_query_history_before = read_file_lines(filename)?;
         }
