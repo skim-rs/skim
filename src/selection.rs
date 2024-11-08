@@ -17,14 +17,14 @@ use crate::{DisplayContext, MatchRange, Matches, Selector, SkimItem, SkimOptions
 use regex::Regex;
 use std::rc::Rc;
 use unicode_width::UnicodeWidthStr;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 
 type ItemIndex = (u32, u32);
 
 pub struct Selection {
     // all items
     items: OrderedVec<MatchedItem>,
-    selected: LinkedHashMap<ItemIndex, Arc<dyn SkimItem>>,
+    selected: IndexMap<ItemIndex, Arc<dyn SkimItem>>,
 
     //
     // |>------ items[items.len()-1]
@@ -64,7 +64,7 @@ impl Selection {
     pub fn new() -> Self {
         Selection {
             items: OrderedVec::new(),
-            selected: LinkedHashMap::new(),
+            selected: IndexMap::new(),
             item_cursor: 0,
             line_cursor: 0,
             hscroll_offset: 0,
@@ -232,7 +232,7 @@ impl Selection {
         if !self.selected.contains_key(&index) {
             self.selected.insert(index, current_item.item.clone());
         } else {
-            self.selected.remove(&index);
+            self.selected.shift_remove(&index);
         }
     }
 
@@ -248,7 +248,7 @@ impl Selection {
             if !self.selected.contains_key(&index) {
                 self.selected.insert(index, current_item.item.clone());
             } else {
-                self.selected.remove(&index);
+                self.selected.shift_remove(&index);
             }
         }
     }
