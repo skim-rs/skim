@@ -682,7 +682,6 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 name = "skim"
 version = "0.10.4"
 dependencies = [
- "atty",
  "beef",
  "bitflags",
  "chrono",
