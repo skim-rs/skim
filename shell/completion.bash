@@ -19,7 +19,7 @@ _sk() {
 
     case "${cmd}" in
         sk)
-            opts="-t -n -d -e -b -m -c -i -p -q -1 -0 -f -x -h --tac --no-sort --tiebreak --nth --with-nth --delimiter --exact --regex --algo --case --bind --multi --no-multi --no-mouse --cmd --interactive --color --no-hscroll --keep-right --skip-to-pattern --no-clear-if-empty --no-clear-start --no-clear --show-cmd-error --layout --reverse --height --no-height --min-height --margin --prompt --cmd-prompt --ansi --tabstop --inline-info --header --header-lines --tmux --history --history-size --cmd-history --cmd-history-size --preview --preview-window --query --cmd-query --expect --read0 --print0 --print-query --print-cmd --print-score --select-1 --exit-0 --sync --pre-select-n --pre-select-pat --pre-select-items --pre-select-file --filter --extended --literal --cycle --hscroll-off --filepath-word --jump-labels --border --no-bold --info --pointer --marker --phony --help"
+            opts="-t -n -d -e -b -m -c -i -I -p -q -1 -0 -f -x -h --tac --no-sort --tiebreak --nth --with-nth --delimiter --exact --regex --algo --case --bind --multi --no-multi --no-mouse --cmd --interactive --color --no-hscroll --keep-right --skip-to-pattern --no-clear-if-empty --no-clear-start --no-clear --show-cmd-error --layout --reverse --height --no-height --min-height --margin --prompt --cmd-prompt --ansi --tabstop --inline-info --header --header-lines --history --history-size --cmd-history --cmd-history-size --preview --preview-window --query --cmd-query --expect --read0 --print0 --print-query --print-cmd --print-score --select-1 --exit-0 --sync --pre-select-n --pre-select-pat --pre-select-items --pre-select-file --filter --tmux --extended --literal --cycle --hscroll-off --filepath-word --jump-labels --border --no-bold --info --pointer --marker --phony --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -77,6 +77,10 @@ _sk() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                -I)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --color)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -122,10 +126,6 @@ _sk() {
                     return 0
                     ;;
                 --header-lines)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --tmux)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -190,6 +190,10 @@ _sk() {
                     return 0
                     ;;
                 -f)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --tmux)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

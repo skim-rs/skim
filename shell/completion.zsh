@@ -28,6 +28,7 @@ _sk() {
 '*--bind=[Comma separated list of bindings]:BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '--cmd=[Command to invoke dynamically in interactive mode]:CMD:_default' \
+'-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
 '--color=[Set color theme]:COLOR:_default' \
 '--skip-to-pattern=[Show the matched pattern at the line start]:SKIP_TO_PATTERN:_default' \
 '--layout=[Set layout]:LAYOUT:(default reverse reverse-list)' \
@@ -40,7 +41,6 @@ _sk() {
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
-'--tmux=[Run in a tmux popup]' \
 '--history=[History file]:HISTORY:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
 '--cmd-history=[Command history file]:CMD_HISTORY:_default' \
@@ -57,6 +57,7 @@ _sk() {
 '--pre-select-file=[Pre-select the items read from this file]:PRE_SELECT_FILE:_default' \
 '-f+[Query for filter mode]:FILTER:_default' \
 '--filter=[Query for filter mode]:FILTER:_default' \
+'--tmux=[Reserved for later use]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
 '--tac[Show results in reverse order]' \

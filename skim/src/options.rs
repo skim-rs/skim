@@ -463,19 +463,6 @@ pub struct SkimOptions {
     #[arg(long, default_value = "0", help_heading = "Display")]
     pub header_lines: usize,
 
-    /// Run in a tmux popup
-    ///
-    /// Format: sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
-    ///
-    /// Depending on the direction, the order and behavior of the sizes varies:
-    ///     - center: (width, height) or (size, size) if only one is provided
-    ///     - top | bottom: (height, width) or height = size, width = 100% if only one is provided
-    ///     - left | right: (width, height) or height = 100%, width = size if only one is provided
-    ///
-    /// Default: center,50%
-    #[arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..)]
-    pub tmux: Option<String>,
-
     //  --- History ---
     /// History file
     ///
@@ -645,6 +632,21 @@ pub struct SkimOptions {
     /// Query for filter mode
     #[arg(long, short, help_heading = "Scripting")]
     pub filter: Option<String>,
+
+    /// Reserved for later use
+    ///
+    /// Run in a tmux popup
+    ///
+    /// Format: sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
+    ///
+    /// Depending on the direction, the order and behavior of the sizes varies:
+    ///     - center: (width, height) or (size, size) if only one is provided
+    ///     - top | bottom: (height, width) or height = size, width = 100% if only one is provided
+    ///     - left | right: (width, height) or height = 100%, width = size if only one is provided
+    ///
+    /// Default: center,50%
+    #[arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..)]
+    pub tmux: Option<String>,
 
     /// Reserved for later use
     #[arg(short = 'x', long, hide = true, help_heading = "Reserved for later use")]
