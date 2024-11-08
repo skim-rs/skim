@@ -52,8 +52,8 @@ fn main() {
                     } else {
                         std::process::exit(2)
                     }
-                },
-                ArgError(e) => e.exit()
+                }
+                ArgError(e) => e.exit(),
             }
         }
     }

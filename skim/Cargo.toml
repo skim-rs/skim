@@ -14,6 +14,7 @@ edition = "2018"
 [lib]
 name = "skim"
 path = "src/lib.rs"
+doctest = false
 
 [[bin]]
 name = "sk"
