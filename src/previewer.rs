@@ -16,7 +16,7 @@ use tuikit::prelude::{Event as TermEvent, *};
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::spinlock::SpinLock;
-use crate::util::{atoi, depends_on_items, inject_command, InjectContext};
+use crate::util::{atoi, clear_canvas, depends_on_items, inject_command, InjectContext};
 use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
 
 const TAB_STOP: usize = 8;
@@ -116,6 +116,7 @@ impl Previewer {
         self
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn on_item_change(
         &mut self,
         new_item_index: usize,
@@ -134,6 +135,7 @@ impl Previewer {
             (None, None) => false,
             (None, Some(_)) => true,
             (Some(_), None) => true,
+            #[allow(ambiguous_wide_pointer_comparisons)]
             (Some(prev), Some(new)) => !Arc::ptr_eq(prev, new),
         };
 
@@ -169,8 +171,8 @@ impl Previewer {
             .as_ref()
             .map(|item| item.output())
             .unwrap_or_else(|| "".into());
-        let query = self.prev_query.as_ref().map(String::as_str).unwrap_or("");
-        let cmd_query = self.prev_cmd_query.as_ref().map(String::as_str).unwrap_or("");
+        let query = self.prev_query.as_deref().unwrap_or("");
+        let cmd_query = self.prev_cmd_query.as_deref().unwrap_or("");
 
         let (indices, selections) = get_selected_items();
         let tmp: Vec<Cow<str>> = selections.iter().map(|item| item.text()).collect();
@@ -185,8 +187,8 @@ impl Previewer {
             current_selection: &current_selection,
             selections: &selected_texts,
             indices: &indices,
-            query: &query,
-            cmd_query: &cmd_query,
+            query,
+            cmd_query,
         };
 
         let preview_context = PreviewContext {
@@ -341,6 +343,7 @@ impl Draw for Previewer {
     fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         canvas.clear()?;
         let (screen_width, screen_height) = canvas.size()?;
+        clear_canvas(canvas)?;
 
         if screen_width == 0 || screen_height == 0 {
             return Ok(());
@@ -452,7 +455,7 @@ where
         match event {
             PreviewEvent::PreviewCommand(preview_cmd, pos) => {
                 let cmd = &preview_cmd.cmd;
-                if cmd == "" {
+                if cmd.is_empty() {
                     continue;
                 }
 
@@ -461,7 +464,7 @@ where
                     .env("LINES", preview_cmd.lines.to_string())
                     .env("COLUMNS", preview_cmd.columns.to_string())
                     .arg("-c")
-                    .arg(&cmd)
+                    .arg(cmd)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .spawn();
@@ -621,7 +624,7 @@ impl Printer {
 
     fn adjust_scroll_print(&self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<usize> {
         if self.row < self.skip_rows || self.col < self.skip_cols {
-            canvas.put_char_with_attr(usize::max_value(), usize::max_value(), ch, attr)
+            canvas.put_char_with_attr(usize::MAX, usize::MAX, ch, attr)
         } else {
             canvas.put_char_with_attr(self.row - self.skip_rows, self.col - self.skip_cols, ch, attr)
         }

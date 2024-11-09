@@ -1,6 +1,5 @@
 // Parse ANSI attr code
 use std::default::Default;
-use std::mem;
 
 use beef::lean::Cow;
 use std::cmp::max;
@@ -11,6 +10,7 @@ use vte::{Params, Perform};
 ///
 /// It will cache the latest attribute used, that means if an attribute affect multiple
 /// lines, the parser will recognize it.
+#[derive(Debug, Default)]
 pub struct ANSIParser {
     partial_str: String,
     last_attr: Attr,
@@ -18,19 +18,6 @@ pub struct ANSIParser {
     stripped: String,
     stripped_char_count: usize,
     fragments: Vec<(Attr, (u32, u32))>, // [char_index_start, char_index_end)
-}
-
-impl Default for ANSIParser {
-    fn default() -> Self {
-        ANSIParser {
-            partial_str: String::new(),
-            last_attr: Attr::default(),
-
-            stripped: String::new(),
-            stripped_char_count: 0,
-            fragments: Vec::new(),
-        }
-    }
 }
 
 impl Perform for ANSIParser {
@@ -92,9 +79,7 @@ impl Perform for ANSIParser {
                 4 => attr.effect |= Effect::UNDERLINE,
                 5 => attr.effect |= Effect::BLINK,
                 7 => attr.effect |= Effect::REVERSE,
-                num if num >= 30 && num <= 37 => {
-                    attr.fg = Color::AnsiValue((num - 30) as u8);
-                }
+                num @ 30..=37 => attr.fg = Color::AnsiValue((num - 30) as u8),
                 38 => match iter.next() {
                     Some(&[2]) => {
                         // ESC[ 38;2;<r>;<g>;<b> m Select RGB foreground color
@@ -125,9 +110,7 @@ impl Perform for ANSIParser {
                     }
                 },
                 39 => attr.fg = Color::Default,
-                num if num >= 40 && num <= 47 => {
-                    attr.bg = Color::AnsiValue((num - 40) as u8);
-                }
+                num @ 40..=47 => attr.bg = Color::AnsiValue((num - 40) as u8),
                 48 => match iter.next() {
                     Some(&[2]) => {
                         // ESC[ 48;2;<r>;<g>;<b> m Select RGB background color
@@ -158,6 +141,8 @@ impl Perform for ANSIParser {
                     }
                 },
                 49 => attr.bg = Color::Default,
+                num @ 90..=97 => attr.fg = Color::AnsiValue((num - 82) as u8),
+                num @ 100..=107 => attr.bg = Color::AnsiValue((num - 92) as u8),
                 _ => {
                     trace!("ignore CSI {:?} m", params);
                 }
@@ -181,7 +166,7 @@ impl ANSIParser {
             return;
         }
 
-        let string = mem::replace(&mut self.partial_str, String::new());
+        let string = std::mem::take(&mut self.partial_str);
         let string_char_count = string.chars().count();
         self.fragments.push((
             self.last_attr,
@@ -212,9 +197,9 @@ impl ANSIParser {
         }
         self.save_str();
 
-        let stripped = mem::replace(&mut self.stripped, String::new());
+        let stripped = std::mem::take(&mut self.stripped);
         self.stripped_char_count = 0;
-        let fragments = mem::replace(&mut self.fragments, Vec::new());
+        let fragments = std::mem::take(&mut self.fragments);
         AnsiString::new_string(stripped, fragments)
     }
 }
@@ -502,7 +487,7 @@ mod tests {
         let input = "ab";
         let ansistring = ANSIParser::default().parse_ansi(input);
 
-        assert_eq!(false, ansistring.has_attrs());
+        assert!(!ansistring.has_attrs());
 
         let mut it = ansistring.iter();
         assert_eq!(Some(('a', Attr::default())), it.next());
