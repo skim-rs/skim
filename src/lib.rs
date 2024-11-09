@@ -219,17 +219,12 @@ pub enum ItemPreview {
 //==============================================================================
 // A match engine will execute the matching algorithm
 
-#[derive(Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
 pub enum CaseMatching {
     Respect,
     Ignore,
+    #[default]
     Smart,
-}
-
-impl Default for CaseMatching {
-    fn default() -> Self {
-        CaseMatching::Smart
-    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
