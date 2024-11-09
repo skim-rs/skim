@@ -31,6 +31,7 @@ pub struct SkimOptions<'a> {
     pub margin: Option<&'a str>,
     pub no_height: bool,
     pub no_clear: bool,
+    pub no_clear_start: bool,
     pub min_height: Option<&'a str>,
     pub height: Option<&'a str>,
     pub preview: Option<&'a str>,
@@ -81,6 +82,7 @@ impl<'a> Default for SkimOptions<'a> {
             margin: Some("0,0,0,0"),
             no_height: false,
             no_clear: false,
+            no_clear_start: false,
             min_height: Some("10"),
             height: Some("100%"),
             preview: None,
@@ -111,7 +113,7 @@ impl<'a> Default for SkimOptions<'a> {
 }
 
 impl<'a> SkimOptionsBuilder<'a> {
-    pub fn build(&mut self) -> Result<SkimOptions<'a>, String> {
+    pub fn build(&mut self) -> Result<SkimOptions<'a>, SkimOptionsBuilderError> {
         if let Some(true) = self.no_height {
             self.height = Some(Some("100%"));
         }

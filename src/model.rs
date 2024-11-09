@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::env;
-use std::mem;
+
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -27,6 +27,7 @@ use crate::reader::{Reader, ReaderControl};
 use crate::selection::Selection;
 use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
+use crate::util::clear_canvas;
 use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
 use crate::{FuzzyAlgorithm, MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
@@ -105,7 +106,7 @@ impl Model {
         };
 
         let theme = Arc::new(ColorTheme::init_from_options(options));
-        let query = Query::from_options(&options)
+        let query = Query::from_options(options)
             .replace_base_cmd_if_not_set(&default_command)
             .theme(theme.clone())
             .build();
@@ -233,7 +234,7 @@ impl Model {
                     options
                         .preview_window
                         .map(Self::parse_preview_offset)
-                        .unwrap_or_else(|| "".to_string()),
+                        .unwrap_or_default(),
                 ),
             );
         }
@@ -262,7 +263,7 @@ impl Model {
             let first_char = option.chars().next().unwrap_or('A');
 
             // raw string
-            if first_char.is_digit(10) {
+            if first_char.is_ascii_digit() {
                 size = margin_string_to_size(option);
             } else {
                 match option.to_uppercase().as_str() {
@@ -282,7 +283,7 @@ impl Model {
 
     // -> string
     fn parse_preview_offset(preview_window: &str) -> String {
-        for token in preview_window.split(':') {
+        for token in preview_window.split(':').rev() {
             if RE_PREVIEW_OFFSET.is_match(token) {
                 return token.to_string();
             }
@@ -304,7 +305,7 @@ impl Model {
             let ctrl = self.matcher_control.take().unwrap();
             let lock = ctrl.into_items();
             let mut items = lock.lock();
-            let matched = mem::replace(&mut *items, Vec::new());
+            let matched = std::mem::take(&mut *items);
 
             match env.clear_selection {
                 ClearStrategy::DontClear => {}
@@ -884,6 +885,7 @@ impl Draw for Status {
 
         canvas.clear()?;
         let (screen_width, _) = canvas.size()?;
+        clear_canvas(canvas)?;
 
         let info_attr = self.theme.info();
         let info_attr_bold = Attr {

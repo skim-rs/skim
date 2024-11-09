@@ -240,7 +240,7 @@ mod tests {
         let a = vec![1, 3, 5, 7];
         let b = vec![4, 8, 9];
         let c = vec![2, 6, 10];
-        let d = vec![1, 3, 5, 7, 4, 8, 9, 2, 6, 10];
+        let d = [1, 3, 5, 7, 4, 8, 9, 2, 6, 10];
         let mut ordered_vec = OrderedVec::new();
         ordered_vec.nosort(true);
         ordered_vec.append(a);
@@ -256,7 +256,7 @@ mod tests {
         let a = vec![1, 3, 5, 7];
         let b = vec![4, 8, 9];
         let c = vec![2, 6, 10];
-        let d = vec![10, 6, 2, 9, 8, 4, 7, 5, 3, 1];
+        let d = [10, 6, 2, 9, 8, 4, 7, 5, 3, 1];
         let mut ordered_vec = OrderedVec::new();
         ordered_vec.nosort(true).tac(true);
         ordered_vec.append(a);
@@ -271,7 +271,7 @@ mod tests {
     fn test_equals() {
         let a = vec![1, 2, 3, 4];
         let b = vec![5, 6, 7, 8];
-        let target = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let target = [1, 2, 3, 4, 5, 6, 7, 8];
         let mut ordered_vec = OrderedVec::new();
         ordered_vec.append(a);
         ordered_vec.append(b);
