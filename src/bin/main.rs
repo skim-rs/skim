@@ -5,7 +5,6 @@ extern crate log;
 extern crate atty;
 extern crate shlex;
 extern crate skim;
-extern crate time;
 
 use derive_builder::Builder;
 use std::env;
