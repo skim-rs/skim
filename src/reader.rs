@@ -1,7 +1,7 @@
+//! Reader is used for reading items from datasource (e.g. stdin or command output)
+//!
+//! After reading in a line, reader will save an item into the pool(items)
 use crate::global::mark_new_run;
-///! Reader is used for reading items from datasource (e.g. stdin or command output)
-///!
-///! After reading in a line, reader will save an item into the pool(items)
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};

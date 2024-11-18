@@ -170,10 +170,10 @@ impl SkimItemReader {
                             break;
                         }
 
-                        if buffer.ends_with(&[b'\r', b'\n']) {
+                        if buffer.ends_with(b"\r\n") {
                             buffer.pop();
                             buffer.pop();
-                        } else if buffer.ends_with(&[b'\n']) || buffer.ends_with(&[b'\0']) {
+                        } else if buffer.ends_with(b"\n") || buffer.ends_with(b"\0") {
                             buffer.pop();
                         }
 
@@ -264,10 +264,10 @@ impl SkimItemReader {
                             break;
                         }
 
-                        if buffer.ends_with(&[b'\r', b'\n']) {
+                        if buffer.ends_with(b"\r\n") {
                             buffer.pop();
                             buffer.pop();
-                        } else if buffer.ends_with(&[b'\n']) || buffer.ends_with(&[b'\0']) {
+                        } else if buffer.ends_with(b"\n") || buffer.ends_with(b"\0") {
                             buffer.pop();
                         }
 

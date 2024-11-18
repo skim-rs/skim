@@ -1,5 +1,5 @@
-///! Input will listens to user input, modify the query string, send special
-///! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
+//! Input will listens to user input, modify the query string, send special
+//! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use crate::event::{parse_event, Event};
 use regex::Regex;
 use std::collections::HashMap;
@@ -39,7 +39,7 @@ impl Input {
 
     pub fn bind(&mut self, key: &str, action_chain: ActionChain) {
         let key = from_keyname(key);
-        if key == None || action_chain.is_empty() {
+        if key.is_none() || action_chain.is_empty() {
             return;
         }
 
@@ -166,8 +166,8 @@ fn get_default_key_map() -> HashMap<Key, ActionChain> {
     ret.insert(Key::CtrlRight,    vec![Event::EvActForwardWord]);
     ret.insert(Key::ShiftRight,   vec![Event::EvActForwardWord]);
     ret.insert(Key::Alt('d'),     vec![Event::EvActKillWord]);
-    ret.insert(Key::ShiftUp,      vec![Event::EvActPreviewPageUp(1)]);
-    ret.insert(Key::ShiftDown,    vec![Event::EvActPreviewPageDown(1)]);
+    ret.insert(Key::ShiftUp,      vec![Event::EvActPreviewUp(1)]);
+    ret.insert(Key::ShiftDown,    vec![Event::EvActPreviewDown(1)]);
     ret.insert(Key::PageDown,     vec![Event::EvActPageDown(1)]);
     ret.insert(Key::PageUp,       vec![Event::EvActPageUp(1)]);
     ret.insert(Key::Ctrl('r'),    vec![Event::EvActRotateMode]);

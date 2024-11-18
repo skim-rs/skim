@@ -1,5 +1,5 @@
-///! An item is line of text that read from `find` command or stdin together with
-///! the internal states, such as selected or not
+//! An item is line of text that read from `find` command or stdin together with
+//! the internal states, such as selected or not
 use std::cmp::min;
 use std::default::Default;
 use std::ops::Deref;
@@ -83,7 +83,7 @@ impl std::cmp::Eq for MatchedItem {}
 
 impl PartialOrd for MatchedItem {
     fn partial_cmp(&self, other: &Self) -> Option<CmpOrd> {
-        self.rank.partial_cmp(&other.rank)
+        Some(self.rank.cmp(&other.rank))
     }
 }
 

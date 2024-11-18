@@ -1,9 +1,9 @@
-///! SpinLock implemented using AtomicBool
-///! Just like Mutex except:
-///!
-///! 1. It uses CAS for locking, more efficient in low contention
-///! 2. Use `.lock()` instead of `.lock().unwrap()` to retrieve the guard.
-///! 3. It doesn't handle poison so data is still available on thread panic.
+//! SpinLock implemented using AtomicBool
+//! Just like Mutex except:
+//!
+//! 1. It uses CAS for locking, more efficient in low contention
+//! 2. Use `.lock()` instead of `.lock().unwrap()` to retrieve the guard.
+//! 3. It doesn't handle poison so data is still available on thread panic.
 use std::cell::UnsafeCell;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -84,9 +84,6 @@ mod tests {
     use std::sync::mpsc::channel;
     use std::sync::Arc;
     use std::thread;
-
-    #[derive(Eq, PartialEq, Debug)]
-    struct NonCopy(i32);
 
     #[test]
     fn smoke() {
