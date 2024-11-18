@@ -66,7 +66,7 @@ impl Query {
 
     pub fn from_options(options: &SkimOptions) -> Self {
         let mut query = Self::builder();
-        query.parse_options(options).unwrap();
+        query.parse_options(options);
         query
     }
 
@@ -101,7 +101,7 @@ impl Query {
         self
     }
 
-    fn parse_options(&mut self, options: &SkimOptions) -> std::io::Result<()> {
+    fn parse_options(&mut self, options: &SkimOptions) {
         // some options accept multiple values, thus take the last one
 
         if let Some(base_cmd) = &options.cmd {
@@ -126,14 +126,15 @@ impl Query {
 
         self.replstr = options.replstr.clone();
 
-        if let Some(filename) = &options.history {
-            self.fz_query_history_before = read_file_lines(filename)?;
+        if let Some(history_file) = &options.history {
+            self.fz_query_history_before =
+                read_file_lines(history_file).expect(&format!("Failed to open history file {}", history_file));
         }
 
-        if let Some(filename) = &options.cmd_history {
-            self.cmd_history_before = read_file_lines(filename)?;
+        if let Some(cmd_history_file) = &options.cmd_history {
+            self.cmd_history_before = read_file_lines(cmd_history_file)
+                .expect(&format!("Failed to open command history file {}", cmd_history_file));
         }
-        Ok(())
     }
 
     pub fn in_query_mode(&self) -> bool {
