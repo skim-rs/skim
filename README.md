@@ -68,7 +68,7 @@ The skim project contains several components:
 | Arch           | pacman            | `pacman -S skim`          |
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
 | Guix           | guix              | `guix install skim`       |
-
+| Void           | XBPS              | `xbps-install -S skim`      |
 
 See [repology](https://repology.org/project/skim/versions) for a comprehensive overview of package availability.
 

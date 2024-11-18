@@ -75,7 +75,7 @@ impl Perform for ANSIParser {
             match code[0] {
                 0 => attr = Attr::default(),
                 1 => attr.effect |= Effect::BOLD,
-                2 => attr.effect |= !Effect::BOLD,
+                2 => attr.effect |= Effect::DIM,
                 4 => attr.effect |= Effect::UNDERLINE,
                 5 => attr.effect |= Effect::BLINK,
                 7 => attr.effect |= Effect::REVERSE,
@@ -643,5 +643,22 @@ mod tests {
         assert_eq!(Some(('あ', Attr::default())), it.next());
         assert_eq!(Some(('a', highlight)), it.next());
         assert_eq!(None, it.next());
+    }
+
+    #[test]
+    fn test_ansi_dim() {
+        // https://github.com/lotabout/skim/issues/495
+        let input = "\x1B[2mhi\x1b[0m";
+        let ansistring = ANSIParser::default().parse_ansi(input);
+        let mut it = ansistring.iter();
+        let attr = Attr {
+            effect: Effect::DIM,
+            ..Attr::default()
+        };
+
+        assert_eq!(Some(('h', attr)), it.next());
+        assert_eq!(Some(('i', attr)), it.next());
+        assert_eq!(None, it.next());
+        assert_eq!(ansistring.stripped(), "hi");
     }
 }
