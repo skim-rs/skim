@@ -9,8 +9,9 @@ use self::context::SkimContext;
 use self::reader::CommandCollector;
 use clap::{Error, Parser};
 use derive_builder::Builder;
+use log::debug;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, IsTerminal, Write};
+use std::io::{BufReader, BufWriter, IsTerminal, Read as _, Write};
 use std::{env, io};
 
 use skim::prelude::*;
@@ -102,26 +103,27 @@ fn sk_main() -> Result<i32, SkMainError> {
     };
 
     //------------------------------------------------------------------------------
-    // read from pipe or command
-    let rx_item = if !io::stdin().is_terminal() {
-        let rx_item = ctx.cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
-        Some(rx_item)
-    } else {
-        None
-    };
-
-    //------------------------------------------------------------------------------
     // filter mode
-    if opts.filter.is_some() {
-        return Ok(filter(&ctx, &bin_options, &opts, rx_item)?);
-    }
 
     //------------------------------------------------------------------------------
     // output
 
     let Some(result) = (match opts.tmux {
         Some(_) => crate::tmux::run_with(&opts),
-        None => Skim::run_with(&opts, rx_item),
+        None => {
+            // read from pipe or command
+            let rx_item = if !io::stdin().is_terminal() {
+                let rx_item = ctx.cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
+                Some(rx_item)
+            } else {
+                None
+            };
+            // filter mode
+            if opts.filter.is_some() {
+                return Ok(filter(&ctx, &bin_options, &opts, rx_item)?);
+            }
+            Skim::run_with(&opts, rx_item)
+        }
     }) else {
         return Ok(135);
     };

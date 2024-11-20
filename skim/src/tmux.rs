@@ -1,7 +1,7 @@
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, io::IsTerminal as _, sync::Arc, thread};
 
 use rand::{distributions::Alphanumeric, Rng};
-use tmux_interface::Tmux;
+use tmux_interface::{StdIO, Tmux};
 use tuikit::key::Key;
 
 use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};
@@ -87,16 +87,28 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             .collect::<String>(),
     );
     let temp_dir = std::env::temp_dir().join(&temp_dir_name);
-    std::fs::create_dir(&temp_dir).unwrap_or_else(|_| panic!("Failed to create temp dir {}", temp_dir.display()));
+    std::fs::create_dir(&temp_dir)
+        .unwrap_or_else(|e| panic!("Failed to create temp dir {}: {}", temp_dir.display(), e.to_string()));
 
+    debug!("Created temp dir {}", temp_dir.display());
     let tmp_stdout = temp_dir.join("stdout");
-    let tmp_stderr = temp_dir.join("stderr");
+    let tmp_stdin = temp_dir.join("stdin");
+
+    let stdin_handle = if !std::io::stdin().is_terminal() {
+        debug!("Reading stdin and piping to file");
+        Some(thread::spawn(move || {
+            let mut stdin_writer = std::fs::File::create(tmp_stdin).unwrap();
+            std::io::copy(&mut std::io::stdin(), &mut stdin_writer).unwrap();
+        }))
+    } else {
+        None
+    };
 
     // Build args to send to downstream sk invocation
     let mut tmux_shell_cmd = String::new();
     let mut prev_is_tmux_flag = false;
     for arg in std::env::args() {
-        debug!("[tmux] Got arg {}", arg);
+        debug!("Got arg {}", arg);
         if prev_is_tmux_flag {
             prev_is_tmux_flag = false;
             if !arg.starts_with("-") {
@@ -104,16 +116,19 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             }
         }
         if arg == "--tmux" {
-            debug!("[tmux] Found tmux arg, skipping this and the next");
+            debug!("Found tmux arg, skipping this and the next");
             prev_is_tmux_flag = true;
             continue;
         } else if arg.starts_with("--tmux") {
-            debug!("[tmux] Found equal tmux arg, skipping");
+            debug!("Found equal tmux arg, skipping");
             continue;
         }
         tmux_shell_cmd.push_str(&format!(" {arg}"));
     }
-    tmux_shell_cmd.push_str(&format!(" >{} 2>{}", tmp_stdout.display(), tmp_stderr.display()));
+    let tmp_stdin = temp_dir.join("stdin");
+    tmux_shell_cmd.push_str(&format!(" <{} >{}", tmp_stdin.display(), tmp_stdout.display(),));
+
+    debug!("build cmd {}", &tmux_shell_cmd);
 
     // Run downstream sk in tmux
     let raw_tmux_opts = &opts.tmux.clone().unwrap();
@@ -128,10 +143,15 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .push_param(tmux_shell_cmd)
         .to_owned();
 
-    let status = Tmux::with_command(tmux_cmd)
-        .output()
-        .expect("Failed to run command in popup")
-        .status();
+    let out = Tmux::with_command(tmux_cmd).stdin(Some(StdIO::Inherit)).output();
+
+    debug!("Tmux returned {:?}", out);
+
+    let status = out.expect("Failed to run command in popup").status();
+
+    if let Some(h) = stdin_handle {
+        h.join().unwrap_or(());
+    }
 
     let output_ending = if opts.print0 { "\0" } else { "\n" };
     let stdout_bytes = std::fs::read_to_string(tmp_stdout).unwrap_or_default();
