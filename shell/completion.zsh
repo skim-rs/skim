@@ -57,7 +57,7 @@ _sk() {
 '--pre-select-file=[Pre-select the items read from this file]:PRE_SELECT_FILE:_default' \
 '-f+[Query for filter mode]:FILTER:_default' \
 '--filter=[Query for filter mode]:FILTER:_default' \
-'--tmux=[Reserved for later use]' \
+'--tmux=[Run in a tmux popup]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
 '--tac[Show results in reverse order]' \
