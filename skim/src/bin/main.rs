@@ -119,10 +119,12 @@ fn sk_main() -> Result<i32, SkMainError> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = Skim::run_with(&opts, rx_item) else {
-        return Ok(0);
+    let Some(result) = (match opts.tmux {
+        Some(_) => crate::tmux::run_with(&opts),
+        None => Skim::run_with(&opts, rx_item),
+    }) else {
+        return Ok(135);
     };
-
     if result.is_abort {
         return Ok(130);
     }

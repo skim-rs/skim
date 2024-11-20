@@ -43,6 +43,8 @@ crossbeam = "0.8.2"
 beef = "0.5.2" # compact cow
 defer-drop = "1.3.0"
 indexmap = "2.6.0"
+rand = "0.8.5"
+tmux_interface = "0.3.2"
 
 [features]
 default = ["cli"]

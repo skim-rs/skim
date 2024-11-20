@@ -633,8 +633,6 @@ pub struct SkimOptions {
     #[arg(long, short, help_heading = "Scripting")]
     pub filter: Option<String>,
 
-    /// Reserved for later use
-    ///
     /// Run in a tmux popup
     ///
     /// Format: sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
