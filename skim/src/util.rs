@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 use std::cmp::{max, min};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
 use std::str::FromStr;
 
@@ -406,6 +408,13 @@ pub fn atoi<T: FromStr>(string: &str) -> Option<T> {
     RE_NUMBER.find(string).and_then(|mat| mat.as_str().parse::<T>().ok())
 }
 
+pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
+    let file = File::open(filename)?;
+    let ret = BufReader::new(file).lines().collect();
+    debug!("file content: {:?}", ret);
+    ret
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -478,7 +487,7 @@ mod tests {
     fn test_atoi() {
         assert_eq!(None, atoi::<usize>(""));
         assert_eq!(Some(1), atoi::<usize>("1"));
-        assert_eq!(Some(8589934592), atoi::<usize>("8589934592"));
+        assert_eq!(Some(usize::MAX), atoi::<usize>(&format!("{}", usize::MAX)));
         assert_eq!(Some(1), atoi::<usize>("a1"));
         assert_eq!(Some(1), atoi::<usize>("1b"));
         assert_eq!(Some(1), atoi::<usize>("a1b"));

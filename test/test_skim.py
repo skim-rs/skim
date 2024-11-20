@@ -683,17 +683,16 @@ class TestSkim(TestBase):
     def test_reserved_options(self):
         options = [
             '--extended',
-            '--algo=TYPE',
             '--literal',
             '--no-mouse',
             '--cycle',
-            '--hscroll-off=COL',
+            '--hscroll-off=10',
             '--filepath-word',
             '--jump-labels=CHARS',
             '--border',
             '--inline-info',
             '--header=STR',
-            '--header-lines=N',
+            '--header-lines=1',
             '--no-bold',
             '--history-size=10',
             '--sync',
@@ -714,7 +713,7 @@ class TestSkim(TestBase):
         options = [
             '--bind=ctrl-a:cancel --bind ctrl-b:cancel',
             '--expect=ctrl-a --expect=ctrl-v',
-            '--tiebreak=index --tiebreak=score',
+            '--tiebreak=begin --tiebreak=score',
             '--cmd asdf --cmd find',
             '--query asdf -q xyz',
             '--delimiter , --delimiter . -d ,',

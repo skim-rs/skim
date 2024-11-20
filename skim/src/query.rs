@@ -7,7 +7,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::options::SkimOptions;
 use crate::theme::{ColorTheme, DEFAULT_THEME};
-use crate::util::clear_canvas;
+use crate::util::{clear_canvas, read_file_lines};
 
 #[derive(Clone, Copy, PartialEq)]
 enum QueryMode {
@@ -104,36 +104,37 @@ impl Query {
     fn parse_options(&mut self, options: &SkimOptions) {
         // some options accept multiple values, thus take the last one
 
-        if let Some(base_cmd) = options.cmd {
+        if let Some(base_cmd) = &options.cmd {
             self.base_cmd = base_cmd.to_string();
         }
 
-        if let Some(query) = options.query {
+        if let Some(query) = &options.query {
             self.fz_query_before = query.chars().collect();
         }
 
-        if let Some(cmd_query) = options.cmd_query {
+        if let Some(cmd_query) = &options.cmd_query {
             self.cmd_before = cmd_query.chars().collect();
-        }
-
-        if let Some(replstr) = options.replstr {
-            self.replstr = replstr.to_string();
         }
 
         if options.interactive {
             self.mode = QueryMode::Cmd;
         }
 
-        if let Some(query_prompt) = options.prompt {
-            self.query_prompt = query_prompt.to_string();
+        self.query_prompt = options.prompt.clone();
+
+        self.cmd_prompt = options.cmd_prompt.clone();
+
+        self.replstr = options.replstr.clone();
+
+        if let Some(history_file) = &options.history {
+            self.fz_query_history_before =
+                read_file_lines(history_file).expect(&format!("Failed to open history file {}", history_file));
         }
 
-        if let Some(cmd_prompt) = options.cmd_prompt {
-            self.cmd_prompt = cmd_prompt.to_string();
+        if let Some(cmd_history_file) = &options.cmd_history {
+            self.cmd_history_before = read_file_lines(cmd_history_file)
+                .expect(&format!("Failed to open command history file {}", cmd_history_file));
         }
-
-        self.fz_query_history_before = options.query_history.to_vec();
-        self.cmd_history_before = options.cmd_history.to_vec();
     }
 
     pub fn in_query_mode(&self) -> bool {

@@ -10,6 +10,7 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 
+use clap::ValueEnum;
 use crossbeam::channel::{Receiver, Sender};
 use tuikit::prelude::{Event as TermEvent, *};
 
@@ -22,6 +23,7 @@ pub use crate::output::SkimOutput;
 use crate::reader::Reader;
 
 mod ansi;
+pub mod context;
 mod engine;
 mod event;
 pub mod field;
@@ -38,7 +40,7 @@ mod output;
 pub mod prelude;
 mod previewer;
 mod query;
-mod reader;
+pub mod reader;
 mod selection;
 mod spinlock;
 mod theme;
@@ -219,7 +221,8 @@ pub enum ItemPreview {
 //==============================================================================
 // A match engine will execute the matching algorithm
 
-#[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
+#[derive(ValueEnum, Eq, PartialEq, Debug, Copy, Clone, Default)]
+#[clap(rename_all = "snake_case")]
 pub enum CaseMatching {
     Respect,
     Ignore,
@@ -291,14 +294,8 @@ impl Skim {
     /// - None: on internal errors.
     /// - SkimOutput: the collected key, event, query, selected items, etc.
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
-        let min_height = options
-            .min_height
-            .map(Skim::parse_height_string)
-            .expect("min_height should have default values");
-        let height = options
-            .height
-            .map(Skim::parse_height_string)
-            .expect("height should have default values");
+        let min_height = Skim::parse_height_string(&options.min_height);
+        let height = Skim::parse_height_string(&options.height);
 
         let (tx, rx): (EventSender, EventReceiver) = channel();
         let term = Arc::new(
@@ -309,7 +306,7 @@ impl Skim {
                     .clear_on_exit(!options.no_clear)
                     .disable_alternate_screen(options.no_clear_start)
                     .clear_on_start(!options.no_clear_start)
-                    .hold(options.select1 || options.exit0 || options.sync),
+                    .hold(options.select_1 || options.exit_0 || options.sync),
             )
             .unwrap(),
         );
@@ -320,8 +317,8 @@ impl Skim {
         //------------------------------------------------------------------------------
         // input
         let mut input = input::Input::new();
-        input.parse_keymaps(&options.bind);
-        input.parse_expect_keys(options.expect.as_deref());
+        input.parse_keymaps(options.bind.iter().map(|s| s.as_str()));
+        input.parse_expect_keys(options.expect.iter().map(|s| s.as_str()));
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
