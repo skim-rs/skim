@@ -94,11 +94,21 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let tmp_stdout = temp_dir.join("stdout");
     let tmp_stdin = temp_dir.join("stdin");
 
-    let stdin_handle = if !std::io::stdin().is_terminal() {
+    let has_piped_input = !std::io::stdin().is_terminal();
+
+    let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
+
+        let mut stdin_writer = std::fs::File::create(tmp_stdin.clone()).unwrap_or_else(|e| {
+            panic!(
+                "Failed to create stdin file {}: {}",
+                tmp_stdin.clone().display(),
+                e.to_string()
+            )
+        });
         Some(thread::spawn(move || {
-            let mut stdin_writer = std::fs::File::create(tmp_stdin).unwrap();
-            std::io::copy(&mut std::io::stdin(), &mut stdin_writer).unwrap();
+            std::io::copy(&mut std::io::stdin(), &mut stdin_writer)
+                .unwrap_or_else(|e| panic!("Failed to copy stdin to file: {}", e.to_string()));
         }))
     } else {
         None
@@ -125,8 +135,10 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         }
         tmux_shell_cmd.push_str(&format!(" {arg}"));
     }
-    let tmp_stdin = temp_dir.join("stdin");
-    tmux_shell_cmd.push_str(&format!(" <{} >{}", tmp_stdin.display(), tmp_stdout.display(),));
+    if has_piped_input {
+        tmux_shell_cmd.push_str(&format!(" <{}", tmp_stdin.display()));
+    }
+    tmux_shell_cmd.push_str(&format!(" >{}", tmp_stdout.display()));
 
     debug!("build cmd {}", &tmux_shell_cmd);
 
