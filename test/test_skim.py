@@ -227,7 +227,6 @@ class Tmux(object):
     def until(self, predicate, refresh=False, pane=0, debug_info=None):
         def wait_callback():
             lines = self.capture()
-            print("[until]", lines)
             pred = predicate(lines)
             if pred:
                 self.send_keys(Ctrl('l') if refresh else None)
