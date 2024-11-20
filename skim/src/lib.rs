@@ -44,8 +44,8 @@ pub mod reader;
 mod selection;
 mod spinlock;
 mod theme;
-mod util;
 pub mod tmux;
+mod util;
 
 //------------------------------------------------------------------------------
 pub trait AsAny {

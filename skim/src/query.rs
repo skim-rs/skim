@@ -127,13 +127,13 @@ impl Query {
         self.replstr = options.replstr.clone();
 
         if let Some(history_file) = &options.history {
-            self.fz_query_history_before =
-                read_file_lines(history_file).expect(&format!("Failed to open history file {}", history_file));
+            self.fz_query_history_before = read_file_lines(history_file)
+                .unwrap_or_else(|_| panic!("Failed to open history file {}", history_file));
         }
 
         if let Some(cmd_history_file) = &options.cmd_history {
             self.cmd_history_before = read_file_lines(cmd_history_file)
-                .expect(&format!("Failed to open command history file {}", cmd_history_file));
+                .unwrap_or_else(|_| panic!("Failed to open command history file {}", cmd_history_file));
         }
     }
 
