@@ -13,3 +13,4 @@
 /bin/*
 .idea/
 .ropeproject/
+test/__pycache__

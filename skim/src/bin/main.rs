@@ -9,9 +9,8 @@ use self::context::SkimContext;
 use self::reader::CommandCollector;
 use clap::{Error, Parser};
 use derive_builder::Builder;
-use log::debug;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, IsTerminal, Read as _, Write};
+use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};
 
 use skim::prelude::*;

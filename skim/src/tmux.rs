@@ -1,9 +1,8 @@
 use std::{
     borrow::Cow,
-    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Read as _, Write as _},
+    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     sync::Arc,
     thread,
-    time::Duration,
 };
 
 use rand::{distributions::Alphanumeric, Rng};
@@ -94,7 +93,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     );
     let temp_dir = std::env::temp_dir().join(&temp_dir_name);
     std::fs::create_dir(&temp_dir)
-        .unwrap_or_else(|e| panic!("Failed to create temp dir {}: {}", temp_dir.display(), e.to_string()));
+        .unwrap_or_else(|e| panic!("Failed to create temp dir {}: {}", temp_dir.display(), e));
 
     debug!("Created temp dir {}", temp_dir.display());
     let tmp_stdout = temp_dir.join("stdout");
@@ -111,7 +110,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             panic!(
                 "Failed to create stdin file {}: {}",
                 tmp_stdin.clone().display(),
-                e.to_string()
+                e
             )
         });
         let mut stdin_writer = BufWriter::new(stdin_f);
@@ -121,7 +120,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                 Ok(0) => break,
                 Ok(n) => {
                     debug!("Read {n} bytes from stdin");
-                    stdin_writer.write(&buf).unwrap();
+                    stdin_writer.write_all(&buf).unwrap();
                 }
                 Err(e) => panic!("Failed to read from stdin: {}", e),
             }
@@ -172,6 +171,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .to_owned();
 
     let out = Tmux::with_command(tmux_cmd).stdin(Some(StdIO::Inherit)).output();
+
+    let _ = std::fs::remove_dir_all(temp_dir);
 
     debug!("Tmux returned {:?}", out);
 
