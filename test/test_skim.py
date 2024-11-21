@@ -1230,8 +1230,8 @@ class TestSkim(TestBase):
         with open('/tmp/sk-test-mock/stdout', 'r') as f:
             tmux_cmd = f.readlines()[-1].strip()
 
-        assert tmux_cmd.startswith("popup")
-        assert "</tmp/sk-tmux-" in tmux_cmd
+        self.assertTrue(tmux_cmd.startswith("popup"))
+        self.assertIn("</tmp/sk-tmux-", tmux_cmd)
 
     def test_tmux_vanilla(self):
         args = '--tmux'
@@ -1240,8 +1240,8 @@ class TestSkim(TestBase):
         with open('/tmp/sk-test-mock/stdout', 'r') as f:
             tmux_cmd = f.readlines()[-1].strip()
 
-        assert tmux_cmd.startswith("popup")
-        assert not "</tmp/sk-tmux-" in tmux_cmd
+        self.assertTrue(tmux_cmd.startswith("popup"))
+        self.assertNotIn("</tmp/sk-tmux-", tmux_cmd)
 
 
 def find_prompt(lines, interactive=False, reverse=False):
