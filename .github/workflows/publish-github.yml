@@ -9,6 +9,8 @@ jobs:
   create-release:
     name: Create Github Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - name: Create artifacts directory
       run: mkdir artifacts
