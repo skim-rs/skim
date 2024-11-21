@@ -1,4 +1,10 @@
-use std::{borrow::Cow, io::IsTerminal as _, sync::Arc, thread};
+use std::{
+    borrow::Cow,
+    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Read as _, Write as _},
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 
 use rand::{distributions::Alphanumeric, Rng};
 use tmux_interface::{StdIO, Tmux};
@@ -95,20 +101,30 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let tmp_stdin = temp_dir.join("stdin");
 
     let has_piped_input = !std::io::stdin().is_terminal();
+    let mut stdin_reader = BufReader::new(std::io::stdin());
+    let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
     let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
 
-        let mut stdin_writer = std::fs::File::create(tmp_stdin.clone()).unwrap_or_else(|e| {
+        let stdin_f = std::fs::File::create(tmp_stdin.clone()).unwrap_or_else(|e| {
             panic!(
                 "Failed to create stdin file {}: {}",
                 tmp_stdin.clone().display(),
                 e.to_string()
             )
         });
-        Some(thread::spawn(move || {
-            std::io::copy(&mut std::io::stdin(), &mut stdin_writer)
-                .unwrap_or_else(|e| panic!("Failed to copy stdin to file: {}", e.to_string()));
+        let mut stdin_writer = BufWriter::new(stdin_f);
+        Some(thread::spawn(move || loop {
+            let mut buf = vec![];
+            match stdin_reader.read_until(line_ending, &mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    debug!("Read {n} bytes from stdin");
+                    stdin_writer.write(&buf).unwrap();
+                }
+                Err(e) => panic!("Failed to read from stdin: {}", e),
+            }
         }))
     } else {
         None
