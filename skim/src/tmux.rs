@@ -11,7 +11,7 @@ use tuikit::key::Key;
 
 use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum TmuxWindowDir {
     Center,
     Top,
@@ -34,7 +34,7 @@ impl From<&str> for TmuxWindowDir {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TmuxOptions<'a> {
     pub width: &'a str,
     pub height: &'a str,
@@ -224,4 +224,65 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         selected_items,
     };
     Some(skim_output)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check(input: &str, height: &str, width: &str, x: &str, y: &str) {
+        assert_eq!(
+            TmuxOptions::from(&String::from(input)),
+            TmuxOptions { height, width, x, y }
+        )
+    }
+
+    #[test]
+    fn tmux_options_default() {
+        check("", "50%", "50%", "C", "C");
+    }
+    #[test]
+    fn tmux_options_center() {
+        let (x, y) = ("C", "C");
+        check("center", "50%", "50%", x, y);
+        check("center,10", "10", "10", x, y);
+        check("center,10,20", "20", "10", x, y);
+        check("center,10%,20", "20", "10%", x, y);
+        check("center,10%,20%", "20%", "10%", x, y);
+    }
+    #[test]
+    fn tmux_options_top() {
+        let (x, y) = ("C", "0%");
+        check("top", "50%", "100%", x, y);
+        check("top,10", "10", "100%", x, y);
+        check("top,10,20", "10", "20", x, y);
+        check("top,10%,20", "10%", "20", x, y);
+        check("top,10%,20%", "10%", "20%", x, y);
+    }
+    #[test]
+    fn tmux_options_bottom() {
+        let (x, y) = ("C", "100%");
+        check("bottom", "50%", "100%", x, y);
+        check("bottom,10", "10", "100%", x, y);
+        check("bottom,10,20", "10", "20", x, y);
+        check("bottom,10%,20", "10%", "20", x, y);
+        check("bottom,10%,20%", "10%", "20%", x, y);
+    }
+    #[test]
+    fn tmux_options_left() {
+        let (x, y) = ("0%", "C");
+        check("left", "100%", "50%", x, y);
+        check("left,10", "100%", "10", x, y);
+        check("left,10,20", "20", "10", x, y);
+        check("left,10%,20", "20", "10%", x, y);
+        check("left,10%,20%", "20%", "10%", x, y);
+    }
+    #[test]
+    fn tmux_options_right() {
+        let (x, y) = ("100%", "C");
+        check("right", "100%", "50%", x, y);
+        check("right,10", "100%", "10", x, y);
+        check("right,10,20", "20", "10", x, y);
+        check("right,10%,20", "20", "10%", x, y);
+        check("right,10%,20%", "20%", "10%", x, y);
+    }
 }
