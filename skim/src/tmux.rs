@@ -106,13 +106,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
 
-        let stdin_f = std::fs::File::create(tmp_stdin.clone()).unwrap_or_else(|e| {
-            panic!(
-                "Failed to create stdin file {}: {}",
-                tmp_stdin.clone().display(),
-                e
-            )
-        });
+        let stdin_f = std::fs::File::create(tmp_stdin.clone())
+            .unwrap_or_else(|e| panic!("Failed to create stdin file {}: {}", tmp_stdin.clone().display(), e));
         let mut stdin_writer = BufWriter::new(stdin_f);
         Some(thread::spawn(move || loop {
             let mut buf = vec![];
