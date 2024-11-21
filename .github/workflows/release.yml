@@ -27,7 +27,7 @@ jobs:
       with:
         command: check
     - name: Publish to crates.io
-      run: cargo publish -p sk-skimmer
+      run: cargo publish -p skim
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
   build:
