@@ -244,6 +244,7 @@ pub struct SkimOptions {
     ///     preview-page-down
     ///     preview-page-up
     ///     previous-history      (ctrl-p on --history or --cmd-history)
+    ///     reload(...)
     ///     select-all
     ///     toggle
     ///     toggle-all
@@ -263,10 +264,11 @@ pub struct SkimOptions {
     ///
     ///     sk --bind 'ctrl-a:select-all+accept'
     ///
-    /// With  execute(...)  action,  you can execute arbitrary commands without leaving sk. For example,
+    /// With execute(...) and reload(...) action, you can execute arbitrary commands without leaving sk. For example,
     /// you can turn sk into a simple file browser by binding enter key to less command like follows.
     ///
     ///     sk --bind "enter:execute(less {})"
+    /// Note: if no argument is supplied to reload, the default command is run.
     ///
     /// You can use the same placeholder expressions as in --preview.
     ///
