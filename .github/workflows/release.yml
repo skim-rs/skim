@@ -120,6 +120,7 @@ jobs:
       with:
         token: ${{ github.token }}
         tag: ${{ github.ref_name }}
+        fromTag: "v0.10.4"
     - name: Create Release
       uses: ncipollo/release-action@v1.12.0
       with:
