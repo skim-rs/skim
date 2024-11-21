@@ -1231,7 +1231,7 @@ class TestSkim(TestBase):
             tmux_cmd = f.readlines()[-1].strip()
 
         self.assertTrue(tmux_cmd.startswith("popup"))
-        self.assertIn("</tmp/sk-tmux-", tmux_cmd)
+        self.assertRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
 
     def test_tmux_vanilla(self):
         args = '--tmux'
@@ -1241,7 +1241,7 @@ class TestSkim(TestBase):
             tmux_cmd = f.readlines()[-1].strip()
 
         self.assertTrue(tmux_cmd.startswith("popup"))
-        self.assertNotIn("</tmp/sk-tmux-", tmux_cmd)
+        self.assertNotRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
 
 
 def find_prompt(lines, interactive=False, reverse=False):
