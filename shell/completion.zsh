@@ -15,8 +15,8 @@ _sk() {
 
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
-'*-t+[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length)' \
-'*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length)' \
+'*-t+[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
+'*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
 '*-n+[Fields to be matched]:NTH:_default' \
 '*--nth=[Fields to be matched]:NTH:_default' \
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
@@ -104,6 +104,8 @@ _sk() {
 '--phony[Reserved for later use]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
+'-V[Print version]' \
+'--version[Print version]' \
 && ret=0
 }
 
