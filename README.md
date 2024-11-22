@@ -396,8 +396,8 @@ Trait `SkimItem` is provided to customize how a line could be displayed,
 compared and previewed. It is implemented by default for `AsRef<str>`
 
 Plus, `SkimItemReader` is a helper to convert a `BufRead` into
-`SkimItemReceiver` (we can easily turn a `File` for `String` into `BufRead`).
-So that you could deal with strings or files easily.
+`SkimItemReceiver` (we can easily turn a `File` or `String` into `BufRead`),
+so that you could deal with strings or files easily.
 
 Check out more examples under the [examples/](https://github.com/lotabout/skim/tree/master/skim/examples) directory.
 
