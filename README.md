@@ -399,7 +399,7 @@ Plus, `SkimItemReader` is a helper to convert a `BufRead` into
 `SkimItemReceiver` (we can easily turn a `File` or `String` into `BufRead`),
 so that you could deal with strings or files easily.
 
-Check out more examples under the [examples/](https://github.com/lotabout/skim/tree/master/skim/examples) directory.
+Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
 
 # FAQ
 
