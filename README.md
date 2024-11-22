@@ -6,7 +6,7 @@
     <img src="https://github.com/lotabout/skim/workflows/Build%20&%20Test/badge.svg" alt="Build & Test" />
   </a>
   <a href="https://repology.org/project/skim/versions">
-    <img src="https://repology.org/badge/tiny-repos/skim.svg" alt="Packaging status" />
+    <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
   </a>
   <a href="https://discord.gg/23PuxttufP">
     <img alt="Skim Discord" src="https://img.shields.io/discord/1031830957432504361?label=&color=7389d8&labelColor=6a7ec2&logoColor=ffffff&logo=discord" />
