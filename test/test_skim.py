@@ -1226,6 +1226,11 @@ class TestSkim(TestBase):
         # revert option back
         self.tmux.send_keys(f"""set -o histexpand""", Key('Enter'))
 
+    def test_version(self):
+        self.tmux.send_keys(self.sk('--version'), Key('Enter'))
+        time.sleep(0.1)
+        self.assertRegex(self.readonce(), "^sk \\d+\\.\\d+\\.\\d+$")
+
 
 def find_prompt(lines, interactive=False, reverse=False):
     linen = -1
