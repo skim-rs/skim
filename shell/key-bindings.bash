@@ -29,7 +29,7 @@ if [[ $- =~ i ]]; then
 
 __skimcmd() {
   [ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; } &&
-    echo "sk-tmux ${SKIM_TMUX_OPTS:--d${SKIM_TMUX_HEIGHT:-40%}} -- " || echo "sk"
+    echo "sk --tmux=${SKIM_TMUX_OPTS:bottom,${SKIM_TMUX_HEIGHT:-40%}} -- " || echo "sk"
 }
 
 skim-file-widget() {

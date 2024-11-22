@@ -101,9 +101,9 @@ function skim_key_bindings
     test -n "$SKIM_TMUX"; or set SKIM_TMUX 0
     test -n "$SKIM_TMUX_HEIGHT"; or set SKIM_TMUX_HEIGHT 40%
     if [ -n "$SKIM_TMUX_OPTS" ]
-      echo "sk-tmux $SKIM_TMUX_OPTS -- "
+      echo "sk --tmux=$SKIM_TMUX_OPTS -- "
     else if [ $SKIM_TMUX -eq 1 ]
-      echo "sk-tmux -d$SKIM_TMUX_HEIGHT -- "
+      echo "sk --tmux=bottom,$SKIM_TMUX_HEIGHT -- "
     else
       echo "sk"
     end
