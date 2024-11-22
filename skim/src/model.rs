@@ -447,7 +447,11 @@ impl Model {
         let query_item = DefaultSkimItem::new(query, true, &[], &[], &self.delimiter, item_idx);
         let item: Arc<dyn SkimItem> = Arc::new(query_item);
         let new_len = self.item_pool.append(vec![item.clone()]);
-        trace!("appended and selected item with internal id {} and matched as id {}", item_idx, max(new_len, 1) - 1);
+        trace!(
+            "appended and selected item with internal id {} and matched as id {}",
+            item_idx,
+            max(new_len, 1) - 1
+        );
         let matched_item = MatchedItem {
             item,
             rank: self.rank_builder.build_rank(0, 0, 0, item_len, item_idx),

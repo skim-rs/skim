@@ -220,7 +220,9 @@ pub enum RankCriteria {
 impl ValueEnum for RankCriteria {
     fn value_variants<'a>() -> &'a [Self] {
         use RankCriteria::*;
-        &[Score, NegScore, Begin, NegBegin, End, NegEnd, Length, NegLength, Index, NegIndex]
+        &[
+            Score, NegScore, Begin, NegBegin, End, NegEnd, Length, NegLength, Index, NegIndex,
+        ]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {

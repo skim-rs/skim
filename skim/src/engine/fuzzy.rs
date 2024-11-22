@@ -142,7 +142,9 @@ impl MatchEngine for FuzzyEngine {
 
         let item_len = item_text.len();
         Some(MatchResult {
-            rank: self.rank_builder.build_rank(score as i32, begin, end, item_len, item.get_index()),
+            rank: self
+                .rank_builder
+                .build_rank(score as i32, begin, end, item_len, item.get_index()),
             matched_range: MatchRange::Chars(matched_range),
         })
     }

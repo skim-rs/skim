@@ -281,7 +281,7 @@ impl SkimItemReader {
                             &option.transform_fields,
                             &option.matching_fields,
                             &option.delimiter,
-                            line_idx
+                            line_idx,
                         );
 
                         match tx_item.send(Arc::new(raw_item)) {

@@ -7,7 +7,7 @@ use skim::prelude::*;
 #[derive(Debug, Clone)]
 struct Item {
     text: String,
-    index: usize
+    index: usize,
 }
 
 impl SkimItem for Item {
@@ -38,9 +38,21 @@ pub fn main() {
 
     let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
 
-    tx.send(Arc::new(Item { text: "a".to_string(), index: 0 })).unwrap();
-    tx.send(Arc::new(Item { text: "b".to_string(), index: 1 })).unwrap();
-    tx.send(Arc::new(Item { text: "c".to_string(), index: 2 })).unwrap();
+    tx.send(Arc::new(Item {
+        text: "a".to_string(),
+        index: 0,
+    }))
+    .unwrap();
+    tx.send(Arc::new(Item {
+        text: "b".to_string(),
+        index: 1,
+    }))
+    .unwrap();
+    tx.send(Arc::new(Item {
+        text: "c".to_string(),
+        index: 2,
+    }))
+    .unwrap();
 
     drop(tx);
 
