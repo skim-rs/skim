@@ -967,12 +967,17 @@ class TestSkim(TestBase):
 
         self.tmux.send_keys('d')
         self.tmux.until(lambda lines: lines[-1].startswith('> cd'))
+        open_lines = self.tmux.capture()
         self.tmux.send_keys(Key('Enter'))
+        self.tmux.until(lambda lines: lines != open_lines)
 
-        self.tmux.send_keys(
-            f'[[ "$(echo -n $(cat {history_file}))" == "a b c cd" ]] && echo ok')
-        self.tmux.send_keys(Key('Enter'))
-        self.tmux.until(lambda lines: lines[-1].startswith('ok'))
+        with open(history_file, 'r') as f:
+            lines = f.readlines()
+            assert len(lines) == 4
+            assert lines[0].strip() == "a"
+            assert lines[1].strip() == "b"
+            assert lines[2].strip() == "c"
+            assert lines[3].strip() == "cd"
 
     def test_cmd_history(self):
         """query history should work"""
@@ -1005,12 +1010,18 @@ class TestSkim(TestBase):
 
         self.tmux.send_keys('d')
         self.tmux.until(lambda lines: lines[-1].startswith('c> cd'))
+        open_lines = self.tmux.capture()
         self.tmux.send_keys(Key('Enter'))
 
-        self.tmux.send_keys(
-            f'[[ "$(echo -n $(cat {history_file}))" == "a b c cd" ]] && echo ok')
-        self.tmux.send_keys(Key('Enter'))
-        self.tmux.until(lambda lines: lines[-1].startswith('ok'))
+        self.tmux.until(lambda lines: lines != open_lines)
+
+        with open(history_file, 'r') as f:
+            lines = f.readlines()
+            assert len(lines) == 4
+            assert lines[0].strip() == "a"
+            assert lines[1].strip() == "b"
+            assert lines[2].strip() == "c"
+            assert lines[3].strip() == "cd"
 
     def test_execute_with_zero_result_ref(self):
         """execute should not panic with zero results #276"""
@@ -1047,9 +1058,9 @@ class TestSkim(TestBase):
     def test_nul_in_execute(self):
         """NUL should work in preview command see #278"""
         self.tmux.send_keys(
-            f"""echo -ne 'a\\0b' | {self.sk("--preview='echo -en {} | xxd'")}""", Key('Enter'))
+            f"""echo -ne 'a\\0b' | {self.sk("--preview='echo -en {} | hexdump -C'")}""", Key('Enter'))
         self.tmux.until(lambda lines: lines.ready_with_lines(1))
-        self.tmux.until(lambda lines: lines.any_include('6100 62'))
+        self.tmux.until(lambda lines: lines.any_include('61 00 62'))
 
     def test_skip_to_pattern(self):
         self.tmux.send_keys(
@@ -1242,6 +1253,11 @@ class TestSkim(TestBase):
 
         self.assertTrue(tmux_cmd.startswith("popup"))
         self.assertNotRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
+
+    def test_version(self):
+        self.tmux.send_keys(self.sk('--version'), Key('Enter'))
+        time.sleep(0.1)
+        self.assertRegex(self.readonce(), "^sk \\d+\\.\\d+\\.\\d+$")
 
 
 def find_prompt(lines, interactive=False, reverse=False):

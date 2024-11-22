@@ -2,11 +2,11 @@
   <a href="https://crates.io/crates/skim">
     <img src="https://img.shields.io/crates/v/skim.svg" alt="Crates.io" />
   </a>
-  <a href="https://github.com/lotabout/skim/actions?query=workflow%3A%22Build+%26+Test%22">
-    <img src="https://github.com/lotabout/skim/workflows/Build%20&%20Test/badge.svg" alt="Build & Test" />
+  <a href="https://github.com/skim-rs/skim/actions?query=workflow%3A%22Build+%26+Test%22+event%3Apush">
+    <img src="https://github.com/skim-rs/skim/actions/workflows/ci.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
-  <a href="https://repology.org/project/skim/versions">
-    <img src="https://repology.org/badge/tiny-repos/skim.svg" alt="Packaging status" />
+  <a href="https://repology.org/project/skim-fuzzy-finder/versions">
+    <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
   </a>
   <a href="https://discord.gg/23PuxttufP">
     <img alt="Skim Discord" src="https://img.shields.io/discord/1031830957432504361?label=&color=7389d8&labelColor=6a7ec2&logoColor=ffffff&logo=discord" />
@@ -78,7 +78,7 @@ See [repology](https://repology.org/project/skim/versions) for a comprehensive o
 Via vim-plug (recommended):
 
 ```vim
-Plug 'lotabout/skim', { 'dir': '~/.skim', 'do': './install' }
+Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
 ```
 
 ## Hard Core
@@ -87,14 +87,14 @@ Any of the following applies:
 
 - Using Git
     ```sh
-    $ git clone --depth 1 git@github.com:lotabout/skim.git ~/.skim
+    $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ ~/.skim/install
     ```
-- Using Binary: directly [download the sk executable](https://github.com/lotabout/skim/releases).
+- Using Binary: directly [download the sk executable](https://github.com/skim-rs/skim/releases).
 - Install from [crates.io](https://crates.io/): `cargo install skim`
 - Build Manually
     ```sh
-    $ git clone --depth 1 git@github.com:lotabout/skim.git ~/.skim
+    $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ cd ~/.skim
     $ cargo install
     $ cargo build --release
@@ -156,7 +156,7 @@ Some commonly used key bindings:
 | Shift-TAB         | Toggle selection and move up (with `-m`)   |
 
 For full list of key bindings, check out the [man
-page](https://github.com/lotabout/skim/blob/master/man/man1/sk.1) (`man sk`).
+page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 
 ## Search Syntax
 
@@ -420,7 +420,7 @@ You could put it in your `.bashrc` or `.zshrc` if you like it to be default.
 If you use the Vim plugin and execute the `:SK` command, you might find some
 of your files not shown.
 
-As described in [#3](https://github.com/lotabout/skim/issues/3), in the Vim
+As described in [#3](https://github.com/skim-rs/skim/issues/3), in the Vim
 plugin, `SKIM_DEFAULT_COMMAND` is set to the command by default:
 
 ```vim
@@ -434,7 +434,7 @@ yourself.
 # Differences to fzf
 
 [fzf](https://github.com/junegunn/fzf) is a command-line fuzzy finder written
-in Go and [skim](https://github.com/lotabout/skim) tries to implement a new one
+in Go and [skim](https://github.com/skim-rs/skim) tries to implement a new one
 in Rust!
 
 This project is written from scratch. Some decisions of implementation are
@@ -450,7 +450,7 @@ different from fzf. For example:
 
 # How to contribute
 
-[Create new issues](https://github.com/lotabout/skim/issues/new) if you meet any bugs
+[Create new issues](https://github.com/skim-rs/skim/issues/new) if you meet any bugs
 or have any ideas. Pull requests are warmly welcomed.
 
 # Troubleshooting
@@ -466,8 +466,8 @@ $ for n in {1..10}; do echo "$n"; done | sk
 
 For example
 
-- https://github.com/lotabout/skim/issues/412
-- https://github.com/lotabout/skim/issues/455
+- https://github.com/skim-rs/skim/issues/412
+- https://github.com/skim-rs/skim/issues/455
 
 You need to set TERMINFO or TERMINFO_DIRS to the path to a correct terminfo database path
 
