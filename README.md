@@ -5,7 +5,7 @@
   <a href="https://github.com/lotabout/skim/actions?query=workflow%3A%22Build+%26+Test%22">
     <img src="https://github.com/lotabout/skim/workflows/Build%20&%20Test/badge.svg" alt="Build & Test" />
   </a>
-  <a href="https://repology.org/project/skim/versions">
+  <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
   </a>
   <a href="https://discord.gg/23PuxttufP">
