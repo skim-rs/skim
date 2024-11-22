@@ -71,7 +71,7 @@ impl MatchEngine for RegexEngine {
         let item_len = item_text.len();
 
         Some(MatchResult {
-            rank: self.rank_builder.build_rank(score, begin, end, item_len),
+            rank: self.rank_builder.build_rank(score, begin, end, item_len, item.get_index()),
             matched_range: MatchRange::ByteRange(begin, end),
         })
     }

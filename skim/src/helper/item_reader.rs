@@ -256,16 +256,14 @@ impl SkimItemReader {
             started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
             let mut buffer = Vec::with_capacity(option.buf_size);
+            let mut line_idx = 0;
             loop {
                 buffer.clear();
 
                 // start reading
                 match source.read_until(option.line_ending, &mut buffer) {
-                    Ok(n) => {
-                        if n == 0 {
-                            break;
-                        }
-
+                    Ok(0) => break,
+                    Ok(_) => {
                         if buffer.ends_with(b"\r\n") {
                             buffer.pop();
                             buffer.pop();
@@ -275,12 +273,15 @@ impl SkimItemReader {
 
                         let line = String::from_utf8_lossy(&buffer).to_string();
 
+                        trace!("got item {} with index {} from command", line.clone(), line_idx);
+
                         let raw_item = DefaultSkimItem::new(
                             line,
                             option.use_ansi_color,
                             &option.transform_fields,
                             &option.matching_fields,
                             &option.delimiter,
+                            line_idx
                         );
 
                         match tx_item.send(Arc::new(raw_item)) {
@@ -290,6 +291,7 @@ impl SkimItemReader {
                                 break;
                             }
                         }
+                        line_idx += 1;
                     }
                     Err(_err) => {} // String not UTF8 or other error, skip.
                 }

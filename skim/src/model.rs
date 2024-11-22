@@ -15,8 +15,9 @@ use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, Rege
 use crate::event::{Event, EventHandler, EventReceiver, EventSender};
 use crate::global::current_run_num;
 use crate::header::Header;
+use crate::helper::item::DefaultSkimItem;
 use crate::input::parse_action_arg;
-use crate::item::{ItemPool, MatchedItem, RankBuilder, RankCriteria};
+use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::options::SkimOptions;
 use crate::output::SkimOutput;
@@ -40,8 +41,6 @@ const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', 
 lazy_static! {
     static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
     static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
-    static ref DEFAULT_CRITERION: Vec<RankCriteria> =
-        vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End,];
 }
 
 pub struct Model {
@@ -444,14 +443,16 @@ impl Model {
         }
 
         let item_len = query.len();
-        let item: Arc<dyn SkimItem> = Arc::new(query);
+        let item_idx = self.item_pool.len();
+        let query_item = DefaultSkimItem::new(query, true, &[], &[], &self.delimiter, item_idx);
+        let item: Arc<dyn SkimItem> = Arc::new(query_item);
         let new_len = self.item_pool.append(vec![item.clone()]);
-        let item_idx = (max(new_len, 1) - 1) as u32;
+        trace!("appended and selected item with internal id {} and matched as id {}", item_idx, max(new_len, 1) - 1);
         let matched_item = MatchedItem {
             item,
-            rank: self.rank_builder.build_rank(0, 0, 0, item_len),
+            rank: self.rank_builder.build_rank(0, 0, 0, item_len, item_idx),
             matched_range: Some(MatchRange::ByteRange(0, 0)),
-            item_idx,
+            item_idx: (max(new_len, 1) - 1) as u32,
         };
 
         self.selection.act_select_matched(current_run_num(), matched_item);

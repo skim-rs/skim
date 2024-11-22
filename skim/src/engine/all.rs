@@ -31,7 +31,7 @@ impl MatchEngine for MatchAllEngine {
     fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult> {
         let item_len = item.text().len();
         Some(MatchResult {
-            rank: self.rank_builder.build_rank(0, 0, 0, item_len),
+            rank: self.rank_builder.build_rank(0, 0, 0, item_len, item.get_index()),
             matched_range: MatchRange::ByteRange(0, 0),
         })
     }
