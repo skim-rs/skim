@@ -1231,7 +1231,7 @@ class TestSkim(TestBase):
         mock_bin = pathlib.Path(
             __file__).parent.resolve().joinpath('mock.sh').resolve()
         self.tmux.send_keys(
-            f'mkdir -p {bin_test_dir}; export PATH="{bin_test_dir}:$PATH"; cp {mock_bin} {bin_test_dir}/tmux; chmod +x {bin_test_dir}/*; rm -rf /tmp/sk-test-mock', Key('Enter'))
+            f'mkdir -p {bin_test_dir}; export PATH="{bin_test_dir}:$PATH"; cp {mock_bin} {bin_test_dir}/tmux; chmod +x {bin_test_dir}/*', Key('Enter'))
 
     def test_tmux_stdin(self):
         args = '--tmux'
