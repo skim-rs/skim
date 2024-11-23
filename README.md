@@ -16,12 +16,12 @@
 > Life is short, skim!
 
 Half of our life is spent on navigation: files, lines, commands… You need skim!
-It is a general fuzzy finder that saves you time.
+It's a general fuzzy finder that saves you time.
 
 [![skim demo](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm.svg)](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm)
 
-skim provides a single executable: `sk`. Basically anywhere you would want to use
-`grep`, try `sk` instead.
+skim provides a single executable: `sk`. Anywhere you would want to use
+`grep`, try `sk` instead!
 
 # Table of contents
 
@@ -55,7 +55,7 @@ The skim project contains several components:
 
 1. `sk` executable -- the core.
 2. `sk-tmux` -- script for launching `sk` in a tmux pane.
-3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. check [skim.vim](https://github.com/skim-rs/skim.vim) for more Vim support.
+3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
 
 ## Package Managers
 
@@ -70,7 +70,7 @@ The skim project contains several components:
 | Guix           | guix              | `guix install skim`       |
 | Void           | XBPS              | `xbps-install -S skim`      |
 
-See [repology](https://repology.org/project/skim/versions) for a comprehensive overview of package availability.
+See [repology](https://repology.org/project/skim-fuzzy-finder/versions) for a comprehensive overview of package availability.
 
 
 ## Install as Vim plugin
