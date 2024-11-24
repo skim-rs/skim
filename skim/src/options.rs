@@ -1,7 +1,13 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use clap::Parser;
 use derive_builder::Builder;
 
 use crate::item::RankCriteria;
+use crate::prelude::SkimItemReader;
+use crate::reader::CommandCollector;
+use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm};
 
 /// sk - fuzzy finder in Rust
@@ -469,8 +475,8 @@ pub struct SkimOptions {
     /// Load search history from the specified file and update the file on completion.
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
-    #[arg(long, help_heading = "History")]
-    pub history: Option<String>,
+    #[arg(long = "history", help_heading = "History")]
+    pub history_file: Option<String>,
 
     /// Maximum number of query history entries to keep
     #[arg(long, default_value = "1000", help_heading = "History")]
@@ -481,8 +487,8 @@ pub struct SkimOptions {
     /// Load command query history from the specified file and update the file on completion.
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
-    #[arg(long, help_heading = "History")]
-    pub cmd_history: Option<String>,
+    #[arg(long = "cmd-history", help_heading = "History")]
+    pub cmd_history_file: Option<String>,
 
     /// Maximum number of query history entries to keep
     #[arg(long, default_value = "1000", help_heading = "History")]
@@ -700,6 +706,13 @@ pub struct SkimOptions {
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
     pub phony: bool,
+
+    #[clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>)]
+    pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
+    #[clap(skip)]
+    pub query_history: Vec<String>,
+    #[clap(skip)]
+    pub cmd_history: Vec<String>,
 }
 
 impl Default for SkimOptions {
@@ -732,10 +745,21 @@ impl SkimOptions {
             self.layout = String::from("reverse");
         }
         let history_binds = String::from("ctrl-p:previous-history,ctrl-n:next-history");
-        if self.history.is_some() || self.cmd_history.is_some() {
+        if self.history_file.is_some() || self.cmd_history_file.is_some() {
+            self.init_histories();
             self.bind.push(history_binds);
         }
 
         self
+    }
+    pub fn init_histories(&mut self) {
+        if let Some(histfile) = &self.history_file {
+            self.query_history.extend(read_file_lines(histfile).unwrap_or_default());
+        }
+
+        if let Some(cmd_histfile) = &self.cmd_history_file {
+            self.cmd_history
+                .extend(read_file_lines(cmd_histfile).unwrap_or_default());
+        }
     }
 }

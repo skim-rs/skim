@@ -23,7 +23,6 @@ pub use crate::output::SkimOutput;
 use crate::reader::Reader;
 
 mod ansi;
-pub mod context;
 mod engine;
 mod event;
 pub mod field;
@@ -34,7 +33,7 @@ mod input;
 mod item;
 mod matcher;
 mod model;
-mod options;
+pub mod options;
 mod orderedvec;
 mod output;
 pub mod prelude;
