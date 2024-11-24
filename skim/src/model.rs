@@ -436,6 +436,24 @@ impl Model {
         let _ = Command::new(shell).arg("-c").arg(cmd).status();
     }
 
+    fn act_reload(&mut self, cmd_opt: Option<String>) {
+        let cmd = match cmd_opt {
+            Some(s) => s,
+            None => self.query.get_cmd(),
+        };
+        debug!("command to execute: [{}]", cmd);
+        let mut env = ModelEnv {
+            cmd: cmd.to_string(),
+            cmd_query: self.query.get_cmd_query(),
+            query: self.query.get_fz_query(),
+            clear_selection: ClearStrategy::ClearIfNotNull,
+            in_query_mode: self.query.in_query_mode(),
+        };
+
+        self.selection.clear();
+        self.on_cmd_query_change(&mut env);
+    }
+
     #[allow(clippy::trivial_regex)]
     fn act_append_and_select(&mut self, env: &mut ModelEnv) {
         let query = self.query.get_fz_query();
@@ -565,6 +583,10 @@ impl Model {
 
                 Event::EvActExecuteSilent(ref cmd) => {
                     self.act_execute_silent(cmd);
+                }
+
+                Event::EvActReload(ref cmd) => {
+                    self.act_reload(cmd.clone());
                 }
 
                 Event::EvActAppendAndSelect => {
