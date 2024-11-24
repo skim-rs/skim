@@ -17,11 +17,11 @@ use tuikit::prelude::{Event as TermEvent, *};
 pub use crate::ansi::AnsiString;
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 use crate::event::{EventReceiver, EventSender};
+pub use crate::item::RankCriteria;
 use crate::model::Model;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
-pub use crate::item::RankCriteria;
 
 mod ansi;
 mod engine;
