@@ -1,15 +1,15 @@
 [package]
 name = "skim"
-version = "0.10.4"
-authors = ["Zhang Jinzhou <lotabout@gmail.com>"]
+version = "0.11.12"
+authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Loric Andre"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
 homepage = "https://github.com/lotabout/skim"
 repository = "https://github.com/lotabout/skim"
-readme  = "README.md"
+readme  = "../README.md"
 keywords = ["fuzzy", "menu", "util"]
 license = "MIT"
-edition = "2018"
+edition = "2021"
 
 [lib]
 name = "skim"

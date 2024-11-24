@@ -65,7 +65,7 @@ use crate::{CaseMatching, FuzzyAlgorithm};
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
 #[derive(Parser)]
-#[command(name = "sk", args_override_self = true, verbatim_doc_comment)]
+#[command(name = "sk", args_override_self = true, verbatim_doc_comment, version)]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
