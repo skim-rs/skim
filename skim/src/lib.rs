@@ -21,6 +21,7 @@ use crate::model::Model;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
+pub use crate::item::RankCriteria;
 
 mod ansi;
 mod engine;
