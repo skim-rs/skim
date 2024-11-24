@@ -1112,6 +1112,25 @@ class TestSkim(TestBase):
         # revert option back
         self.tmux.send_keys(f"""set -o histexpand""", Key('Enter'))
 
+    def test_reload_no_arg(self):
+        args = "--bind 'ctrl-a:reload'"
+        sk = self.sk(args).replace('SKIM_DEFAULT_COMMAND=', "SKIM_DEFAULT_COMMAND='echo hello'")
+
+        self.tmux.send_keys(
+            f"""echo -e 'a\\nb\\nc' | {sk}""", Key('Enter'))
+        self.tmux.until(lambda lines: lines.ready_with_matches(3))
+        self.tmux.send_keys(Ctrl('a'))
+        self.tmux.until(lambda lines: lines.ready_with_matches(1))
+
+    def test_reload_arg(self):
+        args = "--bind 'ctrl-a:reload(echo hello)'"
+        sk = self.sk(args)
+
+        self.tmux.send_keys(
+            f"""echo -e 'a\\nb\\nc' | {sk}""", Key('Enter'))
+        self.tmux.until(lambda lines: lines.ready_with_matches(3))
+        self.tmux.send_keys(Ctrl('a'))
+        self.tmux.until(lambda lines: lines.ready_with_matches(1))
 
 def find_prompt(lines, interactive=False, reverse=False):
     linen = -1
