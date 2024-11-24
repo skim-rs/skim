@@ -113,6 +113,8 @@ impl Selection {
             self.items.nosort(true);
         }
 
+        self.selector = options.selector.clone();
+
         if let Some(skip_to_pattern) = options.skip_to_pattern.clone() {
             self.skip_to_pattern = Regex::new(&skip_to_pattern).ok();
         }

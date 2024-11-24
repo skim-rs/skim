@@ -8,7 +8,7 @@ use crate::item::RankCriteria;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
 use crate::util::read_file_lines;
-use crate::{CaseMatching, FuzzyAlgorithm};
+use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 
 /// sk - fuzzy finder in Rust
 ///
@@ -713,6 +713,8 @@ pub struct SkimOptions {
     pub query_history: Vec<String>,
     #[clap(skip)]
     pub cmd_history: Vec<String>,
+    #[clap(skip)]
+    pub selector: Option<Rc<dyn Selector>>,
 }
 
 impl Default for SkimOptions {

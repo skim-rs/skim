@@ -3,7 +3,6 @@
 //! After reading in a line, reader will save an item into the pool(items)
 use crate::global::mark_new_run;
 use crate::options::SkimOptions;
-use crate::prelude::*;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam::channel::{bounded, select, Sender};
