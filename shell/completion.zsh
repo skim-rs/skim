@@ -104,6 +104,8 @@ _sk() {
 '--phony[Reserved for later use]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
+'-V[Print version]' \
+'--version[Print version]' \
 && ret=0
 }
 
