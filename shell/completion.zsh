@@ -41,9 +41,9 @@ _sk() {
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
-'--history=[History file]:HISTORY_FILE:_default' \
+'--history=[History file]:HISTORY:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
-'--cmd-history=[Command history file]:CMD_HISTORY_FILE:_default' \
+'--cmd-history=[Command history file]:CMD_HISTORY:_default' \
 '--cmd-history-size=[Maximum number of query history entries to keep]:CMD_HISTORY_SIZE:_default' \
 '--preview=[Preview command]:PREVIEW:_default' \
 '--preview-window=[Preview window layout]:PREVIEW_WINDOW:_default' \
@@ -104,8 +104,6 @@ _sk() {
 '--phony[Reserved for later use]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-'-V[Print version]' \
-'--version[Print version]' \
 && ret=0
 }
 
