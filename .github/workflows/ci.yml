@@ -54,6 +54,8 @@ jobs:
         toolchain: ${{ matrix.rust }}
         target: ${{ matrix.target }}
         override: true
+    - name: Cache
+      uses: Swatinem/rust-cache@v2
     - name: Build
       run: cargo build --release
     - name: Run Tests
@@ -61,8 +63,6 @@ jobs:
       env:
         LC_ALL: en_US.UTF-8
         TERM: xterm-256color
-    - name: Cache
-      uses: Swatinem/rust-cache@v1
 
   clippy:
     name: clippy
@@ -111,10 +111,10 @@ jobs:
         target: ${{ matrix.target }}
         override: true
         components: clippy
+    - name: Cache
+      uses: Swatinem/rust-cache@v2
     - name: Clippy
       run: cargo clippy
-    - name: Cache
-      uses: Swatinem/rust-cache@v1
 
   rustfmt:
     name: rustfmt
@@ -129,6 +129,8 @@ jobs:
         override: true
         profile: minimal
         components: rustfmt
+    - name: Cache
+      uses: Swatinem/rust-cache@v2
     - name: Check formatting
       run: |
         cargo fmt --all -- --check
