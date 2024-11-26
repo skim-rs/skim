@@ -55,7 +55,7 @@ The skim project contains several components:
 
 1. `sk` executable -- the core.
 2. **DEPRECATED in favor of `sk --tmux`** `sk-tmux` -- script for launching `sk` in a tmux pane.
-3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. check [skim.vim](https://github.com/lotabout/skim.vim) for more Vim support.
+3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. check [skim.vim](https://github.com/skim-rs/skim.vim) for more Vim support.
 
 ## Package Managers
 
@@ -399,7 +399,7 @@ Plus, `SkimItemReader` is a helper to convert a `BufRead` into
 `SkimItemReceiver` (we can easily turn a `File` for `String` into `BufRead`).
 So that you could deal with strings or files easily.
 
-Check more examples under [examples/](https://github.com/lotabout/skim/tree/master/examples) directory.
+Check more examples under [examples/](https://github.com/skim-rs/skim/tree/master/examples) directory.
 
 # FAQ
 
