@@ -1252,6 +1252,95 @@ class TestSkim(TestBase):
         time.sleep(0.1)
         self.assertRegex(self.readonce(), "^sk \\d+\\.\\d+\\.\\d+$")
 
+    def test_tiebreak_default(self):
+        input_cmd = "echo -n 'a\nc\nab\nac\nb'"
+        args = ''
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> a'))
+        self.tmux.send_keys(Key('b'))
+        self.tmux.until(lambda l: l[-3].startswith('> b'))
+
+    def test_tiebreak_index(self):
+        input_cmd = "echo -n 'a\nc\nab\nac\nb'"
+        args = '--tiebreak=index,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> a'))
+        self.tmux.send_keys(Key('b'))
+        self.tmux.until(lambda l: l[-3].startswith('> ab'))
+
+    def test_tiebreak_neg_index(self):
+        input_cmd = "echo -n 'a\nb\nc\nab\nac'"
+        args = '--tiebreak=-index,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> a'))
+        self.tmux.send_keys(Key('b'))
+        self.tmux.until(lambda l: l[-3].startswith('> ab'))
+
+    def test_tiebreak_neg_score(self):
+        input_cmd = "echo -n 'a\nb\nc\nab\nac'"
+        args = '--tiebreak=-score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> a'))
+        self.tmux.send_keys(Key('b'))
+        self.tmux.until(lambda l: l[-3].startswith('> ab'))
+
+    def test_tiebreak_begin(self):
+        input_cmd = "echo -n 'aaba\nb\nc\naba\nac'"
+        args = '--tiebreak=begin,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> aaba'))
+        self.tmux.send_keys('ba')
+        self.tmux.until(lambda l: l[-3].startswith('> aba'))
+
+    def test_tiebreak_neg_begin(self):
+        input_cmd = "echo -n 'aba\nb\nc\naaba\nac'"
+        args = '--tiebreak=-begin,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> aba'))
+        self.tmux.send_keys('ba')
+        self.tmux.until(lambda l: l[-3].startswith('> aaba'))
+
+    def test_tiebreak_end(self):
+        input_cmd = "echo -n 'aaba\nb\nc\naba\nac'"
+        args = '--tiebreak=end,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> aaba'))
+        self.tmux.send_keys('ba')
+        self.tmux.until(lambda l: l[-3].startswith('> aba'))
+
+    def test_tiebreak_neg_end(self):
+        input_cmd = "echo -n 'aba\nb\nc\naaba\nac'"
+        args = '--tiebreak=-end,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> aba'))
+        self.tmux.send_keys('ba')
+        self.tmux.until(lambda l: l[-3].startswith('> aaba'))
+
+    def test_tiebreak_length(self):
+        input_cmd = "echo -n 'aaba\nb\nc\naba\nac'"
+        args = '--tiebreak=length,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> b'))
+        self.tmux.send_keys('ba')
+        self.tmux.until(lambda l: l[-3].startswith('> aba'))
+
+    def test_tiebreak_neg_length(self):
+        input_cmd = "echo -n 'aaba\nb\nc\naba\nac'"
+        args = '--tiebreak=-length,score'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(5))
+        self.tmux.until(lambda l: l[-3].startswith('> aaba'))
+        self.tmux.send_keys('c')
+        self.tmux.until(lambda l: l[-3].startswith('> ac'))
 
 def find_prompt(lines, interactive=False, reverse=False):
     linen = -1

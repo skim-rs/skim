@@ -38,27 +38,31 @@ impl RankBuilder {
     }
 
     /// score: the greater the better
-    pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize) -> Rank {
+    pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize, index: usize) -> Rank {
         let mut rank = [0; 4];
         let begin = begin as i32;
         let end = end as i32;
         let length = length as i32;
+        let index = index as i32;
 
-        for (index, criteria) in self.criterion.iter().take(4).enumerate() {
+        for (priority, criteria) in self.criterion.iter().take(5).enumerate() {
             let value = match criteria {
                 RankCriteria::Score => -score,
-                RankCriteria::Begin => begin,
-                RankCriteria::End => end,
                 RankCriteria::NegScore => score,
+                RankCriteria::Begin => begin,
                 RankCriteria::NegBegin => -begin,
+                RankCriteria::End => end,
                 RankCriteria::NegEnd => -end,
                 RankCriteria::Length => length,
                 RankCriteria::NegLength => -length,
+                RankCriteria::Index => index,
+                RankCriteria::NegIndex => -index,
             };
 
-            rank[index] = value;
+            rank[priority] = value;
         }
 
+        trace!("ranks: {:?}", rank);
         rank
     }
 }
@@ -202,19 +206,23 @@ impl<'mutex, T: Sized> Deref for ItemPoolGuard<'mutex, T> {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RankCriteria {
     Score,
-    Begin,
-    End,
     NegScore,
+    Begin,
     NegBegin,
+    End,
     NegEnd,
     Length,
     NegLength,
+    Index,
+    NegIndex,
 }
 
 impl ValueEnum for RankCriteria {
     fn value_variants<'a>() -> &'a [Self] {
         use RankCriteria::*;
-        &[Score, NegScore, Begin, NegBegin, End, NegEnd, Length, NegLength]
+        &[
+            Score, NegScore, Begin, NegBegin, End, NegEnd, Length, NegLength, Index, NegIndex,
+        ]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
@@ -228,6 +236,8 @@ impl ValueEnum for RankCriteria {
             NegEnd => PossibleValue::new("-end"),
             Length => PossibleValue::new("length"),
             NegLength => PossibleValue::new("-length"),
+            Index => PossibleValue::new("index"),
+            NegIndex => PossibleValue::new("-index"),
         })
     }
 }

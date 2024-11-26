@@ -26,11 +26,11 @@ _sk() {
             fi
             case "${prev}" in
                 --tiebreak)
-                    COMPREPLY=($(compgen -W "score -score begin -begin end -end length -length" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "score -score begin -begin end -end length -length index -index" -- "${cur}"))
                     return 0
                     ;;
                 -t)
-                    COMPREPLY=($(compgen -W "score -score begin -begin end -end length -length" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "score -score begin -begin end -end length -length index -index" -- "${cur}"))
                     return 0
                     ;;
                 --nth)
