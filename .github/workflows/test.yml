@@ -8,8 +8,7 @@ on:
     - master
 
 jobs:
-  test:
-    name: test
+  e2e:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -54,6 +53,8 @@ jobs:
         toolchain: ${{ matrix.rust }}
         target: ${{ matrix.target }}
         override: true
+    - name: Cache
+      uses: Swatinem/rust-cache@v2
     - name: Build
       run: cargo build --release
     - name: Run Tests
@@ -61,11 +62,8 @@ jobs:
       env:
         LC_ALL: en_US.UTF-8
         TERM: xterm-256color
-    - name: Cache
-      uses: Swatinem/rust-cache@v1
 
   clippy:
-    name: clippy
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -111,13 +109,12 @@ jobs:
         target: ${{ matrix.target }}
         override: true
         components: clippy
+    - name: Cache
+      uses: Swatinem/rust-cache@v2
     - name: Clippy
       run: cargo clippy
-    - name: Cache
-      uses: Swatinem/rust-cache@v1
 
   rustfmt:
-    name: rustfmt
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository

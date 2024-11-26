@@ -1,0 +1,35 @@
+{
+  "LABEL": {
+    "name": "invalid-title",
+    "color": "B60205"
+  },
+  "CHECKS": {
+    "prefixes": [
+      "feat: ",
+      "feature: ",
+      "fix: ",
+      "bugfix: ",
+      "perf: ",
+      "refactor: ",
+      "test: ",
+      "tests: ",
+      "build: ",
+      "ci: ",
+      "doc: ",
+      "docs: ",
+      "style: ",
+      "chore: ",
+      "other: "
+    ],
+    "regexp": "^\\w+(\\([a-z_-]+\\))?: ",
+    "regexpFlags": "",
+    "ignoreLabels": [
+      "skip-title-check"
+    ]
+  },
+  "MESSAGES": {
+    "success": "PR title is valid",
+    "failure": "PR title is invalid",
+    "notice": ""
+  }
+}
