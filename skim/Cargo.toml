@@ -21,7 +21,7 @@ name = "sk"
 path = "src/bin/main.rs"
 
 [dependencies]
-nix = "0.25.0"
+nix = "0.29.0"
 atty = { version = "0.2.14", optional = true }
 regex = "1.6.0"
 lazy_static = "1.4.0"
