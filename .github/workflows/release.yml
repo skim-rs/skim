@@ -113,7 +113,8 @@ jobs:
         path: artifacts
         pattern: "*"
         merge-multiple: true
-    - run: ls -R
+    - name: Checkout Git repo
+      uses: actions/checkout@v4
     - name: Update CHANGELOG
       id: changelog
       uses: requarks/changelog-action@v1
@@ -129,3 +130,10 @@ jobs:
         body: ${{ steps.changelog.outputs.changes }}
         artifacts: |
           artifacts/**
+    - name: Push updated CHANGELOG
+      run: |
+        git config user.email 'skim-release@skim-rs.github.io'
+        git config user.name 'skim release action'
+        git add CHANGELOG.md
+        git commit -m 'update CHANGELOG.md after release ${{ github.ref_name }}'
+        git push origin test-ci
