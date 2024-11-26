@@ -61,7 +61,7 @@ __fsel() {
 
 __skimcmd() {
   [ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; } &&
-    echo "sk --tmux=${SKIM_TMUX_OPTS:bottom,${SKIM_TMUX_HEIGHT:-40%}} -- " || echo "sk"
+    echo "sk-tmux ${SKIM_TMUX_OPTS:--d${SKIM_TMUX_HEIGHT:-40%}} -- " || echo "sk"
 }
 
 skim-file-widget() {
@@ -134,7 +134,7 @@ skim-history-widget() {
     n=3
   fi
   selected=( $(fc -rl $fc_opts 1 | awk "$awk_filter" |
-    SKIM_DEFAULT_OPTIONS="--height ${SKIM_TMUX_HEIGHT:-40%} $SKIM_DEFAULT_OPTIONS -n$n..,.. --tiebreak=index --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi" $(__skimcmd)) )
+    SKIM_DEFAULT_OPTIONS="--height ${SKIM_TMUX_HEIGHT:-40%} $SKIM_DEFAULT_OPTIONS -n$n..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi" $(__skimcmd)) )
   local ret=$?
   if [ -n "$selected" ]; then
     num=$selected[1]
