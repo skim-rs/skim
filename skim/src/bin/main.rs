@@ -102,14 +102,14 @@ fn sk_main() -> Result<i32, SkMainError> {
         None => {
             // read from pipe or command
             let rx_item = if !io::stdin().is_terminal() {
-                let rx_item = ctx.cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
+                let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
                 Some(rx_item)
             } else {
                 None
             };
             // filter mode
             if opts.filter.is_some() {
-                return Ok(filter(&ctx, &bin_options, &opts, rx_item)?);
+                return Ok(filter(&bin_options, &opts, rx_item)?);
             }
             Skim::run_with(&opts, rx_item)
         }
