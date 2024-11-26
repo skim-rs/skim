@@ -1,7 +1,7 @@
 {
   "LABEL": {
-    "name": "invalid title",
-    "color": "EEEEEE"
+    "name": "invalid-title",
+    "color": "FF00000"
   },
   "CHECKS": {
     "prefixes": [
