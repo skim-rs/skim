@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 0.11.11" 
+.TH sk 1  "sk 0.13.0" 
 .SH NAME
 sk \- sk \- fuzzy finder in Rust
 .SH SYNOPSIS
@@ -88,7 +88,7 @@ Comma\-separated list of sort criteria to apply when the scores are tied.
 .br
 
 .br
-[\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length, index, \-index]
+[\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length]
 .TP
 \fB\-n\fR, \fB\-\-nth\fR=\fINTH\fR [default: ]
 Fields to be matched
@@ -227,6 +227,7 @@ AVAILABLE KEYS: (SYNONYMS)
     preview\-page\-down
     preview\-page\-up
     previous\-history      (ctrl\-p on \-\-history or \-\-cmd\-history)
+    reload(...)
     select\-all
     toggle
     toggle\-all
@@ -246,10 +247,11 @@ Multiple actions can be chained using + separator.
 
     sk \-\-bind \*(Aqctrl\-a:select\-all+accept\*(Aq
 
-With  execute(...)  action,  you can execute arbitrary commands without leaving sk. For example,
+With execute(...) and reload(...) action, you can execute arbitrary commands without leaving sk. For example,
 you can turn sk into a simple file browser by binding enter key to less command like follows.
 
     sk \-\-bind "enter:execute(less {})"
+Note: if no argument is supplied to reload, the default command is run.
 
 You can use the same placeholder expressions as in \-\-preview.
 
@@ -545,4 +547,4 @@ Print help (see a summary with \*(Aq\-h\*(Aq)
 \fB\-V\fR, \fB\-\-version\fR
 Print version
 .SH VERSION
-v0.11.11
+v0.13.0
