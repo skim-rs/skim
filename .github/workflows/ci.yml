@@ -129,8 +129,6 @@ jobs:
         override: true
         profile: minimal
         components: rustfmt
-    - name: Cache
-      uses: Swatinem/rust-cache@v2
     - name: Check formatting
       run: |
         cargo fmt --all -- --check
