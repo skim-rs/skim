@@ -4,45 +4,45 @@
 
 Features:
 
-- 33ca402 - allow more flexibility for use as a library (PR #613 by @LoricAndre)
-  - ↘️ addresses issue #612 opened by @idanarye
+- [33ca402](https://github.com/skim-rs/skim/commit/33ca402) - allow more flexibility for use as a library (PR [#613](https://github.com/skim-rs/skim/pull/613) by [@LoricAndre](https://github.com/LoricAndre))
+  - ↘️ addresses issue [#612](https://github.com/skim-rs/skim/issues/612) opened by [@idanarye](https://github.com/idanarye)
 
 Chores:
 
-- 53612a7 - add pull request template (PR #608 by @LoricAndre)
+- [53612a7](https://github.com/skim-rs/skim/commit/53612a7) - add pull request template (PR [#608](https://github.com/skim-rs/skim/pull/608) by [@LoricAndre](https://github.com/LoricAndre))
 
 ## 0.12.0: 2024-11-24
 
 Features:
 
-- 4b47244 - add reload action (PR #604 by @LoricAndre)
+- [4b47244](https://github.com/skim-rs/skim/commit/4b47244) - add reload action (PR [#604](https://github.com/skim-rs/skim/pull/604) by [@LoricAndre](https://github.com/LoricAndre))
 
 ## 0.11.12: 2024-11-24
 
 Fixes:
 
-- bd73f62 - remove index tiebreak from shell bindings (PR #611 by @LoricAndre)
+- [bd73f62](https://github.com/skim-rs/skim/commit/bd73f62) - remove index tiebreak from shell bindings (PR [#611](https://github.com/skim-rs/skim/pull/611) by [@LoricAndre](https://github.com/LoricAndre))
 
 Chores:
 
-- 63f4e33 - remove some platform-specific quirkinesses from e2e (PR #602 by @LoricAndre)
+- [63f4e33](https://github.com/skim-rs/skim/commit/63f4e33) - remove some platform-specific quirkinesses from e2e (PR [#602](https://github.com/skim-rs/skim/pull/602) by [@LoricAndre](https://github.com/LoricAndre))
 
 ## 0.11.10: 2024-11-21
 
 Features:
 
-- 7df8b77 - use clap & derive for options, manpage & completions (PR #586 by @LoricAndre)
+- [7df8b77](https://github.com/skim-rs/skim/commit/7df8b77) - use clap & derive for options, manpage & completions (PR [#586](https://github.com/skim-rs/skim/pull/586) by [@LoricAndre](https://github.com/LoricAndre))
 
 Fixes:
 
-- 966d8f5 - 398 shift-up/down was bind to wrong action (PR #399 by @lotabout)
-- aa03781 - fix github publish action
+- [966d8f5](https://github.com/skim-rs/skim/commit/966d8f5) - 398 shift-up/down was bind to wrong action (PR [#399](https://github.com/skim-rs/skim/pull/399) by [@lotabout](https://github.com/lotabout))
+- [aa03781](https://github.com/skim-rs/skim/commit/aa03781) - fix github publish action
 
 Chores:
 
-- 8a57983 - fix clippy
-- 838ba21 - remove atty (PR #587 by @LoricAndre)
-- c932a1f - remove bitflags (PR #579 by @LoricAndre)
+- [8a57983](https://github.com/skim-rs/skim/commit/8a57983) - fix clippy
+- [838ba21](https://github.com/skim-rs/skim/commit/838ba21) - remove atty (PR [#587](https://github.com/skim-rs/skim/pull/587) by [@LoricAndre](https://github.com/LoricAndre))
+- [c932a1f](https://github.com/skim-rs/skim/commit/c932a1f) - remove bitflags (PR [#579](https://github.com/skim-rs/skim/pull/579) by [@LoricAndre](https://github.com/LoricAndre))
 
 ## 0.10.4: 2023-03-02
 
@@ -312,7 +312,7 @@ Feature:
 
 Bug fixes:
 
-- Fix #188: crates.io breaks on 0.6.7
+- Fix [#188](https://github.com/skim-rs/skim/issues/188): crates.io breaks on 0.6.7
 - Fix: `run_with` will break if called multiple times from the same process.
 - Update nix to 0.14
 
@@ -332,21 +332,21 @@ Bug fixes:
 
 ## 0.6.6: 2019-04-03
 
-fix #158: preview window not udpate correctly.
+fix [#158](https://github.com/skim-rs/skim/issues/158): preview window not udpate correctly.
 
 ## 0.6.5: 2019-04-01
 
 Bug Fixes:
 
-- #155: screen is not fully cleared upon resize
-- #156: preview dies on large chunk of input
-- #157: cursor overflow on empty input
-- #154: reduce CPU usage on idle
+- [#155](https://github.com/skim-rs/skim/issues/155): screen is not fully cleared upon resize
+- [#156](https://github.com/skim-rs/skim/issues/156): preview dies on large chunk of input
+- [#157](https://github.com/skim-rs/skim/issues/157): cursor overflow on empty input
+- [#154](https://github.com/skim-rs/skim/issues/154): reduce CPU usage on idle
 - wrong matches on empty input lines
 
 ## 0.6.4: 2019-03-26
 
-Fix: #153 build fail with rust 2018 (1.31.0)
+Fix: [#153](https://github.com/skim-rs/skim/issues/153) build fail with rust 2018 (1.31.0)
 
 ## 0.6.3: 2019-03-25
 
@@ -361,9 +361,9 @@ Feature:
 Bug Fixes:
 
 - wrong cursor position after item changed
-- #142: NULL character was dropped with `--ansi`
+- [#142](https://github.com/skim-rs/skim/issues/142): NULL character was dropped with `--ansi`
 - regression: `--margin` not working
-- #148: screen won't clear in interactive mode
+- [#148](https://github.com/skim-rs/skim/issues/148): screen won't clear in interactive mode
 - number of matched item not showing correctly (during matching)
 - lag in changing query on large collection of inputs
 
@@ -433,7 +433,7 @@ More bug fixes, noticable ones are:
 
 - fix: stop command immediately on accept or abort.
 - minor optimization over ASCII inputs.
-- #90: escape quotes in specified preview command
+- [#90](https://github.com/skim-rs/skim/issues/90): escape quotes in specified preview command
 
 ## 0.5.1: 2018-06-24
 
@@ -467,7 +467,7 @@ Some minor enhancements that might comes handy.
 - Accept multiple values for most options. So that you can safely put them
   in `$SKIM_DEFAULT_OPTIONS` and override it in command line.
 
-Thanks to @magnetophon for the bug report and feature requests.
+Thanks to [@magnetophon](https://github.com/magnetophon) for the bug report and feature requests.
 
 ## 0.3.1: 2017-12-04
 
