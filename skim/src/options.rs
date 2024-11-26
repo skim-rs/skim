@@ -1,8 +1,14 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use clap::Parser;
 use derive_builder::Builder;
 
 use crate::item::RankCriteria;
-use crate::{CaseMatching, FuzzyAlgorithm};
+use crate::prelude::SkimItemReader;
+use crate::reader::CommandCollector;
+use crate::util::read_file_lines;
+use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 
 /// sk - fuzzy finder in Rust
 ///
@@ -244,6 +250,7 @@ pub struct SkimOptions {
     ///     preview-page-down
     ///     preview-page-up
     ///     previous-history      (ctrl-p on --history or --cmd-history)
+    ///     reload(...)
     ///     select-all
     ///     toggle
     ///     toggle-all
@@ -263,10 +270,11 @@ pub struct SkimOptions {
     ///
     ///     sk --bind 'ctrl-a:select-all+accept'
     ///
-    /// With  execute(...)  action,  you can execute arbitrary commands without leaving sk. For example,
+    /// With execute(...) and reload(...) action, you can execute arbitrary commands without leaving sk. For example,
     /// you can turn sk into a simple file browser by binding enter key to less command like follows.
     ///
     ///     sk --bind "enter:execute(less {})"
+    /// Note: if no argument is supplied to reload, the default command is run.
     ///
     /// You can use the same placeholder expressions as in --preview.
     ///
@@ -469,8 +477,8 @@ pub struct SkimOptions {
     /// Load search history from the specified file and update the file on completion.
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
-    #[arg(long, help_heading = "History")]
-    pub history: Option<String>,
+    #[arg(long = "history", help_heading = "History")]
+    pub history_file: Option<String>,
 
     /// Maximum number of query history entries to keep
     #[arg(long, default_value = "1000", help_heading = "History")]
@@ -481,8 +489,8 @@ pub struct SkimOptions {
     /// Load command query history from the specified file and update the file on completion.
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
-    #[arg(long, help_heading = "History")]
-    pub cmd_history: Option<String>,
+    #[arg(long = "cmd-history", help_heading = "History")]
+    pub cmd_history_file: Option<String>,
 
     /// Maximum number of query history entries to keep
     #[arg(long, default_value = "1000", help_heading = "History")]
@@ -700,6 +708,15 @@ pub struct SkimOptions {
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
     pub phony: bool,
+
+    #[clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>)]
+    pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
+    #[clap(skip)]
+    pub query_history: Vec<String>,
+    #[clap(skip)]
+    pub cmd_history: Vec<String>,
+    #[clap(skip)]
+    pub selector: Option<Rc<dyn Selector>>,
 }
 
 impl Default for SkimOptions {
@@ -732,10 +749,21 @@ impl SkimOptions {
             self.layout = String::from("reverse");
         }
         let history_binds = String::from("ctrl-p:previous-history,ctrl-n:next-history");
-        if self.history.is_some() || self.cmd_history.is_some() {
+        if self.history_file.is_some() || self.cmd_history_file.is_some() {
+            self.init_histories();
             self.bind.push(history_binds);
         }
 
         self
+    }
+    pub fn init_histories(&mut self) {
+        if let Some(histfile) = &self.history_file {
+            self.query_history.extend(read_file_lines(histfile).unwrap_or_default());
+        }
+
+        if let Some(cmd_histfile) = &self.cmd_history_file {
+            self.cmd_history
+                .extend(read_file_lines(cmd_histfile).unwrap_or_default());
+        }
     }
 }

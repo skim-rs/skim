@@ -3,7 +3,6 @@
 //! After reading in a line, reader will save an item into the pool(items)
 use crate::global::mark_new_run;
 use crate::options::SkimOptions;
-use crate::prelude::*;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam::channel::{bounded, select, Sender};
@@ -65,17 +64,8 @@ pub struct Reader {
 
 impl Reader {
     pub fn with_options(options: &SkimOptions) -> Self {
-        let item_reader_option = SkimItemReaderOption::default()
-            .ansi(options.ansi)
-            .delimiter(&options.delimiter)
-            .with_nth(options.with_nth.iter().map(|s| s.as_str()))
-            .nth(options.nth.iter().map(|s| s.as_str()))
-            .read0(options.read0)
-            .show_error(options.show_cmd_error)
-            .build();
-        let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(item_reader_option)));
         Self {
-            cmd_collector,
+            cmd_collector: options.cmd_collector.clone(),
             rx_item: None,
         }
     }
