@@ -88,7 +88,7 @@ Comma\-separated list of sort criteria to apply when the scores are tied.
 .br
 
 .br
-[\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length]
+[\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length, index, \-index]
 .TP
 \fB\-n\fR, \fB\-\-nth\fR=\fINTH\fR [default: ]
 Fields to be matched
@@ -408,7 +408,7 @@ Number of lines of the input treated as header
 
 The  first N lines of the input are treated as the sticky header. When \-\-with\-nth is set, the lines are transformed just like the other lines that follow.
 .TP
-\fB\-\-history\fR=\fIHISTORY\fR
+\fB\-\-history\fR=\fIHISTORY_FILE\fR
 History file
 
 Load search history from the specified file and update the file on completion. When enabled, CTRL\-N and CTRL\-P are automatically remapped to next\-history and previous\-history.
@@ -416,7 +416,7 @@ Load search history from the specified file and update the file on completion. W
 \fB\-\-history\-size\fR=\fIHISTORY_SIZE\fR [default: 1000]
 Maximum number of query history entries to keep
 .TP
-\fB\-\-cmd\-history\fR=\fICMD_HISTORY\fR
+\fB\-\-cmd\-history\fR=\fICMD_HISTORY_FILE\fR
 Command history file
 
 Load command query history from the specified file and update the file on completion. When enabled, CTRL\-N and CTRL\-P are automatically remapped to next\-history and previous\-history.
