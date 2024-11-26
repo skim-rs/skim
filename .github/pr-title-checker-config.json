@@ -1,7 +1,7 @@
 {
   "LABEL": {
-    "name": "invalid title",
-    "color": "EEEEEE"
+    "name": "invalid-title",
+    "color": "B60205"
   },
   "CHECKS": {
     "prefixes": [
@@ -21,7 +21,7 @@
       "chore: ",
       "other: "
     ],
-    "regexp": "^_$",
+    "regexp": "^\\w+(\\([a-z_-]+\\))?: ",
     "regexpFlags": "",
     "ignoreLabels": [
       "skip-title-check"
