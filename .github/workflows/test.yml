@@ -8,8 +8,7 @@ on:
     - master
 
 jobs:
-  test:
-    name: test
+  e2e:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -65,7 +64,6 @@ jobs:
         TERM: xterm-256color
 
   clippy:
-    name: clippy
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -117,7 +115,6 @@ jobs:
       run: cargo clippy
 
   rustfmt:
-    name: rustfmt
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
