@@ -129,18 +129,26 @@ impl Selection {
             || !options.pre_select_pat.is_empty()
             || !pre_select_items.is_empty()
             || options.pre_select_file.is_some()
+            || options.selector.is_some()
         {
-            let mut preset_file_items: Vec<String> = vec![];
-            if let Some(pre_select_file) = options.pre_select_file.clone() {
-                preset_file_items = read_file_lines(&pre_select_file).unwrap();
-            }
+            match options.selector.clone() {
+                None => {
+                    let mut preset_file_items: Vec<String> = vec![];
+                    if let Some(pre_select_file) = options.pre_select_file.clone() {
+                        preset_file_items = read_file_lines(&pre_select_file).unwrap();
+                    }
 
-            let selector = DefaultSkimSelector::default()
-                .first_n(options.pre_select_n)
-                .regex(&options.pre_select_pat)
-                .preset(pre_select_items)
-                .preset(preset_file_items);
-            self.selector = Some(Rc::new(selector));
+                    let selector = DefaultSkimSelector::default()
+                        .first_n(options.pre_select_n)
+                        .regex(&options.pre_select_pat)
+                        .preset(pre_select_items)
+                        .preset(preset_file_items);
+                    self.selector = Some(Rc::new(selector));
+                }
+                Some(s) => {
+                    self.selector = Some(s);
+                }
+            }
         }
     }
 

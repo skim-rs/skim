@@ -1,0 +1,35 @@
+{
+  "LABEL": {
+    "name": "invalid title",
+    "color": "EEEEEE"
+  },
+  "CHECKS": {
+    "prefixes": [
+      "feat: ",
+      "feature: ",
+      "fix: ",
+      "bugfix: ",
+      "perf: ",
+      "refactor: ",
+      "test: ",
+      "tests: ",
+      "build: ",
+      "ci: ",
+      "doc: ",
+      "docs: ",
+      "style: ",
+      "chore: ",
+      "other: "
+    ],
+    "regexp": "^_$",
+    "regexpFlags": "",
+    "ignoreLabels": [
+      "skip-title-check"
+    ]
+  },
+  "MESSAGES": {
+    "success": "PR title is valid",
+    "failure": "PR title is invalid",
+    "notice": ""
+  }
+}

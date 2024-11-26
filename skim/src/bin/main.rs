@@ -5,8 +5,6 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
-use self::context::SkimContext;
-use self::reader::CommandCollector;
 use clap::{Error, Parser};
 use derive_builder::Builder;
 use std::fs::File;
@@ -77,7 +75,7 @@ impl From<clap::Error> for SkMainError {
 }
 
 fn sk_main() -> Result<i32, SkMainError> {
-    let opts = parse_args()?;
+    let mut opts = parse_args()?;
 
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)
@@ -86,13 +84,8 @@ fn sk_main() -> Result<i32, SkMainError> {
         .nth(opts.nth.iter().map(|s| s.as_str()))
         .read0(opts.read0)
         .show_error(opts.show_cmd_error);
-    let mut ctx = SkimContext {
-        cmd_collector: Rc::new(RefCell::new(SkimItemReader::new(reader_opts))),
-        query_history: vec![],
-        cmd_history: vec![],
-    };
-    ctx.init_histories(&opts);
-
+    let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
+    opts.cmd_collector = cmd_collector.clone();
     //------------------------------------------------------------------------------
     let bin_options = BinOptions {
         filter: opts.filter.clone(),
@@ -156,14 +149,14 @@ fn sk_main() -> Result<i32, SkMainError> {
 
     //------------------------------------------------------------------------------
     // write the history with latest item
-    if let Some(file) = opts.history {
+    if let Some(file) = opts.history_file {
         let limit = opts.history_size;
-        write_history_to_file(&ctx.query_history, &result.query, limit, &file)?;
+        write_history_to_file(&opts.query_history, &result.query, limit, &file)?;
     }
 
-    if let Some(file) = opts.cmd_history {
+    if let Some(file) = opts.cmd_history_file {
         let limit = opts.cmd_history_size;
-        write_history_to_file(&ctx.cmd_history, &result.cmd, limit, &file)?;
+        write_history_to_file(&opts.cmd_history, &result.cmd, limit, &file)?;
     }
 
     Ok(if result.selected_items.is_empty() { 1 } else { 0 })
@@ -204,7 +197,6 @@ pub struct BinOptions {
 }
 
 pub fn filter(
-    ctx: &SkimContext,
     bin_option: &BinOptions,
     options: &SkimOptions,
     source: Option<SkimItemReceiver>,
@@ -244,7 +236,7 @@ pub fn filter(
     let components_to_stop = Arc::new(AtomicUsize::new(0));
 
     let stream_of_item = source.unwrap_or_else(|| {
-        let (ret, _control) = ctx.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
+        let (ret, _control) = options.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
         ret
     });
 

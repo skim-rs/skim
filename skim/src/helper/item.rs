@@ -29,6 +29,8 @@ pub struct DefaultSkimItem {
     // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
     #[allow(clippy::box_collection)]
     matching_ranges: Option<Box<Vec<(usize, usize)>>>,
+    /// The index, for use in matching
+    index: usize,
 }
 
 impl DefaultSkimItem {
@@ -38,6 +40,7 @@ impl DefaultSkimItem {
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
         delimiter: &Regex,
+        index: usize,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
 
@@ -83,6 +86,7 @@ impl DefaultSkimItem {
             orig_text,
             text,
             matching_ranges,
+            index,
         }
     }
 }
@@ -128,5 +132,13 @@ impl SkimItem for DefaultSkimItem {
         let mut ret = self.text.clone();
         ret.override_attrs(new_fragments);
         ret
+    }
+
+    fn get_index(&self) -> usize {
+        self.index
+    }
+
+    fn set_index(&mut self, index: usize) {
+        self.index = index;
     }
 }
