@@ -1342,6 +1342,39 @@ class TestSkim(TestBase):
         self.tmux.send_keys('c')
         self.tmux.until(lambda l: l[-3].startswith('> ac'))
 
+    def test_622_combined_multiple_flags_expect(self):
+        input_cmd = "echo -e 'a b c\\nd e f'"
+        args = '--expect ctrl-a,ctrl-b'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys(Ctrl('a'))
+        out = self.readonce().split('\n')
+        self.assertEqual(out[-1], '')
+        self.assertEqual(out[-2], 'a b c')
+        self.assertEqual(out[-3], 'ctrl-a')
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys(Ctrl('b'))
+        out = self.readonce().split('\n')
+        self.assertEqual(out[-1], '')
+        self.assertEqual(out[-2], 'a b c')
+        self.assertEqual(out[-3], 'ctrl-b')
+
+    def test_622_combined_multiple_flags_nth(self):
+        input_cmd = "echo -e 'a b c\nd e f'"
+        args = '--nth 1,2'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys('c')
+        self.tmux.until(lambda l: l.ready_with_matches(0))
+
+    def test_622_combined_multiple_flags_with_nth(self):
+        input_cmd = "echo -e 'a b c\nd e f'"
+        args = '--with-nth 1,2'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.until(lambda l: l[-3] == '> a b')
+
 def find_prompt(lines, interactive=False, reverse=False):
     linen = -1
     prompt = ">"
