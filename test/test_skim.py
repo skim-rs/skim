@@ -11,6 +11,7 @@ import time
 import re
 import inspect
 import sys
+import pathlib
 
 INPUT_RECORD_SEPARATOR = '\n'
 DEFAULT_TIMEOUT = 3000
@@ -968,7 +969,6 @@ class TestSkim(TestBase):
         self.tmux.until(lambda lines: lines[-1].startswith('> cd'))
         open_lines = self.tmux.capture()
         self.tmux.send_keys(Key('Enter'))
-
         self.tmux.until(lambda lines: lines != open_lines)
 
         with open(history_file, 'r') as f:
@@ -1225,6 +1225,38 @@ class TestSkim(TestBase):
 
         # revert option back
         self.tmux.send_keys(f"""set -o histexpand""", Key('Enter'))
+
+    def setup_tmux_mock(self):
+        bin_test_dir = "/tmp/sk-test-bin"
+        mock_bin = pathlib.Path(
+            __file__).parent.resolve().joinpath('mock.sh').resolve()
+        self.tmux.send_keys(
+            f'mkdir -p {bin_test_dir}; export PATH="{bin_test_dir}:$PATH"; cp {mock_bin} {bin_test_dir}/tmux; chmod +x {bin_test_dir}/*', Key('Enter'))
+
+    def test_tmux_vanilla(self):
+        args = '--tmux'
+        self.setup_tmux_mock()
+        self.tmux.send_keys(self.sk(args), Key('Enter'))
+        with open('/tmp/sk-test-mock/stdout', 'r') as f:
+            tmux_cmd = f.readlines()[-1].strip()
+
+        self.assertTrue(tmux_cmd.startswith("display-popup"))
+        self.assertIn(" -E ", tmux_cmd)
+        self.assertIn(f"{BASE}/target/release/sk", tmux_cmd)
+        self.assertNotRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
+
+    def test_tmux_stdin(self):
+        args = '--tmux'
+        self.setup_tmux_mock()
+        self.tmux.send_keys(
+            f"""echo -e 'a\\nb\\nc' | {self.sk(args)}""", Key('Enter'))
+        self.tmux.until(lambda _: os.path.exists('/tmp/sk-test-mock/stdout'))
+        with open('/tmp/sk-test-mock/stdout', 'r') as f:
+            tmux_cmd = f.readlines()[-1].strip()
+
+        print(tmux_cmd)
+        self.assertTrue(tmux_cmd.startswith("display-popup"))
+        self.assertRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
 
     def test_reload_no_arg(self):
         args = "--bind 'ctrl-a:reload'"
