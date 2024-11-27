@@ -122,13 +122,20 @@ pub struct SkimOptions {
     ///     2..    From the 2nd field to the last field
     ///     ..-3   From the 1st field to the 3rd to the last field
     ///     ..     All the fields
-    #[arg(short, long, default_value = "", help_heading = "Search", verbatim_doc_comment, value_delimiter=',')]
+    #[arg(
+        short,
+        long,
+        default_value = "",
+        help_heading = "Search",
+        verbatim_doc_comment,
+        value_delimiter = ','
+    )]
     pub nth: Vec<String>,
 
     /// Fields to be transformed
     ///
     /// See **nth** for the details
-    #[arg(long, default_value = "", help_heading = "Search", value_delimiter=',')]
+    #[arg(long, default_value = "", help_heading = "Search", value_delimiter = ',')]
     pub with_nth: Vec<String>,
 
     /// Delimiter between fields
@@ -302,7 +309,7 @@ pub struct SkimOptions {
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
     /// is equal to ‘delete-char/eof‘.
-    #[arg(short, long, help_heading = "Interface", verbatim_doc_comment, value_delimiter=',')]
+    #[arg(short, long, help_heading = "Interface", verbatim_doc_comment, value_delimiter = ',')]
     pub bind: Vec<String>,
 
     /// Enable multiple selection
@@ -576,7 +583,7 @@ pub struct SkimOptions {
     /// list.
     ///
     /// e.g. sk --expect=ctrl-v,ctrl-t,alt-s --expect=f1,f2,~,@
-    #[arg(long, help_heading = "Scripting", value_delimiter=',')]
+    #[arg(long, help_heading = "Scripting", value_delimiter = ',')]
     pub expect: Vec<String>,
 
     /// Read input delimited by ASCII NUL(\\0) characters
