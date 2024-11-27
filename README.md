@@ -3,7 +3,7 @@
     <img src="https://img.shields.io/crates/v/skim.svg" alt="Crates.io" />
   </a>
   <a href="https://github.com/skim-rs/skim/actions?query=workflow%3A%22Build+%26+Test%22+event%3Apush">
-    <img src="https://github.com/skim-rs/skim/actions/workflows/ci.yml/badge.svg?event=push" alt="Build & Test" />
+    <img src="https://github.com/skim-rs/skim/actions/workflows/test.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
   <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
@@ -59,19 +59,20 @@ The skim project contains several components:
 
 ## Package Managers
 
-| Distribution   | Package Manager   | Command                   |
-| -------------- | ----------------- | ------------------------- |
-| macOS          | Homebrew          | `brew install sk`         |
-| macOS          | MacPorts          | `sudo port install skim`  |
-| Fedora         | dnf               | `dnf install skim`        |
-| Alpine         | apk               | `apk add skim`            |
-| Arch           | pacman            | `pacman -S skim`          |
-| Gentoo         | Portage           | `emerge --ask app-misc/skim` |
-| Guix           | guix              | `guix install skim`       |
+| OS             | Package Manager   | Command                     |
+| -------------- | ----------------- | --------------------------- |
+| macOS          | Homebrew          | `brew install sk`           |
+| macOS          | MacPorts          | `sudo port install skim`    |
+| Fedora         | dnf               | `dnf install skim`          |
+| Alpine         | apk               | `apk add skim`              |
+| Arch           | pacman            | `pacman -S skim`            |
+| Gentoo         | Portage           | `emerge --ask app-misc/skim |
+| Guix           | guix              | `guix install skim`         |
 | Void           | XBPS              | `xbps-install -S skim`      |
 
-See [repology](https://repology.org/project/skim-fuzzy-finder/versions) for a comprehensive overview of package availability.
-
+<a href="https://repology.org/project/skim-fuzzy-finder/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
+</a>
 
 ## Manually
 
