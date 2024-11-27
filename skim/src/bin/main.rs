@@ -129,16 +129,14 @@ fn sk_main() -> Result<i32, SkMainError> {
         print!("{}{}", result.cmd, bin_options.output_ending);
     }
 
-    if !opts.expect.is_empty() {
-        match result.final_event {
-            Event::EvActAccept(Some(accept_key)) => {
-                print!("{}{}", accept_key, bin_options.output_ending);
-            }
-            Event::EvActAccept(None) => {
-                print!("{}", bin_options.output_ending);
-            }
-            _ => {}
+    match result.final_event {
+        Event::EvActAccept(Some(accept_key)) => {
+            print!("{}{}", accept_key, bin_options.output_ending);
         }
+        Event::EvActAccept(None) => {
+            print!("{}", bin_options.output_ending);
+        }
+        _ => {}
     }
 
     for item in result.selected_items.iter() {
