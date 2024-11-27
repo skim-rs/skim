@@ -212,8 +212,6 @@ Install it with your package manager, following the README. For instance, with `
 ```lua
 {
   "ibhagwan/fzf-lua",
-  -- optional for icon support
-  dependencies = { "nvim-tree/nvim-web-devicons" },
   -- enable `sk` support instead of the default `fzf`
   opts = {'skim'}
 }
