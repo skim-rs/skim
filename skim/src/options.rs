@@ -222,7 +222,7 @@ pub struct SkimOptions {
     ///
     ///   ACTION:               DEFAULT BINDINGS (NOTES):
     ///     abort                 ctrl-c  ctrl-q  esc
-    ///     accept                enter
+    ///     accept(...)           enter (the argument will be printed when the binding is triggered)
     ///     append-and-select
     ///     backward-char         ctrl-b  left
     ///     backward-delete-char  ctrl-h  bspace
