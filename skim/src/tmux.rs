@@ -35,11 +35,11 @@ impl From<&str> for TmuxWindowDir {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct TmuxOptions<'a> {
-    pub width: &'a str,
-    pub height: &'a str,
-    pub x: &'a str,
-    pub y: &'a str,
+struct TmuxOptions<'a> {
+    width: &'a str,
+    height: &'a str,
+    x: &'a str,
+    y: &'a str,
 }
 
 struct SkimTmuxOutput {
