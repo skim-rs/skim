@@ -1,12 +1,12 @@
 use std::{
     borrow::Cow,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
+    process::Command,
     sync::Arc,
     thread,
 };
 
 use rand::{distributions::Alphanumeric, Rng};
-use tmux_interface::{StdIO, Tmux};
 use tuikit::key::Key;
 
 use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};
@@ -81,6 +81,10 @@ impl<'a> From<&'a String> for TmuxOptions<'a> {
     }
 }
 
+/// Run skim in a tmux popup
+///
+/// This will extract the tmux options, then build a new sk command
+/// without them and send it to tmux in a popup.
 pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Create temp dir for downstream output
     let temp_dir_name = format!(
@@ -127,6 +131,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Build args to send to downstream sk invocation
     let mut tmux_shell_cmd = String::new();
     let mut prev_is_tmux_flag = false;
+    // We keep argv[0] to use in the popup's command
     for arg in std::env::args() {
         debug!("Got arg {}", arg);
         if prev_is_tmux_flag {
@@ -155,23 +160,33 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Run downstream sk in tmux
     let raw_tmux_opts = &opts.tmux.clone().unwrap();
     let tmux_opts = TmuxOptions::from(raw_tmux_opts);
-    let tmux_cmd = tmux_interface::commands::tmux_command::TmuxCommand::new()
-        .name("popup")
-        .push_flag("-E")
-        .push_option("-h", tmux_opts.height)
-        .push_option("-w", tmux_opts.width)
-        .push_option("-x", tmux_opts.x)
-        .push_option("-y", tmux_opts.y)
-        .push_param(tmux_shell_cmd)
-        .to_owned();
+    let mut tmux_cmd = Command::new("/bin/tmux");
 
-    let out = Tmux::with_command(tmux_cmd).stdin(Some(StdIO::Inherit)).output();
+    tmux_cmd
+        .arg("display-popup")
+        .args(["-E", "-E"])
+        .args(["-d", std::env::current_dir().unwrap().to_str().unwrap()])
+        .args(["-h", tmux_opts.height])
+        .args(["-w", tmux_opts.width])
+        .args(["-x", tmux_opts.x])
+        .args(["-y", tmux_opts.y]);
 
-    let _ = std::fs::remove_dir_all(temp_dir);
+    for (name, value) in std::env::vars() {
+        if name.starts_with("SKIM") {
+            debug!("adding {} = {} to the command's env", name, value);
+            tmux_cmd.args(["-e", &format!("{}={}", name, value)]);
+        }
+    }
+
+    tmux_cmd.arg(tmux_shell_cmd);
+
+    debug!("tmux command: {:?}", tmux_cmd);
+
+    let out = tmux_cmd
+        .output()
+        .unwrap_or_else(|e| panic!("Tmux invocation failed with {}", e));
 
     debug!("Tmux returned {:?}", out);
-
-    let status = out.expect("Failed to run command in popup").status();
 
     if let Some(h) = stdin_handle {
         h.join().unwrap_or(());
@@ -180,39 +195,31 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let output_ending = if opts.print0 { "\0" } else { "\n" };
     let stdout_bytes = std::fs::read_to_string(tmp_stdout).unwrap_or_default();
     let mut stdout = stdout_bytes.split(output_ending);
+    // let _ = std::fs::remove_dir_all(temp_dir);
 
-    let query_str = if opts.print_query && status.success() {
+    let query_str = if opts.print_query && out.status.success() {
         stdout.next().expect("Not enough lines to unpack in downstream result")
     } else {
         ""
     };
 
-    let command_str = if opts.print_cmd && status.success() {
+    let command_str = if opts.print_cmd && out.status.success() {
         stdout.next().expect("Not enough lines to unpack in downstream result")
     } else {
         ""
     };
 
-    let accept_key = if !opts.expect.is_empty() && status.success() {
-        Some(
-            stdout
-                .next()
-                .expect("Not enough lines to unpack in downstream result")
-                .to_string(),
-        )
-    } else {
-        None
-    };
-
-    let mut selected_items: Vec<Arc<dyn SkimItem>> = vec![];
+    let mut output_lines: Vec<Arc<dyn SkimItem>> = vec![];
     for line in stdout {
-        selected_items.push(Arc::new(SkimTmuxOutput { line: line.to_string() }));
+        debug!("Adding output line: {}", line);
+        output_lines.push(Arc::new(SkimTmuxOutput { line: line.to_string() }));
     }
 
-    let is_abort = !status.success();
+    let is_abort = !out.status.success();
     let final_event = match is_abort {
         true => Event::EvActAbort,
-        false => Event::EvActAccept(accept_key),
+        false => Event::EvActAccept(None), // if --expect or --bind accept(key) are used,
+                                           // the key is technically returned in the selected_items
     };
 
     let skim_output = SkimOutput {
@@ -221,7 +228,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         final_key: Key::Null,
         query: query_str.to_string(),
         cmd: command_str.to_string(),
-        selected_items,
+        selected_items: output_lines,
     };
     Some(skim_output)
 }
