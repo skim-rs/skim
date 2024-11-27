@@ -11,6 +11,7 @@ import time
 import re
 import inspect
 import sys
+import pathlib
 
 INPUT_RECORD_SEPARATOR = '\n'
 DEFAULT_TIMEOUT = 3000
@@ -968,7 +969,6 @@ class TestSkim(TestBase):
         self.tmux.until(lambda lines: lines[-1].startswith('> cd'))
         open_lines = self.tmux.capture()
         self.tmux.send_keys(Key('Enter'))
-
         self.tmux.until(lambda lines: lines != open_lines)
 
         with open(history_file, 'r') as f:
@@ -1226,6 +1226,38 @@ class TestSkim(TestBase):
         # revert option back
         self.tmux.send_keys(f"""set -o histexpand""", Key('Enter'))
 
+    def setup_tmux_mock(self):
+        bin_test_dir = "/tmp/sk-test-bin"
+        mock_bin = pathlib.Path(
+            __file__).parent.resolve().joinpath('mock.sh').resolve()
+        self.tmux.send_keys(
+            f'mkdir -p {bin_test_dir}; export PATH="{bin_test_dir}:$PATH"; cp {mock_bin} {bin_test_dir}/tmux; chmod +x {bin_test_dir}/*', Key('Enter'))
+
+    def test_tmux_vanilla(self):
+        args = '--tmux'
+        self.setup_tmux_mock()
+        self.tmux.send_keys(self.sk(args), Key('Enter'))
+        with open('/tmp/sk-test-mock/stdout', 'r') as f:
+            tmux_cmd = f.readlines()[-1].strip()
+
+        self.assertTrue(tmux_cmd.startswith("display-popup"))
+        self.assertIn(" -E ", tmux_cmd)
+        self.assertIn(f"{BASE}/target/release/sk", tmux_cmd)
+        self.assertNotRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
+
+    def test_tmux_stdin(self):
+        args = '--tmux'
+        self.setup_tmux_mock()
+        self.tmux.send_keys(
+            f"""echo -e 'a\\nb\\nc' | {self.sk(args)}""", Key('Enter'))
+        self.tmux.until(lambda _: os.path.exists('/tmp/sk-test-mock/stdout'))
+        with open('/tmp/sk-test-mock/stdout', 'r') as f:
+            tmux_cmd = f.readlines()[-1].strip()
+
+        print(tmux_cmd)
+        self.assertTrue(tmux_cmd.startswith("display-popup"))
+        self.assertRegex(tmux_cmd,  "< *[^ ]*/sk-tmux-")
+
     def test_reload_no_arg(self):
         args = "--bind 'ctrl-a:reload'"
         sk = self.sk(args).replace('SKIM_DEFAULT_COMMAND=',
@@ -1341,6 +1373,50 @@ class TestSkim(TestBase):
         self.tmux.until(lambda l: l[-3].startswith('> aaba'))
         self.tmux.send_keys('c')
         self.tmux.until(lambda l: l[-3].startswith('> ac'))
+
+    def test_622_combined_multiple_flags_expect(self):
+        input_cmd = "echo -e 'a b c\\nd e f'"
+        args = '--expect ctrl-a,ctrl-b'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys(Ctrl('a'))
+        out = self.readonce().split('\n')
+        self.assertEqual(out[-1], '')
+        self.assertEqual(out[-2], 'a b c')
+        self.assertEqual(out[-3], 'ctrl-a')
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys(Ctrl('b'))
+        out = self.readonce().split('\n')
+        self.assertEqual(out[-1], '')
+        self.assertEqual(out[-2], 'a b c')
+        self.assertEqual(out[-3], 'ctrl-b')
+
+    def test_622_combined_multiple_flags_nth(self):
+        input_cmd = "echo -e 'a b c\nd e f'"
+        args = '--nth 1,2'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys('c')
+        self.tmux.until(lambda l: l.ready_with_matches(0))
+
+    def test_622_combined_multiple_flags_with_nth(self):
+        input_cmd = "echo -e 'a b c\nd e f'"
+        args = '--with-nth 1,2'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.until(lambda l: l[-3] == '> a b')
+
+    def test_624_accept_no_expect(self):
+        input_cmd = "echo -e 'a b c\\nd e f'"
+        args = '--bind ctrl-a:accept:hello'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys(Ctrl('a'))
+        out = self.readonce().split('\n')
+        self.assertEqual(out[-1], '')
+        self.assertEqual(out[-2], 'a b c')
+        self.assertEqual(out[-3], 'hello')
 
 def find_prompt(lines, interactive=False, reverse=False):
     linen = -1

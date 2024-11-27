@@ -44,6 +44,7 @@ pub mod reader;
 mod selection;
 mod spinlock;
 mod theme;
+pub mod tmux;
 mod util;
 
 //------------------------------------------------------------------------------

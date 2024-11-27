@@ -95,27 +95,27 @@ fn sk_main() -> Result<i32, SkMainError> {
     };
 
     //------------------------------------------------------------------------------
-    // read from pipe or command
-    let rx_item = if !io::stdin().is_terminal() {
-        let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
-        Some(rx_item)
-    } else {
-        None
-    };
-
-    //------------------------------------------------------------------------------
-    // filter mode
-    if opts.filter.is_some() {
-        return Ok(filter(&bin_options, &opts, rx_item)?);
-    }
-
-    //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = Skim::run_with(&opts, rx_item) else {
-        return Ok(0);
+    let Some(result) = (match opts.tmux {
+        Some(_) => crate::tmux::run_with(&opts),
+        None => {
+            // read from pipe or command
+            let rx_item = if !io::stdin().is_terminal() {
+                let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
+                Some(rx_item)
+            } else {
+                None
+            };
+            // filter mode
+            if opts.filter.is_some() {
+                return Ok(filter(&bin_options, &opts, rx_item)?);
+            }
+            Skim::run_with(&opts, rx_item)
+        }
+    }) else {
+        return Ok(135);
     };
-
     if result.is_abort {
         return Ok(130);
     }
@@ -129,16 +129,8 @@ fn sk_main() -> Result<i32, SkMainError> {
         print!("{}{}", result.cmd, bin_options.output_ending);
     }
 
-    if !opts.expect.is_empty() {
-        match result.final_event {
-            Event::EvActAccept(Some(accept_key)) => {
-                print!("{}{}", accept_key, bin_options.output_ending);
-            }
-            Event::EvActAccept(None) => {
-                print!("{}", bin_options.output_ending);
-            }
-            _ => {}
-        }
+    if let Event::EvActAccept(Some(accept_key)) = result.final_event {
+        print!("{}{}", accept_key, bin_options.output_ending);
     }
 
     for item in result.selected_items.iter() {
