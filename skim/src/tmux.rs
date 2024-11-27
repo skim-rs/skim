@@ -1,13 +1,14 @@
 use std::{
     borrow::Cow,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
-    process::Command,
+    process::{Command, Stdio},
     sync::Arc,
     thread,
 };
 
 use rand::{distributions::Alphanumeric, Rng};
 use tuikit::key::Key;
+use which::which;
 
 use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};
 
@@ -160,11 +161,11 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Run downstream sk in tmux
     let raw_tmux_opts = &opts.tmux.clone().unwrap();
     let tmux_opts = TmuxOptions::from(raw_tmux_opts);
-    let mut tmux_cmd = Command::new("/bin/tmux");
+    let mut tmux_cmd = Command::new(which("tmux").unwrap_or_else(|e| panic!("Failed to find tmux in path: {}", e)));
 
     tmux_cmd
         .arg("display-popup")
-        .args(["-E", "-E"])
+        .arg("-E")
         .args(["-d", std::env::current_dir().unwrap().to_str().unwrap()])
         .args(["-h", tmux_opts.height])
         .args(["-w", tmux_opts.width])
@@ -172,7 +173,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .args(["-y", tmux_opts.y]);
 
     for (name, value) in std::env::vars() {
-        if name.starts_with("SKIM") {
+        if name.starts_with("SKIM") || name == "PATH" {
             debug!("adding {} = {} to the command's env", name, value);
             tmux_cmd.args(["-e", &format!("{}={}", name, value)]);
         }
@@ -182,28 +183,30 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     debug!("tmux command: {:?}", tmux_cmd);
 
-    let out = tmux_cmd
-        .output()
+    let status = tmux_cmd
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .status()
         .unwrap_or_else(|e| panic!("Tmux invocation failed with {}", e));
-
-    debug!("Tmux returned {:?}", out);
 
     if let Some(h) = stdin_handle {
         h.join().unwrap_or(());
     }
 
     let output_ending = if opts.print0 { "\0" } else { "\n" };
-    let stdout_bytes = std::fs::read_to_string(tmp_stdout).unwrap_or_default();
+    let mut stdout_bytes = std::fs::read_to_string(tmp_stdout).unwrap_or_default();
+    stdout_bytes.pop();
     let mut stdout = stdout_bytes.split(output_ending);
-    // let _ = std::fs::remove_dir_all(temp_dir);
+    let _ = std::fs::remove_dir_all(temp_dir);
 
-    let query_str = if opts.print_query && out.status.success() {
+    let query_str = if opts.print_query && status.success() {
         stdout.next().expect("Not enough lines to unpack in downstream result")
     } else {
         ""
     };
 
-    let command_str = if opts.print_cmd && out.status.success() {
+    let command_str = if opts.print_cmd && status.success() {
         stdout.next().expect("Not enough lines to unpack in downstream result")
     } else {
         ""
@@ -215,7 +218,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         output_lines.push(Arc::new(SkimTmuxOutput { line: line.to_string() }));
     }
 
-    let is_abort = !out.status.success();
+    let is_abort = !status.success();
     let final_event = match is_abort {
         true => Event::EvActAbort,
         false => Event::EvActAccept(None), // if --expect or --bind accept(key) are used,
