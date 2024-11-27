@@ -16,12 +16,12 @@
 > Life is short, skim!
 
 Half of our life is spent on navigation: files, lines, commands… You need skim!
-It is a general fuzzy finder that saves you time.
+It's a general fuzzy finder that saves you time.
 
 [![skim demo](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm.svg)](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm)
 
-skim provides a single executable: `sk`. Basically anywhere you would want to use
-`grep`, try `sk` instead.
+skim provides a single executable: `sk`. Anywhere you would want to use
+`grep`, try `sk` instead!
 
 # Table of contents
 
@@ -55,7 +55,7 @@ The skim project contains several components:
 
 1. `sk` executable -- the core.
 2. **DEPRECATED in favor of `sk --tmux`** `sk-tmux` -- script for launching `sk` in a tmux pane.
-3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. check [skim.vim](https://github.com/skim-rs/skim.vim) for more Vim support.
+3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
 
 ## Package Managers
 
@@ -70,7 +70,7 @@ The skim project contains several components:
 | Guix           | guix              | `guix install skim`       |
 | Void           | XBPS              | `xbps-install -S skim`      |
 
-See [repology](https://repology.org/project/skim/versions) for a comprehensive overview of package availability.
+See [repology](https://repology.org/project/skim-fuzzy-finder/versions) for a comprehensive overview of package availability.
 
 
 ## Install as Vim plugin
@@ -108,13 +108,13 @@ interface for invoking commands.
 
 ## As filter
 
-Try the following
+Try the following:
 
 ```bash
 # directly invoke skim
 sk
 
-# or pipe some input to it: (press TAB key select multiple items with -m enabled)
+# or pipe some input to it: (press TAB key to select multiple items with -m enabled)
 vim $(find . -name "*.rs" | sk -m)
 ```
 The above command will allow you to select files with ".rs" extension and open
@@ -155,12 +155,12 @@ Some commonly used key bindings:
 | TAB               | Toggle selection and move down (with `-m`) |
 | Shift-TAB         | Toggle selection and move up (with `-m`)   |
 
-For full list of key bindings, check out the [man
+For the full list of key bindings, check out the [man
 page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 
 ## Search Syntax
 
-`skim` borrowed `fzf`'s syntax for matching items:
+`skim` borrows `fzf`'s syntax for matching items:
 
 | Token    | Match type                 | Description                       |
 |----------|----------------------------|-----------------------------------|
@@ -191,11 +191,11 @@ You can switch to `regex` mode dynamically by pressing `Ctrl-R` (Rotate Mode).
 
 ## exit code
 
-| Exit Code | Meaning                           |
-|-----------|-----------------------------------|
-| 0         | Exit normally                     |
-| 1         | No Match found                    |
-| 130       | Abort by Ctrl-C/Ctrl-G/ESC/etc... |
+| Exit Code | Meaning                             |
+|-----------|-------------------------------------|
+| 0         | Exited normally                     |
+| 1         | No Match found                      |
+| 130       | Aborted by Ctrl-C/Ctrl-G/ESC/etc... |
 
 # Customization
 
@@ -204,7 +204,7 @@ list of options.
 
 ## Keymap
 
-Specify the bindings with comma separated pairs (no space allowed), example:
+Specify the bindings with comma separated pairs (no space allowed). For example:
 
 ```sh
 sk --bind 'alt-a:select-all,alt-d:deselect-all'
@@ -216,14 +216,14 @@ See the _KEY BINDINGS_ section of the man page for details.
 
 ## Sort Criteria
 
-There are five sort keys for results: `score, index, begin, end, length`, you can
+There are five sort keys for results: `score, index, begin, end, length`. You can
 specify how the records are sorted by `sk --tiebreak score,index,-begin` or any
 other order you want.
 
 ## Color Scheme
 
 It is a high chance that you are a better artist than me. Luckily you won't
-be stuck with the default colors, `skim` supports customization of the color scheme.
+be stuck with the default colors - `skim` supports customization of the color scheme.
 
 ```sh
 --color=[BASE_SCHEME][,COLOR:ANSI]
@@ -238,7 +238,7 @@ sk --color=current_bg:24
 sk --color=light,fg:232,bg:255,current_bg:116,info:27
 ```
 
-See `--color` option in the man page for details.
+See the `--color` option in the man page for details.
 
 ## Misc
 
@@ -249,21 +249,21 @@ See `--color` option in the man page for details.
 
 ## Interactive mode
 
-With "interactive mode", you could invoke command dynamically. Try out:
+In **interactive mode**, you can invoke a command dynamically. Try it out:
 
 ```sh
 sk --ansi -i -c 'rg --color=always --line-number "{}"'
 ```
 
-How it works?
+### How does it work?
 
 ![skim's interactive mode](https://user-images.githubusercontent.com/1527040/53381293-461ce380-39ab-11e9-8e86-7c3bbfd557bc.png)
 
-- Skim could accept two kinds of source: command output or piped input
+- Skim  accepts two kinds of sources: Command output or piped input
 - Skim has two kinds of prompts: A query prompt to specify the query pattern and a
     command prompt to specify the "arguments" of the command
-- `-c` is used to specify the command to execute while defaults to `SKIM_DEFAULT_COMMAND`
-- `-i` is to tell skim open command prompt on startup, which will show `c>` by default.
+- `-c` is used to specify the command to execute and defaults to `SKIM_DEFAULT_COMMAND`
+- `-i` tells skim to open command prompt on startup, which will show `c>` by default.
 
 If you want to further narrow down the results returned by the command, press
 `Ctrl-Q` to toggle interactive mode.
@@ -281,17 +281,18 @@ sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 ## Preview Window
 
 This is a great feature of fzf that skim borrows. For example, we use 'ag' to
-find the matched lines, once we narrow down to the target lines, we want to
+find the matched lines, and once we narrow down to the target lines, we want to
 finally decide which lines to pick by checking the context around the line.
-`grep` and `ag` has an option `--context`, skim can do better with preview
-window. For example:
+`grep` and `ag` have the option `--context`, and skim can make use of `--context` for 
+a better preview window. For example:
 
 ```sh
 sk --ansi -i -c 'ag --color "{}"' --preview "preview.sh {}"
 ```
 
-(Note the [preview.sh](https://github.com/junegunn/fzf.vim/blob/master/bin/preview.sh) is a script to print the context given filename:lines:columns)
-You got things like this:
+(Note that [preview.sh](https://github.com/junegunn/fzf.vim/blob/master/bin/preview.sh) is a script to print the context given filename:lines:columns)
+
+You get things like this:
 
 ![preview demo](https://user-images.githubusercontent.com/1527040/30677573-0cee622e-9ebf-11e7-8316-c741324ecb3a.png)
 
@@ -303,13 +304,12 @@ command to get the output, and print the output on the preview window.
 
 Sometimes you don't need the whole line for invoking the command. In this case
 you can use `{}`, `{1..}`, `{..3}` or `{1..5}` to select the fields. The
-syntax is explained in the section "Fields Support".
+syntax is explained in the section [Fields Support](#filds-support).
 
-Last, you might want to configure the position of preview windows, use
-`--preview-window`.
+Lastly, you might want to configure the position of preview window with `--preview-window`:
 - `--preview-window up:30%` to put the window in the up position with height
     30% of the total height of skim.
-- `--preview-window left:10:wrap`, to specify the `wrap` allows the preview
+- `--preview-window left:10:wrap` to specify the `wrap` allows the preview
     window to wrap the output of the preview command.
 - `--preview-window wrap:hidden` to hide the preview window at startup, later
     it can be shown by the action `toggle-preview`.
@@ -330,12 +330,12 @@ but not matching line number or column number.
 
 You can use `sk --delimiter ':' --nth 1` to achieve this.
 
-Also you can use `--with-nth` to re-arrange the order of fields.
+You can also use `--with-nth` to re-arrange the order of fields.
 
 **Range Syntax**
 
 - `<num>` -- to specify the `num`-th fields, starting with 1.
-- `start..` -- starting from the `start`-th fields, and the rest.
+- `start..` -- starting from the `start`-th fields and the rest.
 - `..end` -- starting from the `0`-th field, all the way to `end`-th field,
     including `end`.
 - `start..end` -- starting from `start`-th field, all the way to `end`-th
@@ -396,10 +396,10 @@ Trait `SkimItem` is provided to customize how a line could be displayed,
 compared and previewed. It is implemented by default for `AsRef<str>`
 
 Plus, `SkimItemReader` is a helper to convert a `BufRead` into
-`SkimItemReceiver` (we can easily turn a `File` for `String` into `BufRead`).
-So that you could deal with strings or files easily.
+`SkimItemReceiver` (we can easily turn a `File` or `String` into `BufRead`),
+so that you could deal with strings or files easily.
 
-Check more examples under [examples/](https://github.com/skim-rs/skim/tree/master/examples) directory.
+Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
 
 # FAQ
 
@@ -431,7 +431,7 @@ That means, the files not recognized by git will not shown. Either override the
 default with `let $SKIM_DEFAULT_COMMAND = ''` or find the missing file by
 yourself.
 
-# Differences to fzf
+# Differences from fzf
 
 [fzf](https://github.com/junegunn/fzf) is a command-line fuzzy finder written
 in Go and [skim](https://github.com/skim-rs/skim) tries to implement a new one
@@ -450,12 +450,12 @@ different from fzf. For example:
 
 # How to contribute
 
-[Create new issues](https://github.com/skim-rs/skim/issues/new) if you meet any bugs
+[Create new issues](https://github.com/skim-rs/skim/issues/new) if you encounter any bugs
 or have any ideas. Pull requests are warmly welcomed.
 
 # Troubleshooting
 
-## No line feed issues with nix , FreeBSD, termux
+## No line feed issues with nix, FreeBSD, termux
 
 If you encounter display issues like:
 
@@ -469,9 +469,9 @@ For example
 - https://github.com/skim-rs/skim/issues/412
 - https://github.com/skim-rs/skim/issues/455
 
-You need to set TERMINFO or TERMINFO_DIRS to the path to a correct terminfo database path
+You need to set TERMINFO or TERMINFO_DIRS to the path of a correct terminfo database path
 
-For example, with termux, you can add in your bashr:
+For example, with termux, you can add this in your bashrc:
 
 ```
 export TERMINFO=/data/data/com.termux/files/usr/share/terminfo

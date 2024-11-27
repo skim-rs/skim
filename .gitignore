@@ -13,4 +13,6 @@
 /bin/*
 .idea/
 .ropeproject/
-test/__pycache__
+
+# E2E
+__pycache__
