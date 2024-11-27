@@ -10,6 +10,7 @@ env:
   BIN_NAME: "sk"
 
 jobs:
+  # TODO check that tag matches crate version
   publish-crate:
     runs-on: ubuntu-latest
     steps:
@@ -70,6 +71,8 @@ jobs:
           retention-days: 1
   release-files:
     runs-on: ubuntu-22.04
+    needs:
+      - build
     steps:
       - name: Checkout Git repo
         uses: actions/checkout@v4
@@ -121,6 +124,17 @@ jobs:
       with:
         token: ${{ github.token }}
         tag: ${{ github.ref_name }}
+    - name: Bring out files from artifacts
+      run: |
+        tar -xzvf artifacts/man.tgz -C man
+        tar -xzvf artifacts/shell.tgz -C shell
+    - name: Push updated files
+      run: |
+        git config user.email 'skim-release@skim-rs.github.io'
+        git config user.name 'skim release action'
+        git add CHANGELOG.md man/man1/sk.1 shell
+        git commit -m '[skip ci] update files after release ${{ github.ref_name }}'
+        git push origin test-ci
     - name: Create Release
       uses: ncipollo/release-action@v1.12.0
       with:
@@ -130,10 +144,3 @@ jobs:
         body: ${{ steps.changelog.outputs.changes }}
         artifacts: |
           artifacts/**
-    - name: Push updated CHANGELOG
-      run: |
-        git config user.email 'skim-release@skim-rs.github.io'
-        git config user.name 'skim release action'
-        git add CHANGELOG.md
-        git commit -m 'update CHANGELOG.md after release ${{ github.ref_name }}'
-        git push origin test-ci
