@@ -1375,6 +1375,17 @@ class TestSkim(TestBase):
         self.tmux.until(lambda l: l.ready_with_matches(2))
         self.tmux.until(lambda l: l[-3] == '> a b')
 
+    def test_624_accept_no_expect(self):
+        input_cmd = "echo -e 'a b c\\nd e f'"
+        args = '--bind ctrl-a:accept:hello'
+        self.tmux.send_keys(f"{input_cmd} | {self.sk(args)}", Key('Enter'))
+        self.tmux.until(lambda l: l.ready_with_matches(2))
+        self.tmux.send_keys(Ctrl('a'))
+        out = self.readonce().split('\n')
+        self.assertEqual(out[-1], '')
+        self.assertEqual(out[-2], 'a b c')
+        self.assertEqual(out[-3], 'hello')
+
 def find_prompt(lines, interactive=False, reverse=False):
     linen = -1
     prompt = ">"
