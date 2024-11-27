@@ -204,6 +204,8 @@ These tools are or aim to be compatible with `skim`:
 
 ## [fzf-lua neovim plugin](https://github.com/ibhagwan/fzf-lua)
 
+A [neovim](https://neovim.io) plugin allowing fzf and skim to be used in a to navigate your code.
+
 Install it with your package manager, following the README. For instance, with `lazy.nvim`:
 
 ```lua
@@ -216,7 +218,9 @@ Install it with your package manager, following the README. For instance, with `
 }
 ```
 
-## (wip) [nu_plugin_skim for nushell](https://github.com/idanarye/nu_plugin_skim)
+## [nu_plugin_skim](https://github.com/idanarye/nu_plugin_skim)
+
+A [nushell](https://www.nushell.sh/) plugin to allow for better interaction between skim and nushell.
 
 Following the instruction in the plugin's README, you can install it with cargo:
 ```nu
