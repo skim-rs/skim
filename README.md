@@ -73,15 +73,7 @@ The skim project contains several components:
 See [repology](https://repology.org/project/skim-fuzzy-finder/versions) for a comprehensive overview of package availability.
 
 
-## Install as Vim plugin
-
-Via vim-plug (recommended):
-
-```vim
-Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
-```
-
-## Hard Core
+## Manually
 
 Any of the following applies:
 
@@ -105,6 +97,15 @@ Any of the following applies:
 
 skim can be used as a general filter (like `grep`) or as an interactive
 interface for invoking commands.
+
+## As Vim plugin
+
+Via vim-plug (recommended):
+
+```vim
+Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
+```
+
 
 ## As filter
 
@@ -196,6 +197,32 @@ You can switch to `regex` mode dynamically by pressing `Ctrl-R` (Rotate Mode).
 | 0         | Exited normally                     |
 | 1         | No Match found                      |
 | 130       | Aborted by Ctrl-C/Ctrl-G/ESC/etc... |
+
+# Tools compatible with `skim`
+
+These tools are or aim to be compatible with `skim`:
+
+## [fzf-lua neovim plugin](https://github.com/ibhagwan/fzf-lua)
+
+Install it with your package manager, following the README. For instance, with `lazy.nvim`:
+
+```lua
+{
+  "ibhagwan/fzf-lua",
+  -- optional for icon support
+  dependencies = { "nvim-tree/nvim-web-devicons" },
+  -- enable `sk` support instead of the default `fzf`
+  opts = {'skim'}
+}
+```
+
+## (wip) [nu_plugin_skim for nushell](https://github.com/idanarye/nu_plugin_skim)
+
+Following the instruction in the plugin's README, you can install it with cargo:
+```nu
+cargo install nu_plugin_skim
+plugin add ~/.cargo/bin/nu_plugin_skim
+```
 
 # Customization
 
