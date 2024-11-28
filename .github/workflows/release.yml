@@ -108,13 +108,13 @@ jobs:
     permissions:
       contents: write
     steps:
+    - name: Checkout Git repo
+      uses: actions/checkout@v4
     - uses: actions/download-artifact@v4
       with:
         path: artifacts
         pattern: "*"
         merge-multiple: true
-    - name: Checkout Git repo
-      uses: actions/checkout@v4
     - name: Update CHANGELOG
       id: changelog
       uses: requarks/changelog-action@v1
@@ -136,4 +136,4 @@ jobs:
         git config user.name 'skim release action'
         git add CHANGELOG.md
         git commit -m 'update CHANGELOG.md after release ${{ github.ref_name }}'
-        git push
+        git push origin main
