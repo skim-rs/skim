@@ -136,4 +136,4 @@ jobs:
         git config user.name 'skim release action'
         git add CHANGELOG.md
         git commit -m 'update CHANGELOG.md after release ${{ github.ref_name }}'
-        git push origin test-ci
+        git push
