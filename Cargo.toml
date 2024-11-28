@@ -1,5 +1,5 @@
 [workspace]
-members = [
+members = [ "e2e",
   "skim",
   "xtask"
 ]
