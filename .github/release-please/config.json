@@ -1,0 +1,7 @@
+{
+  "packages": {
+    "skim": {
+    }
+  },
+  "plugins": ["cargo-workspace"]
+}
