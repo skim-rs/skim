@@ -8,7 +8,7 @@ on:
     - master
 
 jobs:
-  e2e:
+  tests:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -23,26 +23,20 @@ jobs:
           rust: stable
           target: x86_64-apple-darwin
     steps:
-    - name: Install dependencies (for Linux)
+    - name: "[linux] Install dependencies"
       run: |
-        sudo apt-get install zsh
-        python3 -V
+        sudo apt-get install tmux
         tmux -V
         locale
       if: runner.os == 'Linux'
-      env:
-        HOMEBREW_NO_AUTO_UPDATE: 1
-    - name: Install dependencies (for MacOS)
+    - name: "[macos] Install dependencies"
       run: |
         brew install tmux
-        brew install zsh
-        python3 -V
         tmux -V
         locale
       if: runner.os == 'macOS'
       env:
         HOMEBREW_NO_AUTO_UPDATE: 1
-
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
@@ -57,8 +51,12 @@ jobs:
       uses: Swatinem/rust-cache@v2
     - name: Build
       run: cargo build --release
-    - name: Run Tests
-      run: tmux new-session -d && python3 test/test_skim.py --verbose
+    - name: Run unit tests
+      run: cargo test -p skim --release
+    - name: Run end-to-end tests
+      run: |
+        tmux new-session -d
+        cargo test -p e2e
       env:
         LC_ALL: en_US.UTF-8
         TERM: xterm-256color
@@ -78,26 +76,6 @@ jobs:
           rust: stable
           target: x86_64-apple-darwin
     steps:
-    - name: Install dependencies (for Linux)
-      run: |
-        sudo apt-get install zsh
-        python3 -V
-        tmux -V
-        locale
-      if: runner.os == 'Linux'
-      env:
-        HOMEBREW_NO_AUTO_UPDATE: 1
-    - name: Install dependencies (for MacOS)
-      run: |
-        brew install tmux
-        brew install zsh
-        python3 -V
-        tmux -V
-        locale
-      if: runner.os == 'macOS'
-      env:
-        HOMEBREW_NO_AUTO_UPDATE: 1
-
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
