@@ -10,7 +10,7 @@ on:
 jobs:
   unittests:
     runs-on: ${{matrix.os}}
-    strategy: &strategy
+    strategy:
       matrix:
         build: [linux, macos]
         include:
@@ -39,7 +39,18 @@ jobs:
 
   e2e:
     runs-on: ${{matrix.os}}
-    strategy: *strategy
+    strategy:
+      matrix:
+        build: [linux, macos]
+        include:
+        - build: linux
+          os: ubuntu-latest
+          rust: stable
+          target: x86_64-unknown-linux-musl
+        - build: macos
+          os: macos-latest
+          rust: stable
+          target: x86_64-apple-darwin
     steps:
       - name: "[linux] Install dependencies"
         run: |
