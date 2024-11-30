@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 0.13.0" 
+.TH sk 1  "sk 0.14.0" 
 .SH NAME
 sk \- sk \- fuzzy finder in Rust
 .SH SYNOPSIS
@@ -192,7 +192,7 @@ AVAILABLE KEYS: (SYNONYMS)
 
   ACTION:               DEFAULT BINDINGS (NOTES):
     abort                 ctrl\-c  ctrl\-q  esc
-    accept                enter
+    accept(...)           enter (the argument will be printed when the binding is triggered)
     append\-and\-select
     backward\-char         ctrl\-b  left
     backward\-delete\-char  ctrl\-h  bspace
@@ -528,8 +528,6 @@ Pre\-select the items read from this file
 Query for filter mode
 .TP
 \fB\-\-tmux\fR=\fITMUX\fR
-Reserved for later use
-
 Run in a tmux popup
 
 Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
@@ -547,4 +545,4 @@ Print help (see a summary with \*(Aq\-h\*(Aq)
 \fB\-V\fR, \fB\-\-version\fR
 Print version
 .SH VERSION
-v0.13.0
+v0.14.0
