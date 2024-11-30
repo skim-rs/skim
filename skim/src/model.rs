@@ -930,10 +930,10 @@ impl Draw for Status {
         let a_while_since_match = self.time_since_match > Duration::from_millis(50);
 
         let mut col = 0;
-        let spinner_set: &[char] = if self.info == InfoDisplay::Default {
-            &SPINNERS_UNICODE
-        } else {
-            &SPINNERS_INLINE
+        let spinner_set: &[char] = match self.info {
+            InfoDisplay::Default => &SPINNERS_UNICODE,
+            InfoDisplay::Inline => &SPINNERS_INLINE,
+            InfoDisplay::Hidden => panic!("This should never happen"),
         };
 
         if self.info == InfoDisplay::Inline {
@@ -946,10 +946,12 @@ impl Draw for Status {
             let index = (mills / SPINNER_DURATION) % (spinner_set.len() as u32);
             let ch = spinner_set[index as usize];
             col += canvas.put_char_with_attr(0, col, ch, self.theme.spinner())?;
-        } else if self.info == InfoDisplay::Inline {
-            col += canvas.put_char_with_attr(0, col, '<', self.theme.prompt())?;
         } else {
-            col += canvas.put_char_with_attr(0, col, ' ', self.theme.prompt())?;
+            match self.info {
+                InfoDisplay::Inline => col += canvas.put_char_with_attr(0, col, '<', self.theme.prompt())?,
+                InfoDisplay::Default => col += canvas.put_char_with_attr(0, col, ' ', self.theme.prompt())?,
+                InfoDisplay::Hidden => panic!("This should never happen"),
+            }
         }
 
         // display matched/total number
