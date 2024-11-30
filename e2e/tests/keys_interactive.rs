@@ -15,8 +15,8 @@ fn keys_interactive_basic() -> Result<()> {
     tmux.until(|l| l[0].starts_with("c>") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Str("99")])?;
     tmux.until(|l| l[0] == "c> 99")?;
-    tmux.until(|l| l[1].starts_with("  100000/100000"))?;
-    tmux.until(|l| l[2] == "> 1")?;
+    tmux.until(|l| l.len() > 1 && l[1].starts_with("  100000/100000"))?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> 1")?;
 
     Ok(())
 }
@@ -193,8 +193,8 @@ fn keys_interactive_ctrl_k() -> Result<()> {
     let _ = tmux.start_sk(Some("seq 1 100000"), &["-i"]);
     tmux.until(|l| l[0].starts_with("c>") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Ctrl(&Key('k'))])?;
-    tmux.until(|l| l[2] == "  1")?;
-    tmux.until(|l| l[3] == "> 2")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "  1")?;
+    tmux.until(|l| l.len() > 3 && l[3] == "> 2")?;
 
     Ok(())
 }
@@ -205,12 +205,12 @@ fn keys_interactive_tab() -> Result<()> {
     let _ = tmux.start_sk(Some("seq 1 100000"), &["-i"]);
     tmux.until(|l| l[0].starts_with("c>") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Ctrl(&Key('k'))])?;
-    tmux.until(|l| l[2] == "  1")?;
-    tmux.until(|l| l[3] == "> 2")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "  1")?;
+    tmux.until(|l| l.len() > 3 && l[3] == "> 2")?;
 
     tmux.send_keys(&[Tab])?;
-    tmux.until(|l| l[2] == "> 1")?;
-    tmux.until(|l| l[3] == "  2")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> 1")?;
+    tmux.until(|l| l.len() > 3 && l[3] == "  2")?;
 
     Ok(())
 }
@@ -221,8 +221,8 @@ fn keys_interactive_btab() -> Result<()> {
     let _ = tmux.start_sk(Some("seq 1 100000"), &["-i"]);
     tmux.until(|l| l[0].starts_with("c>") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[BTab])?;
-    tmux.until(|l| l[2] == "  1")?;
-    tmux.until(|l| l[3] == "> 2")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "  1")?;
+    tmux.until(|l| l.len() > 3 && l[3] == "> 2")?;
 
     Ok(())
 }

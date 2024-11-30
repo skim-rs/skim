@@ -24,8 +24,8 @@ fn default_command() -> Result<()> {
     let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_COMMAND=", "SKIM_DEFAULT_COMMAND='echo hello'");
     tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
     tmux.until(|l| l[0].starts_with(">"))?;
-    tmux.until(|l| l[1].starts_with("  1/1"))?;
-    tmux.until(|l| l[2] == "> hello")?;
+    tmux.until(|l| l.len() > 1 && l[1].starts_with("  1/1"))?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> hello")?;
 
     tmux.send_keys(&[Keys::Enter])?;
     tmux.until(|l| !l[0].starts_with(">"))?;

@@ -54,7 +54,7 @@ fn bind_append_and_select() -> Result<()> {
     let tmux = setup("a\\n\\nb\\nc", &["-m", "--bind", "'ctrl-f:append-and-select'"])?;
 
     tmux.send_keys(&[Str("xyz"), Ctrl(&Key('f'))])?;
-    tmux.until(|l| l[2] == ">>xyz")?;
+    tmux.until(|l| l.len() > 2 && l[2] == ">>xyz")?;
 
     Ok(())
 }
@@ -70,7 +70,7 @@ fn bind_reload_no_arg() -> Result<()> {
     tmux.until(|l| l[0].starts_with(">"))?;
 
     tmux.send_keys(&[Ctrl(&Key('a'))])?;
-    tmux.until(|l| l[2] == "> hello")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> hello")?;
 
     Ok(())
 }
@@ -79,9 +79,9 @@ fn bind_reload_no_arg() -> Result<()> {
 fn bind_reload_cmd() -> Result<()> {
     let tmux = setup("a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello)'"])?;
 
-    tmux.until(|l| l[2] == "> a")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> a")?;
     tmux.send_keys(&[Ctrl(&Key('a'))])?;
-    tmux.until(|l| l[2] == "> hello")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> hello")?;
 
     Ok(())
 }
