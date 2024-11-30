@@ -2,7 +2,9 @@
   "release-type": "rust",
   "packages": {
     "skim": {
-      "changelog-path": "/CHANGELOG.md"
+      "changelog-path": "/CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true
     },
     "e2e": {},
     "xtask": {}
