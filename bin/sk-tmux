@@ -27,7 +27,6 @@
 
 # sk-tmux: starts sk in a tmux pane
 # usage: sk-tmux [LAYOUT OPTIONS] [--] [SK OPTIONS]
-echo "[WRN] This script is deprecated in favor or \`sk --tmux\` and will be removed in a later release" >&2
 
 fail() {
   >&2 echo "$1"

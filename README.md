@@ -3,7 +3,7 @@
     <img src="https://img.shields.io/crates/v/skim.svg" alt="Crates.io" />
   </a>
   <a href="https://github.com/skim-rs/skim/actions?query=workflow%3A%22Build+%26+Test%22+event%3Apush">
-    <img src="https://github.com/skim-rs/skim/actions/workflows/test.yml/badge.svg?event=push" alt="Build & Test" />
+    <img src="https://github.com/skim-rs/skim/actions/workflows/ci.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
   <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
@@ -26,38 +26,28 @@ skim provides a single executable: `sk`. Anywhere you would want to use
 # Table of contents
 
 - [Installation](#installation)
-   * [Package Managers](#package-managers)
-   * [Manually](#manually)
 - [Usage](#usage)
-   * [As Vim plugin](#as-vim-plugin)
-   * [As filter](#as-filter)
-   * [As Interactive Interface](#as-interactive-interface)
-   * [Key Bindings](#key-bindings)
-   * [Search Syntax](#search-syntax)
-   * [exit code](#exit-code)
-- [Tools compatible with `skim`](#tools-compatible-with-skim)
-   * [fzf-lua neovim plugin](#fzf-lua-neovim-plugin)
-   * [nu_plugin_skim](#nu_plugin_skim)
+    - [As Filter](#as-filter)
+    - [As Interactive Interface](#as-interactive-interface)
+    - [Key Bindings](#key-bindings)
+    - [Search Syntax](#search-syntax)
+    - [Exit code](#exit-code)
 - [Customization](#customization)
-   * [Keymap](#keymap)
-   * [Sort Criteria](#sort-criteria)
-   * [Color Scheme](#color-scheme)
-   * [Misc](#misc)
-- [Advanced Topics](#advanced-topics)
-   * [Interactive mode](#interactive-mode)
-      + [How does it work?](#how-does-it-work)
-   * [Executing external programs](#executing-external-programs)
-   * [Preview Window](#preview-window)
-      + [How does it work?](#how-does-it-work-1)
-   * [Fields support](#fields-support)
-   * [Use as a library](#use-as-a-library)
+    - [Keymap to redefine](#keymap)
+    - [Sort Criteria](#sort-criteria)
+    - [Color Scheme](#color-scheme)
+    - [Misc](#misc)
+- [Advance Topics](#advance-topics)
+    - [Interactive Mode](#interactive-mode)
+    - [Executing external programs](#executing-external-programs)
+    - [Preview Window](#preview-window)
+    - [Fields Support](#fields-support)
+    - [Use as a Library](#use-as-a-library)
 - [FAQ](#faq)
-   * [How to ignore files?](#how-to-ignore-files)
-   * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
-- [Differences from fzf](#differences-from-fzf)
+    - [How to ignore files?](#how-to-ignore-files)
+    - [Some files are not shown in vim plugin](#some-files-are-not-shown-in-vim-plugin)
+- [Differences to fzf](#differences-to-fzf)
 - [How to contribute](#how-to-contribute)
-- [Troubleshooting](#troubleshooting)
-   * [No line feed issues with nix, FreeBSD, termux](#no-line-feed-issues-with-nix-freebsd-termux)
 
 # Installation
 
@@ -69,22 +59,29 @@ The skim project contains several components:
 
 ## Package Managers
 
-| OS             | Package Manager   | Command                     |
-| -------------- | ----------------- | --------------------------- |
-| macOS          | Homebrew          | `brew install sk`           |
-| macOS          | MacPorts          | `sudo port install skim`    |
-| Fedora         | dnf               | `dnf install skim`          |
-| Alpine         | apk               | `apk add skim`              |
-| Arch           | pacman            | `pacman -S skim`            |
-| Gentoo         | Portage           | `emerge --ask app-misc/skim |
-| Guix           | guix              | `guix install skim`         |
+| Distribution   | Package Manager   | Command                   |
+| -------------- | ----------------- | ------------------------- |
+| macOS          | Homebrew          | `brew install sk`         |
+| macOS          | MacPorts          | `sudo port install skim`  |
+| Fedora         | dnf               | `dnf install skim`        |
+| Alpine         | apk               | `apk add skim`            |
+| Arch           | pacman            | `pacman -S skim`          |
+| Gentoo         | Portage           | `emerge --ask app-misc/skim` |
+| Guix           | guix              | `guix install skim`       |
 | Void           | XBPS              | `xbps-install -S skim`      |
 
-<a href="https://repology.org/project/skim-fuzzy-finder/versions">
-    <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
-</a>
+See [repology](https://repology.org/project/skim-fuzzy-finder/versions) for a comprehensive overview of package availability.
 
-## Manually
+
+## Install as Vim plugin
+
+Via vim-plug (recommended):
+
+```vim
+Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
+```
+
+## Hard Core
 
 Any of the following applies:
 
@@ -108,15 +105,6 @@ Any of the following applies:
 
 skim can be used as a general filter (like `grep`) or as an interactive
 interface for invoking commands.
-
-## As Vim plugin
-
-Via vim-plug (recommended):
-
-```vim
-Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
-```
-
 
 ## As filter
 
@@ -208,34 +196,6 @@ You can switch to `regex` mode dynamically by pressing `Ctrl-R` (Rotate Mode).
 | 0         | Exited normally                     |
 | 1         | No Match found                      |
 | 130       | Aborted by Ctrl-C/Ctrl-G/ESC/etc... |
-
-# Tools compatible with `skim`
-
-These tools are or aim to be compatible with `skim`:
-
-## [fzf-lua neovim plugin](https://github.com/ibhagwan/fzf-lua)
-
-A [neovim](https://neovim.io) plugin allowing fzf and skim to be used in a to navigate your code.
-
-Install it with your package manager, following the README. For instance, with `lazy.nvim`:
-
-```lua
-{
-  "ibhagwan/fzf-lua",
-  -- enable `sk` support instead of the default `fzf`
-  opts = {'skim'}
-}
-```
-
-## [nu_plugin_skim](https://github.com/idanarye/nu_plugin_skim)
-
-A [nushell](https://www.nushell.sh/) plugin to allow for better interaction between skim and nushell.
-
-Following the instruction in the plugin's README, you can install it with cargo:
-```nu
-cargo install nu_plugin_skim
-plugin add ~/.cargo/bin/nu_plugin_skim
-```
 
 # Customization
 
