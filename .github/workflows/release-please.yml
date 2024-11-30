@@ -23,8 +23,7 @@ jobs:
       tag_name: steps.release_please.outputs.['skim-tag_name']
 
   publish-crate:
-    needs: release_please
-    if: ${{ needs.release_please.outputs.release_created }}
+    if: ${{ jobs.release_please.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
@@ -45,8 +44,7 @@ jobs:
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
   build:
-    needs: release_please
-    if: ${{ needs.release_please.outputs.release_created }}
+    if: ${{ jobs.release_please.outputs.release_created }}
     name: Build release binaries
     strategy:
       matrix:
@@ -98,8 +96,7 @@ jobs:
           retention-days: 1
   release-files:
     runs-on: ubuntu-22.04
-    needs: release_please
-    if: ${{ needs.release_please.outputs.release_created }}
+    if: ${{ jobs.release_please.outputs.release_created }}
     steps:
       - name: Checkout Git repo
         uses: actions/checkout@v4
