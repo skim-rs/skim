@@ -5,7 +5,7 @@ use clap::Parser;
 use derive_builder::Builder;
 
 use crate::item::RankCriteria;
-use crate::model::InfoDisplay;
+use crate::model::options::InfoDisplay;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
 use crate::util::read_file_lines;

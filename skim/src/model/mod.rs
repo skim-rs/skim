@@ -1,13 +1,17 @@
+pub(crate) mod options;
+mod status;
+
+use options::InfoDisplay;
+use status::{ClearStrategy, Direction, Status};
+
 use std::env;
 
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use chrono::Duration as TimerDuration;
-use clap::builder::PossibleValue;
-use clap::ValueEnum;
 use defer_drop::DeferDrop;
 use regex::Regex;
 use timer::{Guard as TimerGuard, Timer};
@@ -29,44 +33,24 @@ use crate::reader::{Reader, ReaderControl};
 use crate::selection::Selection;
 use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
-use crate::util::clear_canvas;
 use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
 use crate::{FuzzyAlgorithm, MatchEngineFactory, MatchRange, SkimItem};
 use std::cmp::max;
 
 const REFRESH_DURATION: i64 = 100;
-const SPINNER_DURATION: u32 = 200;
-// const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
-const SPINNERS_INLINE: [char; 2] = ['-', '<'];
-const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 lazy_static! {
     static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
     static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
 }
 
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-pub enum InfoDisplay {
-    #[default]
-    Default,
-    Inline,
-    Hidden,
-}
 
-impl ValueEnum for InfoDisplay {
-    fn value_variants<'a>() -> &'a [Self] {
-        use InfoDisplay::*;
-        &[Default, Inline, Hidden]
-    }
-
-    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
-        use InfoDisplay::*;
-        match self {
-            Default => Some(PossibleValue::new("default")),
-            Inline => Some(PossibleValue::new("inline")),
-            Hidden => Some(PossibleValue::new("hidden")),
-        }
-    }
+struct ModelEnv {
+    pub cmd: String,
+    pub query: String,
+    pub cmd_query: String,
+    pub clear_selection: ClearStrategy,
+    pub in_query_mode: bool,
 }
 
 pub struct Model {
@@ -768,12 +752,6 @@ impl Model {
         F: Fn(Box<dyn Widget<Event> + '_>) -> R,
     {
         let total = self.item_pool.len();
-        let matcher_mode = if self.use_regex {
-            "RE".to_string()
-        } else {
-            "".to_string()
-        };
-
         let matched = self.num_options + self.matcher_control.as_ref().map(|c| c.get_num_matched()).unwrap_or(0);
         let matcher_running = self.item_pool.num_not_taken() != 0 || matched != self.num_options;
         let processed = self
@@ -794,7 +772,11 @@ impl Model {
             reading: !self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true),
             time_since_read: self.reader_timer.elapsed(),
             time_since_match: self.matcher_timer.elapsed(),
-            matcher_mode,
+            matcher_mode: if self.use_regex {
+            "RE".to_string()
+        } else {
+            "".to_string()
+        },
             theme: self.theme.clone(),
             info: self.info.clone(),
         };
@@ -874,135 +856,3 @@ impl Model {
     }
 }
 
-struct ModelEnv {
-    pub cmd: String,
-    pub query: String,
-    pub cmd_query: String,
-    pub clear_selection: ClearStrategy,
-    pub in_query_mode: bool,
-}
-
-#[derive(Clone)]
-struct Status {
-    total: usize,
-    matched: usize,
-    processed: usize,
-    matcher_running: bool,
-    multi_selection: bool,
-    selected: usize,
-    current_item_idx: usize,
-    hscroll_offset: i64,
-    reading: bool,
-    time_since_read: Duration,
-    time_since_match: Duration,
-    matcher_mode: String,
-    theme: Arc<ColorTheme>,
-    info: InfoDisplay,
-}
-
-#[allow(unused_assignments)]
-impl Draw for Status {
-    fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
-        // example:
-        //    /--num_matched/num_read        /-- current_item_index
-        // [| 869580/869580                  0.]
-        //  `-spinner                         `-- still matching
-
-        // example(inline):
-        //        /--num_matched/num_read    /-- current_item_index
-        // [>   - 549334/549334              0.]
-        //      `-spinner                     `-- still matching
-
-        canvas.clear()?;
-        let (screen_width, _) = canvas.size()?;
-        clear_canvas(canvas)?;
-        if self.info == InfoDisplay::Hidden {
-            return Ok(());
-        }
-
-        let info_attr = self.theme.info();
-        let info_attr_bold = Attr {
-            effect: Effect::BOLD,
-            ..self.theme.info()
-        };
-
-        let a_while_since_read = self.time_since_read > Duration::from_millis(50);
-        let a_while_since_match = self.time_since_match > Duration::from_millis(50);
-
-        let mut col = 0;
-        let spinner_set: &[char] = match self.info {
-            InfoDisplay::Default => &SPINNERS_UNICODE,
-            InfoDisplay::Inline => &SPINNERS_INLINE,
-            InfoDisplay::Hidden => panic!("This should never happen"),
-        };
-
-        if self.info == InfoDisplay::Inline {
-            col += canvas.put_char_with_attr(0, col, ' ', info_attr)?;
-        }
-
-        // draw the spinner
-        if self.reading && a_while_since_read {
-            let mills = (self.time_since_read.as_secs() * 1000) as u32 + self.time_since_read.subsec_millis();
-            let index = (mills / SPINNER_DURATION) % (spinner_set.len() as u32);
-            let ch = spinner_set[index as usize];
-            col += canvas.put_char_with_attr(0, col, ch, self.theme.spinner())?;
-        } else {
-            match self.info {
-                InfoDisplay::Inline => col += canvas.put_char_with_attr(0, col, '<', self.theme.prompt())?,
-                InfoDisplay::Default => col += canvas.put_char_with_attr(0, col, ' ', self.theme.prompt())?,
-                InfoDisplay::Hidden => panic!("This should never happen"),
-            }
-        }
-
-        // display matched/total number
-        col += canvas.print_with_attr(0, col, format!(" {}/{}", self.matched, self.total).as_ref(), info_attr)?;
-
-        // display the matcher mode
-        if !self.matcher_mode.is_empty() {
-            col += canvas.print_with_attr(0, col, format!("/{}", &self.matcher_mode).as_ref(), info_attr)?;
-        }
-
-        // display the percentage of the number of processed items
-        if self.matcher_running && a_while_since_match {
-            col += canvas.print_with_attr(
-                0,
-                col,
-                format!(" ({}%) ", self.processed * 100 / self.total).as_ref(),
-                info_attr,
-            )?;
-        }
-
-        // selected number
-        if self.multi_selection && self.selected > 0 {
-            col += canvas.print_with_attr(0, col, format!(" [{}]", self.selected).as_ref(), info_attr_bold)?;
-        }
-
-        // item cursor
-        let line_num_str = format!(
-            " {}/{}{}",
-            self.current_item_idx,
-            self.hscroll_offset,
-            if self.matcher_running { '.' } else { ' ' }
-        );
-        canvas.print_with_attr(0, screen_width - line_num_str.len(), &line_num_str, info_attr_bold)?;
-
-        Ok(())
-    }
-}
-
-impl Widget<Event> for Status {}
-
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
-enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
-enum ClearStrategy {
-    DontClear,
-    Clear,
-    ClearIfNotNull,
-}
