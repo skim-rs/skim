@@ -5,6 +5,7 @@ use clap::Parser;
 use derive_builder::Builder;
 
 use crate::item::RankCriteria;
+use crate::model::InfoDisplay;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
 use crate::util::read_file_lines;
@@ -459,7 +460,19 @@ pub struct SkimOptions {
     #[arg(long, default_value = "8", help_heading = "Display")]
     pub tabstop: usize,
 
-    /// Display info next to the query
+    /// Set matching result count display position
+    ///
+    ///     hidden: do not display info
+    ///     inline: display info in the same row as the input
+    ///     default: display info in a dedicated row above the input
+    #[arg(long, help_heading = "Display", value_enum, default_value = "default")]
+    pub info: InfoDisplay,
+
+    /// Alias for --info=hidden
+    #[arg(long, help_heading = "Display")]
+    pub no_info: bool,
+
+    /// Alias for --info=inline
     #[arg(long, help_heading = "Display")]
     pub inline_info: bool,
 
@@ -697,10 +710,6 @@ pub struct SkimOptions {
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
     pub no_bold: bool,
-
-    /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
-    pub info: bool,
 
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]

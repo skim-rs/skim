@@ -6,6 +6,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chrono::Duration as TimerDuration;
+use clap::builder::PossibleValue;
+use clap::ValueEnum;
 use defer_drop::DeferDrop;
 use regex::Regex;
 use timer::{Guard as TimerGuard, Timer};
@@ -41,6 +43,30 @@ const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', 
 lazy_static! {
     static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
     static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub enum InfoDisplay {
+    #[default]
+    Default,
+    Inline,
+    Hidden,
+}
+
+impl ValueEnum for InfoDisplay {
+    fn value_variants<'a>() -> &'a [Self] {
+        use InfoDisplay::*;
+        &[Default, Inline, Hidden]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        use InfoDisplay::*;
+        match self {
+            Default => Some(PossibleValue::new("default")),
+            Inline => Some(PossibleValue::new("inline")),
+            Hidden => Some(PossibleValue::new("hidden")),
+        }
+    }
 }
 
 pub struct Model {
@@ -83,7 +109,7 @@ pub struct Model {
 
     layout: String,
     delimiter: Regex,
-    inline_info: bool,
+    info: InfoDisplay,
     no_clear_if_empty: bool,
     theme: Arc<ColorTheme>,
 
@@ -167,7 +193,7 @@ impl Model {
 
             layout: "default".to_string(),
             delimiter: Regex::new(r"[\t\n ]+").unwrap(),
-            inline_info: false,
+            info: InfoDisplay::Default,
             no_clear_if_empty: false,
             theme,
             timer: Timer::new(),
@@ -187,7 +213,13 @@ impl Model {
 
         self.layout = options.layout.clone();
 
-        self.inline_info = options.inline_info;
+        self.info = if options.inline_info {
+            InfoDisplay::Inline
+        } else if options.no_info {
+            InfoDisplay::Hidden
+        } else {
+            options.info.clone()
+        };
 
         self.use_regex = options.regex;
 
@@ -764,22 +796,22 @@ impl Model {
             time_since_match: self.matcher_timer.elapsed(),
             matcher_mode,
             theme: self.theme.clone(),
-            inline_info: self.inline_info,
+            info: self.info.clone(),
         };
         let status_inline = status.clone();
 
         let win_selection = Win::new(&self.selection);
         let win_query = Win::new(&self.query)
-            .basis(if self.inline_info { 0 } else { 1 })
+            .basis(if self.info == InfoDisplay::Default { 1 } else { 0 })
             .grow(0)
             .shrink(0);
         let win_status = Win::new(status)
-            .basis(if self.inline_info { 0 } else { 1 })
+            .basis(if self.info == InfoDisplay::Default { 1 } else { 0 })
             .grow(0)
             .shrink(0);
         let win_header = Win::new(&self.header).grow(0).shrink(0);
         let win_query_status = HSplit::default()
-            .basis(if self.inline_info { 1 } else { 0 })
+            .basis(if self.info == InfoDisplay::Default { 0 } else { 1 })
             .grow(0)
             .shrink(0)
             .split(Win::new(&self.query).grow(0).shrink(0))
@@ -865,7 +897,7 @@ struct Status {
     time_since_match: Duration,
     matcher_mode: String,
     theme: Arc<ColorTheme>,
-    inline_info: bool,
+    info: InfoDisplay,
 }
 
 #[allow(unused_assignments)]
@@ -884,6 +916,9 @@ impl Draw for Status {
         canvas.clear()?;
         let (screen_width, _) = canvas.size()?;
         clear_canvas(canvas)?;
+        if self.info == InfoDisplay::Hidden {
+            return Ok(());
+        }
 
         let info_attr = self.theme.info();
         let info_attr_bold = Attr {
@@ -895,13 +930,13 @@ impl Draw for Status {
         let a_while_since_match = self.time_since_match > Duration::from_millis(50);
 
         let mut col = 0;
-        let spinner_set: &[char] = if self.inline_info {
-            &SPINNERS_INLINE
-        } else {
+        let spinner_set: &[char] = if self.info == InfoDisplay::Default {
             &SPINNERS_UNICODE
+        } else {
+            &SPINNERS_INLINE
         };
 
-        if self.inline_info {
+        if self.info == InfoDisplay::Inline {
             col += canvas.put_char_with_attr(0, col, ' ', info_attr)?;
         }
 
@@ -911,7 +946,7 @@ impl Draw for Status {
             let index = (mills / SPINNER_DURATION) % (spinner_set.len() as u32);
             let ch = spinner_set[index as usize];
             col += canvas.put_char_with_attr(0, col, ch, self.theme.spinner())?;
-        } else if self.inline_info {
+        } else if self.info == InfoDisplay::Inline {
             col += canvas.put_char_with_attr(0, col, '<', self.theme.prompt())?;
         } else {
             col += canvas.put_char_with_attr(0, col, ' ', self.theme.prompt())?;
