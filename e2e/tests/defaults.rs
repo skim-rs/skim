@@ -21,12 +21,8 @@ fn default_command() -> Result<()> {
     let tmux = TmuxController::new()?;
 
     let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &[])
-        .replace("SKIM_DEFAULT_COMMAND=", "SKIM_DEFAULT_COMMAND='echo hello'");
-    tmux.send_keys(&[
-        Keys::Str(&sk_cmd),
-        Keys::Enter
-    ])?;
+    let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_COMMAND=", "SKIM_DEFAULT_COMMAND='echo hello'");
+    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
     tmux.until(|l| l[0].starts_with(">"))?;
     tmux.until(|l| l[1].starts_with("  1/1"))?;
     tmux.until(|l| l[2] == "> hello")?;
@@ -47,10 +43,7 @@ fn version_long() -> Result<()> {
 
     let outfile = tmux.tempfile()?;
     let sk_cmd = sk(&outfile, &["--version"]);
-    tmux.send_keys(&[
-        Keys::Str(&sk_cmd),
-        Keys::Enter
-    ])?;
+    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
 
     let output = tmux.output(&outfile)?;
 
@@ -65,10 +58,7 @@ fn version_short() -> Result<()> {
 
     let outfile = tmux.tempfile()?;
     let sk_cmd = sk(&outfile, &["-V"]);
-    tmux.send_keys(&[
-        Keys::Str(&sk_cmd),
-        Keys::Enter
-    ])?;
+    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
 
     let output = tmux.output(&outfile)?;
 

@@ -1,5 +1,11 @@
 use std::{
-    fs::File, io::{BufReader, Error, ErrorKind, Read, Result}, path::Path, process::Command, thread::sleep, time::Duration
+    fmt::{Display, Formatter},
+    fs::File,
+    io::{BufReader, Error, ErrorKind, Read, Result},
+    path::Path,
+    process::Command,
+    thread::sleep,
+    time::Duration,
 };
 
 use rand::distributions::{Alphanumeric, DistString as _};
@@ -8,14 +14,14 @@ use tempfile::{tempdir, NamedTempFile, TempDir};
 pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= cargo run --package skim --release --";
 
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
-    return format!(
+    format!(
         "{} {} > {}.part; mv {}.part {}",
         SK,
         opts.join(" "),
         outfile,
         outfile,
         outfile
-    );
+    )
 }
 
 fn wait<F, T>(pred: F) -> Result<T>
@@ -41,23 +47,23 @@ pub enum Keys<'a> {
     BTab,
     Left,
     Right,
-    BSpace
+    BSpace,
 }
 
-impl<'a> ToString for Keys<'a> {
-    fn to_string(&self) -> String {
+impl<'a> Display for Keys<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         use Keys::*;
         match self {
-            Str(s) => s.to_string(),
-            Key(c) => c.to_string(),
-            Ctrl(c) => format!("C-{}", c.to_string()),
-            Alt(c) => format!("M-{}", c.to_string()),
-            Enter => String::from("Enter"),
-            Tab => String::from("Tab"),
-            BTab => String::from("BTab"),
-            Left => String::from("Left"),
-            Right => String::from("Right"),
-            BSpace => String::from("BSpace"),
+            Str(s) => write!(f, "{}", s),
+            Key(c) => write!(f, "{}", c),
+            Ctrl(k) => write!(f, "C-{}", k),
+            Alt(k) => write!(f, "M-{}", k),
+            Enter => write!(f, "Enter"),
+            Tab => write!(f, "Tab"),
+            BTab => write!(f, "BTab"),
+            Left => write!(f, "Left"),
+            Right => write!(f, "Right"),
+            BSpace => write!(f, "BSpace"),
         }
     }
 }

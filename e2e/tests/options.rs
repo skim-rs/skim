@@ -792,10 +792,7 @@ fn opt_no_clear_if_empty() -> Result<()> {
 
 #[test]
 fn opt_accept_arg() -> Result<()> {
-    let (tmux, outfile) = setup("a\\nb", &[
-        "--bind",
-        "ctrl-a:accept:hello"
-    ])?;
+    let (tmux, outfile) = setup("a\\nb", &["--bind", "ctrl-a:accept:hello"])?;
     tmux.send_keys(&[Ctrl(&Key('a'))])?;
 
     let output = tmux.output(&outfile)?;

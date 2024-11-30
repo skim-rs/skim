@@ -35,7 +35,10 @@ fn query_history() -> Result<()> {
 
     tmux.until(|_| {
         let mut buf = String::new();
-        File::open(Path::new(&histfile)).unwrap().read_to_string(&mut buf).unwrap();
+        File::open(Path::new(&histfile))
+            .unwrap()
+            .read_to_string(&mut buf)
+            .unwrap();
 
         println!("{}", buf);
         buf == "a\nb\nc\nbn"
@@ -51,12 +54,10 @@ fn cmd_history() -> Result<()> {
 
     File::create(&histfile)?.write(b"a\nb\nc")?;
 
-    tmux.start_sk(Some("echo -e -n 'a\\nb\\nc'"), &[
-        "-i",
-        "-c",
-        "'echo {}'",
-        "--cmd-history", &histfile
-    ])?;
+    tmux.start_sk(
+        Some("echo -e -n 'a\\nb\\nc'"),
+        &["-i", "-c", "'echo {}'", "--cmd-history", &histfile],
+    )?;
     tmux.until(|l| l[0].starts_with("c>"))?;
 
     tmux.send_keys(&[Ctrl(&Key('p'))])?;
@@ -78,7 +79,10 @@ fn cmd_history() -> Result<()> {
 
     tmux.until(|_| {
         let mut buf = String::new();
-        File::open(Path::new(&histfile)).unwrap().read_to_string(&mut buf).unwrap();
+        File::open(Path::new(&histfile))
+            .unwrap()
+            .read_to_string(&mut buf)
+            .unwrap();
 
         println!("{}", buf);
         buf == "a\nb\nc\nbn"

@@ -1,12 +1,13 @@
-use e2e::test_utils::TmuxController;
 use e2e::test_utils::Keys::*;
+use e2e::test_utils::TmuxController;
 use std::io::Result;
 
 fn setup(input: &str, tiebreak: &str) -> Result<TmuxController> {
     let tmux = TmuxController::new()?;
-    tmux.start_sk(Some(&format!("echo -en '{input}'")), &[
-        &format!("--tiebreak='{tiebreak}'")
-    ])?;
+    tmux.start_sk(
+        Some(&format!("echo -en '{input}'")),
+        &[&format!("--tiebreak='{tiebreak}'")],
+    )?;
     tmux.until(|l| l[0].starts_with(">"))?;
     Ok(tmux)
 }
