@@ -430,7 +430,7 @@ fn opt_hscroll_end() -> Result<()> {
 fn opt_no_hscroll() -> Result<()> {
     let (tmux, _) = setup(&format!("{}b", &["a"; 1000].join("")), &["-q", "b", "--no-hscroll"])?;
 
-    tmux.until(|l| !l.len() > 2 && l[2].starts_with("> .."))?;
+    tmux.until(|l| l.len() > 2 && !l[2].starts_with("> .."))?;
     tmux.until(|l| l.len() > 2 && l[2].ends_with(".."))
 }
 
