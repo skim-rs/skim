@@ -49,12 +49,11 @@ jobs:
         override: true
     - name: Cache
       uses: Swatinem/rust-cache@v2
-    - name: Build
-      run: cargo build --release
     - name: Run unit tests
-      run: cargo test -p skim --release
+      run: cargo test -p skim
     - name: Run end-to-end tests
       run: |
+        cargo build --release
         tmux new-session -d
         cargo test -p e2e -j8
       env:
