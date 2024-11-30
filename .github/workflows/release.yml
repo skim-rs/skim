@@ -69,7 +69,13 @@ jobs:
         with:
           command: test
           target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
-          args: "--release --locked"
+          args: "-p skim --release --locked"
+      - name: E2E
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: test
+          target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
+          args: "-p e2e --release --locked -j8"
       - name: Create archive
         run: |
           tar -C target/*/release/ -czvf "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz" "${{ env.BIN_NAME }}"

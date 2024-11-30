@@ -56,7 +56,7 @@ jobs:
     - name: Run end-to-end tests
       run: |
         tmux new-session -d
-        cargo test -p e2e -j4
+        cargo test -p e2e -j8
       env:
         LC_ALL: en_US.UTF-8
         TERM: xterm-256color
