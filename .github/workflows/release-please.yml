@@ -3,14 +3,13 @@ on:
     branches:
       - master
 
-permissions:
-  contents: write
-  pull-requests: write
-
 name: release-please
 
 jobs:
   release_please:
+    permissions:
+      contents: write
+      pull-requests: write
     name: release-please
     runs-on: ubuntu-latest
     steps:
@@ -130,6 +129,8 @@ jobs:
           path: "artifacts/*.tgz"
           retention-days: 1
   release-artifacts:
+    permissions:
+      contents: write
     runs-on: ubuntu-22.04
     needs:
       - build
