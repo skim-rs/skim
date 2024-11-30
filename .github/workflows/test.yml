@@ -8,9 +8,9 @@ on:
     - master
 
 jobs:
-  tests:
+  unittests:
     runs-on: ${{matrix.os}}
-    strategy:
+    strategy: &strategy
       matrix:
         build: [linux, macos]
         include:
@@ -23,20 +23,6 @@ jobs:
           rust: stable
           target: x86_64-apple-darwin
     steps:
-    - name: "[linux] Install dependencies"
-      run: |
-        sudo apt-get install tmux
-        tmux -V
-        locale
-      if: runner.os == 'Linux'
-    - name: "[macos] Install dependencies"
-      run: |
-        brew install tmux
-        tmux -V
-        locale
-      if: runner.os == 'macOS'
-      env:
-        HOMEBREW_NO_AUTO_UPDATE: 1
     - name: Checkout repository
       uses: actions/checkout@v2
       with:
@@ -46,63 +32,78 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
         target: ${{ matrix.target }}
-        override: true
     - name: Cache
       uses: Swatinem/rust-cache@v2
     - name: Run unit tests
       run: cargo test -p skim
-    - name: Run end-to-end tests
-      run: |
-        cargo build --release
-        tmux new-session -d
-        cargo test -p e2e -j8
-      env:
-        LC_ALL: en_US.UTF-8
-        TERM: xterm-256color
+
+  e2e:
+    runs-on: ${{matrix.os}}
+    strategy: *strategy
+    steps:
+      - name: "[linux] Install dependencies"
+        run: |
+          sudo apt-get install tmux
+          tmux -V
+          locale
+        if: runner.os == 'Linux'
+      - name: "[macos] Install dependencies"
+        run: |
+          brew install tmux
+          tmux -V
+          locale
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Install correct toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run end-to-end tests
+        run: |
+          cargo build --release
+          tmux new-session -d
+          cargo test -p e2e -j8
+        env:
+          LC_ALL: en_US.UTF-8
+          TERM: xterm-256color
 
   clippy:
     runs-on: ${{matrix.os}}
-    strategy:
-      matrix:
-        build: [linux, macos]
-        include:
-        - build: linux
-          os: ubuntu-latest
-          rust: stable
-          target: x86_64-unknown-linux-musl
-        - build: macos
-          os: macos-latest
-          rust: stable
-          target: x86_64-apple-darwin
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 1
-    - name: Install correct toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-        target: ${{ matrix.target }}
-        override: true
-        components: clippy
-    - name: Cache
-      uses: Swatinem/rust-cache@v2
-    - name: Clippy
-      run: cargo clippy
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Install correct toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: clippy
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy
 
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-        profile: minimal
-        components: rustfmt
-    - name: Check formatting
-      run: |
-        cargo fmt --all -- --check
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt
+      - name: Check formatting
+        run: |
+          cargo fmt --all -- --check
