@@ -32,7 +32,7 @@ fn opt_print0() -> Result<()> {
 
     let lines = tmux.output(&outfile)?;
 
-    assert_eq!(lines[0], "a\0b\0");
+    assert_eq!(lines, vec!["a\0b\0"]);
 
     Ok(())
 }
