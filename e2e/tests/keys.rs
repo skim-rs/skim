@@ -1,6 +1,13 @@
 use e2e::test_utils::{Keys::*, TmuxController};
 use std::io::Result;
 
+fn setup() -> Result<TmuxController> {
+    let tmux = TmuxController::new()?;
+    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
+    tmux.until(|l| l[0].starts_with(">"))?;
+    Ok(tmux)
+}
+
 #[test]
 fn keys_basic() -> Result<()> {
     let tmux = TmuxController::new()?;
@@ -18,9 +25,7 @@ fn keys_basic() -> Result<()> {
 //
 #[test]
 fn keys_arrows() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Left, Key('|')])?;
     tmux.until(|l| l[0] == "> foo bar foo-ba|r")?;
     tmux.send_keys(&[Right, Key('|')])?;
@@ -30,91 +35,81 @@ fn keys_arrows() -> Result<()> {
 }
 
 #[test]
+fn keys_ctrl_arrows() -> Result<()> {
+    let tmux = setup()?;
+    tmux.send_keys(&[Ctrl(&Left), Key('|')])?;
+    tmux.until(|l| l[0] == "> foo bar foo-|bar")?;
+    tmux.send_keys(&[Ctrl(&Left), Key('|')])?;
+    tmux.until(|l| l[0] == "> foo bar |foo-|bar")?;
+    tmux.send_keys(&[Ctrl(&Right), Key('|')])?;
+    tmux.until(|l| l[0] == "> foo bar |foo-|bar|")?;
+
+    Ok(())
+}
+
+#[test]
 fn keys_ctrl_a() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
-    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
-    tmux.send_keys(&[Str("abcd")])?;
-    tmux.until(|l| l[0] == "> abcd")?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('a')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |abcd")?;
+    tmux.until(|l| l[0] == "> |foo bar foo-bar")?;
 
     Ok(())
 }
 
 #[test]
 fn keys_ctrl_b() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
-    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
-    tmux.send_keys(&[Str("abcd")])?;
-    tmux.until(|l| l[0] == "> abcd")?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('a')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |abcd")?;
+    tmux.until(|l| l[0] == "> |foo bar foo-bar")?;
     tmux.send_keys(&[Ctrl(&Key('f')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |a|bcd")?;
+    tmux.until(|l| l[0] == "> |f|oo bar foo-bar")?;
 
     Ok(())
 }
 
 #[test]
 fn keys_ctrl_e() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
-    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
-    tmux.send_keys(&[Str("abcd")])?;
-    tmux.until(|l| l[0] == "> abcd")?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('a')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |abcd")?;
+    tmux.until(|l| l[0] == "> |foo bar foo-bar")?;
     tmux.send_keys(&[Ctrl(&Key('e')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |abcd|")?;
+    tmux.until(|l| l[0] == "> |foo bar foo-bar|")?;
 
     Ok(())
 }
 
 #[test]
 fn keys_ctrl_f() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
-    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
-    tmux.send_keys(&[Str("abcd")])?;
-    tmux.until(|l| l[0] == "> abcd")?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('a')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |abcd")?;
+    tmux.until(|l| l[0] == "> |foo bar foo-bar")?;
     tmux.send_keys(&[Ctrl(&Key('f')), Key('|')])?;
-    tmux.until(|l| l[0] == "> |a|bcd")?;
+    tmux.until(|l| l[0] == "> |f|oo bar foo-bar")?;
 
     Ok(())
 }
 
 #[test]
 fn keys_ctrl_h() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
-    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
-    tmux.send_keys(&[Str("abcd")])?;
-    tmux.until(|l| l[0] == "> abcd")?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('h')), Key('|')])?;
-    tmux.until(|l| l[0] == "> abc|")?;
+    tmux.until(|l| l[0] == "> foo bar foo-ba|")?;
 
     Ok(())
 }
 
 #[test]
 fn keys_alt_b() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Alt(&Key('b')), Key('|')])?;
     tmux.until(|l| l[0] == "> foo bar foo-|bar")?;
 
     Ok(())
 }
+
 #[test]
 fn keys_alt_f() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('a')), Key('|')])?;
     tmux.until(|l| l[0] == "> |foo bar foo-bar")?;
     tmux.send_keys(&[Alt(&Key('f')), Key('|')])?;
@@ -127,9 +122,7 @@ fn keys_alt_f() -> Result<()> {
 //
 #[test]
 fn keys_bspace() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[BSpace, Key('|')])?;
     tmux.until(|l| l[0] == "> foo bar foo-ba|")?;
 
@@ -137,9 +130,7 @@ fn keys_bspace() -> Result<()> {
 }
 #[test]
 fn keys_ctrl_d() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('a')), Key('|')])?;
     tmux.until(|l| l[0] == "> |foo bar foo-bar")?;
     tmux.send_keys(&[Ctrl(&Key('d')), Key('|')])?;
@@ -149,9 +140,7 @@ fn keys_ctrl_d() -> Result<()> {
 }
 #[test]
 fn keys_ctrl_u() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('u')), Key('|')])?;
     tmux.until(|l| l[0] == "> |")?;
 
@@ -159,9 +148,7 @@ fn keys_ctrl_u() -> Result<()> {
 }
 #[test]
 fn keys_ctrl_w() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Ctrl(&Key('w')), Key('|')])?;
     tmux.until(|l| l[0] == "> foo bar |")?;
 
@@ -169,9 +156,7 @@ fn keys_ctrl_w() -> Result<()> {
 }
 #[test]
 fn keys_ctrl_y() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Alt(&BSpace), Key('|')])?;
     tmux.until(|l| l[0] == "> foo bar foo-|")?;
     tmux.send_keys(&[Ctrl(&Key('y')), Key('|')])?;
@@ -180,10 +165,20 @@ fn keys_ctrl_y() -> Result<()> {
     Ok(())
 }
 #[test]
+fn keys_alt_d() -> Result<()> {
+    let tmux = setup()?;
+    tmux.send_keys(&[Ctrl(&Left), Key('|')])?;
+    tmux.until(|l| l[0] == "> foo bar foo-|bar")?;
+    tmux.send_keys(&[Ctrl(&Left), Key('|')])?;
+    tmux.until(|l| l[0] == "> foo bar |foo-|bar")?;
+    tmux.send_keys(&[Alt(&Key('d')), Key('|')])?;
+    tmux.until(|l| l[0] == "> foo bar ||-|bar")?;
+
+    Ok(())
+}
+#[test]
 fn keys_alt_bspace() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
-    tmux.until(|l| l[0].starts_with(">"))?;
+    let tmux = setup()?;
     tmux.send_keys(&[Alt(&BSpace), Key('|')])?;
     tmux.until(|l| l[0] == "> foo bar foo-|")?;
 
@@ -238,6 +233,17 @@ fn keys_enter() -> Result<()> {
     let outfile = tmux.start_sk(Some("seq 1 100000"), &[])?;
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Enter])?;
+    tmux.until(|l| !l[0].starts_with(">"))?;
+    let res = tmux.output(&outfile)?;
+    assert_eq!(res[0], "1");
+    Ok(())
+}
+#[test]
+fn keys_ctrl_m() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    let outfile = tmux.start_sk(Some("seq 1 100000"), &[])?;
+    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
+    tmux.send_keys(&[Ctrl(&Key('m'))])?;
     tmux.until(|l| !l[0].starts_with(">"))?;
     let res = tmux.output(&outfile)?;
     assert_eq!(res[0], "1");

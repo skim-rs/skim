@@ -40,3 +40,39 @@ fn default_command() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn version_long() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    let outfile = tmux.tempfile()?;
+    let sk_cmd = sk(&outfile, &["--version"]);
+    tmux.send_keys(&[
+        Keys::Str(&sk_cmd),
+        Keys::Enter
+    ])?;
+
+    let output = tmux.output(&outfile)?;
+
+    assert!(output[0].starts_with("sk "));
+
+    Ok(())
+}
+
+#[test]
+fn version_short() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    let outfile = tmux.tempfile()?;
+    let sk_cmd = sk(&outfile, &["-V"]);
+    tmux.send_keys(&[
+        Keys::Str(&sk_cmd),
+        Keys::Enter
+    ])?;
+
+    let output = tmux.output(&outfile)?;
+
+    assert!(output[0].starts_with("sk "));
+
+    Ok(())
+}

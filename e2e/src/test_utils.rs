@@ -1,9 +1,5 @@
 use std::{
-    fs::File,
-    io::{BufReader, Error, ErrorKind, Read, Result},
-    process::Command,
-    thread::sleep,
-    time::Duration,
+    fs::File, io::{BufReader, Error, ErrorKind, Read, Result}, path::Path, process::Command, thread::sleep, time::Duration
 };
 
 use rand::distributions::{Alphanumeric, DistString as _};
@@ -26,11 +22,11 @@ fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..100 {
+    for _ in 1..60 {
         if let Ok(t) = pred() {
             return Ok(t);
         }
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(50));
     }
     Err(Error::new(ErrorKind::TimedOut, "wait timed out"))
 }
@@ -68,7 +64,7 @@ impl<'a> ToString for Keys<'a> {
 
 pub struct TmuxController {
     window: String,
-    tempdir: TempDir,
+    pub tempdir: TempDir,
 }
 
 impl TmuxController {
@@ -166,7 +162,15 @@ impl TmuxController {
     }
 
     pub fn output(&self, outfile: &str) -> Result<Vec<String>> {
+        wait(|| {
+            if Path::new(outfile).exists() {
+                Ok(())
+            } else {
+                Err(Error::new(ErrorKind::NotFound, "oufile does not exist yet"))
+            }
+        })?;
         let mut string_lines = String::new();
+        println!("{}", Path::new(outfile).exists());
         println!("Reading file {outfile}");
         BufReader::new(File::open(outfile)?).read_to_string(&mut string_lines)?;
 
