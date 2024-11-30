@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/skim-rs/skim/compare/e2e-v0.14.4...e2e-v0.15.0) (2024-11-30)
+
+
+### Features
+
+* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([b0868e8](https://github.com/skim-rs/skim/commit/b0868e849a64265618696c071b963b89577f46cd))
+
 ## 0.14.4 (2024-11-30)
 
 
