@@ -23,11 +23,11 @@ jobs:
 
   setup-release:
     runs-on: ubuntu-latest
-    needs: release_please
-    if: ${{ needs.release_please.outputs.release_created }}
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
     steps:
       - run: |
-          echo '${{ needs.release_please.outputs.release_created }}'
+          echo '${{ needs.release-please.outputs.release_created }}'
 
   publish-crate:
     runs-on: ubuntu-latest
