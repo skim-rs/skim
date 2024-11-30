@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "e2e"
-version = "0.15.0"
+version = "0.14.4"
 dependencies = [
  "rand",
  "skim",
@@ -853,7 +853,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "skim"
-version = "0.15.0"
+version = "0.14.4"
 dependencies = [
  "atty",
  "beef",
@@ -1233,7 +1233,7 @@ checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
 
 [[package]]
 name = "xtask"
-version = "0.15.0"
+version = "0.14.4"
 dependencies = [
  "clap",
  "clap_complete",
