@@ -13,13 +13,14 @@ jobs:
     name: release-please
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - id: release_please
+        uses: googleapis/release-please-action@v4
         with:
           release-type: rust
           path: skim
     outputs:
-      release_created: steps.release.outputs.release_created
-      tag_name: steps.release.outputs.tag_name
+      release_created: steps.release_please.outputs['skim-release_created']
+      tag_name: steps.release_please.outputs.['skim-tag_name']
 
   publish-crate:
     needs: release_please
