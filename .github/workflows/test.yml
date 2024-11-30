@@ -87,7 +87,7 @@ jobs:
           TERM: xterm-256color
 
   clippy:
-    runs-on: ${{matrix.os}}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
