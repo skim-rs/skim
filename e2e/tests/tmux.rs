@@ -7,9 +7,6 @@ use std::io::Result;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::thread::sleep;
-use std::time::Duration;
-use tempfile::TempDir;
 
 fn setup_tmux_mock(tmux: &TmuxController) -> Result<String> {
     let dir = &tmux.tempdir;

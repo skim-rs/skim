@@ -10,6 +10,7 @@ use std::{
 
 use rand::distributions::{Alphanumeric, DistString as _};
 use tempfile::{tempdir, NamedTempFile, TempDir};
+use which::which;
 
 pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= cargo run --package skim --release --";
 
@@ -76,7 +77,7 @@ pub struct TmuxController {
 impl TmuxController {
     pub fn run(args: &[&str]) -> Result<Vec<String>> {
         println!("Running {:?}", args);
-        let output = Command::new("/bin/tmux")
+        let output = Command::new(which("tmux").expect("Please install tmux to $PATH"))
             .args(args)
             .output()?
             .stdout

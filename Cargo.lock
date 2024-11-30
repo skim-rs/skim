@@ -423,6 +423,7 @@ dependencies = [
  "rand",
  "skim",
  "tempfile",
+ "which",
 ]
 
 [[package]]

@@ -7,3 +7,4 @@ edition = "2021"
 rand = "0.8.5"
 skim = { path = "../skim" }
 tempfile = "3.14.0"
+which = "7.0.0"
