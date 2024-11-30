@@ -454,6 +454,59 @@ fn opt_tabstop_3() -> Result<()> {
 }
 
 #[test]
+fn opt_info_control() -> Result<()> {
+    let (tmux, _) = setup("a\\nb\\nc", &[])?;
+
+    tmux.until(|l| l[0].starts_with(">"))?;
+    tmux.until(|l| l[1].starts_with("  3/3") && l[1].ends_with("0/0"))?;
+
+    tmux.send_keys(&[Key('a')])?;
+    tmux.until(|l| l[1].starts_with("  1/3") && l[1].ends_with("0/0"))
+}
+#[test]
+fn opt_info_default() -> Result<()> {
+    let (tmux, _) = setup("a\\nb\\nc", &["--info", "default"])?;
+
+    tmux.until(|l| l[0].starts_with(">"))?;
+    tmux.until(|l| l[1].starts_with("  3/3") && l[1].ends_with("0/0"))?;
+
+    tmux.send_keys(&[Key('a')])?;
+    tmux.until(|l| l[1].starts_with("  1/3") && l[1].ends_with("0/0"))
+}
+#[test]
+fn opt_no_info() -> Result<()> {
+    let (tmux, _) = setup("a\\nb\\nc", &["--no-info"])?;
+
+    tmux.until(|l| l[0].starts_with(">"))?;
+    let cap = tmux.capture()?;
+
+    assert_eq!(cap[0], ">");
+    assert_eq!(cap[1], "> a");
+
+    Ok(())
+}
+#[test]
+fn opt_info_hidden() -> Result<()> {
+    let (tmux, _) = setup("a\\nb\\nc", &["--info", "hidden"])?;
+
+    tmux.until(|l| l[0].starts_with(">"))?;
+    let cap = tmux.capture()?;
+
+    assert_eq!(cap[0], ">");
+    assert_eq!(cap[1], "> a");
+
+    Ok(())
+}
+#[test]
+fn opt_info_inline() -> Result<()> {
+    let (tmux, _) = setup("a\\nb\\nc", &["--info", "inline"])?;
+
+    tmux.until(|l| l[0].starts_with(">   < 3/3") && l[0].ends_with("0/0"))?;
+
+    tmux.send_keys(&[Key('a')])?;
+    tmux.until(|l| l[0].starts_with("> a  < 1/3") && l[0].ends_with("0/0"))
+}
+#[test]
 fn opt_inline_info() -> Result<()> {
     let (tmux, _) = setup("a\\nb\\nc", &["--inline-info"])?;
 

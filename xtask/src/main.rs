@@ -10,17 +10,18 @@ use skim::SkimOptions;
 type DynError = Box<dyn std::error::Error>;
 
 fn main() {
-    if let Err(e) = try_main() {
-        eprintln!("{}", e);
-        std::process::exit(-1);
+    for task in env::args().skip(1) {
+        if let Err(e) = try_main(&task) {
+            eprintln!("{}", e);
+            std::process::exit(-1);
+        }
     }
 }
 
-fn try_main() -> Result<(), DynError> {
-    let task = env::args().nth(1);
-    match task.as_deref() {
-        Some("mangen") => mangen()?,
-        Some("compgen") => compgen()?,
+fn try_main(task: &str) -> Result<(), DynError> {
+    match task {
+        "mangen" => mangen()?,
+        "compgen" => compgen()?,
         _ => print_help(),
     }
     Ok(())
