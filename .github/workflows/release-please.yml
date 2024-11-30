@@ -22,6 +22,28 @@ jobs:
     outputs:
       release_created: steps.release.outputs.release_created
       tag_name: steps.release.outputs.tag_name
+
+  publish-crate:
+    if: ${{ jobs.release_please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    - name: Install correct toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        override: true
+    - name: Run cargo check
+      uses: actions-rs/cargo@v1
+      with:
+        command: check
+    - name: Publish to crates.io
+      run: cargo publish -p skim
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
   build:
     if: ${{ jobs.release_please.outputs.release_created }}
     name: Build release binaries
