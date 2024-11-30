@@ -22,10 +22,17 @@ jobs:
       release_created: steps.release_please.outputs['skim-release_created']
       tag_name: steps.release_please.outputs.['skim-tag_name']
 
-  publish-crate:
-    needs: release_please
-    if: needs.release_please.outputs.release_created
+  setup-release:
     runs-on: ubuntu-latest
+    needs: release_please
+    if: ${{ needs.release_please.outputs.release_created == 'true' }}
+    steps:
+      - run: |
+          echo '${{ needs.release_please.outputs.release_created }}'
+
+  publish-crate:
+    runs-on: ubuntu-latest
+    needs: setup-release
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -45,8 +52,7 @@ jobs:
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
   build:
-    needs: release_please
-    if: needs.release_please.outputs.release_created
+    needs: setup-release
     name: Build release binaries
     strategy:
       matrix:
@@ -98,8 +104,7 @@ jobs:
           retention-days: 1
   release-files:
     runs-on: ubuntu-22.04
-    needs: release_please
-    if: needs.release_please.outputs.release_created
+    needs: setup-release
     steps:
       - name: Checkout Git repo
         uses: actions/checkout@v4
