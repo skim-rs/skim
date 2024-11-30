@@ -19,8 +19,8 @@ jobs:
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
     outputs:
-      release_created: ${{ steps.release_please.outputs['skim-release_created'] }}
-      tag_name: ${{ steps.release_please.outputs.['skim-tag_name'] }}
+      release_created: ${{ steps.release_please.outputs.skim-release_created }}
+      tag_name: ${{ steps.release_please.outputs.skim-tag_name }}
 
   setup-release:
     runs-on: ubuntu-latest
