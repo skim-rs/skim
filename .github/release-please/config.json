@@ -2,7 +2,7 @@
   "release-type": "rust",
   "packages": {
     "skim": {
-      "changelog-path": "../CHANGELOG.md"
+      "changelog-path": "/CHANGELOG.md"
     },
     "e2e": {},
     "xtask": {}
