@@ -17,8 +17,7 @@ jobs:
       - uses: googleapis/release-please-action@v4
         with:
           release-type: rust
-          bump-minor-pre-major: true
-          bump-patch-for-minor-pre-major: true
+          path: skim
     outputs:
       release_created: steps.release.outputs.release_created
       tag_name: steps.release.outputs.tag_name
