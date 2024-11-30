@@ -1,7 +1,9 @@
 {
+  "release-type": "rust",
   "packages": {
-    "skim": {
-    }
+    "skim": {},
+    "e2e": {},
+    "xtask": {}
   },
   "plugins": ["cargo-workspace"]
 }

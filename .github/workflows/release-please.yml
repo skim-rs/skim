@@ -16,7 +16,6 @@ jobs:
       - id: release_please
         uses: googleapis/release-please-action@v4
         with:
-          release-type: rust
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
     outputs:
