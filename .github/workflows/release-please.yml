@@ -6,11 +6,10 @@ on:
 name: release-please
 
 jobs:
-  release_please:
+  release-please:
     permissions:
       contents: write
       pull-requests: write
-    name: release-please
     runs-on: ubuntu-latest
     steps:
       - id: release_please
@@ -19,8 +18,8 @@ jobs:
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
     outputs:
-      release_created: ${{ steps.release_please.outputs.release_created }}
-      tag_name: ${{ steps.release_please.outputs.tag_name }}
+      release_created: ${{ steps.release-please.outputs.skim--release_created }}
+      tag_name: ${{ steps.release-please.outputs.skim--tag_name }}
 
   setup-release:
     runs-on: ubuntu-latest
