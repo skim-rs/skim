@@ -1,4 +1,4 @@
-use e2e::test_utils::TmuxController;
+use e2e::TmuxController;
 use std::io::Result;
 
 #[test]

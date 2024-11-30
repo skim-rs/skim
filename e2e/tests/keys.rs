@@ -1,4 +1,4 @@
-use e2e::test_utils::{Keys::*, TmuxController};
+use e2e::{Keys::*, TmuxController};
 use std::io::Result;
 
 fn setup() -> Result<TmuxController> {

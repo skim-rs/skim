@@ -1,5 +1,5 @@
-use e2e::test_utils::Keys::*;
-use e2e::test_utils::TmuxController;
+use e2e::Keys::*;
+use e2e::TmuxController;
 use std::io::Result;
 use std::io::Write;
 use tempfile::NamedTempFile;
