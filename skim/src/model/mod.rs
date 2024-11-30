@@ -44,7 +44,6 @@ lazy_static! {
     static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
 }
 
-
 struct ModelEnv {
     pub cmd: String,
     pub query: String,
@@ -773,10 +772,10 @@ impl Model {
             time_since_read: self.reader_timer.elapsed(),
             time_since_match: self.matcher_timer.elapsed(),
             matcher_mode: if self.use_regex {
-            "RE".to_string()
-        } else {
-            "".to_string()
-        },
+                "RE".to_string()
+            } else {
+                "".to_string()
+            },
             theme: self.theme.clone(),
             info: self.info.clone(),
         };
@@ -855,4 +854,3 @@ impl Model {
         action(Box::new(root))
     }
 }
-

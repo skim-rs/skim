@@ -24,4 +24,3 @@ impl ValueEnum for InfoDisplay {
         }
     }
 }
-
