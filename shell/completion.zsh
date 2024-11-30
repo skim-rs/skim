@@ -39,6 +39,7 @@ _sk() {
 '--prompt=[Set prompt]:PROMPT:_default' \
 '--cmd-prompt=[Set prompt in command mode]:CMD_PROMPT:_default' \
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
+'--info=[Set matching result count display position]:INFO:(default inline hidden)' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
 '--history=[History file]:HISTORY_FILE:_default' \
@@ -80,7 +81,8 @@ _sk() {
 '--reverse[Shorthand for reverse layout]' \
 '--no-height[Disable height feature]' \
 '--ansi[Parse ANSI color codes in input strings]' \
-'--inline-info[Display info next to the query]' \
+'--no-info[Alias for --info=hidden]' \
+'--inline-info[Alias for --info=inline]' \
 '--read0[Read input delimited by ASCII NUL(\\\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\\\0) characters]' \
 '--print-query[Print the query as the first line]' \
@@ -98,7 +100,6 @@ _sk() {
 '--filepath-word[Reserved for later use]' \
 '--border[Reserved for later use]' \
 '--no-bold[Reserved for later use]' \
-'--info[Reserved for later use]' \
 '--pointer[Reserved for later use]' \
 '--marker[Reserved for later use]' \
 '--phony[Reserved for later use]' \
