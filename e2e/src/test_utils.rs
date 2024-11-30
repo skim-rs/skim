@@ -84,7 +84,6 @@ impl TmuxController {
             .split(|c| *c == b'\n')
             .map(|bytes| String::from_utf8(bytes.to_vec()).expect("Failed to parse bytes as UTF8 string"))
             .collect::<Vec<String>>();
-        sleep(Duration::from_millis(50));
         Ok(output[0..output.len() - 1].to_vec())
     }
 
@@ -105,8 +104,10 @@ impl TmuxController {
             &name,
             &format!("{}; {}", unset_cmd, shell_cmd),
         ])?;
+        sleep(Duration::from_millis(50));
 
         Self::run(&["set-window-option", "-t", &name, "pane-base-index", "0"])?;
+        sleep(Duration::from_millis(50));
 
         Ok(Self {
             window: name,
@@ -118,6 +119,7 @@ impl TmuxController {
         for key in keys {
             Self::run(&["send-keys", "-t", &self.window, &key.to_string()])?;
         }
+        sleep(Duration::from_millis(10));
         Ok(())
     }
 
