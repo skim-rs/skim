@@ -12,22 +12,32 @@ fn setup(input: &str, opts: &[&str]) -> Result<TmuxController> {
 
 #[test]
 fn bind_execute_0_results() -> Result<()> {
-    let tmux = setup("", &["--bind", "'enter:execute(less {})'"])?;
-
-    tmux.send_keys(&[Enter])?;
+    let tmux = TmuxController::new()?;
+    let outfile = tmux.start_sk(Some("echo -n ''"), &["--bind", "'ctrl-f:execute(echo foo{})'"])?;
     tmux.until(|l| l[0] == ">")?;
 
-    tmux.send_keys(&[Key('q')])?;
-    tmux.until(|l| l[0] == "> q")
+    tmux.send_keys(&[Ctrl(&Key('f')), Enter])?;
+    tmux.until(|l| l[0] != ">")?;
+
+    let output = tmux.output(&outfile)?;
+    assert_eq!(output[0], "");
+
+    Ok(())
 }
 
 #[test]
 fn bind_execute_0_results_noref() -> Result<()> {
-    let tmux = setup("", &["--bind", "'enter:execute(less)'"])?;
+    let tmux = TmuxController::new()?;
+    let outfile = tmux.start_sk(Some("echo -n ''"), &["--bind", "'ctrl-f:execute(echo foo)'"])?;
+    tmux.until(|l| l[0] == ">")?;
 
-    tmux.send_keys(&[Enter, Key('q'), Key('g')])?;
+    tmux.send_keys(&[Ctrl(&Key('f')), Enter])?;
+    tmux.until(|l| l[0] != ">")?;
 
-    tmux.until(|l| l[0] == "> g")
+    let output = tmux.output(&outfile)?;
+    assert_eq!(output[0], "foo");
+
+    Ok(())
 }
 
 #[test]
