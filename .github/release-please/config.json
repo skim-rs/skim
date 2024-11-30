@@ -3,8 +3,7 @@
   "packages": {
     "skim": {
       "changelog-path": "/CHANGELOG.md",
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true
+      "bump-minor-pre-major": true
     },
     "e2e": {},
     "xtask": {}
