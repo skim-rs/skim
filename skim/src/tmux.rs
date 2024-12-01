@@ -1,12 +1,14 @@
 use std::{
     borrow::Cow,
     env,
-    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
+    fs::File,
+    io::{BufRead as _, BufReader, IsTerminal as _, Write as _},
     process::{Command, Stdio},
     sync::Arc,
     thread,
 };
 
+use nix::{sys::stat, unistd::mkfifo};
 use rand::{distributions::Alphanumeric, Rng};
 use tuikit::key::Key;
 use which::which;
@@ -109,21 +111,26 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut stdin_reader = BufReader::new(std::io::stdin());
     let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
+    let t_tmp_stdin = temp_dir.join("stdin");
     let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
 
-        let stdin_f = std::fs::File::create(tmp_stdin.clone())
-            .unwrap_or_else(|e| panic!("Failed to create stdin file {}: {}", tmp_stdin.clone().display(), e));
-        let mut stdin_writer = BufWriter::new(stdin_f);
-        Some(thread::spawn(move || loop {
-            let mut buf = vec![];
-            match stdin_reader.read_until(line_ending, &mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    debug!("Read {n} bytes from stdin");
-                    stdin_writer.write_all(&buf).unwrap();
+        mkfifo(&tmp_stdin, stat::Mode::S_IRWXU)
+            .unwrap_or_else(|e| panic!("Failed to create stdin pipe {}: {}", tmp_stdin.clone().display(), e));
+        Some(thread::spawn(move || {
+            let mut stdin_writer = File::create(&t_tmp_stdin)
+                .unwrap_or_else(|e| panic!("Failed to open stdin pipe {}: {}", t_tmp_stdin.clone().display(), e));
+
+            loop {
+                let mut buf = vec![];
+                match stdin_reader.read_until(line_ending, &mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        debug!("Read {n} bytes from stdin");
+                        stdin_writer.write_all(&buf).unwrap();
+                    }
+                    Err(e) => panic!("Failed to read from stdin: {}", e),
                 }
-                Err(e) => panic!("Failed to read from stdin: {}", e),
             }
         }))
     } else {
@@ -174,7 +181,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .args(["-y", tmux_opts.y]);
 
     for (name, value) in std::env::vars() {
-        if name.starts_with("SKIM") || name == "PATH" {
+        if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
             debug!("adding {} = {} to the command's env", name, value);
             tmux_cmd.args(["-e", &format!("{}={}", name, value)]);
         }
@@ -245,7 +252,7 @@ fn push_quoted_arg(args_str: &mut String, arg: &str) {
         "zsh" => Zsh::quote(arg),
         "bash" => Bash::quote(arg),
         "fish" => Fish::quote(arg),
-        "sh" | _ => Sh::quote(arg),
+        _ => Sh::quote(arg),
     };
     args_str.push_str(&format!(
         " {}",

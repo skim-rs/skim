@@ -146,6 +146,10 @@ impl ItemPool {
         self.length.load(Ordering::SeqCst)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn num_not_taken(&self) -> usize {
         self.length.load(Ordering::SeqCst) - self.taken.load(Ordering::SeqCst)
     }
