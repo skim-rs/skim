@@ -17,7 +17,7 @@ fn setup_tmux_mock(tmux: &TmuxController) -> Result<String> {
     writer.write_fmt(format_args!(
         "#!/bin/sh
 
-echo $@ > {}
+echo \"$@\" > {}
 ",
         outfile.to_str().unwrap()
     ))?;
@@ -74,7 +74,7 @@ fn tmux_quote_bash() -> Result<()> {
     let cmd = get_tmux_cmd(&outfile)?;
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind $\\'ctrl-a:reload(ls /foo*)\\'"));
+    assert!(cmd.contains("--bind $'ctrl-a:reload(ls /foo*)'"));
 
     Ok(())
 }
@@ -86,9 +86,10 @@ fn tmux_quote_zsh() -> Result<()> {
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;
+    println!("{cmd}");
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind $\\'ctrl-a:reload(ls /foo*)\\'"));
+    assert!(cmd.contains("sk --bind $'ctrl-a:reload(ls /foo*)' >/tmp/sk-tmux"));
 
     Ok(())
 }
@@ -102,7 +103,7 @@ fn tmux_quote_sh() -> Result<()> {
     let cmd = get_tmux_cmd(&outfile)?;
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind \\'ctrl-a:reload(ls /foo*)\\'"));
+    assert!(cmd.contains("--bind ctrl-a':reload(ls /foo*)'"));
 
     Ok(())
 }
@@ -116,7 +117,7 @@ fn tmux_quote_fish() -> Result<()> {
     let cmd = get_tmux_cmd(&outfile)?;
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind \\'ctrl-a:reload(ls /foo*)\\'"));
+    assert!(cmd.contains("--bind ctrl-a':reload(ls /foo*)'"));
 
     Ok(())
 }
