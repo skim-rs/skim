@@ -15,6 +15,7 @@ jobs:
       - id: release-please
         uses: googleapis/release-please-action@v4
         with:
+          token: ${{ secrets.RELEASE_PLEASE_PAT }}
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
       - run: |
