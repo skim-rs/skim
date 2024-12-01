@@ -421,7 +421,6 @@ name = "e2e"
 version = "0.15.2"
 dependencies = [
  "rand",
- "skim",
  "tempfile",
  "which",
 ]

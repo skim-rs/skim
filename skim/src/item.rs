@@ -114,6 +114,18 @@ pub struct ItemPool {
     lines_to_reserve: usize,
 }
 
+impl Default for ItemPool {
+    fn default() -> Self {
+        Self {
+            length: AtomicUsize::new(0),
+            pool: SpinLock::new(Vec::with_capacity(ITEM_POOL_CAPACITY)),
+            taken: AtomicUsize::new(0),
+            reserved_items: SpinLock::new(Vec::new()),
+            lines_to_reserve: 0,
+        }
+    }
+}
+
 impl ItemPool {
     pub fn new() -> Self {
         Self {

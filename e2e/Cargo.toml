@@ -5,6 +5,5 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
-skim = { path = "../skim" }
 tempfile = "3.14.0"
 which = "7.0.0"

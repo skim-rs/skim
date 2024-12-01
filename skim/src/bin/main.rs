@@ -36,9 +36,9 @@ fn parse_args() -> Result<SkimOptions, Error> {
 
 //------------------------------------------------------------------------------
 fn main() {
-    env_logger::builder().format_timestamp_nanos().init();
+    use SkMainError::{ArgError, IoError};
 
-    use SkMainError::*;
+    env_logger::builder().format_timestamp_nanos().init();
     match sk_main() {
         Ok(exit_code) => std::process::exit(exit_code),
         Err(err) => {
@@ -80,8 +80,8 @@ fn sk_main() -> Result<i32, SkMainError> {
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)
         .delimiter(&opts.delimiter)
-        .with_nth(opts.with_nth.iter().map(|s| s.as_str()))
-        .nth(opts.nth.iter().map(|s| s.as_str()))
+        .with_nth(opts.with_nth.iter().map(String::as_str))
+        .nth(opts.nth.iter().map(String::as_str))
         .read0(opts.read0)
         .show_error(opts.show_cmd_error);
     let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
@@ -97,25 +97,26 @@ fn sk_main() -> Result<i32, SkMainError> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (match opts.tmux {
-        Some(_) => crate::tmux::run_with(&opts),
-        None => {
+    let Some(result) = (
+        if opts.tmux.is_some() {
+          crate::tmux::run_with(&opts)
+        } else {
             // read from pipe or command
-            let rx_item = if !io::stdin().is_terminal() {
+            let rx_item = if io::stdin().is_terminal() {
+                None
+            } else {
                 let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
                 Some(rx_item)
-            } else {
-                None
             };
             // filter mode
             if opts.filter.is_some() {
-                return Ok(filter(&bin_options, &opts, rx_item)?);
+                return Ok(filter(&bin_options, &opts, rx_item));
             }
             Skim::run_with(&opts, rx_item)
-        }
-    }) else {
+        }) else {
         return Ok(135);
     };
+
     if result.is_abort {
         return Ok(130);
     }
@@ -133,7 +134,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         print!("{}{}", accept_key, bin_options.output_ending);
     }
 
-    for item in result.selected_items.iter() {
+    for item in &result.selected_items {
         print!("{}{}", item.output(), bin_options.output_ending);
     }
 
@@ -151,7 +152,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         write_history_to_file(&opts.cmd_history, &result.cmd, limit, &file)?;
     }
 
-    Ok(if result.selected_items.is_empty() { 1 } else { 0 })
+    Ok(i32::from(result.selected_items.is_empty()))
 }
 
 fn write_history_to_file(
@@ -160,11 +161,11 @@ fn write_history_to_file(
     limit: usize,
     filename: &str,
 ) -> Result<(), std::io::Error> {
-    if orig_history.last().map(|l| l.as_str()) == Some(latest) {
+    if orig_history.last().map(String::as_str) == Some(latest) {
         // no point of having at the end of the history 5x the same command...
         return Ok(());
     }
-    let additional_lines = if latest.trim().is_empty() { 0 } else { 1 };
+    let additional_lines = usize::from(!latest.trim().is_empty());
     let start_index = if orig_history.len() + additional_lines > limit {
         orig_history.len() + additional_lines - limit
     } else {
@@ -192,7 +193,7 @@ pub fn filter(
     bin_option: &BinOptions,
     options: &SkimOptions,
     source: Option<SkimItemReceiver>,
-) -> Result<i32, std::io::Error> {
+) -> i32 {
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
         Ok("") | Err(_) => "find .".to_owned(),
         Ok(val) => val.to_owned(),
@@ -238,8 +239,8 @@ pub fn filter(
         .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
         .for_each(|(item, _match_result)| {
             num_matched += 1;
-            print!("{}{}", item.output(), bin_option.output_ending)
+            print!("{}{}", item.output(), bin_option.output_ending);
         });
 
-    Ok(if num_matched == 0 { 1 } else { 0 })
+    i32::from(num_matched == 0)
 }
