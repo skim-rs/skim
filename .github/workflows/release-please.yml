@@ -23,13 +23,6 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
-      - run: |
-          echo '${{ steps.release-please.outputs.skim--release_created }}'
-          echo '${{ steps.release-please.outputs.releases_created }}'
-          echo '${{ steps.release-please.outputs.skim-release_created }}'
-          echo '${{ steps.release-please.outputs.skim--tag_name }}'
-          echo '${{ steps.release-please.outputs.tag_name }}'
-          echo '${{ steps.release-please.outputs }}'
     outputs:
       release_created: ${{ steps.release-please.outputs.releases_created }}
       tag_name: ${{ steps.release-please.outputs.skim--tag_name }}
@@ -41,6 +34,8 @@ jobs:
     steps:
       - run: |
           echo '${{ needs.release-please.outputs.release_created }}'
+    outputs:
+      tag_name: ${{ needs.release-please.outputs.tag_name }}
 
   publish-crate:
     runs-on: ubuntu-latest
@@ -63,7 +58,7 @@ jobs:
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
-  build:
+  build-binaries:
     needs: setup-release
     name: Build release binaries
     strategy:
@@ -126,4 +121,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz" ./artifacts/*.tgz
+          gh release upload "${{ needs.setup-release.outputs.tag_name }}" "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz"
