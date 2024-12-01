@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.15.3](https://github.com/skim-rs/skim/compare/v0.15.2...v0.15.3) (2024-12-01)
+
+
+### Bug Fixes
+
+* clippy pedantic on main.rs ([04541d5](https://github.com/skim-rs/skim/commit/04541d515b3f46243a7f590a81022ee0a2d1a34e))
+
 ## [0.15.2](https://github.com/skim-rs/skim/compare/v0.15.1...v0.15.2) (2024-12-01)
 
 
