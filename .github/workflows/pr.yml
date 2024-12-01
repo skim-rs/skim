@@ -53,12 +53,12 @@ jobs:
           private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
       - name: Commit & Push changes
         run: |
-          git config user.email "skim-rs-bot@skim-rs.github.io"
-          git config user.name "Skim bot"
-          git commit -am 'chore: push modified files' || exit 0
-          git push "https://$GH_USER:$GH_TOKEN@github.com/$REPOSITORY.git" "$BRANCH"
+          git config user.email "skim-bot@skim-rs.github.io"
+          git config user.name "$GH_USER"
+          git commit -am 'chore: [skip ci] push modified files' || exit 0
+          git push "https://$GH_USER:$GITHUB_TOKEN@github.com/$REPOSITORY.git" "$BRANCH"
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_USER: "skim-bot"
           BRANCH: ${{github.event.pull_request.head.ref}}
           REPOSITORY: ${{github.event.pull_request.head.repo.full_name}}
