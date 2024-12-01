@@ -128,7 +128,6 @@ jobs:
     runs-on: ubuntu-22.04
     needs:
       - build
-      - release-files
     steps:
       - uses: actions/download-artifact@v4
         with:
