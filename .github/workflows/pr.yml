@@ -1,4 +1,4 @@
-name: "PR validation"
+name: "Pull Requests"
 on:
   pull_request_target:
     types:
@@ -26,6 +26,10 @@ jobs:
     steps:
       - name: Checkout Git repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
       - name: Install correct toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -42,7 +46,8 @@ jobs:
           args: --package xtask compgen
       - name: Push modified files
         run: |
+          git branch -v
           git config user.email "skim-bot@skim-rs.github.io"
           git config user.name "Skim bot"
           git commit -am 'chore: generate completions & manpage'
-          git push origin HEAD
+          git push
