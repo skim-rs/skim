@@ -63,3 +63,60 @@ fn tmux_stdin() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn tmux_quote_bash() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.send_keys(&[Str("export SHELL=/bin/bash"), Enter])?;
+    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.starts_with("display-popup"));
+    assert!(cmd.contains("-E"));
+    assert!(cmd.contains("--bind $\\'ctrl-a:reload(ls /foo*)\\'"));
+
+    Ok(())
+}
+#[test]
+fn tmux_quote_zsh() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.send_keys(&[Str("export SHELL=/bin/zsh"), Enter])?;
+    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.starts_with("display-popup"));
+    assert!(cmd.contains("-E"));
+    assert!(cmd.contains("--bind $\\'ctrl-a:reload(ls /foo*)\\'"));
+
+    Ok(())
+}
+#[test]
+fn tmux_quote_sh() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.send_keys(&[Str("export SHELL=/bin/sh"), Enter])?;
+    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.starts_with("display-popup"));
+    assert!(cmd.contains("-E"));
+    assert!(cmd.contains("--bind \\'ctrl-a:reload(ls /foo*)\\'"));
+
+    Ok(())
+}
+#[test]
+fn tmux_quote_fish() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.send_keys(&[Str("export SHELL=/bin/sh"), Enter])?;
+    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.starts_with("display-popup"));
+    assert!(cmd.contains("-E"));
+    assert!(cmd.contains("--bind \\'ctrl-a:reload(ls /foo*)\\'"));
+
+    Ok(())
+}

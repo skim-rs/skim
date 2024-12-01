@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    env,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::{Command, Stdio},
     sync::Arc,
@@ -149,7 +150,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             debug!("Found equal tmux arg, skipping");
             continue;
         }
-        tmux_shell_cmd.push_str(&format!(" {arg}"));
+        push_quoted_arg(&mut tmux_shell_cmd, &arg);
     }
     if has_piped_input {
         tmux_shell_cmd.push_str(&format!(" <{}", tmp_stdin.display()));
@@ -235,6 +236,23 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     };
     Some(skim_output)
 }
+
+fn push_quoted_arg(args_str: &mut String, arg: &str) {
+    use shell_quote::{Bash, Fish, Quote as _, Sh, Zsh};
+    let shell_path = env::var("SHELL").unwrap_or(String::from("/bin/sh"));
+    let shell = shell_path.rsplit_once('/').unwrap_or(("", "sh")).1;
+    let quoted_arg: Vec<u8> = match shell {
+        "zsh" => Zsh::quote(arg),
+        "bash" => Bash::quote(arg),
+        "fish" => Fish::quote(arg),
+        "sh" | _ => Sh::quote(arg),
+    };
+    args_str.push_str(&format!(
+        " {}",
+        String::from_utf8(quoted_arg).expect("Failed to parse quoted arg as utf8, this should not happen")
+    ));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
