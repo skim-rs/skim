@@ -23,6 +23,7 @@ jobs:
           echo '${{ steps.release-please.outputs.skim-release_created }}'
           echo '${{ steps.release-please.outputs.skim--tag_name }}'
           echo '${{ steps.release-please.outputs.tag_name }}'
+          echo '${{ steps.release-please.outputs }}'
     outputs:
       release_created: ${{ steps.release-please.outputs.releases_created }}
       tag_name: ${{ steps.release-please.outputs.skim--tag_name }}
