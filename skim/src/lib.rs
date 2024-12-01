@@ -312,7 +312,7 @@ impl Skim {
     /// - `SkimOutput`: the collected key, event, query, selected items, etc.
     ///
     /// # Panics
-    /// 
+    ///
     /// Panics if the tui fails to initilize
     #[must_use]
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
