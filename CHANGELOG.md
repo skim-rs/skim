@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.15.1](https://github.com/skim-rs/skim/compare/v0.15.0...v0.15.1) (2024-12-01)
+
+
+### Bug Fixes
+
+* fix urls in cargo.toml ([36c4757](https://github.com/skim-rs/skim/commit/36c47578f2e1b7603db6d28f829920243eb8b51e))
+
 ## [0.15.0](https://github.com/skim-rs/skim/compare/v0.14.4...v0.15.0) (2024-12-01)
 
 
