@@ -21,7 +21,6 @@ jobs:
           configuration_path: .github/pr-title-checker-config.json
   generate-files:
     runs-on: ubuntu-22.04
-    needs: setup-release
     permissions:
       contents: write
     steps:
