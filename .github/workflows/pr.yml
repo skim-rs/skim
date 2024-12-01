@@ -43,4 +43,6 @@ jobs:
       - name: Push modified files
         run: |
           git commit -am 'chore: generate completions & manpage'
+          git config user.email "skim-bot@skim-rs.github.io"
+          git config user.email "Skim bot"
           git push origin HEAD
