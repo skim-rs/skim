@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/skim-rs/skim/compare/v0.14.4...v0.15.0) (2024-12-01)
+
+
+### Features
+
+* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([a5b8181](https://github.com/skim-rs/skim/commit/a5b81818d6eb8bfe4c2ceeed3b4cc6e22cc95731))
+
 ## [0.14.4](https://github.com/skim-rs/skim/compare/v0.14.4...v0.14.4) (2024-12-01)
 
 
