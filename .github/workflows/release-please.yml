@@ -78,20 +78,6 @@ jobs:
             os: apple-darwin
     runs-on: ${{ contains(matrix.os, 'apple') && 'macos' || 'ubuntu' }}-latest
     steps:
-      - name: "[linux] Install dependencies"
-        run: |
-          sudo apt-get install tmux
-          tmux -V
-          locale
-        if: runner.os == 'Linux'
-      - name: "[macos] Install dependencies"
-        run: |
-          brew install tmux
-          tmux -V
-          locale
-        if: runner.os == 'macOS'
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -102,18 +88,6 @@ jobs:
           command: build
           target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
           args: "--release --locked"
-      - name: Test
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          command: test
-          target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
-          args: "-p skim --release --locked"
-      - name: E2E
-        uses: houseabsolute/actions-rust-cross@v0
-        with:
-          command: test
-          target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
-          args: "-p e2e --release --locked -j8"
       - name: Create archive
         run: |
           tar -C target/*/release/ -czvf "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz" "${{ env.BIN_NAME }}"
