@@ -42,7 +42,7 @@ jobs:
           args: --package xtask compgen
       - name: Push modified files
         run: |
-          git commit -am 'chore: generate completions & manpage'
           git config user.email "skim-bot@skim-rs.github.io"
           git config user.name "Skim bot"
+          git commit -am 'chore: generate completions & manpage'
           git push origin HEAD
