@@ -9,4 +9,4 @@ clap_complete = "4.5.37"
 clap_complete_fig = "4.5.2"
 clap_complete_nushell = "4.5.4"
 clap_mangen = "0.2.24"
-skim = { path = "../skim" }
+skim = { path = "../skim", features = [] }
