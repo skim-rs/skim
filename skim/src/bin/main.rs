@@ -97,23 +97,22 @@ fn sk_main() -> Result<i32, SkMainError> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (
-        if opts.tmux.is_some() {
-          crate::tmux::run_with(&opts)
+    let Some(result) = (if opts.tmux.is_some() {
+        crate::tmux::run_with(&opts)
+    } else {
+        // read from pipe or command
+        let rx_item = if io::stdin().is_terminal() {
+            None
         } else {
-            // read from pipe or command
-            let rx_item = if io::stdin().is_terminal() {
-                None
-            } else {
-                let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
-                Some(rx_item)
-            };
-            // filter mode
-            if opts.filter.is_some() {
-                return Ok(filter(&bin_options, &opts, rx_item));
-            }
-            Skim::run_with(&opts, rx_item)
-        }) else {
+            let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
+            Some(rx_item)
+        };
+        // filter mode
+        if opts.filter.is_some() {
+            return Ok(filter(&bin_options, &opts, rx_item));
+        }
+        Skim::run_with(&opts, rx_item)
+    }) else {
         return Ok(135);
     };
 
@@ -189,11 +188,7 @@ pub struct BinOptions {
     print_cmd: bool,
 }
 
-pub fn filter(
-    bin_option: &BinOptions,
-    options: &SkimOptions,
-    source: Option<SkimItemReceiver>,
-) -> i32 {
+pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<SkimItemReceiver>) -> i32 {
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
         Ok("") | Err(_) => "find .".to_owned(),
         Ok(val) => val.to_owned(),
