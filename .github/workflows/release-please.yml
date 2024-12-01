@@ -17,8 +17,14 @@ jobs:
         with:
           config-file: .github/release-please/config.json
           manifest-file: .github/release-please/manifest.json
+      - run: |
+          echo '${{ steps.release-please.outputs.skim--release_created }}'
+          echo '${{ steps.release-please.outputs.releases_created }}'
+          echo '${{ steps.release-please.outputs.skim-release_created }}'
+          echo '${{ steps.release-please.outputs.skim--tag_name }}'
+          echo '${{ steps.release-please.outputs.tag_name }}'
     outputs:
-      release_created: ${{ steps.release-please.outputs.skim--release_created }}
+      release_created: ${{ steps.release-please.outputs.releases_created }}
       tag_name: ${{ steps.release-please.outputs.skim--tag_name }}
 
   setup-release:
