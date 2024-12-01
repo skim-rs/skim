@@ -61,6 +61,8 @@ jobs:
   build-binaries:
     needs: setup-release
     name: Build release binaries
+    permissions:
+      contents: write
     strategy:
       matrix:
         arch:
