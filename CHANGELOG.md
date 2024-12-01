@@ -1,5 +1,28 @@
 # Change Log
 
+## [0.15.0](https://github.com/skim-rs/skim/compare/v0.14.4...v0.15.0) (2024-12-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625))
+
+### Features
+
+* add `--tmux` flag (deprecates sk-tmux, fixes [#596](https://github.com/skim-rs/skim/issues/596)) ([#603](https://github.com/skim-rs/skim/issues/603)) ([a2d8c3f](https://github.com/skim-rs/skim/commit/a2d8c3f6022197727b3907562068053a8326a2a2))
+* add reload action ([#604](https://github.com/skim-rs/skim/issues/604)) ([4b47244](https://github.com/skim-rs/skim/commit/4b47244922c8910930d5c02016b1c5e99409754a))
+* allow more flexibility for use as a library ([#613](https://github.com/skim-rs/skim/issues/613)) ([33ca402](https://github.com/skim-rs/skim/commit/33ca4023c16b20a4ba6f3e1889efddd78ead15d6))
+* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625)) ([bcee1f4](https://github.com/skim-rs/skim/commit/bcee1f4c028012a24ef7ebbda1f80c0decb2375e))
+* readd index tiebreak ([#609](https://github.com/skim-rs/skim/issues/609)) ([0befe8d](https://github.com/skim-rs/skim/commit/0befe8d20659ef90b564f59c07a908ab0953dc0a))
+* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([a5b8181](https://github.com/skim-rs/skim/commit/a5b81818d6eb8bfe4c2ceeed3b4cc6e22cc95731))
+* use clap & derive for options, manpage & completions ([#586](https://github.com/skim-rs/skim/issues/586)) ([7df8b77](https://github.com/skim-rs/skim/commit/7df8b77739ae5a05e8cd87bff905ee091e5afd7f))
+
+
+### Bug Fixes
+
+* allow combined multiple args (fixes [#622](https://github.com/skim-rs/skim/issues/622)) ([#623](https://github.com/skim-rs/skim/issues/623)) ([4144879](https://github.com/skim-rs/skim/commit/4144879f00f6a541637112bdb96e23101eb4acda))
+* undo sk-tmux deprecation ([c9f9025](https://github.com/skim-rs/skim/commit/c9f9025da9cf0bae7802f725eebd28ebac324378))
+
 ## [0.14.4](https://github.com/skim-rs/skim/compare/v0.14.4...v0.14.4) (2024-12-01)
 
 
