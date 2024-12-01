@@ -89,10 +89,15 @@ jobs:
           target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
           args: "--release --locked"
       - name: Create archive
+        env:
+          BIN_NAME: "sk"
+          ARCHIVE_NAME: "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz"
         run: |
-          tar -C target/*/release/ -czvf "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz" "${{ env.BIN_NAME }}"
+          tar -C target/*/release/ -czvf "$ARCHIVE_NAME" "$BIN_NAME"
       - name: Upload binary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.setup-release.outputs.tag_name }}
+          ARCHIVE_NAME: "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz"
         run: |
-          gh release upload "${{ needs.setup-release.outputs.tag_name }}" "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz"
+          gh release upload "$TAG" "$ARCHIVE_NAME"
