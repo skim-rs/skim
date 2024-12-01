@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.15.2](https://github.com/skim-rs/skim/compare/v0.15.1...v0.15.2) (2024-12-01)
+
+
+### Bug Fixes
+
+* make item module public (closes [#568](https://github.com/skim-rs/skim/issues/568)) ([0963b97](https://github.com/skim-rs/skim/commit/0963b974ffdead23fad3a0db19b92229bf2ab606))
+
 ## [0.15.1](https://github.com/skim-rs/skim/compare/v0.15.0...v0.15.1) (2024-12-01)
 
 
