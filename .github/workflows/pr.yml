@@ -57,5 +57,5 @@ jobs:
           git branch -v
           git config user.email "skim-bot@skim-rs.github.io"
           git config user.name "Skim bot"
-          git commit -am 'chore: generate completions & manpage'
+          git commit -am 'chore: generate completions & manpage' || exit 0
           git push
