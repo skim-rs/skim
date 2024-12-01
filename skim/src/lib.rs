@@ -127,7 +127,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     }
 
     /// we could limit the matching ranges of the `get_text` of the item.
-    /// providing (start_byte, end_byte) of the range
+    /// providing (`start_byte`, `end_byte`) of the range
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
         None
     }
@@ -174,12 +174,14 @@ impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
     fn from(context: DisplayContext<'a>) -> Self {
         match context.matches {
             Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_attr)),
+            #[allow(clippy::cast_possible_truncation)]
             Matches::CharRange(start, end) => {
                 AnsiString::new_str(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
             }
             Matches::ByteRange(start, end) => {
                 let ch_start = context.text[..start].chars().count();
                 let ch_end = ch_start + context.text[start..end].chars().count();
+                #[allow(clippy::cast_possible_truncation)]
                 AnsiString::new_str(
                     context.text,
                     vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))],
@@ -259,6 +261,7 @@ pub struct MatchResult {
 }
 
 impl MatchResult {
+    #[must_use]
     pub fn range_char_indices(&self, text: &str) -> Vec<usize> {
         match &self.matched_range {
             &MatchRange::ByteRange(start, end) => {
@@ -297,14 +300,21 @@ pub type SkimItemReceiver = Receiver<Arc<dyn SkimItem>>;
 pub struct Skim {}
 
 impl Skim {
-    /// params:
+    /// # Params
+    ///
     /// - options: the "complex" options that control how skim behaves
     /// - source: a stream of items to be passed to skim for filtering.
     ///   If None is given, skim will invoke the command given to fetch the items.
     ///
-    /// return:
+    /// # Returns
+    ///
     /// - None: on internal errors.
-    /// - SkimOutput: the collected key, event, query, selected items, etc.
+    /// - `SkimOutput`: the collected key, event, query, selected items, etc.
+    ///
+    /// # Panics
+    /// 
+    /// Panics if the tui fails to initilize
+    #[must_use]
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
         let min_height = Skim::parse_height_string(&options.min_height);
         let height = Skim::parse_height_string(&options.height);
@@ -329,8 +339,8 @@ impl Skim {
         //------------------------------------------------------------------------------
         // input
         let mut input = input::Input::new();
-        input.parse_keymaps(options.bind.iter().map(|s| s.as_str()));
-        input.parse_expect_keys(options.expect.iter().map(|s| s.as_str()));
+        input.parse_keymaps(options.bind.iter().map(String::as_str));
+        input.parse_expect_keys(options.expect.iter().map(String::as_str));
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
@@ -341,7 +351,7 @@ impl Skim {
                 }
 
                 let (key, action_chain) = input.translate_event(key);
-                for event in action_chain.into_iter() {
+                for event in action_chain {
                     let _ = tx_clone.send((key, event));
                 }
             }
