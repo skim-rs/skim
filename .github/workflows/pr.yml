@@ -34,6 +34,8 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
       - name: Generate manpage
         uses: actions-rs/cargo@v1
         with:
