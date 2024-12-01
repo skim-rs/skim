@@ -116,26 +116,8 @@ jobs:
       - name: Create archive
         run: |
           tar -C target/*/release/ -czvf "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz" "${{ env.BIN_NAME }}"
-      - name: Store artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: binary-${{ matrix.arch }}-${{ matrix.os }}
-          path: "skim-*.tgz"
-          retention-days: 1
-  release-artifacts:
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    needs:
-      - build
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: "*"
-          merge-multiple: true
-      - name: Upload Release Artifact
+      - name: Upload binary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ steps.release.outputs.tag_name }} ./artifacts/*.tgz
+          gh release upload "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz" ./artifacts/*.tgz
