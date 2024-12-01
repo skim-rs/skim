@@ -77,6 +77,20 @@ jobs:
             os: apple-darwin
     runs-on: ${{ contains(matrix.os, 'apple') && 'macos' || 'ubuntu' }}-latest
     steps:
+      - name: "[linux] Install dependencies"
+        run: |
+          sudo apt-get install tmux
+          tmux -V
+          locale
+        if: runner.os == 'Linux'
+      - name: "[macos] Install dependencies"
+        run: |
+          brew install tmux
+          tmux -V
+          locale
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -107,37 +121,6 @@ jobs:
         with:
           name: binary-${{ matrix.arch }}-${{ matrix.os }}
           path: "skim-*.tgz"
-          retention-days: 1
-  release-files:
-    runs-on: ubuntu-22.04
-    needs: setup-release
-    steps:
-      - name: Checkout Git repo
-        uses: actions/checkout@v4
-      - name: Install correct toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - name: Generate manpage
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --package xtask mangen
-      - name: Generate completions
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --package xtask compgen
-      - name: Create release archives
-        run: |
-          mkdir artifacts
-          tar -C man -czvf artifacts/man.tgz man1
-          tar -C shell -czvf artifacts/shell.tgz .
-      - name: Store artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: files
-          path: "artifacts/*.tgz"
           retention-days: 1
   release-artifacts:
     permissions:

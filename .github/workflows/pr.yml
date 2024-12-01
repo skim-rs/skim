@@ -19,3 +19,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           pass_on_octokit_error: false
           configuration_path: .github/pr-title-checker-config.json
+  generate-files:
+    runs-on: ubuntu-22.04
+    needs: setup-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Git repo
+        uses: actions/checkout@v4
+      - name: Install correct toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Generate manpage
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --package xtask mangen
+      - name: Generate completions
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --package xtask compgen
+      - name: Push modified files
+        run: |
+          git commit -am 'chore: generate completions & manpage'
+          git push origin HEAD
