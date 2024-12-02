@@ -145,6 +145,7 @@ pub fn parse_matching_fields(delimiter: &Regex, text: &str, fields: &[FieldRange
     ret
 }
 
+/// Extracts the specified fields from text using the delimiter
 pub fn parse_transform_fields(delimiter: &Regex, text: &str, fields: &[FieldRange]) -> String {
     let ranges = get_ranges_by_delimiter(delimiter, text);
 

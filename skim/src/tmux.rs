@@ -6,11 +6,14 @@ use std::{
     thread,
 };
 
+use crossterm::event::KeyCode;
 use rand::{distributions::Alphanumeric, Rng};
-use tuikit::key::Key;
 use which::which;
 
-use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};
+use crate::{
+    tui::{event::Action, Event},
+    SkimItem, SkimOptions, SkimOutput,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 enum TmuxWindowDir {
@@ -220,15 +223,15 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     let is_abort = !status.success();
     let final_event = match is_abort {
-        true => Event::EvActAbort,
-        false => Event::EvActAccept(None), // if --expect or --bind accept(key) are used,
-                                           // the key is technically returned in the selected_items
+        true => Event::Action(Action::Abort),
+        false => Event::Action(Action::Accept(None)), // if --expect or --bind accept(key) are used,
+                                                      // the key is technically returned in the selected_items
     };
 
     let skim_output = SkimOutput {
         final_event,
         is_abort,
-        final_key: Key::Null,
+        final_key: KeyCode::Enter, // TODO
         query: query_str.to_string(),
         cmd: command_str.to_string(),
         selected_items: output_lines,

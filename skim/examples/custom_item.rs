@@ -19,7 +19,8 @@ impl SkimItem for MyItem {
     }
 }
 
-pub fn main() {
+#[tokio::main]
+async fn main() {
     let options = SkimOptionsBuilder::default()
         .height(String::from("50%"))
         .multi(true)
@@ -40,6 +41,7 @@ pub fn main() {
     drop(tx_item); // so that skim could know when to stop waiting for more items.
 
     let selected_items = Skim::run_with(&options, Some(rx_item))
+        .await
         .map(|out| out.selected_items)
         .unwrap_or_default();
 

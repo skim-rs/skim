@@ -5,11 +5,15 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
+use crate::Event;
 use clap::{Error, Parser};
+use color_eyre::Result;
 use derive_builder::Builder;
+use skim::tui::event::Action;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};
+use thiserror::Error;
 
 use skim::prelude::*;
 
@@ -35,30 +39,37 @@ fn parse_args() -> Result<SkimOptions, Error> {
 }
 
 //------------------------------------------------------------------------------
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     use SkMainError::{ArgError, IoError};
 
     env_logger::builder().format_timestamp_nanos().init();
-    match sk_main() {
-        Ok(exit_code) => std::process::exit(exit_code),
-        Err(err) => {
-            // if downstream pipe is closed, exit silently, see PR#279
-            match err {
-                IoError(e) => {
-                    if e.kind() == std::io::ErrorKind::BrokenPipe {
-                        std::process::exit(0)
-                    } else {
-                        std::process::exit(2)
-                    }
-                }
-                ArgError(e) => e.exit(),
-            }
-        }
-    }
+    sk_main().await?;
+    Ok(())
+    // match sk_main().await {
+    //     Ok(exit_code) => std::process::exit(exit_code),
+    //     Err(err) => {
+    //         // if downstream pipe is closed, exit silently, see PR#279
+    //         match err.downcast_ref::<SkMainError>() {
+    //             Some(IoError(e)) => {
+    //                 if e.kind() == std::io::ErrorKind::BrokenPipe {
+    //                     std::process::exit(0)
+    //                 } else {
+    //                     std::process::exit(2)
+    //                 }
+    //             }
+    //             Some(ArgError(e)) => e.exit(),
+    //             None => std::process::exit(1),
+    //         }
+    //     }
+    // }
 }
 
+#[derive(Error, Debug)]
 enum SkMainError {
+    #[error("I/O error {0:?}")]
     IoError(std::io::Error),
+    #[error("Argument error {0:?}")]
     ArgError(clap::Error),
 }
 
@@ -74,7 +85,7 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
-fn sk_main() -> Result<i32, SkMainError> {
+async fn sk_main() -> Result<i32> {
     let mut opts = parse_args()?;
 
     let reader_opts = SkimItemReaderOption::default()
@@ -111,7 +122,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         if opts.filter.is_some() {
             return Ok(filter(&bin_options, &opts, rx_item));
         }
-        Skim::run_with(&opts, rx_item)
+        Some(Skim::run_with(&opts, rx_item).await?)
     }) else {
         return Ok(135);
     };
@@ -129,7 +140,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         print!("{}{}", result.cmd, bin_options.output_ending);
     }
 
-    if let Event::EvActAccept(Some(accept_key)) = result.final_event {
+    if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
         print!("{}{}", accept_key, bin_options.output_ending);
     }
 

@@ -1,7 +1,6 @@
-use crate::event::Event;
+use crate::tui::Event;
 use crate::SkimItem;
 use std::sync::Arc;
-use tuikit::key::Key;
 
 pub struct SkimOutput {
     /// The final event that makes skim accept/quit.
@@ -14,7 +13,7 @@ pub struct SkimOutput {
 
     /// The final key that makes skim accept/quit.
     /// Note that it might be Key::Null if it is triggered by skim.
-    pub final_key: Key,
+    pub final_key: crossterm::event::KeyCode,
 
     /// The query
     pub query: String,

@@ -1,4 +1,5 @@
 extern crate skim;
+use crossterm::event::KeyCode;
 use skim::prelude::*;
 
 // No action is actually performed on your filesystem!
@@ -12,7 +13,8 @@ fn fake_create_item(item: &str) {
     println!("Creating a new item `{}`...", item);
 }
 
-pub fn main() {
+#[tokio::main]
+async fn main() {
     // Note: `accept` is a keyword used define custom actions.
     // For full list of accepted keywords see `parse_event` in `src/event.rs`.
     // `delete` and `create` are arbitrary keywords used for this example.
@@ -22,12 +24,12 @@ pub fn main() {
         .build()
         .unwrap();
 
-    if let Some(out) = Skim::run_with(&options, None) {
+    if let Ok(out) = Skim::run_with(&options, None).await {
         match out.final_key {
             // Delete each selected item
-            Key::Backspace => out.selected_items.iter().for_each(|i| fake_delete_item(&i.text())),
+            KeyCode::Backspace => out.selected_items.iter().for_each(|i| fake_delete_item(&i.text())),
             // Create a new item based on the query
-            Key::Enter => fake_create_item(out.query.as_ref()),
+            KeyCode::Enter => fake_create_item(out.query.as_ref()),
             _ => (),
         }
     };

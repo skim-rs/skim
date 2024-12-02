@@ -1,30 +1,20 @@
+use color_eyre::Result;
 use std::borrow::Cow;
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
 use std::str::FromStr;
 
 use regex::{Captures, Regex};
-use tuikit::prelude::*;
 use unicode_width::UnicodeWidthChar;
 
 use crate::field::get_string_by_range;
-use crate::AnsiString;
+use crate::tui::Size;
 
 lazy_static! {
     static ref RE_ESCAPE: Regex = Regex::new(r"['\U{00}]").unwrap();
     static ref RE_NUMBER: Regex = Regex::new(r"[+|-]?\d+").unwrap();
-}
-
-pub fn clear_canvas(canvas: &mut dyn Canvas) -> DrawResult<()> {
-    let (screen_width, screen_height) = canvas.size()?;
-    for y in 0..screen_height {
-        for x in 0..screen_width {
-            canvas.print(y, x, " ")?;
-        }
-    }
-    Ok(())
 }
 
 pub fn escape_single_quote(text: &str) -> String {
@@ -132,70 +122,6 @@ impl LinePrinter {
         self.start = max(self.shift as i64 + self.hscroll_offset, 0) as usize;
         self.end = self.start + self.container_width;
     }
-
-    fn print_ch_to_canvas(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr, skip: bool) {
-        let w = ch.width().unwrap_or(2);
-
-        if !skip {
-            let _ = canvas.put_cell(self.row, self.screen_col, Cell::default().ch(ch).attribute(attr));
-        }
-
-        self.screen_col += w;
-    }
-
-    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr, skip: bool) {
-        // hide the content that outside the screen, and show the hint(i.e. `..`) for overflow
-        // the hidden character
-
-        let w = ch.width().unwrap_or(2);
-
-        assert!(self.current_pos >= 0);
-        let current = self.current_pos as usize;
-
-        if current < self.start || current >= self.end {
-            // pass if it is hidden
-        } else if current < self.start + 2 && self.start > 0 {
-            // print left ".."
-            for _ in 0..min(w, current - self.start + 1) {
-                self.print_ch_to_canvas(canvas, '.', attr, skip);
-            }
-        } else if self.end - current <= 2 && (self.text_width > self.end) {
-            // print right ".."
-            for _ in 0..min(w, self.end - current) {
-                self.print_ch_to_canvas(canvas, '.', attr, skip);
-            }
-        } else {
-            self.print_ch_to_canvas(canvas, ch, attr, skip);
-        }
-
-        self.current_pos += w as i32;
-    }
-
-    pub fn print_char(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr, skip: bool) {
-        match ch {
-            '\u{08}' => {
-                // ignore \b character
-            }
-            '\t' => {
-                // handle tabstop
-                let rest = if self.current_pos < 0 {
-                    self.tabstop
-                } else {
-                    self.tabstop - (self.current_pos as usize) % self.tabstop
-                };
-                for _ in 0..rest {
-                    self.print_char_raw(canvas, ' ', attr, skip);
-                }
-            }
-            ch => self.print_char_raw(canvas, ch, attr, skip),
-        }
-    }
-}
-
-pub fn print_item(canvas: &mut dyn Canvas, printer: &mut LinePrinter, content: AnsiString, default_attr: Attr) {
-    for (ch, attr) in content.iter() {
-        printer.print_char(canvas, ch, default_attr.extend(attr), false);
-    }
 }
 
 /// return an array, arr[i] store the display width till char[i]
@@ -264,49 +190,38 @@ pub fn reshape_string(
     }
 }
 
-/// margin option string -> Size
-/// 10 -> Size::Fixed(10)
-/// 10% -> Size::Percent(10)
-pub fn margin_string_to_size(margin: &str) -> Size {
-    if margin.ends_with('%') {
-        Size::Percent(min(100, margin[0..margin.len() - 1].parse::<usize>().unwrap_or(100)))
-    } else {
-        Size::Fixed(margin.parse::<usize>().unwrap_or(0))
-    }
-}
-
 /// Parse margin configuration, e.g.
 /// - `TRBL`     Same  margin  for  top,  right, bottom, and left
 /// - `TB,RL`    Vertical, horizontal margin
 /// - `T,RL,B`   Top, horizontal, bottom margin
 /// - `T,R,B,L`  Top, right, bottom, left margin
-pub fn parse_margin(margin_option: &str) -> (Size, Size, Size, Size) {
+pub fn parse_margin(margin_option: &str) -> Result<(Size, Size, Size, Size)> {
     let margins = margin_option.split(',').collect::<Vec<&str>>();
 
     match margins.len() {
         1 => {
-            let margin = margin_string_to_size(margins[0]);
-            (margin, margin, margin, margin)
+            let margin = Size::try_from(margins[0])?;
+            Ok((margin, margin, margin, margin))
         }
         2 => {
-            let margin_tb = margin_string_to_size(margins[0]);
-            let margin_rl = margin_string_to_size(margins[1]);
-            (margin_tb, margin_rl, margin_tb, margin_rl)
+            let margin_tb = Size::try_from(margins[0])?;
+            let margin_rl = Size::try_from(margins[1])?;
+            Ok((margin_tb, margin_rl, margin_tb, margin_rl))
         }
         3 => {
-            let margin_top = margin_string_to_size(margins[0]);
-            let margin_rl = margin_string_to_size(margins[1]);
-            let margin_bottom = margin_string_to_size(margins[2]);
-            (margin_top, margin_rl, margin_bottom, margin_rl)
+            let margin_top = Size::try_from(margins[0])?;
+            let margin_rl = Size::try_from(margins[1])?;
+            let margin_bottom = Size::try_from(margins[2])?;
+            Ok((margin_top, margin_rl, margin_bottom, margin_rl))
         }
         4 => {
-            let margin_top = margin_string_to_size(margins[0]);
-            let margin_right = margin_string_to_size(margins[1]);
-            let margin_bottom = margin_string_to_size(margins[2]);
-            let margin_left = margin_string_to_size(margins[3]);
-            (margin_top, margin_right, margin_bottom, margin_left)
+            let margin_top = Size::try_from(margins[0])?;
+            let margin_right = Size::try_from(margins[1])?;
+            let margin_bottom = Size::try_from(margins[2])?;
+            let margin_left = Size::try_from(margins[3])?;
+            Ok((margin_top, margin_right, margin_bottom, margin_left))
         }
-        _ => (Size::Fixed(0), Size::Fixed(0), Size::Fixed(0), Size::Fixed(0)),
+        _ => Ok((Size::Fixed(0), Size::Fixed(0), Size::Fixed(0), Size::Fixed(0))),
     }
 }
 

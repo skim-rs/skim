@@ -6,29 +6,28 @@ extern crate log;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Display;
-use std::sync::mpsc::channel;
 use std::sync::Arc;
-use std::thread;
 
 use clap::ValueEnum;
+use color_eyre::eyre::OptionExt;
+use color_eyre::eyre::Result;
 use crossbeam::channel::{Receiver, Sender};
-use tuikit::prelude::{Event as TermEvent, *};
+use crossterm::event::KeyCode;
+use ratatui::style::Style;
+use ratatui::text::Line;
+use ratatui::text::Span;
+use tui::App;
+use tui::Event;
+use tui::Size;
 
-pub use crate::ansi::AnsiString;
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
-use crate::event::{EventReceiver, EventSender};
 pub use crate::item::RankCriteria;
-use crate::model::Model;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
-use crate::reader::Reader;
 
-mod ansi;
 mod engine;
-mod event;
 pub mod field;
 mod global;
-mod header;
 mod helper;
 mod input;
 pub mod item;
@@ -45,6 +44,7 @@ mod selection;
 mod spinlock;
 mod theme;
 pub mod tmux;
+pub mod tui;
 mod util;
 
 //------------------------------------------------------------------------------
@@ -108,8 +108,8 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     fn text(&self) -> Cow<str>;
 
     /// The content to be displayed on the item list, could contain ANSI properties
-    fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString<'a> {
-        AnsiString::from(context)
+    fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
+        context.to_line(self.text())
     }
 
     /// Custom preview content, default to `ItemPreview::Global` which will use global preview
@@ -155,39 +155,55 @@ impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
 
 //------------------------------------------------------------------------------
 // Display Context
-pub enum Matches<'a> {
+#[derive(Default)]
+pub enum Matches {
+    #[default]
     None,
-    CharIndices(&'a [usize]),
+    CharIndices(Vec<usize>),
     CharRange(usize, usize),
     ByteRange(usize, usize),
 }
 
-pub struct DisplayContext<'a> {
-    pub text: &'a str,
+#[derive(Default)]
+pub struct DisplayContext {
     pub score: i32,
-    pub matches: Matches<'a>,
+    pub matches: Matches,
     pub container_width: usize,
-    pub highlight_attr: Attr,
+    pub style: Style,
 }
 
-impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
-    fn from(context: DisplayContext<'a>) -> Self {
-        match context.matches {
-            Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_attr)),
+impl DisplayContext {
+    pub fn to_line(self, cow: Cow<str>) -> Line {
+        let text: String = cow.into_owned();
+        match &self.matches {
+            Matches::CharIndices(indices) => {
+                let mut res = Line::default();
+                let mut prev_end = 0;
+                for index in indices {
+                    res.push_span(Span::raw(text[prev_end..*index].to_string()));
+                    res.push_span(Span::styled(text[*index..*index + 1].to_string(), self.style));
+                    prev_end = index + 1;
+                }
+                res.push_span(Span::raw(text[prev_end..].to_string()));
+                res
+            }
+            // AnsiString::from((context.text, indices, context.highlight_attr)),
             #[allow(clippy::cast_possible_truncation)]
             Matches::CharRange(start, end) => {
-                AnsiString::new_str(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
+                let mut res = Line::raw(text[..*start].to_string());
+                res.push_span(Span::styled(text[*start..*end].to_string(), self.style));
+                res.push_span(Span::raw(text[*end..].to_string()));
+                res
             }
             Matches::ByteRange(start, end) => {
-                let ch_start = context.text[..start].chars().count();
-                let ch_end = ch_start + context.text[start..end].chars().count();
-                #[allow(clippy::cast_possible_truncation)]
-                AnsiString::new_str(
-                    context.text,
-                    vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))],
-                )
+                let ch_start = text[..*start].chars().count();
+                let ch_end = ch_start + text[*start..*end].chars().count();
+                let mut res = Line::raw(text[..ch_start].to_string());
+                res.push_span(Span::styled(text[ch_start..ch_end].to_string(), self.style));
+                res.push_span(Span::raw(text[ch_end..].to_string()));
+                res
             }
-            Matches::None => AnsiString::new_str(context.text, vec![]),
+            Matches::None => Line::raw(text)
         }
     }
 }
@@ -315,69 +331,47 @@ impl Skim {
     ///
     /// Panics if the tui fails to initilize
     #[must_use]
-    pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
-        let min_height = Skim::parse_height_string(&options.min_height);
-        let height = Skim::parse_height_string(&options.height);
-
-        let (tx, rx): (EventSender, EventReceiver) = channel();
-        let term = Arc::new(
-            Term::with_options(
-                TermOptions::default()
-                    .min_height(min_height)
-                    .height(height)
-                    .clear_on_exit(!options.no_clear)
-                    .disable_alternate_screen(options.no_clear_start)
-                    .clear_on_start(!options.no_clear_start)
-                    .hold(options.select_1 || options.exit_0 || options.sync),
-            )
-            .unwrap(),
-        );
-        if !options.no_mouse {
-            let _ = term.enable_mouse_support();
-        }
-
-        //------------------------------------------------------------------------------
-        // input
-        let mut input = input::Input::new();
-        input.parse_keymaps(options.bind.iter().map(String::as_str));
-        input.parse_expect_keys(options.expect.iter().map(String::as_str));
-
-        let tx_clone = tx.clone();
-        let term_clone = term.clone();
-        let input_thread = thread::spawn(move || loop {
-            if let Ok(key) = term_clone.poll_event() {
-                if key == TermEvent::User(()) {
-                    break;
-                }
-
-                let (key, action_chain) = input.translate_event(key);
-                for event in action_chain {
-                    let _ = tx_clone.send((key, event));
-                }
-            }
-        });
+    pub async fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+        // let min_height = Skim::parse_height_string(&options.min_height);
+        // let height = Skim::parse_height_string(&options.height);
 
         //------------------------------------------------------------------------------
         // reader
 
-        let reader = Reader::with_options(options).source(source);
+        // let reader = Reader::with_options(options).source(source);
 
         //------------------------------------------------------------------------------
         // model + previewer
-        let mut model = Model::new(rx, tx, reader, term.clone(), options);
-        let ret = model.start();
-        let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
-        let _ = input_thread.join();
-        ret
-    }
+        // let mut model = Model::new(rx, tx, reader, term.clone(), options);
+        // let ret = model.start();
+        // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
+        // let _ = input_thread.join();
+        
+        let height = Size::try_from(options.height.as_str())?;
+        let mut tui = tui::Tui::new_with_height(height)?;
+        tui.enter()?;
 
-    // 10 -> TermHeight::Fixed(10)
-    // 10% -> TermHeight::Percent(10)
-    fn parse_height_string(string: &str) -> TermHeight {
-        if string.ends_with('%') {
-            TermHeight::Percent(string[0..string.len() - 1].parse().unwrap_or(100))
-        } else {
-            TermHeight::Fixed(string.parse().unwrap_or(0))
+        // application state
+        let mut app = App::default();
+        let mut event: Event;
+
+        loop {
+            event = tui.next().await.ok_or_eyre("Could not acquire next event")?;
+
+            app.handle_event(&mut tui, &event)?;
+            // application exit
+            if app.should_quit {
+                break;
+            }
         }
+
+        Ok(SkimOutput {
+            cmd: options.cmd.clone().unwrap_or_default(),
+            final_event: event,
+            final_key: KeyCode::Enter, // TODO
+            query: options.query.clone().unwrap_or_default(),
+            is_abort: false,
+            selected_items: app.results,
+        })
     }
 }
