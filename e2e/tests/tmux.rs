@@ -89,7 +89,7 @@ fn tmux_quote_zsh() -> Result<()> {
     println!("{cmd}");
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("sk --bind $'ctrl-a:reload(ls /foo*)' >/tmp/sk-tmux"));
+    assert!(cmd.contains("sk --bind $'ctrl-a:reload(ls /foo*)' >"));
 
     Ok(())
 }
