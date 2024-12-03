@@ -44,8 +44,8 @@ impl Tui {
             task: tokio::spawn(async {}),
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            frame_rate: 30.0,
-            tick_rate: 1.0,
+            frame_rate: 120.0,
+            tick_rate: 10.0,
             cancellation_token: CancellationToken::default(),
             is_fullscreen,
         })
@@ -66,7 +66,7 @@ impl Tui {
             crossterm::execute!(std::io::stderr(), LeaveAlternateScreen, cursor::Show)?;
             crossterm::terminal::disable_raw_mode()?;
         }
-        process::exit(status_code)
+        Ok(())
     }
     pub fn stop(&self) -> Result<()> {
         self.cancel();
@@ -88,30 +88,30 @@ impl Tui {
                 let render_delay = render_interval.tick();
                 let crossterm_event = reader.next().fuse();
                 tokio::select! {
-                  maybe_event = crossterm_event => {
-                    match maybe_event {
-                      Some(Ok(evt)) => {
-                        match evt {
-                          crossterm::event::Event::Key(key) => {
-                            if key.kind == KeyEventKind::Press {
-                              _event_tx.send(Event::Key(key)).unwrap();
-                            }
-                          },
-                            _ => ()
+                    maybe_event = crossterm_event => {
+                      match maybe_event {
+                        Some(Ok(evt)) => {
+                          match evt {
+                            crossterm::event::Event::Key(key) => {
+                              if key.kind == KeyEventKind::Press {
+                                _event_tx.send(Event::Key(key)).unwrap();
+                              }
+                            },
+                              _ => ()
+                          }
                         }
+                        Some(Err(e)) => {
+                          _event_tx.send(Event::Error(e.to_string())).unwrap();
+                        }
+                        None => {},
                       }
-                      Some(Err(e)) => {
-                        _event_tx.send(Event::Error(e.to_string())).unwrap();
-                      }
-                      None => {},
-                    }
-                  },
-                  _ = tick_delay => {
-                      _event_tx.send(Event::Tick).unwrap();
-                  },
-                  _ = render_delay => {
-                      _event_tx.send(Event::Render).unwrap();
-                  },
+                    },
+                    _ = tick_delay => {
+                        _event_tx.send(Event::Heartbeat).unwrap();
+                    },
+                    _ = render_delay => {
+                        _event_tx.send(Event::Render).unwrap();
+                    },
                 }
             }
         });

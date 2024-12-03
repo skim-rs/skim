@@ -1,7 +1,6 @@
 pub(crate) mod options;
 
-use options::InfoDisplay;
-// use status::{ClearStrategy, Direction, Status};
+// use options::InfoDisplay;
 //
 // use std::env;
 //
@@ -14,25 +13,19 @@ use options::InfoDisplay;
 // use defer_drop::DeferDrop;
 // use regex::Regex;
 // use timer::{Guard as TimerGuard, Timer};
-// use tuikit::prelude::{Event as TermEvent, *};
 //
 // use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
-// use crate::event::{Event, EventHandler, EventReceiver, EventSender};
+// use crate::tui::Event;
 // use crate::global::current_run_num;
-// use crate::header::Header;
 // use crate::helper::item::DefaultSkimItem;
-// use crate::input::parse_action_arg;
 // use crate::item::{ItemPool, MatchedItem, RankBuilder};
 // use crate::matcher::{Matcher, MatcherControl};
 // use crate::options::SkimOptions;
 // use crate::output::SkimOutput;
-// use crate::previewer::Previewer;
-// use crate::query::Query;
 // use crate::reader::{Reader, ReaderControl};
-// use crate::selection::Selection;
 // use crate::spinlock::SpinLock;
 // use crate::theme::ColorTheme;
-// use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
+// use crate::util::{depends_on_items, inject_command, parse_margin, InjectContext};
 // use crate::{FuzzyAlgorithm, MatchEngineFactory, MatchRange, SkimItem};
 // use std::cmp::max;
 //

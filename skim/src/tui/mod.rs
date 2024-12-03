@@ -11,6 +11,7 @@ mod input;
 mod preview;
 mod statusline;
 mod tui;
+pub mod item_list;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {

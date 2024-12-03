@@ -4,8 +4,10 @@
 use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
+use crate::tui::Event;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam::channel::{bounded, select, Sender};
+use tokio::sync::mpsc::UnboundedSender;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -75,12 +77,11 @@ impl Reader {
         self
     }
 
-    pub fn run(&mut self, cmd: &str) -> ReaderControl {
+    pub fn run(&mut self, app_tx: UnboundedSender<Event>, cmd: &str) -> ReaderControl {
         mark_new_run(cmd);
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));
-        let items_clone = items.clone();
 
         let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
@@ -89,7 +90,7 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, items_clone);
+        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, app_tx);
 
         ReaderControl {
             tx_interrupt,
@@ -103,7 +104,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
+    app_tx: UnboundedSender<Event>
 ) -> Sender<i32> {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
@@ -118,8 +119,7 @@ fn collect_item(
             select! {
                 recv(rx_item) -> new_item => match new_item {
                     Ok(item) => {
-                        let mut vec = items.lock();
-                        vec.push(item);
+                        let _ = app_tx.send(Event::NewItem(item));
                     }
                     Err(_) => break,
                 },

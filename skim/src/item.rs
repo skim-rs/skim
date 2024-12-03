@@ -2,6 +2,7 @@
 //! the internal states, such as selected or not
 use std::cmp::min;
 use std::default::Default;
+use std::hash::Hash;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -74,6 +75,21 @@ pub struct MatchedItem {
     pub rank: Rank,
     pub matched_range: Option<MatchRange>, // range of chars that matched the pattern
     pub item_idx: u32,
+}
+
+impl Hash for MatchedItem {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let value = self.item_idx;
+        state.write_u32(value)
+    }
+}
+
+impl Deref for MatchedItem {
+    type Target = Arc<dyn SkimItem>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.item
+    }
 }
 
 impl MatchedItem {}

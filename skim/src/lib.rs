@@ -5,6 +5,7 @@ extern crate log;
 
 use std::any::Any;
 use std::borrow::Cow;
+use std::env;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -16,6 +17,7 @@ use crossterm::event::KeyCode;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
+use reader::Reader;
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -203,7 +205,7 @@ impl DisplayContext {
                 res.push_span(Span::raw(text[ch_end..].to_string()));
                 res
             }
-            Matches::None => Line::raw(text)
+            Matches::None => Line::raw(text),
         }
     }
 }
@@ -333,20 +335,7 @@ impl Skim {
     #[must_use]
     pub async fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         // let min_height = Skim::parse_height_string(&options.min_height);
-        // let height = Skim::parse_height_string(&options.height);
 
-        //------------------------------------------------------------------------------
-        // reader
-
-        // let reader = Reader::with_options(options).source(source);
-
-        //------------------------------------------------------------------------------
-        // model + previewer
-        // let mut model = Model::new(rx, tx, reader, term.clone(), options);
-        // let ret = model.start();
-        // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
-        // let _ = input_thread.join();
-        
         let height = Size::try_from(options.height.as_str())?;
         let mut tui = tui::Tui::new_with_height(height)?;
         tui.enter()?;
@@ -354,6 +343,23 @@ impl Skim {
         // application state
         let mut app = App::default();
         let mut event: Event;
+
+        let item_tx = tui.event_tx.clone();
+
+        //------------------------------------------------------------------------------
+        // reader
+
+        let mut reader = Reader::with_options(options).source(source);
+        let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
+            Ok("") | Err(_) => "find .".to_owned(),
+            Ok(val) => val.to_owned(),
+        };
+        let reader_control = reader.run(item_tx, &options.cmd.clone().unwrap_or(default_command));
+
+        //------------------------------------------------------------------------------
+        // model + previewer
+        // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
+        // let _ = input_thread.join();
 
         loop {
             event = tui.next().await.ok_or_eyre("Could not acquire next event")?;
@@ -365,13 +371,15 @@ impl Skim {
             }
         }
 
+        reader_control.kill();
+
         Ok(SkimOutput {
             cmd: options.cmd.clone().unwrap_or_default(),
             final_event: event,
             final_key: KeyCode::Enter, // TODO
-            query: options.query.clone().unwrap_or_default(),
+            query: app.input.to_string(),
             is_abort: false,
-            selected_items: app.results,
+            selected_items: app.results(),
         })
     }
 }

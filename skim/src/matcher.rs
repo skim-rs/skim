@@ -1,9 +1,8 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
 
 use rayon::prelude::*;
+use tokio::task::{self, JoinHandle};
 
 use crate::item::{ItemPool, MatchedItem};
 use crate::spinlock::SpinLock;
@@ -29,9 +28,9 @@ impl MatcherControl {
         self.matched.load(Ordering::Relaxed)
     }
 
-    pub fn kill(self) {
+    pub fn kill(&self) {
         self.stopped.store(true, Ordering::Relaxed);
-        let _ = self.thread_matcher.join();
+        let _ = self.thread_matcher.abort();
     }
 
     pub fn stopped(&self) -> bool {
@@ -39,8 +38,20 @@ impl MatcherControl {
     }
 
     pub fn into_items(self) -> Arc<SpinLock<Vec<MatchedItem>>> {
-        while !self.stopped.load(Ordering::Relaxed) {}
+        while !self.stopped() {}
         self.items
+    }
+}
+
+impl Default for MatcherControl {
+    fn default() -> Self {
+        Self {
+            stopped: Default::default(),
+            processed: Default::default(),
+            matched: Default::default(),
+            items: Default::default(),
+            thread_matcher: task::spawn(async {}),
+        }
     }
 }
 
@@ -82,7 +93,7 @@ impl Matcher {
         let matched_items = Arc::new(SpinLock::new(Vec::new()));
         let matched_items_clone = matched_items.clone();
 
-        let thread_matcher = thread::spawn(move || {
+        let thread_matcher = task::spawn(async move {
             let _num_taken = item_pool.num_taken();
             let items = item_pool.take();
 
