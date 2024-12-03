@@ -152,6 +152,10 @@ sk --ansi -i -c 'ag --color "{}"'
 sk --ansi -i -c 'rg --color=always --line-number "{}"'
 ```
 
+> **Note**: in these examples, `{}` will be litterally expanded to the current input query.
+> This does mean that these examples will search for the exact query string, and not fuzzily.
+> To achieve fuzzy search, you need to pipe the command output into `sk`, without interactive mode.
+
 ![interactive mode demo](https://cloud.githubusercontent.com/assets/1527040/21603930/655d859a-d1db-11e6-9fec-c25099d30a12.gif)
 
 ## Key Bindings
