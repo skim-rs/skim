@@ -69,16 +69,16 @@ The skim project contains several components:
 
 ## Package Managers
 
-| OS             | Package Manager   | Command                     |
-| -------------- | ----------------- | --------------------------- |
-| macOS          | Homebrew          | `brew install sk`           |
-| macOS          | MacPorts          | `sudo port install skim`    |
-| Fedora         | dnf               | `dnf install skim`          |
-| Alpine         | apk               | `apk add skim`              |
-| Arch           | pacman            | `pacman -S skim`            |
-| Gentoo         | Portage           | `emerge --ask app-misc/skim |
-| Guix           | guix              | `guix install skim`         |
-| Void           | XBPS              | `xbps-install -S skim`      |
+| OS             | Package Manager   | Command                      |
+| -------------- | ----------------- | ---------------------------- |
+| macOS          | Homebrew          | `brew install sk`            |
+| macOS          | MacPorts          | `sudo port install skim`     |
+| Fedora         | dnf               | `dnf install skim`           |
+| Alpine         | apk               | `apk add skim`               |
+| Arch           | pacman            | `pacman -S skim`             |
+| Gentoo         | Portage           | `emerge --ask app-misc/skim` |
+| Guix           | guix              | `guix install skim`          |
+| Void           | XBPS              | `xbps-install -S skim`       |
 
 <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
