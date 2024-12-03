@@ -4,6 +4,13 @@
 
 
 
+## [0.15.4](https://github.com/skim-rs/skim/compare/v0.15.3...v0.15.4) (2024-12-03)
+
+
+### Bug Fixes
+
+* fix --tmux quoting ([#643](https://github.com/skim-rs/skim/issues/643)) ([1abf545](https://github.com/skim-rs/skim/commit/1abf545ed953dcb9b26a7926df2df105be662c6f))
+
 ## [0.15.3](https://github.com/skim-rs/skim/compare/v0.15.2...v0.15.3) (2024-12-01)
 
 
