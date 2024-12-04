@@ -8,8 +8,6 @@
 
 
 
-
-
 ## [0.15.0](https://github.com/skim-rs/skim/compare/v0.14.4...v0.15.0) (2024-12-01)
 
 
