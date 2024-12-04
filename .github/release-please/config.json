@@ -3,8 +3,8 @@
   "bump-minor-pre-major": true,
   "packages": {
     "skim": {
-      "changelog-path": "/CHANGELOG.md"
-      "include-component-in-tag": false,
+      "changelog-path": "/CHANGELOG.md",
+      "include-component-in-tag": false
     },
     "e2e": {
       "skip-github-release": true,
