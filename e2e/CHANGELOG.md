@@ -4,6 +4,19 @@
 
 
 
+## [0.16.0](https://github.com/skim-rs/skim/compare/e2e-v0.15.3...e2e-v0.16.0) (2024-12-04)
+
+
+### Features
+
+* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([a5b8181](https://github.com/skim-rs/skim/commit/a5b81818d6eb8bfe4c2ceeed3b4cc6e22cc95731))
+
+
+### Bug Fixes
+
+* clippy pedantic on main.rs ([04541d5](https://github.com/skim-rs/skim/commit/04541d515b3f46243a7f590a81022ee0a2d1a34e))
+* fix --tmux quoting ([#643](https://github.com/skim-rs/skim/issues/643)) ([1abf545](https://github.com/skim-rs/skim/commit/1abf545ed953dcb9b26a7926df2df105be662c6f))
+
 ## [0.15.3](https://github.com/skim-rs/skim/compare/v0.15.2...v0.15.3) (2024-12-01)
 
 
