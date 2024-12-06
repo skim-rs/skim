@@ -1,5 +1,4 @@
 use std::cmp::max;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -28,23 +27,23 @@ use tokio::task::{self, JoinHandle};
 use super::{input, preview, tui};
 
 // App state
-pub struct App {
+pub struct App<'a> {
     pub item_pool: Arc<DeferDrop<ItemPool>>,
     pub should_quit: bool,
-    pub preview_handle: JoinHandle<()>,
+    pub should_trigger_matcher: bool,
     pub cursor_pos: (u16, u16),
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
 
     pub input: Input,
-    pub preview: Preview,
+    pub preview: Preview<'a>,
     pub header: Header,
     pub status: StatusLine,
     pub item_list: ItemList,
 }
 
 // App ui render function
-impl Widget for &mut App {
+impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let layout = Layout::vertical([
             Constraint::Fill(1),
@@ -63,7 +62,7 @@ impl Widget for &mut App {
     }
 }
 
-impl Default for App {
+impl Default for App<'_> {
     fn default() -> Self {
         Self {
             input: Input::default(),
@@ -72,16 +71,16 @@ impl Default for App {
             status: StatusLine::default(),
             item_pool: Arc::default(),
             item_list: ItemList::default(),
-            preview_handle: tokio::spawn(async {}),
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
+            should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
         }
     }
 }
 
-impl App {
+impl App<'_> {
     pub fn handle_event(&mut self, tui: &mut tui::Tui, event: &Event) -> Result<()> {
         match event {
             Event::Render => {
@@ -92,28 +91,29 @@ impl App {
                 })?;
             }
             Event::Heartbeat => {
-                self.restart_matcher();
+                self.should_trigger_matcher = true;
             }
             Event::Quit => {
-                self.preview_handle.abort();
                 tui.exit(-1)?;
                 self.should_quit = true;
             }
             Event::Close => {
-                self.preview_handle.abort();
                 tui.exit(0)?;
                 self.should_quit = true;
             }
             Event::PreviewReady(s) => {
-                self.preview.content = s.clone();
+                self.preview.content(s)?;
             }
             Event::Error(msg) => {
-                self.preview_handle.abort();
                 tui.exit(1)?;
                 bail!(msg.to_owned());
             }
             Event::NewItem(item) => {
                 self.item_pool.append(vec![item.clone()]);
+                if self.should_trigger_matcher {
+                    self.should_trigger_matcher = false;
+                    self.restart_matcher();
+                }
                 trace!("Got new item, len {}", self.item_pool.len());
             }
             Event::Key(key) => match key.modifiers {
@@ -132,14 +132,23 @@ impl App {
                         self.input.insert(c);
                         self.restart_matcher();
                     }
-                    KeyCode::Enter => tui.event_tx.send(Event::Close)?,
+                    KeyCode::Enter => {
+                        self.item_list.select();
+                        tui.event_tx.send(Event::Close)?;
+                    }
                     KeyCode::Backspace => {
                         self.input.delete();
                         self.restart_matcher();
                     }
                     KeyCode::Left => self.input.move_cursor(-1),
                     KeyCode::Right => self.input.move_cursor(1),
-                    KeyCode::Up => self.item_list.move_cursor_by(1),
+                    KeyCode::Up => {
+                        self.item_list.move_cursor_by(1);
+                        self.preview.run(
+                            tui,
+                            &format!("bat --color=always {}", self.item_list.items[self.item_list.cursor].item.text()),
+                        );
+                    }
                     KeyCode::Down => self.item_list.move_cursor_by(-1),
                     KeyCode::Tab => self.item_list.toggle(),
                     _ => (),
@@ -154,7 +163,7 @@ impl App {
                 _ => (),
             },
             _ => (),
-        }
+        };
         Ok(())
     }
     fn restart_matcher(&mut self) {

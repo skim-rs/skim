@@ -73,6 +73,10 @@ impl ItemList {
     pub fn toggle(&mut self) {
         self.toggle_at(self.cursor);
     }
+    pub fn select(&mut self) {
+        let item = self.items[self.cursor + self.view_range.0].clone();
+        self.selection.insert(item);
+    }
 }
 
 impl Widget for &mut ItemList {

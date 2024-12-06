@@ -44,7 +44,7 @@ impl Tui {
             task: tokio::spawn(async {}),
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            frame_rate: 120.0,
+            frame_rate: 30.0,
             tick_rate: 10.0,
             cancellation_token: CancellationToken::default(),
             is_fullscreen,
