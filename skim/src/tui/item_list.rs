@@ -134,6 +134,7 @@ impl Widget for &mut ItemList {
                         .spans;
                     Line::from(vec![vec![cursor, selector], spans].concat())
                 })
+                .rev()
                 .collect::<Vec<Line>>(),
         )
         .render(area, buf);

@@ -2,19 +2,19 @@ use std::cmp::max;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::engine::fuzzy::{FuzzyEngine, FuzzyEngineBuilder};
-use crate::helper::item_reader;
+use crate::binds::KeyMap;
 use crate::item::ItemPool;
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
-use crate::{MatchEngine, SkimItem};
+use crate::SkimItem;
 
+use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::statusline::StatusLine;
 use super::Event;
 use color_eyre::eyre::{bail, Result};
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
@@ -22,7 +22,6 @@ use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Widget;
-use tokio::task::{self, JoinHandle};
 
 use super::{input, preview, tui};
 
@@ -34,6 +33,7 @@ pub struct App<'a> {
     pub cursor_pos: (u16, u16),
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
+    pub keymap: KeyMap,
 
     pub input: Input,
     pub preview: Preview<'a>,
@@ -47,9 +47,9 @@ impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let layout = Layout::vertical([
             Constraint::Fill(1),
-            Constraint::Length(2),
-            Constraint::Length(2),
-            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
         ]);
         let [top, header, status, bottom] = layout.areas(area);
         let [top_left, top_right] = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).areas(top);
@@ -58,7 +58,7 @@ impl Widget for &mut App<'_> {
         self.status.render(status, buf);
         self.preview.render(top_right, buf);
         self.item_list.render(top_left, buf);
-        self.cursor_pos = (bottom.x + self.input.cursor_pos, bottom.y)
+        self.cursor_pos = (bottom.x + self.input.cursor_pos(), bottom.y)
     }
 }
 
@@ -73,6 +73,7 @@ impl Default for App<'_> {
             item_list: ItemList::default(),
             should_quit: false,
             cursor_pos: (0, 0),
+            keymap: crate::binds::get_default_key_map(),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
@@ -93,6 +94,15 @@ impl App<'_> {
             Event::Heartbeat => {
                 self.should_trigger_matcher = true;
             }
+            Event::RunPreview => {
+                self.preview.run(
+                    tui,
+                    &format!(
+                        "bat --color=always {}",
+                        self.item_list.items[self.item_list.cursor].item.text()
+                    ),
+                );
+            }
             Event::Quit => {
                 tui.exit(-1)?;
                 self.should_quit = true;
@@ -108,72 +118,205 @@ impl App<'_> {
                 tui.exit(1)?;
                 bail!(msg.to_owned());
             }
+            Event::Action(act) => {
+                if let Some(evt) = self.handle_action(act) {
+                    tui.event_tx.send(evt)?;
+                }
+                self.restart_matcher(true);
+            }
             Event::NewItem(item) => {
                 self.item_pool.append(vec![item.clone()]);
-                if self.should_trigger_matcher {
-                    self.should_trigger_matcher = false;
-                    self.restart_matcher();
-                }
+                self.restart_matcher(false);
                 trace!("Got new item, len {}", self.item_pool.len());
             }
-            Event::Key(key) => match key.modifiers {
-                KeyModifiers::CONTROL => match key.code {
-                    Char('c') => tui.event_tx.send(Event::Quit)?,
-                    Char('w') => {
-                        self.input.delete_word();
-                        self.restart_matcher();
-                    }
-                    Char('g') => self.item_list.move_cursor_to(0),
-                    Char('h') => self.item_list.move_cursor_to(max(1, self.item_list.items.len()) - 1),
-                    _ => (),
-                },
-                KeyModifiers::NONE => match key.code {
-                    Char(c) => {
-                        self.input.insert(c);
-                        self.restart_matcher();
-                    }
-                    KeyCode::Enter => {
-                        self.item_list.select();
-                        tui.event_tx.send(Event::Close)?;
-                    }
-                    KeyCode::Backspace => {
-                        self.input.delete();
-                        self.restart_matcher();
-                    }
-                    KeyCode::Left => self.input.move_cursor(-1),
-                    KeyCode::Right => self.input.move_cursor(1),
-                    KeyCode::Up => {
-                        self.item_list.move_cursor_by(1);
-                        self.preview.run(
-                            tui,
-                            &format!("bat --color=always {}", self.item_list.items[self.item_list.cursor].item.text()),
-                        );
-                    }
-                    KeyCode::Down => self.item_list.move_cursor_by(-1),
-                    KeyCode::Tab => self.item_list.toggle(),
-                    _ => (),
-                },
-                KeyModifiers::SHIFT => match key.code {
-                    Char(c) => {
-                        self.input.insert(c);
-                        self.restart_matcher();
-                    }
-                    _ => (),
-                },
-                _ => (),
-            },
+            Event::Key(key) => {
+                for evt in self.handle_key(key) {
+                    tui.event_tx.send(evt)?;
+                }
+            }
             _ => (),
         };
         Ok(())
     }
-    fn restart_matcher(&mut self) {
-        self.matcher_control.kill();
-        let tx = self.item_list.tx.clone();
-        self.item_pool.reset();
-        self.matcher_control = self.matcher.run(&self.input, self.item_pool.clone(), move |matches| {
-            debug!("Got results from matcher, sending to item list...");
-            let _ = tx.send(matches.lock().clone());
-        });
+    fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
+        let act = self.keymap.get(key);
+        if act.is_some() {
+            return act.unwrap().iter().map(|a| Event::Action(a.clone())).collect();
+        }
+        match key.modifiers {
+            KeyModifiers::CONTROL => match key.code {
+                Char('c') => return vec![Event::Quit],
+                Char('w') => {
+                    self.input.delete_word();
+                    self.restart_matcher(true);
+                }
+                Char('g') => {
+                    self.item_list.move_cursor_to(0);
+                }
+                Char('h') => {
+                    self.item_list.move_cursor_to(max(1, self.item_list.items.len()) - 1);
+                }
+                _ => (),
+            },
+            KeyModifiers::NONE => match key.code {
+                Char(c) => return vec![Event::Action(Action::AddChar(c))],
+                KeyCode::Enter => {
+                    self.item_list.select();
+                    return vec![Event::Close];
+                }
+                KeyCode::Backspace => {
+                    self.input.delete(-1);
+                    self.restart_matcher(true);
+                }
+                KeyCode::Left => {
+                    self.input.move_cursor(-1);
+                }
+                KeyCode::Right => {
+                    self.input.move_cursor(1);
+                }
+                KeyCode::Up => {
+                    self.item_list.move_cursor_by(1);
+                    return vec![Event::RunPreview];
+                }
+                KeyCode::Down => {
+                    self.item_list.move_cursor_by(-1);
+                    return vec![Event::RunPreview];
+                }
+                KeyCode::Tab => {
+                    self.item_list.toggle();
+                }
+                _ => (),
+            },
+            KeyModifiers::SHIFT => match key.code {
+                Char(c) => return vec![Event::Action(Action::AddChar(c.to_uppercase().next().unwrap()))],
+                _ => (),
+            },
+            _ => (),
+        };
+        return vec![];
+    }
+
+    fn handle_action(&mut self, act: &Action) -> Option<Event> {
+        use Action::*;
+        match act {
+            Abort => {
+                return Some(Event::Quit);
+            }
+            Accept(_) => {
+                return Some(Event::Close);
+            }
+            AddChar(c) => {
+                self.input.insert(*c);
+                self.restart_matcher(true);
+            }
+            AppendAndSelect => {
+                let value = self.input.clone();
+                let item: Arc<dyn SkimItem> = Arc::new(value);
+                self.item_pool.append(vec![item]);
+                self.restart_matcher(false);
+            }
+            BackwardChar => {
+                self.input.move_cursor(-1);
+            }
+            BackwardDeleteChar => {
+                self.input.delete(-1);
+            }
+            BackwardKillWord => {
+                self.input.delete_word();
+            }
+            BackwardWord => todo!(),
+            BeginningOfLine => {
+                self.input.move_cursor_to(0);
+            }
+            Cancel => {
+                todo!();
+            }
+            ClearScreen => {
+                todo!();
+            }
+            DeleteChar => {
+                self.input.delete(1);
+            }
+            DeleteCharEOF => {
+                self.input.delete(1);
+            }
+            DeselectAll => {
+                self.item_list.selection = Default::default();
+            }
+            Down(offset) => {
+                self.item_list.move_cursor_by(*offset);
+            }
+            EndOfLine => {
+                self.input.move_cursor_to(self.input.len() as u16);
+            }
+            Execute(cmd) => todo!(),
+            ExecuteSilent(cmd) => todo!(),
+            ForwardChar => {
+                self.input.move_cursor(1);
+            }
+            ForwardWord => {
+                todo!();
+            }
+            IfQueryEmpty(act) => todo!(),
+            IfQueryNotEmpty(act) => todo!(),
+            IfNonMatched(act) => todo!(),
+            Ignore => (),
+            KillLine => todo!(),
+            KillWord => todo!(),
+            NextHistory => todo!(),
+            HalfPageDown(n) => todo!(),
+            HalfPageUp(n) => todo!(),
+            PageDown(n) => todo!(),
+            PageUp(n) => todo!(),
+            PreviewUp(n) => todo!(),
+            PreviewDown(n) => todo!(),
+            PreviewLeft(n) => todo!(),
+            PreviewRight(n) => todo!(),
+            PreviewPageUp(n) => todo!(),
+            PreviewPageDown(n) => todo!(),
+            PreviousHistory => todo!(),
+            Redraw => todo!(),
+            Reload(Some(s)) => todo!(),
+            Reload(None) => todo!(),
+            RefreshCmd => todo!(),
+            RefreshPreview => {
+                return Some(Event::RunPreview);
+            }
+            RotateMode => todo!(),
+            ScrollLeft(n) => todo!(),
+            ScrollRight(n) => todo!(),
+            SelectAll => todo!(),
+            SelectRow(usize) => todo!(),
+            Toggle => self.item_list.toggle(),
+            ToggleAll => todo!(),
+            ToggleIn => todo!(),
+            ToggleInteractive => todo!(),
+            ToggleOut => todo!(),
+            TogglePreview => todo!(),
+            TogglePreviewWrap => todo!(),
+            ToggleSort => todo!(),
+            UnixLineDiscard => todo!(),
+            UnixWordRubout => todo!(),
+            Up(n) => todo!(),
+            Yank => todo!(),
+        }
+        return None;
+    }
+
+    fn restart_matcher(&mut self, mut force: bool) {
+        if self.should_trigger_matcher {
+            self.should_trigger_matcher = false;
+            force = true;
+        }
+        if force {
+            self.matcher_control.kill();
+            let tx = self.item_list.tx.clone();
+            self.item_pool.reset();
+            self.matcher_control = self.matcher.run(&self.input, self.item_pool.clone(), move |matches| {
+                debug!("Got results from matcher, sending to item list...");
+                let _ = tx.send(matches.lock().clone());
+            });
+        }
     }
     pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
         self.item_list

@@ -39,6 +39,7 @@ impl Tui {
             Size::Fixed(lines) => (false, Viewport::Inline(lines)),
             Size::Percent(p) => todo!(),
         };
+        set_panic_hook();
         Ok(Self {
             terminal: ratatui::Terminal::with_options(backend, TerminalOptions { viewport })?,
             task: tokio::spawn(async {}),
@@ -141,4 +142,12 @@ impl Drop for Tui {
     fn drop(&mut self) {
         self.exit(0).unwrap();
     }
+}
+
+fn set_panic_hook() {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = ratatui::restore(); // ignore any errors as we are already failing
+        hook(panic_info);
+    }));
 }

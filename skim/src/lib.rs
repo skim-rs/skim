@@ -48,6 +48,7 @@ mod theme;
 pub mod tmux;
 pub mod tui;
 mod util;
+pub mod binds;
 
 //------------------------------------------------------------------------------
 pub trait AsAny {
