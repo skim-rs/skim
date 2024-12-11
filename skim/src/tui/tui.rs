@@ -1,6 +1,5 @@
 use std::io::stderr;
 use std::ops::{Deref, DerefMut};
-use std::process;
 
 use color_eyre::eyre::Result;
 use crossterm::cursor;

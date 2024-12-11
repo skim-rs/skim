@@ -122,7 +122,6 @@ impl App<'_> {
                 if let Some(evt) = self.handle_action(act) {
                     tui.event_tx.send(evt)?;
                 }
-                self.restart_matcher(true);
             }
             Event::NewItem(item) => {
                 self.item_pool.append(vec![item.clone()]);
@@ -220,9 +219,11 @@ impl App<'_> {
             }
             BackwardDeleteChar => {
                 self.input.delete(-1);
+                self.restart_matcher(true);
             }
             BackwardKillWord => {
                 self.input.delete_word();
+                self.restart_matcher(true);
             }
             BackwardWord => todo!(),
             BeginningOfLine => {
@@ -236,9 +237,11 @@ impl App<'_> {
             }
             DeleteChar => {
                 self.input.delete(1);
+                self.restart_matcher(true);
             }
             DeleteCharEOF => {
                 self.input.delete(1);
+                self.restart_matcher(true);
             }
             DeselectAll => {
                 self.item_list.selection = Default::default();

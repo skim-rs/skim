@@ -1,8 +1,6 @@
 use std::{
     cmp::{max, min},
     collections::HashSet,
-    ops::Deref,
-    sync::Arc,
 };
 
 use ratatui::style::Color;
@@ -15,7 +13,6 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::{
     item::{MatchedItem, RankBuilder},
-    spinlock::SpinLock,
     DisplayContext, MatchRange, SkimItem,
 };
 

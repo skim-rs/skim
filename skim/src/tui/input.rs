@@ -3,7 +3,6 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use derive_builder::Builder;
 use ratatui::{
     prelude::*,
     widgets::{Block, Paragraph, Widget},

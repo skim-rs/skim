@@ -1,14 +1,10 @@
 use ansi_to_tui::IntoText;
-use color_eyre::eyre::{bail, Result};
+use color_eyre::eyre::Result;
 use ratatui::{
     text::Text,
     widgets::{Block, Clear, Paragraph, Widget},
 };
-use std::{
-    process::{Command, ExitStatus},
-    thread::sleep,
-    time::Duration,
-};
+use std::process::Command;
 use tokio::task::JoinHandle;
 
 use super::tui::Tui;
