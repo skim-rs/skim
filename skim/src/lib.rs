@@ -252,7 +252,7 @@ pub enum MatchRange {
     Chars(Vec<usize>), // individual character indices matched
 }
 
-pub type Rank = [i32; 4];
+pub type Rank = [i32; 5];
 
 #[derive(Clone)]
 pub struct MatchResult {
