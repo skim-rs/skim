@@ -39,7 +39,7 @@ impl RankBuilder {
 
     /// score: the greater the better
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize, index: usize) -> Rank {
-        let mut rank = [0; 4];
+        let mut rank = [0; 5];
         let begin = begin as i32;
         let end = end as i32;
         let length = length as i32;
