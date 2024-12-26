@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.15.6](https://github.com/skim-rs/skim/compare/v0.15.5...v0.15.6) (2024-12-26)
+
+
+### Bug Fixes
+
+* update rank to follow the readded index tiebreak ([#669](https://github.com/skim-rs/skim/issues/669)) ([920e774](https://github.com/skim-rs/skim/commit/920e7743e992405f6a79a6bdba834c96e6e1cd5c))
+
 ## [0.15.5](https://github.com/skim-rs/skim/compare/v0.15.4...v0.15.5) (2024-12-04)
 
 
