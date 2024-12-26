@@ -43,36 +43,66 @@ impl Default for ItemList {
 
 impl ItemList {
     pub fn move_cursor_by(&mut self, offset: i32) {
-        self.move_cursor_to(i32::clamp(self.cursor as i32 + offset, 0, self.items.len() as i32) as usize)
+        if -offset >= self.cursor as i32 {
+            self.move_cursor_to(0);
+        } else {
+            self.move_cursor_to((self.cursor as i32 + offset) as usize);
+        }
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
-        self.cursor = pos;
+        if self.items.is_empty() {
+            return;
+        }
+        let clamped = usize::clamp(pos, 0, self.items.len() - 1) as usize;
+        self.cursor = clamped;
+
+        // Move view range
         let (mut start, mut end) = self.view_range;
+        let height = end - start;
         if self.cursor < start {
-            start -= start - self.cursor;
-            end -= start - self.cursor;
+            trace!("Scrolling under start (target: {}, start: {})", self.cursor, start);
+            start = self.cursor;
+            end = self.cursor + height;
         } else if self.cursor >= end {
-            start += self.cursor - end + 1;
-            end += self.cursor - end + 1;
+            trace!("Scrolling over end(target: {}, end: {})", self.cursor, end);
+            end = self.cursor + 1;
+            start = end - height;
         }
         self.view_range = (start, end);
     }
 
+    fn toggle_item(&mut self, item: &MatchedItem) {
+        if self.selection.contains(item) {
+            self.selection.remove(item);
+        } else {
+            self.selection.insert(item.clone());
+        }
+    }
+
     pub fn toggle_at(&mut self, index: usize) {
         let item = self.items[index + self.view_range.0].clone();
-        if self.selection.contains(&item) {
-            self.selection.remove(&item);
-        } else {
-            self.selection.insert(item);
-        }
+        self.toggle_item(&item);
     }
     pub fn toggle(&mut self) {
         self.toggle_at(self.cursor);
     }
+    pub fn toggle_all(&mut self) {
+        for item in self.items.clone() {
+            self.toggle_item(&item);
+        }
+    }
     pub fn select(&mut self) {
-        let item = self.items[self.cursor + self.view_range.0].clone();
+        self.select_row(self.cursor)
+    }
+    pub fn select_row(&mut self, row: usize) {
+        let item = self.items[self.view_range.0 + row].clone();
         self.selection.insert(item);
+    }
+    pub fn select_all(&mut self) {
+        for item in self.items.clone() {
+            self.selection.insert(item.clone());
+        }
     }
 }
 
@@ -84,17 +114,17 @@ impl Widget for &mut ItemList {
         if let Ok(items) = self.rx.try_recv() {
             debug!("Got {} items to put in list", items.len());
             self.items = items;
-            self.view_range.1 = self.view_range.0 + self.items.len();
         }
 
-        let (start, mut end) = self.view_range;
-        if end > start + area.height as usize {
-            debug!("Resizing item list range");
-            end = start + area.height as usize;
-            self.view_range = (start, end);
+        if self.items.is_empty() {
+            return;
         }
 
-        let mut items = self.items[start..min(max(1, self.items.len()) - 1, end)].to_vec();
+        let (start, _) = self.view_range;
+        let end = min(start + area.height as usize, self.items.len());
+        self.view_range.1 = end;
+
+        let mut items = self.items[start..end].to_vec();
         items.sort_by_key(|item| {
             return item.rank;
         });
@@ -114,8 +144,9 @@ impl Widget for &mut ItemList {
                     } else {
                         Span::raw(" ")
                     };
-                    // let number = Span::raw(format!(" {} ", x.item_idx));
-                    // let relnumber = Span::raw(format!(" {} ", cursor_id));
+                    let number = Span::raw(format!(" {} ", item.item_idx));
+                    let relnumber = Span::raw(format!(" {} ", cursor_id));
+                    let cursor_val = Span::raw(format!(" {} ", self.cursor));
                     let spans = item
                         .item
                         .display(DisplayContext {
@@ -129,7 +160,7 @@ impl Widget for &mut ItemList {
                             style: Style::from(Color::Blue),
                         })
                         .spans;
-                    Line::from(vec![vec![cursor, selector], spans].concat())
+                    Line::from(vec![vec![cursor, selector, number, relnumber, cursor_val], spans].concat())
                 })
                 .rev()
                 .collect::<Vec<Line>>(),

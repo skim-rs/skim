@@ -69,6 +69,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret
 }
 
+/// Parses a key str into a crossterm KeyEvent
 pub fn parse_key(key: &str) -> Result<KeyEvent> {
     if key.len() == 0 {
         return Err(eyre!("Cannot parse empty key"));
@@ -124,6 +125,7 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
     Ok(KeyEvent::new(keycode, mods))
 }
 
+/// Parses the key and creates the binding in the KeyMap
 pub fn bind(keymap: &mut KeyMap, key: &str, action_chain: Vec<Action>) -> Result<()> {
     let key = parse_key(key)?;
 
@@ -133,6 +135,7 @@ pub fn bind(keymap: &mut KeyMap, key: &str, action_chain: Vec<Action>) -> Result
     Ok(())
 }
 
+/// Parse an iterator of keymaps into a KeyMap
 pub fn parse_keymaps<'a, T>(maps: T) -> Result<KeyMap>
 where
     T: Iterator<Item = &'a str>,
@@ -145,18 +148,22 @@ where
     Ok(keymap)
 }
 
-// key_action is comma separated: 'ctrl-j:accept,ctrl-k:kill-line'
+/// Parses an action chain, separated by '+'s into the corresponding actions
+pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
+    Ok(action_chain
+        .split('+')
+        .filter_map(crate::tui::event::parse_action)
+        .collect())
+}
+
+/// Parse a single keymap and return the key and action(s)
 pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
     debug!("got key_action: {:?}", key_action);
     let (key, action_chain) = key_action
         .split_once(':')
         .ok_or(eyre!("Failed to parse {} as key and action", key_action))?;
     debug!("parsed key_action: {:?}: {:?}", key, action_chain);
-    let action_chain = action_chain
-        .split('+')
-        .filter_map(crate::tui::event::parse_action)
-        .collect();
-    Ok((key, action_chain))
+    Ok((key, parse_action_chain(action_chain)?))
 }
 
 pub fn parse_expect_keys<'a, T>(keymap: &mut KeyMap, keys: T) -> Result<()>

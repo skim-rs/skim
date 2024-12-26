@@ -18,6 +18,7 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
 use reader::Reader;
+use tui::options::TuiOptions;
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -27,6 +28,7 @@ pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 
+pub mod binds;
 mod engine;
 pub mod field;
 mod global;
@@ -48,7 +50,6 @@ mod theme;
 pub mod tmux;
 pub mod tui;
 mod util;
-pub mod binds;
 
 //------------------------------------------------------------------------------
 pub trait AsAny {
@@ -343,6 +344,7 @@ impl Skim {
 
         // application state
         let mut app = App::default();
+        app.options = TuiOptions::try_from(options)?;
         let mut event: Event;
 
         let item_tx = tui.event_tx.clone();
@@ -351,10 +353,11 @@ impl Skim {
         // reader
 
         let mut reader = Reader::with_options(options).source(source);
-        let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
-            Ok("") | Err(_) => "find .".to_owned(),
-            Ok(val) => val.to_owned(),
-        };
+        const SKIM_DEFAULT_COMMAND: &str = "find .";
+        let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
+            Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
+            Ok(v) => v
+        });
         let reader_control = reader.run(item_tx, &options.cmd.clone().unwrap_or(default_command));
 
         //------------------------------------------------------------------------------

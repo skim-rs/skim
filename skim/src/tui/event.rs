@@ -21,6 +21,7 @@ pub enum Event {
     Action(Action),
     NewItem(Arc<dyn SkimItem>),
     ClearItems,
+    Clear,
     Heartbeat,
     RunPreview,
 }

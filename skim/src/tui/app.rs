@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::cmp::max;
+use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -11,9 +13,11 @@ use crate::SkimItem;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
+use super::options::TuiOptions;
 use super::statusline::StatusLine;
 use super::Event;
 use color_eyre::eyre::{bail, Result};
+use crossbeam::epoch::Pointable;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
 use input::Input;
@@ -33,13 +37,15 @@ pub struct App<'a> {
     pub cursor_pos: (u16, u16),
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
-    pub keymap: KeyMap,
+    pub yank_register: Cow<'a, str>,
 
     pub input: Input,
     pub preview: Preview<'a>,
     pub header: Header,
     pub status: StatusLine,
     pub item_list: ItemList,
+
+    pub options: TuiOptions,
 }
 
 // App ui render function
@@ -73,15 +79,16 @@ impl Default for App<'_> {
             item_list: ItemList::default(),
             should_quit: false,
             cursor_pos: (0, 0),
-            keymap: crate::binds::get_default_key_map(),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
+            yank_register: Cow::default(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
+            options: TuiOptions::default(),
         }
     }
 }
 
-impl App<'_> {
+impl<'a> App<'a> {
     pub fn handle_event(&mut self, tui: &mut tui::Tui, event: &Event) -> Result<()> {
         match event {
             Event::Render => {
@@ -103,6 +110,9 @@ impl App<'_> {
                     ),
                 );
             }
+            Event::Clear => {
+                tui.clear()?;
+            }
             Event::Quit => {
                 tui.exit(-1)?;
                 self.should_quit = true;
@@ -119,7 +129,7 @@ impl App<'_> {
                 bail!(msg.to_owned());
             }
             Event::Action(act) => {
-                if let Some(evt) = self.handle_action(act) {
+                for evt in self.handle_action(act)? {
                     tui.event_tx.send(evt)?;
                 }
             }
@@ -138,52 +148,17 @@ impl App<'_> {
         Ok(())
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
-        let act = self.keymap.get(key);
+        let act = self.options.keymap.get(key);
         if act.is_some() {
             return act.unwrap().iter().map(|a| Event::Action(a.clone())).collect();
         }
         match key.modifiers {
             KeyModifiers::CONTROL => match key.code {
                 Char('c') => return vec![Event::Quit],
-                Char('w') => {
-                    self.input.delete_word();
-                    self.restart_matcher(true);
-                }
-                Char('g') => {
-                    self.item_list.move_cursor_to(0);
-                }
-                Char('h') => {
-                    self.item_list.move_cursor_to(max(1, self.item_list.items.len()) - 1);
-                }
                 _ => (),
             },
             KeyModifiers::NONE => match key.code {
                 Char(c) => return vec![Event::Action(Action::AddChar(c))],
-                KeyCode::Enter => {
-                    self.item_list.select();
-                    return vec![Event::Close];
-                }
-                KeyCode::Backspace => {
-                    self.input.delete(-1);
-                    self.restart_matcher(true);
-                }
-                KeyCode::Left => {
-                    self.input.move_cursor(-1);
-                }
-                KeyCode::Right => {
-                    self.input.move_cursor(1);
-                }
-                KeyCode::Up => {
-                    self.item_list.move_cursor_by(1);
-                    return vec![Event::RunPreview];
-                }
-                KeyCode::Down => {
-                    self.item_list.move_cursor_by(-1);
-                    return vec![Event::RunPreview];
-                }
-                KeyCode::Tab => {
-                    self.item_list.toggle();
-                }
                 _ => (),
             },
             KeyModifiers::SHIFT => match key.code {
@@ -195,14 +170,14 @@ impl App<'_> {
         return vec![];
     }
 
-    fn handle_action(&mut self, act: &Action) -> Option<Event> {
+    fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         use Action::*;
         match act {
             Abort => {
-                return Some(Event::Quit);
+                return Ok(vec![Event::Quit]);
             }
             Accept(_) => {
-                return Some(Event::Close);
+                return Ok(vec![Event::Close]);
             }
             AddChar(c) => {
                 self.input.insert(*c);
@@ -212,7 +187,7 @@ impl App<'_> {
                 let value = self.input.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
                 self.item_pool.append(vec![item]);
-                self.restart_matcher(false);
+                self.restart_matcher(true);
             }
             BackwardChar => {
                 self.input.move_cursor(-1);
@@ -222,18 +197,23 @@ impl App<'_> {
                 self.restart_matcher(true);
             }
             BackwardKillWord => {
-                self.input.delete_word();
+                let deleted = Cow::Owned(self.input.delete_backward_word());
+                self.yank(deleted);
                 self.restart_matcher(true);
             }
-            BackwardWord => todo!(),
+            BackwardWord => {
+                self.input.delete_backward_word();
+                self.restart_matcher(true);
+            }
             BeginningOfLine => {
                 self.input.move_cursor_to(0);
             }
             Cancel => {
-                todo!();
+                self.matcher_control.kill();
+                self.preview.thread_handle.abort();
             }
             ClearScreen => {
-                todo!();
+                return Ok(vec![Event::Clear]);
             }
             DeleteChar => {
                 self.input.delete(1);
@@ -247,30 +227,74 @@ impl App<'_> {
                 self.item_list.selection = Default::default();
             }
             Down(offset) => {
-                self.item_list.move_cursor_by(*offset);
+                self.item_list.move_cursor_by(-*offset);
             }
             EndOfLine => {
                 self.input.move_cursor_to(self.input.len() as u16);
             }
-            Execute(cmd) => todo!(),
-            ExecuteSilent(cmd) => todo!(),
+            Execute(cmd) => {
+                let mut command = Command::new("sh");
+                command.args(&["-c", cmd]);
+                let _ = command.spawn();
+            }
+            ExecuteSilent(cmd) => {
+                let mut command = Command::new("sh");
+                command.args(&["-c", cmd]);
+                command.stdout(Stdio::null());
+                command.stderr(Stdio::null());
+                let _ = command.spawn();
+            }
             ForwardChar => {
                 self.input.move_cursor(1);
             }
             ForwardWord => {
-                todo!();
+                todo!()
             }
-            IfQueryEmpty(act) => todo!(),
-            IfQueryNotEmpty(act) => todo!(),
-            IfNonMatched(act) => todo!(),
+            IfQueryEmpty(act) => {
+                let inner = crate::binds::parse_action_chain(act)?;
+                if self.input.is_empty() {
+                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
+                }
+            }
+            IfQueryNotEmpty(act) => {
+                let inner = crate::binds::parse_action_chain(act)?;
+                if !self.input.is_empty() {
+                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
+                }
+            }
+            IfNonMatched(act) => {
+                let inner = crate::binds::parse_action_chain(act)?;
+                if self.item_list.items.is_empty() {
+                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
+                }
+            }
             Ignore => (),
-            KillLine => todo!(),
-            KillWord => todo!(),
+            KillLine => {
+                let cursor = self.input.cursor_pos as usize;
+                let deleted = Cow::Owned(self.input.split_off(cursor));
+                self.yank(deleted);
+            }
+            KillWord => {
+                let deleted = Cow::Owned(self.input.delete_backward_word());
+                self.yank(deleted);
+            }
             NextHistory => todo!(),
-            HalfPageDown(n) => todo!(),
-            HalfPageUp(n) => todo!(),
-            PageDown(n) => todo!(),
-            PageUp(n) => todo!(),
+            HalfPageDown(n) => {
+                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                self.item_list.move_cursor_by(offset * n / 2);
+            }
+            HalfPageUp(n) => {
+                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                self.item_list.move_cursor_by(-offset * n / 2);
+            }
+            PageDown(n) => {
+                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                self.item_list.move_cursor_by(offset * n);
+            }
+            PageUp(n) => {
+                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                self.item_list.move_cursor_by(-offset * n);
+            }
             PreviewUp(n) => todo!(),
             PreviewDown(n) => todo!(),
             PreviewLeft(n) => todo!(),
@@ -278,32 +302,54 @@ impl App<'_> {
             PreviewPageUp(n) => todo!(),
             PreviewPageDown(n) => todo!(),
             PreviousHistory => todo!(),
-            Redraw => todo!(),
+            Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => todo!(),
             Reload(None) => todo!(),
             RefreshCmd => todo!(),
             RefreshPreview => {
-                return Some(Event::RunPreview);
+                return Ok(vec![Event::RunPreview]);
             }
             RotateMode => todo!(),
             ScrollLeft(n) => todo!(),
             ScrollRight(n) => todo!(),
-            SelectAll => todo!(),
-            SelectRow(usize) => todo!(),
+            SelectAll => self.item_list.select_all(),
+            SelectRow(row) => self.item_list.select_row(*row),
             Toggle => self.item_list.toggle(),
-            ToggleAll => todo!(),
-            ToggleIn => todo!(),
+            ToggleAll => self.item_list.toggle_all(),
+            ToggleIn => {
+                self.item_list.toggle();
+                self.item_list.move_cursor_by(1);
+            }
             ToggleInteractive => todo!(),
-            ToggleOut => todo!(),
+            ToggleOut => {
+                self.item_list.toggle();
+                self.item_list.move_cursor_by(-1);
+            }
             TogglePreview => todo!(),
             TogglePreviewWrap => todo!(),
             ToggleSort => todo!(),
             UnixLineDiscard => todo!(),
-            UnixWordRubout => todo!(),
-            Up(n) => todo!(),
-            Yank => todo!(),
+            UnixWordRubout => {
+              self.input.delete_backward_word();
+            }
+            Up(n) => self.item_list.move_cursor_by(*n),
+            Yank => {
+                let contents = Cow::Owned(self.input.clone());
+                self.yank(contents);
+            }
         }
-        return None;
+        return Ok(Vec::default());
+    }
+
+    pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
+        self.item_list
+            .selection
+            .iter()
+            .map(|item| {
+                debug!("res index: {}", item.item_idx);
+                item.item.clone()
+            })
+            .collect()
     }
 
     fn restart_matcher(&mut self, mut force: bool) {
@@ -321,14 +367,8 @@ impl App<'_> {
             });
         }
     }
-    pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
-        self.item_list
-            .selection
-            .iter()
-            .map(|item| {
-                debug!("res index: {}", item.item_idx);
-                item.item.clone()
-            })
-            .collect()
+
+    fn yank(&mut self, contents: Cow<'a, str>) {
+        self.yank_register = contents;
     }
 }

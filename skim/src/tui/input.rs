@@ -29,16 +29,16 @@ impl Input {
         self.value.insert(self.cursor_pos.into(), c);
         self.move_cursor(1);
     }
-    pub fn delete(&mut self, offset: i32) {
+    pub fn delete(&mut self, offset: i32) -> Option<char> {
         self.delete_at(self.cursor_pos() as i32 + offset)
     }
-    pub fn delete_at(&mut self, pos: i32) {
+    pub fn delete_at(&mut self, pos: i32) -> Option<char> {
         if self.value.is_empty() || pos < 0 {
-            return;
+            return None;
         }
         let clamped = usize::clamp(pos as usize, 0, max(self.value.len(), 1) - 1);
-        self.value.remove(clamped);
         self.move_cursor(-1);
+        return Some(self.value.remove(clamped));
     }
     pub fn move_cursor(&mut self, offset: i32) {
         self.move_cursor_to((self.cursor_pos as i32 + offset) as u16)
@@ -46,17 +46,30 @@ impl Input {
     pub fn move_cursor_to(&mut self, pos: u16) {
         self.cursor_pos = u16::clamp(pos, 0, self.value.len() as u16);
     }
-    pub fn delete_word(&mut self) {
-        self.delete(-1); // Remove first non-alphanumeric char if there is one
+    /// Delete a word. Direction is -1 for backwards, +1 for forward
+    fn delete_word_dir(&mut self, direction: i32) -> String {
+        let prev_char = self.delete(direction); // Remove first non-alphanumeric char if there is one
+        let mut res = match prev_char {
+            Some(c) => String::from(c),
+            None => String::default(),
+        };
         while !self.value.is_empty() {
-            let prev_char = self.value.remove((self.cursor_pos - 1) as usize);
+            let prev_char = self.value.remove((self.cursor_pos as i32 + direction) as usize);
             if prev_char.is_alphabetic() {
-                self.move_cursor(-1);
+                self.move_cursor(direction);
+                res.push(prev_char);
             } else {
                 self.value.push(prev_char);
                 break;
             }
         }
+        res
+    }
+    pub fn delete_backward_word(&mut self) -> String {
+        self.delete_word_dir(-1)
+    }
+    pub fn delete_forward_word(&mut self) -> String {
+        self.delete_word_dir(1)
     }
     pub fn cursor_pos(&self) -> u16 {
         self.cursor_pos + self.prompt.len() as u16 + 1
