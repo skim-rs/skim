@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.15.7](https://github.com/skim-rs/skim/compare/v0.15.6...v0.15.7) (2024-12-27)
+
+
+### Bug Fixes
+
+* remove atty ([#671](https://github.com/skim-rs/skim/issues/671)) ([b265179](https://github.com/skim-rs/skim/commit/b265179f200fe4fff50c3d39b7a8b19d2bdeaf6f))
+
 ## [0.15.6](https://github.com/skim-rs/skim/compare/v0.15.5...v0.15.6) (2024-12-26)
 
 
