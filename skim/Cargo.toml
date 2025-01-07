@@ -44,7 +44,7 @@ defer-drop = "1.3.0"
 indexmap = "2.7.0"
 rand = "0.8.5"
 which = "7.0.1"
-shell-quote = "0.7.1"
+shell-quote = "0.7.2"
 
 [features]
 default = ["cli"]
