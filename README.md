@@ -484,12 +484,12 @@ in Rust!
 This project is written from scratch. Some decisions of implementation are
 different from fzf. For example:
 
-1. `skim` is a binary as well as a library while fzf is only a binary.
+1. ~~`skim` is a binary as well as a library while fzf is only a binary.~~: fzf is actually a library too, but not documented.
 2. `skim` has an interactive mode.
-3. `skim` supports pre-selection
+3. `skim` supports pre-selection.
 4. The fuzzy search algorithm is different.
-5. ~~UI of showing matched items. `fzf` will show only the range matched while
-   `skim` will show each character matched.~~ (fzf has this now)
+5. ~~UI of showing matched items. `fzf` will show only the range matched while.
+   `skim` will show each character matched.~~: fzf has this now.
 6. ~~`skim`'s range syntax is Git style~~: now it is the same with fzf.
 
 # How to contribute
