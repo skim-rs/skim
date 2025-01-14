@@ -41,7 +41,6 @@ pub mod options;
 mod orderedvec;
 mod output;
 pub mod prelude;
-mod previewer;
 mod query;
 pub mod reader;
 mod selection;

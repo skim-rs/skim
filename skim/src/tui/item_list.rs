@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    collections::HashSet,
+    collections::HashSet, sync::Arc,
 };
 
 use ratatui::style::Color;
@@ -42,6 +42,13 @@ impl Default for ItemList {
 }
 
 impl ItemList {
+    pub fn selected(&self) -> Option<Arc<dyn SkimItem>> {
+        if self.items.is_empty() {
+            return None;
+        } else {
+            return Some(self.items[self.cursor].item.clone());
+        }
+    }
     pub fn move_cursor_by(&mut self, offset: i32) {
         if -offset >= self.cursor as i32 {
             self.move_cursor_to(0);

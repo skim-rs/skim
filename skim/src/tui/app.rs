@@ -8,6 +8,7 @@ use crate::binds::KeyMap;
 use crate::item::ItemPool;
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
+use crate::util::printf;
 use crate::SkimItem;
 
 use super::event::Action;
@@ -102,13 +103,19 @@ impl<'a> App<'a> {
                 self.should_trigger_matcher = true;
             }
             Event::RunPreview => {
-                self.preview.run(
-                    tui,
-                    &format!(
-                        "bat --color=always {}",
-                        self.item_list.items[self.item_list.cursor].item.text()
-                    ),
-                );
+                if self.options.preview.is_some() {
+                    self.preview.run(
+                        tui,
+                        &printf(
+                            self.options.preview.clone().unwrap(),
+                            &self.options.delimiter,
+                            self.item_list.selection.iter().map(|m| m.item.clone()),
+                            self.item_list.selected(),
+                            &self.input,
+                            &self.input,
+                        ),
+                    );
+                }
             }
             Event::Clear => {
                 tui.clear()?;
@@ -182,12 +189,14 @@ impl<'a> App<'a> {
             AddChar(c) => {
                 self.input.insert(*c);
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             AppendAndSelect => {
                 let value = self.input.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
                 self.item_pool.append(vec![item]);
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             BackwardChar => {
                 self.input.move_cursor(-1);
@@ -195,15 +204,18 @@ impl<'a> App<'a> {
             BackwardDeleteChar => {
                 self.input.delete(-1);
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             BackwardKillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             BackwardWord => {
                 self.input.delete_backward_word();
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             BeginningOfLine => {
                 self.input.move_cursor_to(0);
@@ -218,16 +230,20 @@ impl<'a> App<'a> {
             DeleteChar => {
                 self.input.delete(1);
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             DeleteCharEOF => {
                 self.input.delete(1);
                 self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
             DeselectAll => {
                 self.item_list.selection = Default::default();
+                return Ok(vec![Event::RunPreview]);
             }
             Down(offset) => {
                 self.item_list.move_cursor_by(-*offset);
+                return Ok(vec![Event::RunPreview]);
             }
             EndOfLine => {
                 self.input.move_cursor_to(self.input.len() as u16);
@@ -273,27 +289,33 @@ impl<'a> App<'a> {
                 let cursor = self.input.cursor_pos as usize;
                 let deleted = Cow::Owned(self.input.split_off(cursor));
                 self.yank(deleted);
+                return Ok(vec![Event::RunPreview]);
             }
             KillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
+                return Ok(vec![Event::RunPreview]);
             }
             NextHistory => todo!(),
             HalfPageDown(n) => {
                 let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
                 self.item_list.move_cursor_by(offset * n / 2);
+                return Ok(vec![Event::RunPreview]);
             }
             HalfPageUp(n) => {
                 let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
                 self.item_list.move_cursor_by(-offset * n / 2);
+                return Ok(vec![Event::RunPreview]);
             }
             PageDown(n) => {
                 let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
                 self.item_list.move_cursor_by(offset * n);
+                return Ok(vec![Event::RunPreview]);
             }
             PageUp(n) => {
                 let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
                 self.item_list.move_cursor_by(-offset * n);
+                return Ok(vec![Event::RunPreview]);
             }
             PreviewUp(n) => todo!(),
             PreviewDown(n) => todo!(),
@@ -319,20 +341,26 @@ impl<'a> App<'a> {
             ToggleIn => {
                 self.item_list.toggle();
                 self.item_list.move_cursor_by(1);
+                return Ok(vec![Event::RunPreview]);
             }
             ToggleInteractive => todo!(),
             ToggleOut => {
                 self.item_list.toggle();
                 self.item_list.move_cursor_by(-1);
+                return Ok(vec![Event::RunPreview]);
             }
             TogglePreview => todo!(),
             TogglePreviewWrap => todo!(),
             ToggleSort => todo!(),
             UnixLineDiscard => todo!(),
             UnixWordRubout => {
-              self.input.delete_backward_word();
+                self.input.delete_backward_word();
+                return Ok(vec![Event::RunPreview]);
             }
-            Up(n) => self.item_list.move_cursor_by(*n),
+            Up(n) => {
+                self.item_list.move_cursor_by(*n);
+                return Ok(vec![Event::RunPreview]);
+            }
             Yank => {
                 let contents = Cow::Owned(self.input.clone());
                 self.yank(contents);
