@@ -29,7 +29,7 @@ unicode-width = "0.2.0"
 log = "0.4.22"
 env_logger = { version = "0.11.6", optional = true }
 time = "0.3.13"
-clap = { version = "4.5.23", optional = true, features = ["cargo", "derive"] }
+clap = { version = "4.5.26", optional = true, features = ["cargo", "derive"] }
 tuikit = "0.5.0"
 vte = "0.13.1"
 fuzzy-matcher = "0.3.7"
