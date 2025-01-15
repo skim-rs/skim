@@ -64,6 +64,13 @@ EXIT STATUS
     130    Interrupted with CTRL\-C or ESC
 .SH OPTIONS
 .TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
+.SH SEARCH
+.TP
 \fB\-\-tac\fR
 Show results in reverse order
 
@@ -141,6 +148,7 @@ Determines whether or not to ignore case while matching
 
 .br
 [\fIpossible values: \fRrespect, ignore, smart]
+.SH INTERFACE
 .TP
 \fB\-b\fR, \fB\-\-bind\fR=\fIBIND\fR
 Comma separated list of bindings
@@ -343,6 +351,7 @@ Do not clear finder interface on exit. If skim was started in full screen mode, 
 .TP
 \fB\-\-show\-cmd\-error\fR
 Show error message if command fails
+.SH LAYOUT
 .TP
 \fB\-\-layout\fR=\fILAYOUT\fR [default: default]
 Set layout
@@ -388,6 +397,7 @@ Set prompt
 .TP
 \fB\-\-cmd\-prompt\fR=\fICMD_PROMPT\fR [default: c> ]
 Set prompt in command mode
+.SH DISPLAY
 .TP
 \fB\-\-ansi\fR
 Parse ANSI color codes in input strings
@@ -420,6 +430,19 @@ Number of lines of the input treated as header
 
 The  first N lines of the input are treated as the sticky header. When \-\-with\-nth is set, the lines are transformed just like the other lines that follow.
 .TP
+\fB\-\-tmux\fR=\fITMUX\fR
+Run in a tmux popup
+
+Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
+
+Depending on the direction, the order and behavior of the sizes varies:
+    \- center: (width, height) or (size, size) if only one is provided
+    \- top | bottom: (height, width) or height = size, width = 100% if only one is provided
+    \- left | right: (width, height) or height = 100%, width = size if only one is provided
+
+Default: center,50%
+.SH HISTORY
+.TP
 \fB\-\-history\fR=\fIHISTORY_FILE\fR
 History file
 
@@ -435,6 +458,7 @@ Load command query history from the specified file and update the file on comple
 .TP
 \fB\-\-cmd\-history\-size\fR=\fICMD_HISTORY_SIZE\fR [default: 1000]
 Maximum number of query history entries to keep
+.SH PREVIEW
 .TP
 \fB\-\-preview\fR=\fIPREVIEW\fR
 Preview command
@@ -478,6 +502,7 @@ e.g. # Non\-default scroll window positions and sizes sk \-\-preview="head {}" \
 # Initial scroll offset is set to the line number of each line of # git grep output *minus* 5 lines (\-5) git grep \-\-line\-number \*(Aq\*(Aq | sk \-\-delimiter : \-\-preview \*(Aqnl {1}\*(Aq \-\-preview\-window +{2}\-5
 
 # Preview with bat, matching line in the middle of the window (\-/2) git grep \-\-line\-number \*(Aq\*(Aq | sk \-\-delimiter : \\ \-\-preview \*(Aqbat \-\-style=numbers \-\-color=always \-\-highlight\-line {2} {1}\*(Aq \\ \-\-preview\-window +{2}\-/2
+.SH SCRIPTING
 .TP
 \fB\-q\fR, \fB\-\-query\fR=\fIQUERY\fR
 Initial query
@@ -538,23 +563,5 @@ Pre\-select the items read from this file
 .TP
 \fB\-f\fR, \fB\-\-filter\fR=\fIFILTER\fR
 Query for filter mode
-.TP
-\fB\-\-tmux\fR=\fITMUX\fR
-Run in a tmux popup
-
-Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
-
-Depending on the direction, the order and behavior of the sizes varies:
-    \- center: (width, height) or (size, size) if only one is provided
-    \- top | bottom: (height, width) or height = size, width = 100% if only one is provided
-    \- left | right: (width, height) or height = 100%, width = size if only one is provided
-
-Default: center,50%
-.TP
-\fB\-h\fR, \fB\-\-help\fR
-Print help (see a summary with \*(Aq\-h\*(Aq)
-.TP
-\fB\-V\fR, \fB\-\-version\fR
-Print version
 .SH VERSION
 v0.15.7
