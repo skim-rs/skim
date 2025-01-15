@@ -327,7 +327,7 @@ sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 This is a great feature of fzf that skim borrows. For example, we use 'ag' to
 find the matched lines, and once we narrow down to the target lines, we want to
 finally decide which lines to pick by checking the context around the line.
-`grep` and `ag` have the option `--context`, and skim can make use of `--context` for 
+`grep` and `ag` have the option `--context`, and skim can make use of `--context` for
 a better preview window. For example:
 
 ```sh
@@ -484,13 +484,12 @@ in Rust!
 This project is written from scratch. Some decisions of implementation are
 different from fzf. For example:
 
-1. `skim` is a binary as well as a library while fzf is only a binary.
-2. `skim` has an interactive mode.
-3. `skim` supports pre-selection
-4. The fuzzy search algorithm is different.
-5. ~~UI of showing matched items. `fzf` will show only the range matched while
-   `skim` will show each character matched.~~ (fzf has this now)
-6. ~~`skim`'s range syntax is Git style~~: now it is the same with fzf.
+1. `skim` has an interactive mode.
+2. `skim` supports pre-selection.
+3. The fuzzy search algorithm is different.
+
+More generally, `skim`'s maintainers allow themselves some freedom of implementation.
+The goal is to keep `skim` as feature-full as `fzf` is, but the command flags might differ.
 
 # How to contribute
 
