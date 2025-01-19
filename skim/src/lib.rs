@@ -18,6 +18,7 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
 use reader::Reader;
+use tokio::select;
 use tui::options::TuiOptions;
 use tui::App;
 use tui::Event;
@@ -344,9 +345,6 @@ impl Skim {
         // application state
         let mut app = App::default();
         app.options = TuiOptions::try_from(options)?;
-        let mut event: Event;
-
-        let item_tx = tui.event_tx.clone();
 
         //------------------------------------------------------------------------------
         // reader
@@ -355,9 +353,9 @@ impl Skim {
         const SKIM_DEFAULT_COMMAND: &str = "find .";
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
             Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
-            Ok(v) => v
+            Ok(v) => v,
         });
-        let reader_control = reader.run(item_tx, &options.cmd.clone().unwrap_or(default_command));
+        let reader_control = reader.run(app.item_tx.clone(), &options.cmd.clone().unwrap_or(default_command));
 
         //------------------------------------------------------------------------------
         // model + previewer
@@ -365,10 +363,18 @@ impl Skim {
         // let _ = input_thread.join();
 
         loop {
-            event = tui.next().await.ok_or_eyre("Could not acquire next event")?;
+            const BUF_CAPACITY: usize = 1 << 16;
+            let mut items = Vec::with_capacity(BUF_CAPACITY);
+            select! {
+                event = tui.next() => {
+                    app.handle_event(&mut tui, &event.ok_or_eyre("Could not acquire next event")?)?;
+                }
 
-            app.handle_event(&mut tui, &event)?;
-            // application exit
+                _ = app.item_rx.recv_many(&mut items, BUF_CAPACITY) => {
+                    app.handle_items(items);
+                }
+            }
+
             if app.should_quit {
                 break;
             }
@@ -378,7 +384,7 @@ impl Skim {
 
         Ok(SkimOutput {
             cmd: options.cmd.clone().unwrap_or_default(),
-            final_event: event,
+            final_event: Event::Quit,  // TODO
             final_key: KeyCode::Enter, // TODO
             query: app.input.to_string(),
             is_abort: false,

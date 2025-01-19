@@ -25,8 +25,6 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE), vec![Action::ForwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE), vec![Action::BackwardDeleteChar]);
 
-    ret.insert(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE), vec![Action::DeleteCharEOF]);
-
 
     ret.insert(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT), vec![Action::BackwardWord]);
     ret.insert(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT), vec![Action::ForwardWord]);
@@ -42,6 +40,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL), vec![Action::BeginningOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL), vec![Action::BackwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL), vec![Action::Abort]);
+    ret.insert(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL), vec![Action::DeleteCharEOF]);
     ret.insert(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL), vec![Action::EndOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL), vec![Action::ForwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL), vec![Action::Abort]);

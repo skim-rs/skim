@@ -7,12 +7,12 @@ use crate::spinlock::SpinLock;
 use crate::tui::Event;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam::channel::{bounded, select, Sender};
-use tokio::sync::mpsc::UnboundedSender;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
+use tokio::sync::mpsc::UnboundedSender;
 
 const CHANNEL_SIZE: usize = 1024;
 
@@ -77,7 +77,7 @@ impl Reader {
         self
     }
 
-    pub fn run(&mut self, app_tx: UnboundedSender<Event>, cmd: &str) -> ReaderControl {
+    pub fn run(&mut self, app_tx: UnboundedSender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
         mark_new_run(cmd);
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -104,7 +104,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    app_tx: UnboundedSender<Event>
+    app_tx: UnboundedSender<Arc<dyn SkimItem>>,
 ) -> Sender<i32> {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
@@ -119,7 +119,7 @@ fn collect_item(
             select! {
                 recv(rx_item) -> new_item => match new_item {
                     Ok(item) => {
-                        let _ = app_tx.send(Event::NewItem(item));
+                        let _ = app_tx.send(item);
                     }
                     Err(_) => break,
                 },

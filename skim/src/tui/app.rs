@@ -27,6 +27,7 @@ use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Widget;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use super::{input, preview, tui};
 
@@ -39,6 +40,8 @@ pub struct App<'a> {
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
     pub yank_register: Cow<'a, str>,
+    pub item_rx: UnboundedReceiver<Arc<dyn SkimItem>>,
+    pub item_tx: UnboundedSender<Arc<dyn SkimItem>>,
 
     pub input: Input,
     pub preview: Preview<'a>,
@@ -71,6 +74,7 @@ impl Widget for &mut App<'_> {
 
 impl Default for App<'_> {
     fn default() -> Self {
+        let (item_tx, item_rx) = unbounded_channel();
         Self {
             input: Input::default(),
             preview: Preview::default(),
@@ -78,6 +82,8 @@ impl Default for App<'_> {
             status: StatusLine::default(),
             item_pool: Arc::default(),
             item_list: ItemList::default(),
+            item_rx,
+            item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
@@ -153,6 +159,11 @@ impl<'a> App<'a> {
             _ => (),
         };
         Ok(())
+    }
+    pub fn handle_items(&mut self, items: Vec<Arc<dyn SkimItem>>) {
+        self.item_pool.append(items);
+        // self.restart_matcher(false);
+        trace!("Got new items, len {}", self.item_pool.len());
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         let act = self.options.keymap.get(key);
@@ -380,12 +391,9 @@ impl<'a> App<'a> {
             .collect()
     }
 
-    fn restart_matcher(&mut self, mut force: bool) {
-        if self.should_trigger_matcher {
-            self.should_trigger_matcher = false;
-            force = true;
-        }
-        if force {
+    fn restart_matcher(&mut self, force: bool) {
+        let matcher_stopped = self.matcher_control.stopped();
+        if force || (matcher_stopped && self.item_pool.num_not_taken() == 0) {
             self.matcher_control.kill();
             let tx = self.item_list.tx.clone();
             self.item_pool.reset();
@@ -393,6 +401,9 @@ impl<'a> App<'a> {
                 debug!("Got results from matcher, sending to item list...");
                 let _ = tx.send(matches.lock().clone());
             });
+        }
+        if self.should_trigger_matcher {
+            self.should_trigger_matcher = false;
         }
     }
 
