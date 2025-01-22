@@ -8,6 +8,13 @@
 
 
 
+## [0.1.0](https://github.com/skim-rs/skim/compare/xtask-v0.1.0...xtask-v0.1.0) (2025-01-22)
+
+
+### Features
+
+* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([a5b8181](https://github.com/skim-rs/skim/commit/a5b81818d6eb8bfe4c2ceeed3b4cc6e22cc95731))
+
 ## [0.1.0](https://github.com/skim-rs/skim/compare/xtask-v0.18.0...xtask-v0.1.0) (2025-01-22)
 
 
