@@ -8,12 +8,18 @@
     },
     "e2e": {
       "skip-github-release": true,
-      "exclude-paths": ["*"]
+      "exclude-paths": [
+        "/"
+      ]
     },
     "xtask": {
       "skip-github-release": true,
-      "exclude-paths": ["*"]
+      "exclude-paths": [
+        "/"
+      ]
     }
   },
-  "plugins": ["cargo-workspace"]
+  "plugins": [
+    "cargo-workspace"
+  ]
 }
