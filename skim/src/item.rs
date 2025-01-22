@@ -210,7 +210,7 @@ pub struct ItemPoolGuard<'a, T: Sized + 'a> {
     start: usize,
 }
 
-impl<'mutex, T: Sized> Deref for ItemPoolGuard<'mutex, T> {
+impl<T: Sized> Deref for ItemPoolGuard<'_, T> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
