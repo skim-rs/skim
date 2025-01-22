@@ -861,7 +861,6 @@ dependencies = [
  "env_logger",
  "fuzzy-matcher",
  "indexmap",
- "lazy_static",
  "log",
  "nix 0.29.0",
  "rand",

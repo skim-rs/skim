@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use regex::Regex;
 use tuikit::attr::{Attr, Effect};
 use tuikit::canvas::Canvas;
 use tuikit::draw::{Draw, DrawResult};
@@ -17,11 +16,6 @@ const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-lazy_static! {
-    static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
-    static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
-}
 
 #[derive(Clone)]
 pub(crate) struct Status {
