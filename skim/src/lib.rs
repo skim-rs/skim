@@ -369,13 +369,58 @@ impl Skim {
         ret
     }
 
-    // 10 -> TermHeight::Fixed(10)
-    // 10% -> TermHeight::Percent(10)
+    /// Converts a &str to a TermHeight, based on whether or not it ends with a percent sign
+    ///
+    /// Will clamp percentages into [0, 100] and fixed into [0, MAX_USIZE]
+    /// 10 -> TermHeight::Fixed(10)
+    /// 10% -> TermHeight::Percent(10)
     fn parse_height_string(string: &str) -> TermHeight {
         if string.ends_with('%') {
-            TermHeight::Percent(string[0..string.len() - 1].parse().unwrap_or(100))
+            let inner = string[0..string.len() - 1].parse().unwrap_or(100);
+            TermHeight::Percent(inner.clamp(0, 100))
         } else {
-            TermHeight::Fixed(string.parse().unwrap_or(0))
+            let inner = string.parse().unwrap_or(0);
+            TermHeight::Fixed(inner)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn parse_height_string_fixed() {
+        let TermHeight::Fixed(h) = Skim::parse_height_string("10") else {
+            panic!("Expected fixed, found percent");
+        };
+        assert_eq!(h, 10)
+    }
+    #[test]
+    fn parse_height_string_percent() {
+        let TermHeight::Percent(h) = Skim::parse_height_string("10%") else {
+            panic!("Expected percent, found fixed");
+        };
+        assert_eq!(h, 10)
+    }
+    #[test]
+    fn parse_height_string_percent_neg() {
+        let TermHeight::Percent(h) = Skim::parse_height_string("-20%") else {
+            panic!("Expected fixed, found percent");
+        };
+        assert_eq!(h, 100)
+    }
+    #[test]
+    fn parse_height_string_percent_too_large() {
+        let TermHeight::Percent(h) = Skim::parse_height_string("120%") else {
+            panic!("Expected percent, found fixed");
+        };
+        assert_eq!(h, 100)
+    }
+    #[test]
+    fn parse_height_string_fixed_neg() {
+        let TermHeight::Fixed(h) = Skim::parse_height_string("-20") else {
+            panic!("Expected fixed, found percent");
+        };
+        assert_eq!(h, 0)
     }
 }
