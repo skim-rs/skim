@@ -357,7 +357,7 @@ impl<'a> AnsiStringIterator<'a> {
     }
 }
 
-impl<'a> Iterator for AnsiStringIterator<'a> {
+impl Iterator for AnsiStringIterator<'_> {
     type Item = (char, Attr);
 
     fn next(&mut self) -> Option<Self::Item> {

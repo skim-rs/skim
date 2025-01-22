@@ -48,7 +48,6 @@ pub fn escape_single_quote(text: &str) -> String {
 ///             |<-    shift    -> |
 /// |< hscroll >|
 /// ```
-
 pub struct LinePrinter {
     start: usize,
     end: usize,

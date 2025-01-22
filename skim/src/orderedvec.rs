@@ -84,7 +84,7 @@ impl<T: Send + Ord + 'static> OrderedVec<T> {
         );
     }
 
-    fn sort_vector(&self, vec: &mut Vec<T>, asc: bool) {
+    fn sort_vector(&self, vec: &mut [T], asc: bool) {
         let asc = asc ^ self.tac;
         vec.par_sort();
         if !asc {
