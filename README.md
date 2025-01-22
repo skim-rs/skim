@@ -405,7 +405,7 @@ use std::io::Cursor;
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(Some("50%"))
+        .height(String::from("50%"))
         .multi(true)
         .build()
         .unwrap();
@@ -423,7 +423,7 @@ pub fn main() {
         .unwrap_or_else(|| Vec::new());
 
     for item in selected_items.iter() {
-        print!("{}{}", item.output(), "\n");
+        println!("{}", item.output());
     }
 }
 ```
