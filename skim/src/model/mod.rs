@@ -8,7 +8,7 @@ use std::env;
 
 use std::process::Command;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Instant;
 
 use chrono::Duration as TimerDuration;
@@ -39,10 +39,8 @@ use std::cmp::max;
 
 const REFRESH_DURATION: i64 = 100;
 
-lazy_static! {
-    static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
-    static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
-}
+static RE_PREVIEW_OFFSET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
 
 struct ModelEnv {
     pub cmd: String,

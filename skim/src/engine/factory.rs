@@ -6,12 +6,10 @@ use crate::engine::regexp::RegexEngine;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory};
 use regex::Regex;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
-lazy_static! {
-    static ref RE_AND: Regex = Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap();
-    static ref RE_OR: Regex = Regex::new(r" +\| +").unwrap();
-}
+static RE_AND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap());
+static RE_OR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +\| +").unwrap());
 //------------------------------------------------------------------------------
 // Exact engine factory
 pub struct ExactOrFuzzyEngineFactory {
