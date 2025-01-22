@@ -9,17 +9,11 @@
     },
     "e2e": {
       "skip-github-release": true,
-      "commit-search-depth": 0,
-      "exclude-paths": [
-        "/"
-      ]
+      "release-as": "0.1.0"
     },
     "xtask": {
       "skip-github-release": true,
-      "commit-search-depth": 0,
-      "exclude-paths": [
-        "/"
-      ]
+      "release-as": "0.1.0"
     }
   },
   "plugins": [
