@@ -1,5 +1,6 @@
 {
   "release-type": "rust",
+  "commit-search-depth": 100,
   "bump-minor-pre-major": true,
   "packages": {
     "skim": {
@@ -8,12 +9,14 @@
     },
     "e2e": {
       "skip-github-release": true,
+      "commit-search-depth": 0,
       "exclude-paths": [
         "/"
       ]
     },
     "xtask": {
       "skip-github-release": true,
+      "commit-search-depth": 0,
       "exclude-paths": [
         "/"
       ]
