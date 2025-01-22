@@ -6,14 +6,6 @@
     "skim": {
       "changelog-path": "/CHANGELOG.md",
       "include-component-in-tag": false
-    },
-    "e2e": {
-      "skip-github-release": true,
-      "release-as": "0.1.0"
-    },
-    "xtask": {
-      "skip-github-release": true,
-      "release-as": "0.1.0"
     }
   },
   "plugins": [
