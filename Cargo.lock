@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "e2e"
-version = "0.18.0"
+version = "0.1.0"
 dependencies = [
  "rand",
  "tempfile",
@@ -1218,7 +1218,7 @@ checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
 
 [[package]]
 name = "xtask"
-version = "0.18.0"
+version = "0.1.0"
 dependencies = [
  "clap",
  "clap_complete",
