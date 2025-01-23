@@ -1,5 +1,17 @@
 # Change Log
 
+## [0.16.0](https://github.com/skim-rs/skim/compare/v0.15.7...v0.16.0) (2025-01-23)
+
+
+### Features
+
+* add preview callback ([#407](https://github.com/skim-rs/skim/issues/407)) ([226d995](https://github.com/skim-rs/skim/commit/226d9951fa585958e0497e038729c1b6312d36fd))
+
+
+### Bug Fixes
+
+* **term:** clamp height option ([#690](https://github.com/skim-rs/skim/issues/690)) ([5152be1](https://github.com/skim-rs/skim/commit/5152be1945a8704062c4788f994d385e904d931f))
+
 ## [0.15.7](https://github.com/skim-rs/skim/compare/v0.15.6...v0.15.7) (2024-12-27)
 
 
