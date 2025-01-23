@@ -28,7 +28,6 @@ pub struct PreviewCallback {
     inner: Arc<dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static>,
 }
 
-/// Handy conversion from Fn() to type. Used in the SkimOption builder
 impl<F> From<F> for PreviewCallback
 where
     F: Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static,

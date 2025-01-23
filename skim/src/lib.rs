@@ -219,7 +219,6 @@ pub struct PreviewPosition {
 pub enum ItemPreview {
     /// execute the command and print the command's output
     Command(String),
-    // Callback,
     /// Display the prepared text(lines)
     Text(String),
     /// Display the colored text(lines)
