@@ -22,15 +22,16 @@ use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
 const TAB_STOP: usize = 8;
 const DELIMITER_STR: &str = r"[\t\n ]+";
 
+/// A wrapper around a thread-safe (Arc) to a function
 #[derive(Clone)]
 pub struct PreviewCallback {
-    inner: Arc<dyn Fn(Vec<String>) -> Vec<AnsiString<'static>> + Send + Sync + 'static>,
+    inner: Arc<dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static>,
 }
 
 /// Handy conversion from Fn() to type. Used in the SkimOption builder
 impl<F> From<F> for PreviewCallback
 where
-    F: Fn(Vec<String>) -> Vec<AnsiString<'static>> + Send + Sync + 'static,
+    F: Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static,
 {
     fn from(func: F) -> Self {
         Self { inner: Arc::new(func) }
@@ -38,7 +39,7 @@ where
 }
 
 impl std::ops::Deref for PreviewCallback {
-    type Target = dyn Fn(Vec<String>) -> Vec<AnsiString<'static>> + Send + Sync + 'static;
+    type Target = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static;
 
     fn deref(&self) -> &Self::Target {
         &*self.inner
@@ -262,9 +263,8 @@ impl Previewer {
                     }
                     PreviewSource::Callback(cb) => {
                         let pos = self.eval_scroll_offset(inject_context);
-                        let selection: Vec<String> = selected_texts.into_iter().map(ToOwned::to_owned).collect();
                         let cb = cb.clone();
-                        PreviewEvent::PreviewCallback(Box::new(move || cb(selection)), pos)
+                        PreviewEvent::PreviewCallback(Box::new(move || cb(selections)), pos)
                     }
                     PreviewSource::Empty => PreviewEvent::Noop,
                 },

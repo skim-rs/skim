@@ -3,11 +3,14 @@ use std::io::Cursor;
 use skim::prelude::*;
 
 pub fn main() {
+    let _ = env_logger::init();
     let options = SkimOptionsBuilder::default()
-        .height(String::from("50%"))
         .multi(true)
-        .preview_fn(Some(PreviewCallback::from(|items: Vec<String>| {
-            items.iter().map(|s| s.to_ascii_uppercase().into()).collect::<Vec<_>>()
+        .preview_fn(Some(PreviewCallback::from(|items: Vec<Arc<dyn SkimItem>>| {
+            items
+                .iter()
+                .map(|s| s.text().to_ascii_uppercase().into())
+                .collect::<Vec<_>>()
         })))
         .build()
         .unwrap();
@@ -20,6 +23,6 @@ pub fn main() {
         .unwrap_or_else(|| Vec::new());
 
     for item in selected_items.iter() {
-        print!("{}{}", item.output(), "\n");
+        println!("{}", item.output());
     }
 }

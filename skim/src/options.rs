@@ -732,6 +732,11 @@ pub struct SkimOptions {
     pub cmd_history: Vec<String>,
     #[clap(skip)]
     pub selector: Option<Rc<dyn Selector>>,
+    /// Preview Callback
+    ///
+    /// Used to define a function or closure for the preview window, instead of a shell command
+    /// The function will take a `Vec<Arc<dyn SkimItem>>>` containing the currently selected items
+    /// And return a Vec<String> with the lines to display in UTF-8
     #[clap(skip)]
     pub preview_fn: Option<PreviewCallback>,
 }

@@ -258,6 +258,11 @@ impl Selection {
             .items
             .get(cursor)
             .unwrap_or_else(|| panic!("model:act_toggle: failed to get item {}", cursor));
+        trace!(
+            "Toggling item {} with idx {}",
+            current_item.item.text(),
+            current_item.item_idx
+        );
         let index = (current_run_num(), current_item.item_idx);
         if !self.selected.contains_key(&index) {
             self.selected.insert(index, current_item.item.clone());
