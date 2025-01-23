@@ -7,6 +7,7 @@ use derive_builder::Builder;
 use crate::item::RankCriteria;
 use crate::model::options::InfoDisplay;
 use crate::prelude::SkimItemReader;
+use crate::previewer::PreviewCallback;
 use crate::reader::CommandCollector;
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
@@ -731,6 +732,13 @@ pub struct SkimOptions {
     pub cmd_history: Vec<String>,
     #[clap(skip)]
     pub selector: Option<Rc<dyn Selector>>,
+    /// Preview Callback
+    ///
+    /// Used to define a function or closure for the preview window, instead of a shell command
+    /// The function will take a `Vec<Arc<dyn SkimItem>>>` containing the currently selected items
+    /// And return a Vec<String> with the lines to display in UTF-8
+    #[clap(skip)]
+    pub preview_fn: Option<PreviewCallback>,
 }
 
 impl Default for SkimOptions {
