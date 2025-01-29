@@ -9,7 +9,7 @@ use std::{
 };
 
 use nix::{sys::stat, unistd::mkfifo};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, Rng};
 use tuikit::key::Key;
 use which::which;
 
@@ -93,7 +93,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Create temp dir for downstream output
     let temp_dir_name = format!(
         "sk-tmux-{}",
-        &rand::thread_rng()
+        &rand::rng()
             .sample_iter(&Alphanumeric)
             .take(8)
             .map(char::from)
