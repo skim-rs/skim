@@ -1,10 +1,8 @@
 use std::borrow::Cow;
-use std::cmp::max;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::binds::KeyMap;
 use crate::item::ItemPool;
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
@@ -18,8 +16,7 @@ use super::options::TuiOptions;
 use super::statusline::StatusLine;
 use super::Event;
 use color_eyre::eyre::{bail, Result};
-use crossbeam::epoch::Pointable;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
@@ -252,8 +249,12 @@ impl<'a> App<'a> {
                 self.item_list.selection = Default::default();
                 return Ok(vec![Event::RunPreview]);
             }
-            Down(offset) => {
-                self.item_list.move_cursor_by(-*offset);
+            Down(n) => {
+                use ratatui::widgets::ListDirection::*;
+                match self.item_list.direction {
+                    TopToBottom => self.item_list.state.scroll_down_by(*n),
+                    BottomToTop => self.item_list.state.scroll_up_by(*n),
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             EndOfLine => {
@@ -309,23 +310,23 @@ impl<'a> App<'a> {
             }
             NextHistory => todo!(),
             HalfPageDown(n) => {
-                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                self.item_list.move_cursor_by(offset * n / 2);
+                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                //self.item_list.move_cursor_by(offset * n / 2);
                 return Ok(vec![Event::RunPreview]);
             }
             HalfPageUp(n) => {
-                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                self.item_list.move_cursor_by(-offset * n / 2);
+                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                //self.item_list.move_cursor_by(-offset * n / 2);
                 return Ok(vec![Event::RunPreview]);
             }
             PageDown(n) => {
-                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                self.item_list.move_cursor_by(offset * n);
+                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                //self.item_list.move_cursor_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
             PageUp(n) => {
-                let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                self.item_list.move_cursor_by(-offset * n);
+                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
+                //self.item_list.move_cursor_by(-offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
             PreviewUp(n) => todo!(),
@@ -342,6 +343,9 @@ impl<'a> App<'a> {
             RefreshPreview => {
                 return Ok(vec![Event::RunPreview]);
             }
+            RestartMatcher => {
+                self.restart_matcher(true);
+            }
             RotateMode => todo!(),
             ScrollLeft(n) => todo!(),
             ScrollRight(n) => todo!(),
@@ -351,13 +355,21 @@ impl<'a> App<'a> {
             ToggleAll => self.item_list.toggle_all(),
             ToggleIn => {
                 self.item_list.toggle();
-                self.item_list.move_cursor_by(1);
+                use ratatui::widgets::ListDirection::*;
+                match self.item_list.direction {
+                    TopToBottom => self.item_list.state.select_next(),
+                    BottomToTop => self.item_list.state.select_previous(),
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             ToggleInteractive => todo!(),
             ToggleOut => {
                 self.item_list.toggle();
-                self.item_list.move_cursor_by(-1);
+                use ratatui::widgets::ListDirection::*;
+                match self.item_list.direction {
+                    TopToBottom => self.item_list.state.select_previous(),
+                    BottomToTop => self.item_list.state.select_next(),
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             TogglePreview => todo!(),
@@ -369,7 +381,11 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             Up(n) => {
-                self.item_list.move_cursor_by(*n);
+                use ratatui::widgets::ListDirection::*;
+                match self.item_list.direction {
+                    TopToBottom => self.item_list.state.scroll_up_by(*n),
+                    BottomToTop => self.item_list.state.scroll_down_by(*n),
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             Yank => {
@@ -385,13 +401,13 @@ impl<'a> App<'a> {
             .selection
             .iter()
             .map(|item| {
-                debug!("res index: {}", item.item_idx);
+                debug!("res index: {}", item.get_index());
                 item.item.clone()
             })
             .collect()
     }
 
-    fn restart_matcher(&mut self, force: bool) {
+    pub(crate) fn restart_matcher(&mut self, force: bool) {
         let matcher_stopped = self.matcher_control.stopped();
         if force || (matcher_stopped && self.item_pool.num_not_taken() == 0) {
             self.matcher_control.kill();

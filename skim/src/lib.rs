@@ -362,11 +362,16 @@ impl Skim {
         // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
         // let _ = input_thread.join();
 
+        let mut reader_done = false;
         loop {
             const BUF_CAPACITY: usize = 1 << 16;
             let mut items = Vec::with_capacity(BUF_CAPACITY);
             select! {
                 event = tui.next() => {
+                    if reader_control.is_done() && ! reader_done {
+                        app.restart_matcher(true);
+                        reader_done = true;
+                    }
                     app.handle_event(&mut tui, &event.ok_or_eyre("Could not acquire next event")?)?;
                 }
 

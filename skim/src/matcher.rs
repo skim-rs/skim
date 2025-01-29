@@ -106,7 +106,6 @@ impl Matcher {
                 .into_par_iter()
                 .enumerate()
                 .filter_map(|(_, item)| {
-                    let item_idx = item.get_index();
                     processed.fetch_add(1, Ordering::Relaxed);
                     if stopped.load(Ordering::Relaxed) {
                         Some(Err("matcher killed"))
@@ -116,7 +115,6 @@ impl Matcher {
                             item: item.clone(),
                             rank: match_result.rank,
                             matched_range: Some(match_result.matched_range),
-                            item_idx: item_idx as u32,
                         }))
                     } else {
                         None

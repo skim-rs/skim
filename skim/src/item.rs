@@ -74,13 +74,11 @@ pub struct MatchedItem {
     pub item: Arc<dyn SkimItem>,
     pub rank: Rank,
     pub matched_range: Option<MatchRange>, // range of chars that matched the pattern
-    pub item_idx: u32,
 }
 
 impl Hash for MatchedItem {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let value = self.item_idx;
-        state.write_u32(value)
+        state.write_usize(self.get_index())
     }
 }
 

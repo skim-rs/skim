@@ -42,7 +42,7 @@ pub enum Action {
     DeleteChar,
     DeleteCharEOF,
     DeselectAll,
-    Down(i32),
+    Down(u16),
     EndOfLine,
     Execute(String),
     ExecuteSilent(String),
@@ -70,6 +70,7 @@ pub enum Action {
     Reload(Option<String>),
     RefreshCmd,
     RefreshPreview,
+    RestartMatcher,
     RotateMode,
     ScrollLeft(i32),
     ScrollRight(i32),
@@ -85,7 +86,7 @@ pub enum Action {
     ToggleSort,
     UnixLineDiscard,
     UnixWordRubout,
-    Up(i32),
+    Up(u16),
     Yank,
 }
 
