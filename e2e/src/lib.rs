@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use rand::distributions::{Alphanumeric, DistString as _};
+use rand::distr::{Alphanumeric, SampleString as _};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use which::which;
 
@@ -93,7 +93,7 @@ impl TmuxController {
 
         let shell_cmd = "bash --rcfile None";
 
-        let name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+        let name = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
         Self::run(&[
             "new-window",
