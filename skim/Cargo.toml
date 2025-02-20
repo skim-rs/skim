@@ -14,7 +14,6 @@ edition = "2021"
 [lib]
 name = "skim"
 path = "src/lib.rs"
-doctest = false
 
 [[bin]]
 name = "sk"
@@ -28,7 +27,7 @@ unicode-width = "0.2.0"
 log = "0.4.25"
 env_logger = { version = "0.11.6", optional = true }
 time = "0.3.13"
-clap = { version = "4.5.27", optional = true, features = ["cargo", "derive"] }
+clap = { version = "4.5.30", optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 tuikit = "0.5.0"
 vte = "0.15.0"
 fuzzy-matcher = "0.3.7"

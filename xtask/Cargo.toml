@@ -4,7 +4,7 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.27", features = ["derive"] }
+clap = { version = "4.5.30", features = ["derive", "unstable-markdown"] }
 clap_complete = "4.5.45"
 clap_complete_fig = "4.5.2"
 clap_complete_nushell = "4.5.5"

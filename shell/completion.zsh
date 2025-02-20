@@ -15,8 +15,8 @@ _sk() {
 
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
-'*-t+[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
-'*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
+'*-t+[Comma-separated list of sort criteria to apply when the scores are tied]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
+'*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
 '*-n+[Fields to be matched]:NTH:_default' \
 '*--nth=[Fields to be matched]:NTH:_default' \
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
@@ -83,8 +83,8 @@ _sk() {
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
-'--read0[Read input delimited by ASCII NUL(\\\\0) characters]' \
-'--print0[Print output delimited by ASCII NUL(\\\\0) characters]' \
+'--read0[Read input delimited by ASCII NUL(\\0) characters]' \
+'--print0[Print output delimited by ASCII NUL(\\0) characters]' \
 '--print-query[Print the query as the first line]' \
 '--print-cmd[Print the command as the first line (after print-query)]' \
 '--print-score[Print the command as the first line (after print-cmd)]' \
