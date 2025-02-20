@@ -119,7 +119,7 @@ pub struct SkimOptions {
         default_value = "score,begin,end",
         value_enum,
         value_delimiter = ',',
-        help_heading = "Search",
+        help_heading = "Search"
     )]
     pub tiebreak: Vec<RankCriteria>,
 
@@ -145,13 +145,7 @@ pub struct SkimOptions {
     ///   * `..-3`:   From the 1st field to the 3rd to the last field
     ///
     ///   * `..`:     All the fields
-    #[arg(
-        short,
-        long,
-        default_value = "",
-        help_heading = "Search",
-        value_delimiter = ','
-    )]
+    #[arg(short, long, default_value = "", help_heading = "Search", value_delimiter = ',')]
     pub nth: Vec<String>,
 
     /// Fields to be transformed
@@ -181,12 +175,7 @@ pub struct SkimOptions {
     /// * **skim_v1**: Legacy skim algorithm
     ///
     /// * **clangd**: Used in clangd for keyword completion
-    #[arg(
-        long = "algo",
-        default_value = "skim_v2",
-        value_enum,
-        help_heading = "Search",
-    )]
+    #[arg(long = "algo", default_value = "skim_v2", value_enum, help_heading = "Search")]
     pub algorithm: FuzzyAlgorithm,
 
     /// Case sensitivity
