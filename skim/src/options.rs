@@ -17,88 +17,102 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 /// sk is a general purpose command-line fuzzy finder.
 ///
 ///
-/// ENVIRONMENT VARIABLES
+/// # ENVIRONMENT VARIABLES
 ///
-///      SKIM_DEFAULT_COMMAND
+/// ## SKIM_DEFAULT_COMMAND
 ///
-///          Default command to use when input is tty. On *nix systems, sk runs the command with sh -c, so make  sure  that
-///          it's POSIX-compliant.
+/// Default command to use when input is tty. On *nix systems, sk runs the command with sh -c, so make  sure  that
+/// it's POSIX-compliant.
 ///
-///      SKIM_DEFAULT_OPTIONS
+/// ## SKIM_DEFAULT_OPTIONS
 ///
-///          Default options. e.g. export SKIM_DEFAULT_OPTIONS="--multi
+/// Default options. e.g. `export SKIM_DEFAULT_OPTIONS="--multi"`
 ///
-///  EXTENDED SEARCH MODE
+/// # EXTENDED SEARCH MODE
 ///
-///       Unless specified otherwise, sk will start in "extended-search mode". In this mode, you can specify multiple  patterns
-///       delimited by spaces, such as: 'wild ^music .mp3$ sbtrkt !rmx
+/// Unless specified otherwise, sk will start in "extended-search mode". In this mode, you can specify multiple  patterns
+/// delimited by spaces, such as: 'wild ^music .mp3$ sbtrkt !rmx
 ///
-///       You can prepend a backslash to a space (\ ) to match a literal space character.
+/// You can prepend a backslash to a space (\ ) to match a literal space character.
 ///
-///   Exact-match (quoted)
+/// ## Exact-match (quoted)
 ///
-///       A  term that is prefixed by a single-quote character (') is interpreted as an "exact-match" (or "non-fuzzy") term. sk
-///       will search for the exact occurrences of the string.
+/// A term that is prefixed by a single-quote character (') is interpreted as an "exact-match" (or "non-fuzzy") term. sk
+/// will search for the exact occurrences of the string.
 ///
-///   Anchored-match
+/// ## Anchored-match
 ///
-///       A term can be prefixed by ^, or suffixed by $ to become an anchored-match term. Then sk will  search  for  the  lines
-///       that start with or end with the given string. An anchored-match term is also an exact-match term.
+/// A term can be prefixed by ^, or suffixed by $ to become an anchored-match term. Then sk will  search  for  the  lines
+/// that start with or end with the given string. An anchored-match term is also an exact-match term.
 ///
-///   Negation
+/// ## Negation
 ///
-///       If  a  term  is prefixed by !, sk will exclude the lines that satisfy the term from the result. In this case, sk per‐
-///       forms exact match by default.
+/// If  a  term  is prefixed by !, sk will exclude the lines that satisfy the term from the result. In this case, `sk` per‐
+/// forms exact match by default.
 ///
-///   Exact-match by default
+/// ## Exact-match by default
 ///
-///       If you don't prefer fuzzy matching and do not wish to "quote" (prefixing with ') every word,  start  sk  with  -e  or
-///       --exact option. Note that when --exact is set, '-prefix "unquotes" the term.
+/// If you don't prefer fuzzy matching and do not wish to "quote" (prefixing with ') every word,
+/// start `sk` with `-e` or
+/// `--exact` option. Note that when `--exact` is set, '-prefix "unquotes" the term.
 ///
-///   OR operator
+/// ## OR operator
 ///
-///       A  single bar character term acts as an OR operator. For example, the following query matches entries that start with
-///       core and end with either go, rb, or py.
-///
-///       e.g. ^core go$ | rb$ | py$
+///  A  single bar character term acts as an OR operator. For example, the following query matches entries that start with
+/// core and end with either go, rb, or py.
 ///
 ///
-/// EXIT STATUS
-///     0      Normal exit
-///     1      No match
-///     2      Error
-///     130    Interrupted with CTRL-C or ESC
+/// **Example**: `^core go$ | rb$ | py$`
+///
+///
+/// # EXIT STATUS
+///
+/// * 0:      Normal exit
+///
+/// * 1:      No match
+///
+/// * 2:      Error
+///
+/// * 130:    Interrupted with CTRL-C or ESC
 
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
 #[derive(Parser)]
-#[command(name = "sk", args_override_self = true, verbatim_doc_comment, version)]
+#[command(name = "sk", args_override_self = true, version)]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
     ///
-    /// Often used in combination with --no-sort
+    /// *Often used in combination with `--no-sort`*
     #[arg(long, help_heading = "Search")]
     pub tac: bool,
 
     /// Do not sort the results
     ///
-    /// Often used in combination with --tac
-    /// Example: `history | sk --tac --no-sort`
+    /// *Often used in combination with `--tac`*
+    ///
+    /// **Example**: `history | sk --tac --no-sort`
     #[arg(long, help_heading = "Search")]
     pub no_sort: bool,
 
     /// Comma-separated list of sort criteria to apply when the scores are tied.
     ///
-    ///     score   Score of the fuzzy match algorithm
-    ///     index   Prefers line that appeared earlier in the input stream
-    ///     begin   Prefers line with matched substring closer to the beginning
-    ///     end     Prefers line with matched substring closer to the end
-    ///     length  Prefers line with shorter length
+    /// * **score**: Score of the fuzzy match algorithm
     ///
-    ///     - Each criterion could be negated, e.g. (-index)
-    ///     - Each criterion should appear only once in the list
+    /// * **index**: Prefers line that appeared earlier in the input stream
+    ///
+    /// * **begin**: Prefers line with matched substring closer to the beginning
+    ///
+    /// * **end**: Prefers line with matched substring closer to the end
+    ///
+    /// * **length**: Prefers line with shorter length
+    ///
+    /// Notes:
+    ///
+    ///   * Each criterion could be negated, e.g. (-index)
+    ///
+    ///   * Each criterion should appear only once in the list
     #[arg(
         short,
         long,
@@ -106,30 +120,36 @@ pub struct SkimOptions {
         value_enum,
         value_delimiter = ',',
         help_heading = "Search",
-        verbatim_doc_comment
     )]
     pub tiebreak: Vec<RankCriteria>,
 
     /// Fields to be matched
     ///
-    /// A field index expression can be a non-zero integer or a range expression ([BEGIN]..[END]). --nth
-    /// and --with-nth take a comma-separated list of field index expressions.
+    /// A field index expression can be a non-zero integer or a range expression (`[BEGIN]..[END]`).
+    /// `--nth` and `--with-nth` take a comma-separated list of field index expressions.
     ///
-    /// **Examples:**
-    ///     1      The 1st field
-    ///     2      The 2nd field
-    ///     -1     The last field
-    ///     -2     The 2nd to last field
-    ///     3..5   From the 3rd field to the 5th field
-    ///     2..    From the 2nd field to the last field
-    ///     ..-3   From the 1st field to the 3rd to the last field
-    ///     ..     All the fields
+    /// **Examples**:
+    ///
+    ///   * `1`:      The 1st field
+    ///
+    ///   * `2`:      The 2nd field
+    ///
+    ///   * `-1`:     The last field
+    ///
+    ///   * `-2`:     The 2nd to last field
+    ///
+    ///   * `3..5`:   From the 3rd field to the 5th field
+    ///
+    ///   * `2..`:    From the 2nd field to the last field
+    ///
+    ///   * `..-3`:   From the 1st field to the 3rd to the last field
+    ///
+    ///   * `..`:     All the fields
     #[arg(
         short,
         long,
         default_value = "",
         help_heading = "Search",
-        verbatim_doc_comment,
         value_delimiter = ','
     )]
     pub nth: Vec<String>,
@@ -156,15 +176,16 @@ pub struct SkimOptions {
 
     /// Fuzzy matching algorithm
     ///
-    /// skim_v2 Latest skim algorithm, should be better in almost any case
-    /// skim_v1 Legacy skim algorithm
-    /// clangd Used in clangd for keyword completion
+    /// * **skim_v2**: Latest skim algorithm, should be better in almost any case
+    ///
+    /// * **skim_v1**: Legacy skim algorithm
+    ///
+    /// * **clangd**: Used in clangd for keyword completion
     #[arg(
         long = "algo",
         default_value = "skim_v2",
         value_enum,
         help_heading = "Search",
-        verbatim_doc_comment
     )]
     pub algorithm: FuzzyAlgorithm,
 
@@ -177,112 +198,206 @@ pub struct SkimOptions {
     //  --- Interface ---
     /// Comma separated list of bindings
     ///
-    /// You can customize key bindings of sk with --bind option which takes a  comma-separated  list  of
-    /// key binding expressions. Each key binding expression follows the following format: KEY:ACTION
+    /// You can customize key bindings of sk with `--bind` option which takes a  comma-separated  list  of
+    /// key binding expressions. Each key binding expression follows the following format: `<key>:<action>`
     ///
-    /// e.g. sk --bind=ctrl-j:accept,ctrl-k:kill-line
+    /// **Example**: `sk --bind=ctrl-j:accept,ctrl-k:kill-line`
     ///
-    /// AVAILABLE KEYS: (SYNONYMS)
-    ///     ctrl-[a-z]
-    ///     ctrl-space
-    ///     ctrl-alt-[a-z]
-    ///     alt-[a-zA-Z]
-    ///     alt-[0-9]
-    ///     f[1-12]
-    ///     enter       (ctrl-m)
-    ///     space
-    ///     bspace      (bs)
-    ///     alt-up
-    ///     alt-down
-    ///     alt-left
-    ///     alt-right
-    ///     alt-enter   (alt-ctrl-m)
-    ///     alt-space
-    ///     alt-bspace  (alt-bs)
-    ///     alt-/
-    ///     tab
-    ///     btab        (shift-tab)
-    ///     esc
-    ///     del
-    ///     up
-    ///     down
-    ///     left
-    ///     right
-    ///     home
-    ///     end
-    ///     pgup        (page-up)
-    ///     pgdn        (page-down)
-    ///     shift-up
-    ///     shift-down
-    ///     shift-left
-    ///     shift-right
-    ///     alt-shift-up
-    ///     alt-shift-down
-    ///     alt-shift-left
-    ///     alt-shift-right
-    ///     or any single character
+    /// ## AVAILABLE KEYS: (SYNONYMS)
     ///
-    ///   ACTION:               DEFAULT BINDINGS (NOTES):
-    ///     abort                 ctrl-c  ctrl-q  esc
-    ///     accept(...)           enter (the argument will be printed when the binding is triggered)
-    ///     append-and-select
-    ///     backward-char         ctrl-b  left
-    ///     backward-delete-char  ctrl-h  bspace
-    ///     backward-kill-word    alt-bs
-    ///     backward-word         alt-b   shift-left
-    ///     beginning-of-line     ctrl-a  home
-    ///     clear-screen          ctrl-l
-    ///     delete-char           del
-    ///     delete-charEOF        ctrl-d
-    ///     deselect-all
-    ///     down                  ctrl-j  ctrl-n  down
-    ///     end-of-line           ctrl-e  end
-    ///     execute(...)          (see below for the details)
-    ///     execute-silent(...)   (see below for the details)
-    ///     forward-char          ctrl-f  right
-    ///     forward-word          alt-f   shift-right
-    ///     if-non-matched
-    ///     if-query-empty
-    ///     if-query-not-empty
-    ///     ignore
-    ///     kill-line
-    ///     kill-word             alt-d
-    ///     next-history          (ctrl-n on --history or --cmd-history)
-    ///     page-down             pgdn
-    ///     page-up               pgup
-    ///     half-page-down
-    ///     half-page-up
-    ///     preview-up            shift-up
-    ///     preview-down          shift-down
-    ///     preview-left
-    ///     preview-right
-    ///     preview-page-down
-    ///     preview-page-up
-    ///     previous-history      (ctrl-p on --history or --cmd-history)
-    ///     reload(...)
-    ///     select-all
-    ///     toggle
-    ///     toggle-all
-    ///     toggle+down           ctrl-i  (tab)
-    ///     toggle-in             (--layout=reverse* ? toggle+up : toggle+down)
-    ///     toggle-out            (--layout=reverse* ? toggle+down : toggle+up)
-    ///     toggle-preview
-    ///     toggle-preview-wrap
-    ///     toggle-sort
-    ///     toggle+up             btab    (shift-tab)
-    ///     unix-line-discard     ctrl-u
-    ///     unix-word-rubout      ctrl-w
-    ///     up                    ctrl-k  ctrl-p  up
-    ///     yank                  ctrl-y
+    /// * ctrl-[a-z]
     ///
-    /// Multiple actions can be chained using + separator.
+    /// * ctrl-space
     ///
-    ///     sk --bind 'ctrl-a:select-all+accept'
+    /// * ctrl-alt-[a-z]
     ///
-    /// With execute(...) and reload(...) action, you can execute arbitrary commands without leaving sk. For example,
-    /// you can turn sk into a simple file browser by binding enter key to less command like follows.
+    /// * alt-[a-zA-Z]
     ///
-    ///     sk --bind "enter:execute(less {})"
+    /// * alt-[0-9]
+    ///
+    /// * f[1-12]
+    ///
+    /// * enter       (ctrl-m)
+    ///
+    /// * space
+    ///
+    /// * bspace      (bs)
+    ///
+    /// * alt-up
+    ///
+    /// * alt-down
+    ///
+    /// * alt-left
+    ///
+    /// * alt-right
+    ///
+    /// * alt-enter   (alt-ctrl-m)
+    ///
+    /// * alt-space
+    ///
+    /// * alt-bspace  (alt-bs)
+    ///
+    /// * alt-/
+    ///
+    /// * tab
+    ///
+    /// * btab        (shift-tab)
+    ///
+    /// * esc
+    ///
+    /// * del
+    ///
+    /// * up
+    ///
+    /// * down
+    ///
+    /// * left
+    ///
+    /// * right
+    ///
+    /// * home
+    ///
+    /// * end
+    ///
+    /// * pgup        (page-up)
+    ///
+    /// * pgdn        (page-down)
+    ///
+    /// * shift-up
+    ///
+    /// * shift-down
+    ///
+    /// * shift-left
+    ///
+    /// * shift-right
+    ///
+    /// * alt-shift-up
+    ///
+    /// * alt-shift-down
+    ///
+    /// * alt-shift-left
+    ///
+    /// * alt-shift-right
+    ///
+    /// * any single character
+    ///
+    /// ## ACTION: DEFAULT BINDINGS [NOTES]
+    ///
+    /// * abort: ctrl-c  ctrl-q  esc
+    ///
+    /// * accept(...): enter *the argument will be printed when the binding is triggered*
+    ///
+    /// * append-and-select:
+    ///
+    /// * backward-char: ctrl-b  left
+    ///
+    /// * backward-delete-char: ctrl-h  bspace
+    ///
+    /// * backward-kill-word: alt-bs
+    ///
+    /// * backward-word: alt-b   shift-left
+    ///
+    /// * beginning-of-line: ctrl-a  home
+    ///
+    /// * clear-screen: ctrl-l
+    ///
+    /// * delete-char: del
+    ///
+    /// * delete-charEOF: ctrl-d
+    ///
+    /// * deselect-all:
+    ///
+    /// * down: ctrl-j  ctrl-n  down
+    ///
+    /// * end-of-line: ctrl-e  end
+    ///
+    /// * execute(...): *see below for the details*
+    ///
+    /// * execute-silent(...): *see below for the details*
+    ///
+    /// * forward-char: ctrl-f  right
+    ///
+    /// * forward-word: alt-f   shift-right
+    ///
+    /// * if-non-matched:
+    ///
+    /// * if-query-empty:
+    ///
+    /// * if-query-not-empty:
+    ///
+    /// * ignore:
+    ///
+    /// * kill-line:
+    ///
+    /// * kill-word: alt-d
+    ///
+    /// * next-history: ctrl-n with `--history` or `--cmd-history`
+    ///
+    /// * page-down: pgdn
+    ///
+    /// * page-up: pgup
+    ///
+    /// * half-page-down:
+    ///
+    /// * half-page-up:
+    ///
+    /// * preview-up: shift-up
+    ///
+    /// * preview-down: shift-down
+    ///
+    /// * preview-left:
+    ///
+    /// * preview-right:
+    ///
+    /// * preview-page-down:
+    ///
+    /// * preview-page-up:
+    ///
+    /// * previous-history: ctrl-p with `--history` or `--cmd-history`
+    ///
+    /// * reload(...):
+    ///
+    /// * select-all:
+    ///
+    /// * toggle:
+    ///
+    /// * toggle-all:
+    ///
+    /// * toggle+down: ctrl-i  tab
+    ///
+    /// * toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
+    ///
+    /// * toggle-out: (--layout=reverse ? toggle+down:  toggle+up)
+    ///
+    /// * toggle-preview:
+    ///
+    /// * toggle-preview-wrap:
+    ///
+    /// * toggle-sort:
+    ///
+    /// * toggle+up: btab    shift-tab
+    ///
+    /// * unix-line-discard: ctrl-u
+    ///
+    /// * unix-word-rubout: ctrl-w
+    ///
+    /// * up: ctrl-k  ctrl-p  up
+    ///
+    /// * yank: ctrl-y
+    ///
+    /// ## Multiple actions can be chained using + separator.
+    ///
+    /// **Example**: `sk --bind 'ctrl-a:select-all+accept'`
+    ///
+    /// # Special behaviors
+    ///
+    /// With `execute(...)` and `reload(...)` action, you can execute arbitrary commands without leaving sk.
+    /// For example, you can turn sk into a simple file browser by binding enter key to less command like follows:
+    ///
+    /// ```bash
+    /// sk --bind "enter:execute(less {})"
+    /// ```
+    ///
     /// Note: if no argument is supplied to reload, the default command is run.
     ///
     /// You can use the same placeholder expressions as in --preview.
@@ -290,13 +405,17 @@ pub struct SkimOptions {
     /// If the command contains parentheses, sk may fail to parse the expression. In that case, you  can
     /// use any of the following alternative notations to avoid parse errors.
     ///
-    ///     execute[...]
-    ///     execute'...'
-    ///     execute"..."
-    ///     execute:...
-    ///        This is the special form that frees you from parse errors as it does not expect the clos‐
-    ///        ing character. The catch is that it should be the last one in the comma-separated list of
-    ///        key-action pairs.
+    /// * `execute[...]`
+    ///
+    /// * `execute'...'`
+    ///
+    /// * `execute"..."`
+    ///
+    /// * `execute:...`
+    ///
+    /// This is the special form that frees you from parse errors as it does not expect the clos‐
+    /// ing character. The catch is that it should be the last one in the comma-separated list of
+    /// key-action pairs.
     ///
     /// sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐
     /// pected to complete quickly, and you are not interested in its output, you might want to use exe‐
@@ -305,13 +424,13 @@ pub struct SkimOptions {
     /// command as a background process (i.e. appending &).
     ///
     /// With if-query-empty and if-query-not-empty action, you could specify the action to  execute  de‐
-    /// pends on the query condition. For example
+    /// pends on the query condition. For example:
     ///
-    ///     sk --bind 'ctrl-d:if-query-empty(abort)+delete-char'
+    /// `sk --bind 'ctrl-d:if-query-empty(abort)+delete-char'`
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
     /// is equal to ‘delete-char/eof‘.
-    #[arg(short, long, help_heading = "Interface", verbatim_doc_comment, value_delimiter = ',')]
+    #[arg(short, long, help_heading = "Interface", value_delimiter = ',')]
     pub bind: Vec<String>,
 
     /// Enable multiple selection
@@ -363,8 +482,8 @@ pub struct SkimOptions {
     /// Line  will  start  with  the  start of the matched pattern. Effective only when the query
     /// string is empty. Was designed to skip showing starts of paths of rg/grep results.
     ///
-    /// e.g. sk -i -c "rg {} --color=always" --skip-to-pattern '[^/]*:' --ansi
-    #[arg(long, help_heading = "Interface", verbatim_doc_comment)]
+    /// **Example**: `sk -i -c "rg {} --color=always" --skip-to-pattern '[^/]*:' --ansi`
+    #[arg(long, help_heading = "Interface")]
     pub skip_to_pattern: Option<String>,
 
     /// Do not clear previous line if the command returns an empty result
@@ -375,7 +494,7 @@ pub struct SkimOptions {
     /// This is not default however because similar usecases for grep and rg had already been op‐
     /// timized  where  empty  result  of  a query do mean "empty" and previous results should be
     /// cleared.
-    #[arg(long, help_heading = "Interface", verbatim_doc_comment)]
+    #[arg(long, help_heading = "Interface")]
     pub no_clear_if_empty: bool,
 
     /// Do not clear items on start
@@ -397,9 +516,11 @@ pub struct SkimOptions {
     //  --- Layout ---
     /// Set layout
     ///
-    /// default       Display from the bottom of the screen
-    /// reverse       Display from the top of the screen
-    /// reverse-list  Display from the top of the screen, prompt at the bottom
+    /// *default: Display from the bottom of the screen
+    ///
+    /// *reverse: Display from the top of the screen
+    ///
+    /// *reverse-list: Display from the top of the screen, prompt at the bottom
     #[arg(
         long,
         default_value = "default",
@@ -407,7 +528,6 @@ pub struct SkimOptions {
             ["default", "reverse", "reverse-list"]
         ),
         help_heading = "Layout",
-        verbatim_doc_comment
     )]
     pub layout: String,
 
@@ -428,20 +548,27 @@ pub struct SkimOptions {
     /// Minimum height of skim's window
     ///
     /// Useful when the height is set as a percentage
-    /// Ignored when --height is not specified
-    #[arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment)]
+    ///
+    /// Ignored when `--height` is not specified
+    #[arg(long, default_value = "10", help_heading = "Layout")]
     pub min_height: String,
 
     /// Screen margin
     ///
     /// For each side, can be either a row count or a percentage of the terminal size
+    ///
     /// Format can be one of:
-    ///     - TRBL
-    ///     - TB,RL
-    ///     - T,RL,B
-    ///     - T,R,B,L
-    /// Example: 1,10%
-    #[arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment)]
+    ///
+    /// * TRBL
+    ///
+    /// * TB,RL
+    ///
+    /// * T,RL,B
+    ///
+    /// * T,R,B,L
+    ///
+    /// **Example**: 1,10%
+    #[arg(long, default_value = "0", help_heading = "Layout")]
     pub margin: String,
 
     /// Set prompt
@@ -463,9 +590,9 @@ pub struct SkimOptions {
 
     /// Set matching result count display position
     ///
-    ///     hidden: do not display info
-    ///     inline: display info in the same row as the input
-    ///     default: display info in a dedicated row above the input
+    /// * hidden: do not display info
+    /// * inline: display info in the same row as the input
+    /// * default: display info in a dedicated row above the input
     #[arg(long, help_heading = "Display", value_enum, default_value = "default")]
     pub info: InfoDisplay,
 
@@ -480,14 +607,14 @@ pub struct SkimOptions {
     /// Set header, displayed next to the info
     ///
     /// The  given  string  will  be printed as the sticky header. The lines are displayed in the
-    /// given order from top to bottom regardless of --layout option, and  are  not  affected  by
-    /// --with-nth. ANSI color codes are processed even when --ansi is not set.
+    /// given order from top to bottom regardless of `--layout` option, and  are  not  affected  by
+    /// `--with-nth`. ANSI color codes are processed even when `--ansi` is not set.
     #[arg(long, help_heading = "Display")]
     pub header: Option<String>,
 
     /// Number of lines of the input treated as header
     ///
-    /// The  first N lines of the input are treated as the sticky header. When --with-nth is set,
+    /// The  first N lines of the input are treated as the sticky header. When `--with-nth` is set,
     /// the lines are transformed just like the other lines that follow.
     #[arg(long, default_value = "0", help_heading = "Display")]
     pub header_lines: usize,
@@ -496,6 +623,7 @@ pub struct SkimOptions {
     /// History file
     ///
     /// Load search history from the specified file and update the file on completion.
+    ///
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
     #[arg(long = "history", help_heading = "History")]
@@ -508,6 +636,7 @@ pub struct SkimOptions {
     /// Command history file
     ///
     /// Load command query history from the specified file and update the file on completion.
+    ///
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
     #[arg(long = "cmd-history", help_heading = "History")]
@@ -524,35 +653,42 @@ pub struct SkimOptions {
     /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the replace‐
     /// ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
     ///
-    /// e.g. sk --preview='head -$LINES {}'
-    ///      ls -l | sk --preview="echo user={3} when={-4..-2}; cat {-1}" --header-lines=1
+    /// **Examples**:
+    ///
+    /// ```bash
+    /// sk --preview='head -$LINES {}'
+    /// ls -l | sk --preview="echo user={3} when={-4..-2}; cat {-1}" --header-lines=1
+    /// ```
     ///
     /// sk overrides $LINES and $COLUMNS so that they represent the exact size of the preview window.
     ///
     /// A placeholder expression starting with + flag will be replaced to the space-separated  list  of  the  selected
     /// lines (or the current line if no selection was made) individually quoted.
     ///
-    /// e.g.
-    ///      sk --multi --preview='head -10 {+}'
-    ///      git log --oneline | sk --multi --preview 'git show {+1}'
+    /// **Examples**:
+    /// ```bash
+    /// sk --multi --preview='head -10 {+}'
+    /// git log --oneline | sk --multi --preview 'git show {+1}'
+    /// ```
     ///
     /// Note that you can escape a placeholder pattern by prepending a backslash.
     ///
-    /// Also,  {q}  is replaced to the current query string. {cq} is replaced to the current command query string. {n}
-    /// is replaced to zero-based ordinal index of the line. Use {+n} if you want  all  index  numbers  when  multiple
+    /// Also, `{q}`  is replaced to the current query string. `{cq}` is replaced to the current command query string.
+    /// `{n}` is replaced to zero-based ordinal index of the line. Use `{+n}` if you want all index numbers when multiple
     /// lines are selected
     ///
     /// Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐
     /// pressions evaluates to a non-empty string.
-    #[arg(long, help_heading = "Preview", verbatim_doc_comment)]
+    #[arg(long, help_heading = "Preview")]
     pub preview: Option<String>,
 
     /// Preview window layout
     ///
     /// Format: [up|down|left|right][:SIZE[%]][:hidden][:+SCROLL[-OFFSET]]
-    /// Determine  the  layout of the preview window. If the argument ends with :hidden, the preview window will be hidden by
+    ///
+    /// Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by
     /// default until toggle-preview action is triggered. Long lines are truncated by default.  Line wrap can be enabled with
-    /// :wrap flag.
+    ///: wrap flag.
     ///
     /// If size is given as 0, preview window will not be visible, but sk will still execute the command in the background.
     ///
@@ -561,21 +697,23 @@ pub struct SkimOptions {
     /// base offset so that you can see the text above it. It should be given as a numeric integer (-INTEGER), or as a denom‐
     /// inator form (-/INTEGER) for specifying a fraction of the preview window height.
     ///
-    ///        e.g.
-    ///             # Non-default scroll window positions and sizes
-    ///             sk --preview="head {}" --preview-window=up:30%
-    ///             sk --preview="file {}" --preview-window=down:2
+    /// **Examples**:
+    /// ```bash
+    /// # Non-default scroll window positions and sizes
+    /// sk --preview="head {}" --preview-window=up:30%
+    /// sk --preview="file {}" --preview-window=down:2
     ///
-    ///             # Initial scroll offset is set to the line number of each line of
-    ///             # git grep output *minus* 5 lines (-5)
-    ///             git grep --line-number '' |
-    ///               sk --delimiter : --preview 'nl {1}' --preview-window +{2}-5
+    /// # Initial scroll offset is set to the line number of each line of
+    /// # git grep output *minus* 5 lines (-5)
+    /// git grep --line-number '' |
+    ///   sk --delimiter:  --preview 'nl {1}' --preview-window +{2}-5
     ///
-    ///             # Preview with bat, matching line in the middle of the window (-/2)
-    ///             git grep --line-number '' |
-    ///               sk --delimiter : \
-    ///                   --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
-    ///                   --preview-window +{2}-/2
+    /// # Preview with bat, matching line in the middle of the window (-/2)
+    /// git grep --line-number '' |
+    ///   sk --delimiter:  \
+    ///       --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
+    ///       --preview-window +{2}-/2
+    /// ```
     #[arg(long, default_value = "right:50%", help_heading = "Preview")]
     pub preview_window: String,
 
@@ -596,7 +734,7 @@ pub struct SkimOptions {
     /// --expect option is specified multiple times, sk will expect the union of the keys. --no-expect will clear  the
     /// list.
     ///
-    /// e.g. sk --expect=ctrl-v,ctrl-t,alt-s --expect=f1,f2,~,@
+    /// **Example**: `sk --expect=ctrl-v,ctrl-t,alt-s --expect=f1,f2,~,@`
     #[arg(long, help_heading = "Scripting", value_delimiter = ',')]
     pub expect: Vec<String>,
 
@@ -633,7 +771,7 @@ pub struct SkimOptions {
     /// Synchronous search for multi-staged filtering. If specified,
     /// skim will launch ncurses finder only after the input stream is complete.
     ///
-    ///     e.g. sk --multi | sk --sync
+    /// **Example**: `sk --multi | sk --sync`
     #[arg(long, help_heading = "Scripting")]
     pub sync: bool,
 
@@ -650,7 +788,7 @@ pub struct SkimOptions {
 
     /// Pre-select the items separated by newline character
     ///
-    /// Exemple: 'item1\nitem2'
+    /// **Example**: `item1\nitem2`
     #[arg(long, default_value = "", help_heading = "Scripting")]
     pub pre_select_items: String,
 
@@ -664,15 +802,16 @@ pub struct SkimOptions {
 
     /// Run in a tmux popup
     ///
-    /// Format: sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
+    /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     ///
     /// Depending on the direction, the order and behavior of the sizes varies:
-    ///     - center: (width, height) or (size, size) if only one is provided
-    ///     - top | bottom: (height, width) or height = size, width = 100% if only one is provided
-    ///     - left | right: (width, height) or height = 100%, width = size if only one is provided
     ///
-    /// Default: center,50%
-    #[arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..)]
+    /// * center: (width, height) or (size, size) if only one is provided
+    ///
+    /// * top | bottom: (height, width) or height = size, width = 100% if only one is provided
+    ///
+    /// * left | right: (width, height) or height = 100%, width = size if only one is provided
+    #[arg(long, help_heading = "Display", default_missing_value = "center,50%", num_args=0..)]
     pub tmux: Option<String>,
 
     /// Reserved for later use
@@ -734,9 +873,10 @@ pub struct SkimOptions {
     pub selector: Option<Rc<dyn Selector>>,
     /// Preview Callback
     ///
-    /// Used to define a function or closure for the preview window, instead of a shell command
+    /// Used to define a function or closure for the preview window, instead of a shell command.
+    ///
     /// The function will take a `Vec<Arc<dyn SkimItem>>>` containing the currently selected items
-    /// And return a Vec<String> with the lines to display in UTF-8
+    /// and return a Vec<String> with the lines to display in UTF-8
     #[clap(skip)]
     pub preview_fn: Option<PreviewCallback>,
 }
