@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.16.1](https://github.com/skim-rs/skim/compare/v0.16.0...v0.16.1) (2025-03-05)
+
+
+### Bug Fixes
+
+* hasten deprecation of expect after [#703](https://github.com/skim-rs/skim/issues/703) ([47c5e1e](https://github.com/skim-rs/skim/commit/47c5e1e54ec848c61d1cfafdaf6aecd3ff4aef86))
+
 ## [0.16.0](https://github.com/skim-rs/skim/compare/v0.15.7...v0.16.0) (2025-01-23)
 
 
