@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 0.16.0" 
+.TH sk 1  "sk 0.16.1" 
 .SH NAME
 sk \- sk \- fuzzy finder in Rust
 .SH SYNOPSIS
@@ -632,9 +632,9 @@ Initial query
 Initial query in interactive mode
 .TP
 \fB\-\-expect\fR=\fIEXPECT\fR
-Comma separated list of keys used to complete skim
+[Deprecated: Use \-\-bind=<key>:accept(<key>) instead] Comma separated list of keys used to complete skim
 
-Comma\-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second line  if \-\-print\-query is also used). The line will be empty if sk is completed with the default enter key. If \-\-expect option is specified multiple times, sk will expect the union of the keys. \-\-no\-expect will clear  the list.
+Comma\-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second line  if \-\-print\-query is also used). No line will be printed if sk is completed with the default enter key. If \-\-expect option is specified multiple times, sk will expect the union of the keys. \-\-no\-expect will clear  the list.
 
 Example: sk \-\-expect=ctrl\-v,ctrl\-t,alt\-s \-\-expect=f1,f2,~,@
 .TP
@@ -685,4 +685,4 @@ Pre\-select the items read from this file
 \fB\-f\fR, \fB\-\-filter\fR=\fIFILTER\fR
 Query for filter mode
 .SH VERSION
-v0.16.0
+v0.16.1
