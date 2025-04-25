@@ -133,7 +133,7 @@ skim-history-widget() {
     fc_opts='-i'
     n=3
   fi
-  selected=( $(fc -rl $fc_opts 1 | awk "$awk_filter" |
+  selected=( $(fc -rl $fc_opts 1 | sort -k2 | awk "$awk_filter" |
     SKIM_DEFAULT_OPTIONS="--height ${SKIM_TMUX_HEIGHT:-40%} $SKIM_DEFAULT_OPTIONS -n$n..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi" $(__skimcmd)) )
   local ret=$?
   if [ -n "$selected" ]; then
