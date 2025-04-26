@@ -22,7 +22,8 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: .github/release-please/config.json
-          manifest-file: .github/release-please/manifest.json
+          path: "skim"
+          release-type: "rust"
     outputs:
       release_created: ${{ steps.release-please.outputs.releases_created }}
       tag_name: ${{ steps.release-please.outputs.skim--tag_name }}

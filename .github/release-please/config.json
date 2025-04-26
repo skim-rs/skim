@@ -2,13 +2,4 @@
   "release-type": "rust",
   "commit-search-depth": 100,
   "bump-minor-pre-major": true,
-  "packages": {
-    "skim": {
-      "changelog-path": "/CHANGELOG.md",
-      "include-component-in-tag": false
-    }
-  },
-  "plugins": [
-    "cargo-workspace"
-  ]
 }
