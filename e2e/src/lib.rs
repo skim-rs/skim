@@ -51,7 +51,7 @@ pub enum Keys<'a> {
     BSpace,
 }
 
-impl<'a> Display for Keys<'a> {
+impl Display for Keys<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         use Keys::*;
         match self {
