@@ -97,7 +97,7 @@ fn sk_main() -> Result<i32, SkMainError> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (if opts.tmux.is_some() {
+    let Some(result) = (if opts.tmux.is_some() && env::var("TMUX").is_ok() {
         crate::tmux::run_with(&opts)
     } else {
         // read from pipe or command
