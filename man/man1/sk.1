@@ -547,6 +547,8 @@ Depending on the direction, the order and behavior of the sizes varies:
 \- top | bottom: (height, width) or height = size, width = 100% if only one is provided
 
 \- left | right: (width, height) or height = 100%, width = size if only one is provided
+
+Note: env vars are only passed to the tmux command if they are either PATH or prefixed with RUST or SKIM
 .SH HISTORY
 .TP
 \fB\-\-history\fR=\fIHISTORY_FILE\fR
