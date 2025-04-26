@@ -2,6 +2,7 @@
 
 // http://ascii-table.com/ansi-escape-sequences.php
 /// Single key
+#[non_exhaustive]
 #[rustfmt::skip]
 #[derive(Eq, PartialEq, Hash, Debug, Copy, Clone)]
 pub enum Key {
@@ -43,10 +44,6 @@ pub enum Key {
 
     BracketedPasteStart,
     BracketedPasteEnd,
-
-    #[doc(hidden)]
-    __Nonexhaustive,
-
 }
 
 /// A mouse button.

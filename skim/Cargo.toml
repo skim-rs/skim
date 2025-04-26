@@ -20,29 +20,30 @@ name = "sk"
 path = "src/bin/main.rs"
 
 [dependencies]
-nix = { workspace = true }
-regex = { workspace = true }
-shlex = { workspace = true, optional = true }
-unicode-width = { workspace = true }
-log = { workspace = true }
-env_logger = { workspace = true, optional = true }
-time = { workspace = true }
-clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
-tuikit = { path = "../tuikit/" }
-vte = { workspace = true }
-fuzzy-matcher = { workspace = true }
-rayon = { workspace = true }
-derive_builder = { workspace = true }
-bitflags = { workspace = true }
-timer = { workspace = true }
-chrono = { workspace = true }
-crossbeam = { workspace = true }
 beef = { workspace = true }
+bitflags = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
+common = { path = "../common/" }
+crossbeam = { workspace = true }
 defer-drop = { workspace = true }
+derive_builder = { workspace = true }
+env_logger = { workspace = true, optional = true }
+fuzzy-matcher = { workspace = true }
 indexmap = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true }
 rand = { workspace = true }
-which = { workspace = true }
+rayon = { workspace = true }
+regex = { workspace = true }
 shell-quote = { workspace = true }
+shlex = { workspace = true, optional = true }
+time = { workspace = true }
+timer = { workspace = true }
+tuikit = { path = "../tuikit/" }
+unicode-width = { workspace = true }
+vte = { workspace = true }
+which = { workspace = true }
 
 [features]
 default = ["cli"]

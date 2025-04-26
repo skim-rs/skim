@@ -1,4 +1,4 @@
-///! A canvas is a trait defining the draw actions
+/// A canvas is a trait defining the draw actions
 use crate::attr::Attr;
 use crate::cell::Cell;
 use crate::Result;
@@ -23,9 +23,11 @@ pub trait Canvas {
     }
 
     /// print `content` starting with position `(row, col)` with `attr`
+    ///
     /// - canvas should NOT wrap to y+1 if the content is too long
     /// - canvas should handle wide characters
-    /// return the printed width of the content
+    ///
+    /// returns the printed width of the content
     fn print_with_attr(&mut self, row: usize, col: usize, content: &str, attr: Attr) -> Result<usize> {
         let mut cell = Cell {
             attr,
@@ -75,7 +77,7 @@ impl<'a> BoundedCanvas<'a> {
     }
 }
 
-impl<'a> Canvas for BoundedCanvas<'a> {
+impl Canvas for BoundedCanvas<'_> {
     fn size(&self) -> Result<(usize, usize)> {
         Ok((self.width, self.height))
     }

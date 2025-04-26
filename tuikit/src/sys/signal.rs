@@ -58,7 +58,7 @@ fn listen_sigwinch() {
     });
 
     thread::spawn(move || {
-        while let Ok(_) = rx_sig.recv() {
+        while rx_sig.recv().is_ok() {
             let notifiers = NOTIFIER.lock().unwrap();
             for (_, sender) in notifiers.iter() {
                 let _ = sender.send(());

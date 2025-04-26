@@ -14,7 +14,7 @@ use unicode_width::UnicodeWidthStr;
 
 type FnDrawHeader = dyn Fn(&mut dyn Canvas) -> DrawResult<()>;
 
-///! A Win is like a div in HTML, it has its margin/padding, and border
+/// A Win is like a div in HTML, it has its margin/padding, and border
 pub struct Win<'a, Message = ()> {
     margin_top: Size,
     margin_right: Size,
@@ -340,16 +340,14 @@ impl<'a, Message> Win<'a, Message> {
         let border_bottom =
             self.border_bottom || (!self.title_on_top && (self.title.is_some() || self.right_prompt.is_some()));
 
-        if border_top || border_bottom {
-            if (height < 1) || (border_top && border_bottom && height < 2) {
-                return Err("not enough height for border".into());
-            }
+        if (border_top || border_bottom) && ((height < 1) || (border_top && border_bottom && height < 2)) {
+            return Err("not enough height for border".into());
         }
 
-        if self.border_left || self.border_right {
-            if (width < 1) || (self.border_left && self.border_right && width < 2) {
-                return Err("not enough width for border".into());
-            }
+        if (self.border_left || self.border_right)
+            && ((width < 1) || (self.border_left && self.border_right && width < 2))
+        {
+            return Err("not enough width for border".into());
         }
 
         let top = if border_top { top + 1 } else { top };
@@ -411,16 +409,16 @@ impl<'a, Message> Win<'a, Message> {
             height,
         } = rect;
 
-        if self.border_top || self.border_bottom {
-            if (height < 1) || (self.border_top && self.border_bottom && height < 2) {
-                return Err("not enough height for border".into());
-            }
+        if (self.border_top || self.border_bottom)
+            && ((height < 1) || (self.border_top && self.border_bottom && height < 2))
+        {
+            return Err("not enough height for border".into());
         }
 
-        if self.border_left || self.border_right {
-            if (width < 1) || (self.border_left && self.border_right && width < 2) {
-                return Err("not enough width for border".into());
-            }
+        if (self.border_left || self.border_right)
+            && ((width < 1) || (self.border_left && self.border_right && width < 2))
+        {
+            return Err("not enough width for border".into());
         }
 
         let bottom = max(top + height, 1) - 1;
@@ -494,7 +492,7 @@ impl<'a, Message> Win<'a, Message> {
 
     fn draw_header(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let (width, height) = canvas.size()?;
-        if width <= 0 || height <= 0 {
+        if width == 0 || height == 0 {
             return Ok(());
         }
 
@@ -539,7 +537,7 @@ impl<'a, Message> Win<'a, Message> {
     }
 }
 
-impl<'a, Message> Draw for Win<'a, Message> {
+impl<Message> Draw for Win<'_, Message> {
     /// Reserve margin & padding, draw border.
     fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let mut new_canvas = self.draw_context(canvas)?;
@@ -552,7 +550,7 @@ impl<'a, Message> Draw for Win<'a, Message> {
     }
 }
 
-impl<'a, Message> Widget<Message> for Win<'a, Message> {
+impl<Message> Widget<Message> for Win<'_, Message> {
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
         // plus border size
         let (width, height) = self.inner.size_hint();
@@ -586,7 +584,7 @@ impl<'a, Message> Widget<Message> for Win<'a, Message> {
     }
 }
 
-impl<'a, Message> Split<Message> for Win<'a, Message> {
+impl<Message> Split<Message> for Win<'_, Message> {
     fn get_basis(&self) -> Size {
         self.basis
     }
@@ -724,7 +722,7 @@ mod test {
         };
         {
             let mut win = Win::new(&mut mutable);
-            let _ = win.draw_mut(&mut canvas).unwrap();
+            win.draw_mut(&mut canvas).unwrap();
         }
         assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
 
@@ -732,7 +730,7 @@ mod test {
             called: Mutex::new(Called::No),
         };
         let win = Win::new(&immutable);
-        let _ = win.draw(&mut canvas).unwrap();
+        win.draw(&mut canvas).unwrap();
         assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
     }
 }

@@ -1,5 +1,5 @@
-///! `Cell` is a cell of the terminal.
-///! It has a display character and an attribute (fg and bg color, effects).
+/// `Cell` is a cell of the terminal.
+/// It has a display character and an attribute (fg and bg color, effects).
 use crate::attr::{Attr, Color, Effect};
 
 const EMPTY_CHAR: char = '\0';

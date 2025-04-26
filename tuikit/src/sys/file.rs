@@ -21,8 +21,8 @@ pub fn wait_until_ready(fd: BorrowedFd, signal_fd: Option<BorrowedFd>, timeout: 
     let mut fdset = select::FdSet::new();
     fdset.insert(fd);
 
-    if signal_fd.is_some() {
-        fdset.insert(signal_fd.unwrap());
+    if let Some(f) = signal_fd {
+        fdset.insert(f);
     }
     let n = select::select(None, &mut fdset, None, None, &mut timeout_spec)?;
 

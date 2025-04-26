@@ -8,6 +8,12 @@ pub struct Stack<'a, Message = ()> {
     inner: Vec<Box<dyn Widget<Message> + 'a>>,
 }
 
+impl<Message> Default for Stack<'_, Message> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a, Message> Stack<'a, Message> {
     pub fn new() -> Self {
         Self { inner: vec![] }
@@ -24,7 +30,7 @@ impl<'a, Message> Stack<'a, Message> {
     }
 }
 
-impl<'a, Message> Draw for Stack<'a, Message> {
+impl<Message> Draw for Stack<'_, Message> {
     fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         for widget in self.inner.iter() {
             widget.draw(canvas)?
@@ -41,7 +47,7 @@ impl<'a, Message> Draw for Stack<'a, Message> {
     }
 }
 
-impl<'a, Message> Widget<Message> for Stack<'a, Message> {
+impl<Message> Widget<Message> for Stack<'_, Message> {
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
         // max of the inner widgets
         let width = self
@@ -202,7 +208,7 @@ mod test {
         };
         {
             let mut stack = Stack::new().top(&mut mutable);
-            let _ = stack.draw_mut(&mut canvas).unwrap();
+            stack.draw_mut(&mut canvas).unwrap();
         }
         assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
 
@@ -210,7 +216,7 @@ mod test {
             called: Mutex::new(Called::No),
         };
         let stack = Stack::new().top(&immutable);
-        let _ = stack.draw(&mut canvas).unwrap();
+        stack.draw(&mut canvas).unwrap();
         assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
     }
 }

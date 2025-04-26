@@ -166,7 +166,6 @@ impl Output {
             Color::Rgb(r, g, b) => {
                 self.write_raw(format!("\x1b[38;2;{};{};{}m", r, g, b).as_bytes());
             }
-            Color::__Nonexhaustive => unreachable!(),
         }
     }
 
@@ -182,7 +181,6 @@ impl Output {
             Color::Rgb(r, g, b) => {
                 self.write_raw(format!("\x1b[48;2;{};{};{}m", r, g, b).as_bytes());
             }
-            Color::__Nonexhaustive => unreachable!(),
         }
     }
 

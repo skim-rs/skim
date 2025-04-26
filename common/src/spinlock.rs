@@ -81,8 +81,8 @@ impl<T: ?Sized> Drop for SpinLockGuard<'_, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc::channel;
     use std::sync::Arc;
+    use std::sync::mpsc::channel;
     use std::thread;
 
     #[test]

@@ -5,7 +5,7 @@ use crate::canvas::{BoundedCanvas, Canvas};
 use crate::draw::Draw;
 use crate::draw::DrawResult;
 use crate::event::Event;
-use std::cmp::min;
+use std::cmp::{min, Ordering};
 
 /// A Split item would contain 3 things
 /// 0. inner_size, will be used if `basis` is `Size::Default`.
@@ -104,12 +104,10 @@ trait SplitContainer<'a, Message = ()> {
 
         let target_total_size: usize = split_sizes.iter().sum();
 
-        let op = if target_total_size == actual_size {
-            Op::Noop
-        } else if target_total_size < actual_size {
-            Op::Grow
-        } else {
-            Op::Shrink
+        let op = match target_total_size.cmp(&actual_size) {
+            Ordering::Equal => Op::Noop,
+            Ordering::Less => Op::Grow,
+            Ordering::Greater => Op::Shrink,
         };
 
         let size_diff = match op {
@@ -161,7 +159,7 @@ pub struct HSplit<'a, Message = ()> {
     splits: Vec<Box<dyn Split<Message> + 'a>>,
 }
 
-impl<'a, Message> Default for HSplit<'a, Message> {
+impl<Message> Default for HSplit<'_, Message> {
     fn default() -> Self {
         Self {
             basis: Size::Default,
@@ -204,7 +202,7 @@ impl<'a, Message> SplitContainer<'a, Message> for HSplit<'a, Message> {
     }
 }
 
-impl<'a, Message> Draw for HSplit<'a, Message> {
+impl<Message> Draw for HSplit<'_, Message> {
     fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let (width, height) = canvas.size()?;
         let target_widths = self.retrieve_split_info(width);
@@ -240,7 +238,7 @@ impl<'a, Message> Draw for HSplit<'a, Message> {
     }
 }
 
-impl<'a, Message> Widget<Message> for HSplit<'a, Message> {
+impl<Message> Widget<Message> for HSplit<'_, Message> {
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
         let has_width_hint = self.splits.iter().any(|split| split.size_hint().0.is_some());
         let has_height_hint = self.splits.iter().any(|split| split.size_hint().1.is_some());
@@ -323,7 +321,7 @@ impl<'a, Message> Widget<Message> for HSplit<'a, Message> {
     }
 }
 
-impl<'a, Message> Split<Message> for HSplit<'a, Message> {
+impl<Message> Split<Message> for HSplit<'_, Message> {
     fn get_basis(&self) -> Size {
         self.basis
     }
@@ -349,7 +347,7 @@ pub struct VSplit<'a, Message = ()> {
     splits: Vec<Box<dyn Split<Message> + 'a>>,
 }
 
-impl<'a, Message> Default for VSplit<'a, Message> {
+impl<Message> Default for VSplit<'_, Message> {
     fn default() -> Self {
         Self {
             basis: Size::Default,
@@ -392,7 +390,7 @@ impl<'a, Message> SplitContainer<'a, Message> for VSplit<'a, Message> {
     }
 }
 
-impl<'a, Message> Draw for VSplit<'a, Message> {
+impl<Message> Draw for VSplit<'_, Message> {
     fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let (width, height) = canvas.size()?;
         let target_heights = self.retrieve_split_info(height);
@@ -427,7 +425,7 @@ impl<'a, Message> Draw for VSplit<'a, Message> {
     }
 }
 
-impl<'a, Message> Widget<Message> for VSplit<'a, Message> {
+impl<Message> Widget<Message> for VSplit<'_, Message> {
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
         let has_width_hint = self.splits.iter().any(|split| split.size_hint().0.is_some());
         let has_height_hint = self.splits.iter().any(|split| split.size_hint().1.is_some());
@@ -512,7 +510,7 @@ impl<'a, Message> Widget<Message> for VSplit<'a, Message> {
     }
 }
 
-impl<'a, Message> Split<Message> for VSplit<'a, Message> {
+impl<Message> Split<Message> for VSplit<'_, Message> {
     fn get_basis(&self) -> Size {
         self.basis
     }
@@ -597,7 +595,7 @@ mod test {
         }
     }
 
-    impl<'a> Split for WSplit<'a> {
+    impl Split for WSplit<'_> {
         fn get_basis(&self) -> Size {
             self.basis
         }
@@ -611,23 +609,18 @@ mod test {
         }
     }
 
-    impl<'a> Draw for WSplit<'a> {
+    impl Draw for WSplit<'_> {
         fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
             self.draw.draw(canvas)
         }
     }
 
-    impl<'a> Widget for WSplit<'a> {}
+    impl Widget for WSplit<'_> {}
 
+    #[derive(Default)]
     struct SingleWindow {
         pub width: usize,
         pub height: usize,
-    }
-
-    impl Default for SingleWindow {
-        fn default() -> Self {
-            Self { width: 0, height: 0 }
-        }
     }
 
     impl Draw for SingleWindow {
@@ -1245,7 +1238,7 @@ mod test {
         };
         {
             let mut hsplit = HSplit::default().split(&mut mutable);
-            let _ = hsplit.draw_mut(&mut canvas).unwrap();
+            hsplit.draw_mut(&mut canvas).unwrap();
         }
         assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
 
@@ -1254,7 +1247,7 @@ mod test {
         };
         {
             let mut vsplit = VSplit::default().split(&mut mutable);
-            let _ = vsplit.draw_mut(&mut canvas).unwrap();
+            vsplit.draw_mut(&mut canvas).unwrap();
         }
         assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
 
@@ -1262,13 +1255,13 @@ mod test {
             called: Mutex::new(Called::No),
         };
         let hsplit = HSplit::default().split(&immutable);
-        let _ = hsplit.draw(&mut canvas).unwrap();
+        hsplit.draw(&mut canvas).unwrap();
         assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
         let immutable = Drawn {
             called: Mutex::new(Called::No),
         };
         let vsplit = VSplit::default().split(&immutable);
-        let _ = vsplit.draw(&mut canvas).unwrap();
+        vsplit.draw(&mut canvas).unwrap();
         assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
     }
 }

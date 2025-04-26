@@ -12,12 +12,13 @@ license = "MIT"
 edition = "2018"
 
 [dependencies]
-lazy_static = { workspace = true }
-nix = { workspace = true, default-features = false, features = ["fs", "poll", "signal", "term"] }
 bitflags = { workspace = true }
+common = { path = "../common/" }
+lazy_static = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true, default-features = false, features = ["fs", "poll", "signal", "term"] }
 term = { workspace = true }
 unicode-width = { workspace = true }
-log = { workspace = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }

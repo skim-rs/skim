@@ -4,7 +4,7 @@ members = [
   "skim",
   "xtask",
   "tuikit"
-]
+, "common"]
 resolver = "2"
 default-members = ["skim"]
 

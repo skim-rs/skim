@@ -15,7 +15,7 @@ struct TermSize {
 pub fn terminal_size(fd: c_int) -> io::Result<(usize, usize)> {
     unsafe {
         let mut size: TermSize = mem::zeroed();
-        cvt(ioctl(fd, TIOCGWINSZ.into(), &mut size as *mut _))?;
+        cvt(ioctl(fd, TIOCGWINSZ, &mut size as *mut _))?;
         Ok((size.col as usize, size.row as usize))
     }
 }

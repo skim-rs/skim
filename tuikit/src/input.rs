@@ -95,7 +95,7 @@ impl KeyBoard {
         let mut reader_buf = [0; 1];
 
         // clear interrupt signal
-        while let Ok(_) = self.sig_rx.read(&mut reader_buf) {}
+        while self.sig_rx.read(&mut reader_buf).is_ok() {}
 
         wait_until_ready(self.file.as_fd(), Some(self.sig_rx.as_fd()), timeout)?; // wait timeout
 
@@ -105,7 +105,7 @@ impl KeyBoard {
 
     fn read_unread_bytes(&mut self) {
         let mut reader_buf = [0; 1];
-        while let Ok(_) = self.file.read(&mut reader_buf) {
+        while self.file.read(&mut reader_buf).is_ok() {
             self.byte_buf.push(reader_buf[0]);
         }
     }
@@ -137,7 +137,7 @@ impl KeyBoard {
         }
 
         trace!("get_chars: buf: {:?}", self.byte_buf);
-        let bytes = std::mem::replace(&mut self.byte_buf, Vec::new());
+        let bytes = std::mem::take(&mut self.byte_buf);
         match String::from_utf8(bytes) {
             Ok(string) => {
                 let ret = string.chars().next().expect("failed to get next char from input");
@@ -217,7 +217,7 @@ impl KeyBoard {
                     unreachable!();
                 }
             }
-            _ => return next_key,
+            _ => next_key,
         }
     }
 
@@ -299,7 +299,7 @@ impl KeyBoard {
                     Ok(Right) => Ok(AltRight),
                     Ok(PageUp) => Ok(AltPageUp),
                     Ok(PageDown) => Ok(AltPageDown),
-                    _ => Err(TuikitError::UnknownSequence(format!("ESC ESC [ ..."))),
+                    _ => Err(TuikitError::UnknownSequence("ESC ESC [ ...".to_string())),
                 }
             }
             '\u{00}' => Ok(CtrlAlt(' ')),
@@ -394,7 +394,9 @@ impl KeyBoard {
                 // ESC [ < Cb ; Cx ; Cy ; (M or m)
                 self.read_unread_bytes();
                 if !self.byte_buf.contains(&b'm') && !self.byte_buf.contains(&b'M') {
-                    return Err(TuikitError::UnknownSequence(format!("ESC [ < (not ending with m/M)")));
+                    return Err(TuikitError::UnknownSequence(
+                        "ESC [ < (not ending with m/M)".to_string(),
+                    ));
                 }
 
                 let mut str_buf = String::new();
@@ -474,7 +476,7 @@ impl KeyBoard {
                 b'6' => Ok(PageDown),   // knp
                 _ => Err(TuikitError::UnknownSequence(format!("ESC [ {} ~", seq2))),
             }
-        } else if seq3 >= b'0' && seq3 <= b'9' {
+        } else if seq3.is_ascii_digit() {
             let mut str_buf = String::new();
             str_buf.push(seq2 as char);
             str_buf.push(seq3 as char);
@@ -520,7 +522,7 @@ impl KeyBoard {
             }
         } else if seq3 == b';' {
             let seq4 = self.next_byte_timeout(KEY_WAIT)?;
-            if seq4 >= b'0' && seq4 <= b'9' {
+            if seq4.is_ascii_digit() {
                 let seq5 = self.next_byte_timeout(KEY_WAIT)?;
                 if seq2 == b'1' {
                     match (seq4, seq5) {

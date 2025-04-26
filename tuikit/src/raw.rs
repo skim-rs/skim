@@ -13,11 +13,9 @@
 //! use tuikit::raw::IntoRawMode;
 //! use std::io::{Write, stdout};
 //!
-//! fn main() {
-//!     let mut stdout = stdout().into_raw_mode().unwrap();
+//! let mut stdout = stdout().into_raw_mode().unwrap();
 //!
-//!     write!(stdout, "Hey there.").unwrap();
-//! }
+//! write!(stdout, "Hey there.").unwrap();
 //! ```
 
 use std::io::{self, Write};
@@ -78,13 +76,13 @@ impl<W: Write + AsFd + AsRawFd> Write for RawTerminal<W> {
 
 impl<W: Write + AsFd + AsRawFd> AsFd for RawTerminal<W> {
     fn as_fd(&self) -> BorrowedFd {
-        return self.output.as_fd();
+        self.output.as_fd()
     }
 }
 
 impl<W: Write + AsFd + AsRawFd> AsRawFd for RawTerminal<W> {
     fn as_raw_fd(&self) -> RawFd {
-        return self.output.as_raw_fd();
+        self.output.as_raw_fd()
     }
 }
 

@@ -20,6 +20,7 @@ use crate::model::Model;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
+pub use common::spinlock;
 pub use tuikit;
 
 mod ansi;
@@ -41,7 +42,6 @@ mod previewer;
 mod query;
 pub mod reader;
 mod selection;
-mod spinlock;
 mod theme;
 pub mod tmux;
 mod util;

@@ -1,4 +1,4 @@
-///! A trait defines something that could be drawn
+/// A trait defines something that could be drawn
 use crate::canvas::Canvas;
 
 pub type DrawResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

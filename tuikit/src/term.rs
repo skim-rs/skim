@@ -203,10 +203,8 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     fn get_cursor_pos(&self, keyboard: &mut KeyBoard, output: &mut Output) -> Result<(usize, usize)> {
         output.ask_for_cpr();
 
-        if let Ok(key) = keyboard.next_key_timeout(WAIT_TIMEOUT) {
-            if let Key::CursorPos(row, col) = key {
-                return Ok((row as usize, col as usize));
-            }
+        if let Ok(Key::CursorPos(row, col)) = keyboard.next_key_timeout(WAIT_TIMEOUT) {
+            return Ok((row as usize, col as usize));
         }
 
         Ok((0, 0))
@@ -264,7 +262,9 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
 
         // wait for the components to stop
         // i.e. key_listener & size_change_listener
-        self.keyboard_handler.lock().take().map(|h| h.interrupt());
+        if let Some(h) = self.keyboard_handler.lock().take() {
+            h.interrupt()
+        }
         unregister_sigwinch(self.resize_signal_id.load(Ordering::Relaxed)).map(|tx| tx.send(()));
 
         termlock.pause(exiting)?;
@@ -313,7 +313,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
             components_to_stop.fetch_add(1, Ordering::SeqCst);
             debug!("size change listener started");
             loop {
-                if let Ok(_) = sigwinch_rx.recv() {
+                if sigwinch_rx.recv().is_ok() {
                     let event_tx = event_tx_clone.lock();
                     let _ = event_tx.send(Event::Resize { width: 0, height: 0 });
                 } else {
@@ -413,7 +413,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
         event_rx
             .recv()
             .map(|ev| self.filter_event(ev))
-            .map_err(|err| TuikitError::ChannelReceiveError(err))
+            .map_err(TuikitError::ChannelReceiveError)
     }
 
     /// An interface to inject event to the terminal's event queue
@@ -435,7 +435,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     pub fn term_size(&self) -> Result<(usize, usize)> {
         self.ensure_not_stopped()?;
         let termlock = self.term_lock.lock();
-        Ok(termlock.term_size()?)
+        termlock.term_size()
     }
 
     /// Clear internal buffer
@@ -501,17 +501,17 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     }
 
     pub fn draw(&self, draw: &dyn Draw) -> Result<()> {
-        let mut canvas = TermCanvas { term: &self };
-        draw.draw(&mut canvas).map_err(|err| TuikitError::DrawError(err))
+        let mut canvas = TermCanvas { term: self };
+        draw.draw(&mut canvas).map_err(TuikitError::DrawError)
     }
 
     pub fn draw_mut(&self, draw: &mut dyn Draw) -> Result<()> {
-        let mut canvas = TermCanvas { term: &self };
-        draw.draw_mut(&mut canvas).map_err(|err| TuikitError::DrawError(err))
+        let mut canvas = TermCanvas { term: self };
+        draw.draw_mut(&mut canvas).map_err(TuikitError::DrawError)
     }
 }
 
-impl<'a, UserEvent: Send + 'static> Drop for Term<UserEvent> {
+impl<UserEvent: Send + 'static> Drop for Term<UserEvent> {
     fn drop(&mut self) {
         let _ = self.pause_internal(true);
     }
@@ -521,7 +521,7 @@ pub struct TermCanvas<'a, UserEvent: Send + 'static> {
     term: &'a Term<UserEvent>,
 }
 
-impl<'a, UserEvent: Send + 'static> Canvas for TermCanvas<'a, UserEvent> {
+impl<UserEvent: Send + 'static> Canvas for TermCanvas<'_, UserEvent> {
     fn size(&self) -> Result<(usize, usize)> {
         self.term.term_size()
     }
@@ -644,9 +644,9 @@ impl TermLock {
         }
 
         // clear the screen
-        let _ = output.cursor_goto(self.cursor_row, 0);
+        output.cursor_goto(self.cursor_row, 0);
         if self.clear_on_start {
-            let _ = output.erase_down();
+            output.erase_down();
         }
 
         // clear the screen buffer
@@ -680,7 +680,7 @@ impl TermLock {
     /// Pause the terminal
     fn pause(&mut self, exiting: bool) -> Result<()> {
         self.disable_mouse()?;
-        self.output.take().map(|mut output| {
+        if let Some(mut output) = self.output.take() {
             output.show_cursor();
             if self.clear_on_exit || !exiting {
                 // clear drawn contents
@@ -697,7 +697,7 @@ impl TermLock {
                 }
             }
             output.flush();
-        });
+        }
         Ok(())
     }
 
