@@ -45,7 +45,8 @@ __skim_cd__() {
   local cmd dir
   cmd="${SKIM_ALT_C_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
     -o -type d -print 2> /dev/null | cut -b3-"}"
-  dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--height ${SKIM_TMUX_HEIGHT:-40%} --reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" $(__skimcmd) --no-multi) && printf 'cd %q' "$dir"
+  dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--height ${SKIM_TMUX_HEIGHT:-40%} --reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" $(__skimcmd) --no-multi)
+  printf 'cd %q' "$dir"
 }
 
 __skim_history__() {
@@ -55,6 +56,7 @@ __skim_history__() {
       last_hist=$(HISTTIMEFORMAT='' builtin history 1) perl -n -l0 -e 'BEGIN { getc; $/ = "\n\t"; $HISTCMD = $ENV{last_hist} + 1 } s/^[ *]//; print $HISTCMD - $. . "\t$_" if !$seen{$_}++' |
       SKIM_DEFAULT_OPTIONS="--height ${SKIM_TMUX_HEIGHT:-40%} $SKIM_DEFAULT_OPTIONS -n2..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0" $(__skimcmd) --query "$READLINE_LINE"
   ) || return
+  echo -e "\033[0m"
   READLINE_LINE=${output#*$'\t'}
   if [ -z "$READLINE_POINT" ]; then
     echo "$READLINE_LINE"
@@ -245,6 +247,7 @@ _skim_complete() {
       COMPREPLY=("$cur")
     fi
     printf '\e[5n'
+    echo -e "\033[0m"
     return 0
   else
     _skim_handle_dynamic_completion "$cmd" "${rest[@]}"
