@@ -242,22 +242,11 @@ impl<'a, Message> Draw for HSplit<'a, Message> {
 
 impl<'a, Message> Widget<Message> for HSplit<'a, Message> {
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
-        let has_width_hint = self
-            .splits
-            .iter()
-            .any(|split| split.size_hint().0.is_some());
-        let has_height_hint = self
-            .splits
-            .iter()
-            .any(|split| split.size_hint().1.is_some());
+        let has_width_hint = self.splits.iter().any(|split| split.size_hint().0.is_some());
+        let has_height_hint = self.splits.iter().any(|split| split.size_hint().1.is_some());
 
         let width = if has_width_hint {
-            Some(
-                self.splits
-                    .iter()
-                    .map(|split| split.size_hint().0.unwrap_or(0))
-                    .sum(),
-            )
+            Some(self.splits.iter().map(|split| split.size_hint().0.unwrap_or(0)).sum())
         } else {
             None
         };
@@ -280,9 +269,7 @@ impl<'a, Message> Widget<Message> for HSplit<'a, Message> {
     fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
         // should collect events from every children
         let target_widths = self.retrieve_split_info(rect.width);
-        let Rectangle {
-            top, width, height, ..
-        } = rect;
+        let Rectangle { top, width, height, .. } = rect;
         let mut messages = vec![];
 
         // iterate over the splits
@@ -310,9 +297,7 @@ impl<'a, Message> Widget<Message> for HSplit<'a, Message> {
     fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
         // should collect events from every children
         let target_widths = self.retrieve_split_info(rect.width);
-        let Rectangle {
-            top, width, height, ..
-        } = rect;
+        let Rectangle { top, width, height, .. } = rect;
         let mut messages = vec![];
 
         // iterate over the splits
@@ -444,14 +429,8 @@ impl<'a, Message> Draw for VSplit<'a, Message> {
 
 impl<'a, Message> Widget<Message> for VSplit<'a, Message> {
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
-        let has_width_hint = self
-            .splits
-            .iter()
-            .any(|split| split.size_hint().0.is_some());
-        let has_height_hint = self
-            .splits
-            .iter()
-            .any(|split| split.size_hint().1.is_some());
+        let has_width_hint = self.splits.iter().any(|split| split.size_hint().0.is_some());
+        let has_height_hint = self.splits.iter().any(|split| split.size_hint().1.is_some());
 
         let width = if has_width_hint {
             Some(
@@ -466,12 +445,7 @@ impl<'a, Message> Widget<Message> for VSplit<'a, Message> {
         };
 
         let height = if has_height_hint {
-            Some(
-                self.splits
-                    .iter()
-                    .map(|split| split.size_hint().1.unwrap_or(0))
-                    .sum(),
-            )
+            Some(self.splits.iter().map(|split| split.size_hint().1.unwrap_or(0)).sum())
         } else {
             None
         };
@@ -483,10 +457,7 @@ impl<'a, Message> Widget<Message> for VSplit<'a, Message> {
         // should collect events from every children
         let target_heights = self.retrieve_split_info(rect.height);
         let Rectangle {
-            left,
-            width,
-            height,
-            ..
+            left, width, height, ..
         } = rect;
         let mut messages = vec![];
 
@@ -515,10 +486,7 @@ impl<'a, Message> Widget<Message> for VSplit<'a, Message> {
         // should collect events from every children
         let target_heights = self.retrieve_split_info(rect.height);
         let Rectangle {
-            left,
-            width,
-            height,
-            ..
+            left, width, height, ..
         } = rect;
         let mut messages = vec![];
 
@@ -658,10 +626,7 @@ mod test {
 
     impl Default for SingleWindow {
         fn default() -> Self {
-            Self {
-                width: 0,
-                height: 0,
-            }
+            Self { width: 0, height: 0 }
         }
     }
 
@@ -676,10 +641,7 @@ mod test {
 
     #[test]
     fn splits_should_create_on_empty_items() {
-        let mut canvas = TestCanvas {
-            width: 80,
-            height: 60,
-        };
+        let mut canvas = TestCanvas { width: 80, height: 60 };
         let hsplit = HSplit::<()>::default();
         let vsplit = VSplit::<()>::default();
         let _ = hsplit.draw(&mut canvas);
@@ -1276,10 +1238,7 @@ mod test {
 
     #[test]
     fn mutable_widget() {
-        let mut canvas = TestCanvas {
-            width: 80,
-            height: 80,
-        };
+        let mut canvas = TestCanvas { width: 80, height: 80 };
 
         let mut mutable = Drawn {
             called: Mutex::new(Called::No),

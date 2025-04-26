@@ -290,11 +290,7 @@ impl<'a, Message> Win<'a, Message> {
             max(top + height, 1) - 1
         };
 
-        let height_needed = if self.title_on_top && self.border_bottom {
-            2
-        } else {
-            1
-        };
+        let height_needed = if self.title_on_top && self.border_bottom { 2 } else { 1 };
         if height_needed > height {
             // not enough space, don't draw at all
             return Rectangle {
@@ -339,10 +335,10 @@ impl<'a, Message> Win<'a, Message> {
         } = rect;
 
         // title and right prompt will be displayed on top
-        let border_top = self.border_top
-            || (self.title_on_top && (self.title.is_some() || self.right_prompt.is_some()));
-        let border_bottom = self.border_bottom
-            || (!self.title_on_top && (self.title.is_some() || self.right_prompt.is_some()));
+        let border_top =
+            self.border_top || (self.title_on_top && (self.title.is_some() || self.right_prompt.is_some()));
+        let border_bottom =
+            self.border_bottom || (!self.title_on_top && (self.title.is_some() || self.right_prompt.is_some()));
 
         if border_top || border_bottom {
             if (height < 1) || (border_top && border_bottom && height < 2) {
@@ -435,8 +431,7 @@ impl<'a, Message> Win<'a, Message> {
         }
 
         if self.border_bottom {
-            let _ =
-                canvas.print_with_attr(bottom, left, &"─".repeat(width), self.border_bottom_attr);
+            let _ = canvas.print_with_attr(bottom, left, &"─".repeat(width), self.border_bottom_attr);
         }
 
         if self.border_left {
@@ -454,27 +449,15 @@ impl<'a, Message> Win<'a, Message> {
         // draw 4 corners if necessary
 
         if self.border_top && self.border_left {
-            let _ = canvas.put_cell(
-                top,
-                left,
-                Cell::default().ch('┌').attribute(self.border_top_attr),
-            );
+            let _ = canvas.put_cell(top, left, Cell::default().ch('┌').attribute(self.border_top_attr));
         }
 
         if self.border_top && self.border_right {
-            let _ = canvas.put_cell(
-                top,
-                right,
-                Cell::default().ch('┐').attribute(self.border_top_attr),
-            );
+            let _ = canvas.put_cell(top, right, Cell::default().ch('┐').attribute(self.border_top_attr));
         }
 
         if self.border_bottom && self.border_left {
-            let _ = canvas.put_cell(
-                bottom,
-                left,
-                Cell::default().ch('└').attribute(self.border_bottom_attr),
-            );
+            let _ = canvas.put_cell(bottom, left, Cell::default().ch('└').attribute(self.border_bottom_attr));
         }
 
         if self.border_bottom && self.border_right {
@@ -490,11 +473,7 @@ impl<'a, Message> Win<'a, Message> {
 
     fn draw_title_and_prompt(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let (width, height) = canvas.size()?;
-        let row = if self.title_on_top {
-            0
-        } else {
-            max(height, 1) - 1
-        };
+        let row = if self.title_on_top { 0 } else { max(height, 1) - 1 };
 
         if self.right_prompt.is_some() {
             let prompt = self.right_prompt.as_ref().unwrap();

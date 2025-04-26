@@ -6,7 +6,6 @@ pub use crate::event::Event;
 pub use crate::key::*;
 pub use crate::term::{Term, TermHeight, TermOptions};
 pub use crate::widget::{
-    AlignSelf, HSplit, HorizontalAlign, Rectangle, Size, Split, Stack, VSplit, VerticalAlign,
-    Widget, Win,
+    AlignSelf, HSplit, HorizontalAlign, Rectangle, Size, Split, Stack, VSplit, VerticalAlign, Widget, Win,
 };
 pub use crate::Result;

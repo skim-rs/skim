@@ -3,8 +3,7 @@ use bitflags::_core::result::Result::Ok;
 use tuikit::prelude::*;
 
 fn main() {
-    let term: Term<String> =
-        Term::with_height(TermHeight::Percent(30)).expect("term creation error");
+    let term: Term<String> = Term::with_height(TermHeight::Percent(30)).expect("term creation error");
     let _ = term.print(0, 0, "Press 'q' or 'Ctrl-c' to quit!");
     while let Ok(ev) = term.poll_event() {
         match ev {

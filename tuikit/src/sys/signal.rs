@@ -43,11 +43,7 @@ fn listen_sigwinch() {
     let _ = pthread_sigmask(SigmaskHow::SIG_BLOCK, Some(&sigset), None);
 
     // SIGWINCH is ignored by mac by default, thus we need to register an empty handler
-    let action = SigAction::new(
-        SigHandler::Handler(handle_sigwiwnch),
-        SaFlags::empty(),
-        SigSet::empty(),
-    );
+    let action = SigAction::new(SigHandler::Handler(handle_sigwiwnch), SaFlags::empty(), SigSet::empty());
 
     unsafe {
         let _ = sigaction(Signal::SIGWINCH, &action);

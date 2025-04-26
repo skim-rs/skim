@@ -224,10 +224,7 @@ impl Output {
 
     /// Move cursor position.
     pub fn cursor_goto(&mut self, row: usize, column: usize) {
-        self.write_cap_with_params(
-            "cup",
-            &[Param::Number(row as i32), Param::Number(column as i32)],
-        );
+        self.write_cap_with_params("cup", &[Param::Number(row as i32), Param::Number(column as i32)]);
     }
 
     /// Move cursor `amount` place up.

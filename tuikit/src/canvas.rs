@@ -18,13 +18,7 @@ pub trait Canvas {
 
     /// just like put_cell, except it accept (char & attr)
     /// return the width of the character/cell
-    fn put_char_with_attr(
-        &mut self,
-        row: usize,
-        col: usize,
-        ch: char,
-        attr: Attr,
-    ) -> Result<usize> {
+    fn put_char_with_attr(&mut self, row: usize, col: usize, ch: char, attr: Attr) -> Result<usize> {
         self.put_cell(row, col, Cell { ch, attr })
     }
 
@@ -32,13 +26,7 @@ pub trait Canvas {
     /// - canvas should NOT wrap to y+1 if the content is too long
     /// - canvas should handle wide characters
     /// return the printed width of the content
-    fn print_with_attr(
-        &mut self,
-        row: usize,
-        col: usize,
-        content: &str,
-        attr: Attr,
-    ) -> Result<usize> {
+    fn print_with_attr(&mut self, row: usize, col: usize, content: &str, attr: Attr) -> Result<usize> {
         let mut cell = Cell {
             attr,
             ..Cell::default()
@@ -76,13 +64,7 @@ pub struct BoundedCanvas<'a> {
 }
 
 impl<'a> BoundedCanvas<'a> {
-    pub fn new(
-        top: usize,
-        left: usize,
-        width: usize,
-        height: usize,
-        canvas: &'a mut dyn Canvas,
-    ) -> Self {
+    pub fn new(top: usize, left: usize, width: usize, height: usize, canvas: &'a mut dyn Canvas) -> Self {
         Self {
             canvas,
             top,

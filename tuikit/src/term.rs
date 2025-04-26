@@ -200,11 +200,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
         }
     }
 
-    fn get_cursor_pos(
-        &self,
-        keyboard: &mut KeyBoard,
-        output: &mut Output,
-    ) -> Result<(usize, usize)> {
+    fn get_cursor_pos(&self, keyboard: &mut KeyBoard, output: &mut Output) -> Result<(usize, usize)> {
         output.ask_for_cpr();
 
         if let Ok(key) = keyboard.next_key_timeout(WAIT_TIMEOUT) {
@@ -226,9 +222,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
         let ttyout = get_tty()?.into_raw_mode()?;
         let mut output = Output::new(Box::new(ttyout))?;
         let mut keyboard = KeyBoard::new_with_tty().raw_mouse(self.raw_mouse);
-        self.keyboard_handler
-            .lock()
-            .replace(keyboard.get_interrupt_handler());
+        self.keyboard_handler.lock().replace(keyboard.get_interrupt_handler());
         let cursor_pos = self.get_cursor_pos(&mut keyboard, &mut output)?;
         termlock.restart(output, cursor_pos)?;
 
@@ -277,10 +271,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
 
         // wait for the components to stop
         while self.components_to_stop.load(Ordering::SeqCst) > 0 {
-            debug!(
-                "pause: components: {}",
-                self.components_to_stop.load(Ordering::SeqCst)
-            );
+            debug!("pause: components: {}", self.components_to_stop.load(Ordering::SeqCst));
             thread::sleep(POLLING_TIMEOUT);
         }
 
@@ -324,10 +315,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
             loop {
                 if let Ok(_) = sigwinch_rx.recv() {
                     let event_tx = event_tx_clone.lock();
-                    let _ = event_tx.send(Event::Resize {
-                        width: 0,
-                        height: 0,
-                    });
+                    let _ = event_tx.send(Event::Resize { width: 0, height: 0 });
                 } else {
                     break;
                 }
@@ -470,13 +458,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     }
 
     /// print `content` starting with position `(row, col)` with `attr`
-    pub fn print_with_attr(
-        &self,
-        row: usize,
-        col: usize,
-        content: &str,
-        attr: impl Into<Attr>,
-    ) -> Result<usize> {
+    pub fn print_with_attr(&self, row: usize, col: usize, content: &str, attr: impl Into<Attr>) -> Result<usize> {
         self.ensure_not_stopped()?;
         let mut termlock = self.term_lock.lock();
         termlock.print_with_attr(row, col, content, attr)
@@ -520,14 +502,12 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
 
     pub fn draw(&self, draw: &dyn Draw) -> Result<()> {
         let mut canvas = TermCanvas { term: &self };
-        draw.draw(&mut canvas)
-            .map_err(|err| TuikitError::DrawError(err))
+        draw.draw(&mut canvas).map_err(|err| TuikitError::DrawError(err))
     }
 
     pub fn draw_mut(&self, draw: &mut dyn Draw) -> Result<()> {
         let mut canvas = TermCanvas { term: &self };
-        draw.draw_mut(&mut canvas)
-            .map_err(|err| TuikitError::DrawError(err))
+        draw.draw_mut(&mut canvas).map_err(|err| TuikitError::DrawError(err))
     }
 }
 
@@ -554,13 +534,7 @@ impl<'a, UserEvent: Send + 'static> Canvas for TermCanvas<'a, UserEvent> {
         self.term.put_cell(row, col, cell)
     }
 
-    fn print_with_attr(
-        &mut self,
-        row: usize,
-        col: usize,
-        content: &str,
-        attr: Attr,
-    ) -> Result<usize> {
+    fn print_with_attr(&mut self, row: usize, col: usize, content: &str, attr: Attr) -> Result<usize> {
         self.term.print_with_attr(row, col, content, attr)
     }
 
@@ -628,10 +602,7 @@ impl TermLock {
 
     /// Present the content to the terminal
     pub fn present(&mut self) -> Result<()> {
-        let output = self
-            .output
-            .as_mut()
-            .ok_or(TuikitError::TerminalNotStarted)?;
+        let output = self.output.as_mut().ok_or(TuikitError::TerminalNotStarted)?;
         let mut commands = self.screen.present();
 
         let cursor_row = self.cursor_row;
@@ -654,23 +625,14 @@ impl TermLock {
 
     /// Resize the internal buffer to according to new terminal size
     pub fn on_resize(&mut self) -> Result<()> {
-        let output = self
-            .output
-            .as_mut()
-            .ok_or(TuikitError::TerminalNotStarted)?;
-        let (screen_width, screen_height) = output
-            .terminal_size()
-            .expect("term:restart get terminal size failed");
+        let output = self.output.as_mut().ok_or(TuikitError::TerminalNotStarted)?;
+        let (screen_width, screen_height) = output.terminal_size().expect("term:restart get terminal size failed");
         self.screen_height = screen_height;
         self.screen_width = screen_width;
 
         let width = screen_width;
-        let height = Self::calc_preferred_height(
-            &self.min_height,
-            &self.max_height,
-            &self.prefer_height,
-            screen_height,
-        );
+        let height =
+            Self::calc_preferred_height(&self.min_height, &self.max_height, &self.prefer_height, screen_height);
 
         // update the cursor position
         if self.cursor_row + height >= screen_height {
@@ -743,22 +705,15 @@ impl TermLock {
     /// If the prefer height is full screen, it will enter alternate screen
     /// otherwise it will ensure there are enough lines at the bottom
     fn ensure_height(&mut self, cursor_pos: (usize, usize)) -> Result<()> {
-        let output = self
-            .output
-            .as_mut()
-            .ok_or(TuikitError::TerminalNotStarted)?;
+        let output = self.output.as_mut().ok_or(TuikitError::TerminalNotStarted)?;
 
         // initialize
 
         let (screen_width, screen_height) = output
             .terminal_size()
             .expect("termlock:ensure_height get terminal size failed");
-        let height_to_be = Self::calc_preferred_height(
-            &self.min_height,
-            &self.max_height,
-            &self.prefer_height,
-            screen_height,
-        );
+        let height_to_be =
+            Self::calc_preferred_height(&self.min_height, &self.max_height, &self.prefer_height, screen_height);
 
         self.alternate_screen = false;
         let (mut cursor_row, cursor_col) = cursor_pos;
@@ -831,13 +786,7 @@ impl TermLock {
     }
 
     /// print `content` starting with position `(row, col)`
-    pub fn print_with_attr(
-        &mut self,
-        row: usize,
-        col: usize,
-        content: &str,
-        attr: impl Into<Attr>,
-    ) -> Result<usize> {
+    pub fn print_with_attr(&mut self, row: usize, col: usize, content: &str, attr: impl Into<Attr>) -> Result<usize> {
         self.screen.print_with_attr(row, col, content, attr.into())
     }
 
@@ -869,20 +818,14 @@ impl TermLock {
 
     /// Enable mouse (send ANSI codes to enable mouse)
     fn enable_mouse(&mut self) -> Result<()> {
-        let output = self
-            .output
-            .as_mut()
-            .ok_or(TuikitError::TerminalNotStarted)?;
+        let output = self.output.as_mut().ok_or(TuikitError::TerminalNotStarted)?;
         output.enable_mouse_support();
         Ok(())
     }
 
     /// Disable mouse (send ANSI codes to disable mouse)
     fn disable_mouse(&mut self) -> Result<()> {
-        let output = self
-            .output
-            .as_mut()
-            .ok_or(TuikitError::TerminalNotStarted)?;
+        let output = self.output.as_mut().ok_or(TuikitError::TerminalNotStarted)?;
         output.disable_mouse_support();
         Ok(())
     }
