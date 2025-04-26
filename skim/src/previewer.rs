@@ -23,9 +23,10 @@ const TAB_STOP: usize = 8;
 const DELIMITER_STR: &str = r"[\t\n ]+";
 
 /// A wrapper around a thread-safe (Arc) to a function
+pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static;
 #[derive(Clone)]
 pub struct PreviewCallback {
-    inner: Arc<dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<AnsiString<'static>> + Send + Sync + 'static>,
+    inner: Arc<PreviewCallbackFn>,
 }
 
 impl<F> From<F> for PreviewCallback
