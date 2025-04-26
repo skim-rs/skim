@@ -51,6 +51,7 @@ skim provides a single executable: `sk`. Anywhere you would want to use
       + [How does it work?](#how-does-it-work-1)
    * [Fields support](#fields-support)
    * [Use as a library](#use-as-a-library)
+   * [Tuikit](#tuikit)
 - [FAQ](#faq)
    * [How to ignore files?](#how-to-ignore-files)
    * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
@@ -444,6 +445,12 @@ Plus, `SkimItemReader` is a helper to convert a `BufRead` into
 so that you could deal with strings or files easily.
 
 Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
+
+## Tuikit
+
+`tuikit` is the TUI framework used in `skim`. It is available from the library as `skim::tuikit`.
+
+Check [the README](./tuikit/README.md) for more details.
 
 # FAQ
 
