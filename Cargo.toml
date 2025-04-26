@@ -1,10 +1,43 @@
 [workspace]
-members = [ "e2e",
+members = [
+  "e2e",
   "skim",
-  "xtask"
+  "xtask",
+  "tuikit"
 ]
 resolver = "2"
 default-members = ["skim"]
 
 [profile.release]
 lto = true
+
+[workspace.dependencies]
+beef = "0.5.2"
+bitflags = "1.3.2"
+chrono = "0.4.40"
+clap = "4.5.37"
+clap_complete = "4.5.47"
+clap_complete_fig = "4.5.2"
+clap_complete_nushell = "4.5.5"
+clap_mangen = "0.2.26"
+crossbeam = "0.8.2"
+defer-drop = "1.3.0"
+derive_builder = "0.20.2"
+env_logger = "0.11.6"
+fuzzy-matcher = "0.3.7"
+indexmap = "2.8.0"
+lazy_static = "1.2.0"
+log = "0.4.27"
+nix = { version = "0.29.0", default-features = false, features = ["fs"]}
+rand = "0.9.0"
+rayon = "1.5.3"
+regex = "1.6.0"
+shell-quote = "0.7.2"
+shlex = "1.1.0"
+tempfile = "3.19.1"
+term = "0.7"
+time = "0.3.41"
+timer = "0.2.0"
+unicode-width = "0.2.0"
+vte = "0.15.0"
+which = "7.0.2"
