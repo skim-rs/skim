@@ -105,7 +105,9 @@ fn get_ranges_by_delimiter(delimiter: &Regex, text: &str) -> Vec<(usize, usize)>
     let mut ranges = Vec::new();
     let mut last = 0;
     for mat in delimiter.find_iter(text) {
-        ranges.push((last, mat.start()));
+        if mat.start() > 0 {
+            ranges.push((last, mat.start()));
+        }
         last = mat.end();
     }
     ranges.push((last, text.len()));
@@ -370,5 +372,79 @@ mod test {
         assert_eq!(get_string_by_field(&re, text, &Both(2, 3)), Some("b,c"));
         assert_eq!(get_string_by_field(&re, text, &Both(3, 3)), Some("c"));
         assert_eq!(get_string_by_field(&re, text, &Both(4, 3)), None);
+    }
+    #[test]
+    fn test_parse_transform_fields_with_default_delimiter() {
+        // delimiter is AWK style
+        let re = Regex::new(r"[\t\n ]+").unwrap();
+
+        assert_eq!(
+            super::parse_transform_fields(&re, &"A B C D E F", &vec![Single(2), Single(4), Single(-1), Single(-7)]),
+            "B D F"
+        );
+
+        // AWK style delimiter trims the beginning white spaces
+        assert_eq!(
+            super::parse_transform_fields(
+                &re,
+                &"  A B\tC  D\t\tE   F",
+                &vec![Single(2), Single(4), Single(-1), Single(-7)]
+            ),
+            "B\tD\t\tF"
+        );
+    }
+    #[test]
+    fn test_parse_matching_fields_with_default_delimiter() {
+        // delimiter is AWK style
+        let re = Regex::new(r"[\t\n ]+").unwrap();
+
+        // bytes:3  3  3 3
+        //       中,华,人,民,E,F",
+
+        assert_eq!(
+            super::parse_matching_fields(
+                &re,
+                &"中 华 人 民 E F",
+                &vec![Single(2), Single(4), Single(-1), Single(-7)]
+            ),
+            vec![(4, 8), (12, 16), (18, 19)]
+        );
+
+        // AWK style delimiter trims the beginning white spaces
+        assert_eq!(
+            super::parse_matching_fields(
+                &re,
+                &" 中 华 人 民 E F",
+                &vec![Single(2), Single(4), Single(-1), Single(-7)]
+            ),
+            vec![(5, 9), (13, 17), (19, 20)]
+        );
+
+        assert_eq!(
+            super::parse_matching_fields(
+                &re,
+                &"  中  华  人  民 E  F",
+                &vec![Single(2), Single(4), Single(-1), Single(-7)]
+            ),
+            vec![(7, 12), (17, 21), (24, 25)]
+        );
+    }
+    #[test]
+    fn test_get_string_by_field_with_default_delimiter() {
+        // delimiter is AWK style
+        let re = Regex::new(r"[\t\n ]+").unwrap();
+
+        let text = "a  b\tc";
+        assert_eq!(get_string_by_field(&re, &text, &Single(0)), None);
+        assert_eq!(get_string_by_field(&re, &text, &Single(1)), Some("a"));
+        assert_eq!(get_string_by_field(&re, &text, &Single(2)), Some("b"));
+        assert_eq!(get_string_by_field(&re, &text, &Single(3)), Some("c"));
+
+        // AWK style delimiter trims the beginning white spaces
+        let text2 = "  a  b\tc";
+        assert_eq!(get_string_by_field(&re, &text2, &Single(0)), None);
+        assert_eq!(get_string_by_field(&re, &text2, &Single(1)), Some("a"));
+        assert_eq!(get_string_by_field(&re, &text2, &Single(2)), Some("b"));
+        assert_eq!(get_string_by_field(&re, &text2, &Single(3)), Some("c"));
     }
 }
