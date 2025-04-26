@@ -1,9 +1,3 @@
-#     ____      ____
-#    / __/___  / __/
-#   / /_/_  / / /_
-#  / __/ / /_/ __/
-# /_/   /___/_/ key-bindings.bash
-#
 # - $SKIM_TMUX_OPTS
 # - $SKIM_CTRL_T_COMMAND
 # - $SKIM_CTRL_T_OPTS

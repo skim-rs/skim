@@ -70,6 +70,16 @@ fn compgen() -> Result<(), DynError> {
     );
     std::fs::write(completions_dir.join("completion.zsh"), buffer)?;
 
+    // Fish
+    let mut buffer: Vec<u8> = Default::default();
+    clap_complete::generate(
+        clap_complete::Shell::Fish,
+        &mut SkimOptions::command(),
+        "sk",
+        &mut buffer,
+    );
+    std::fs::write(completions_dir.join("completion.fish"), buffer)?;
+
     Ok(())
 }
 

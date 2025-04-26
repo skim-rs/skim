@@ -1,18 +1,12 @@
 #!/bin/fish
-# completion.fish
-# copied and modified from https://github.com/junegunn/fzf/blob/master/shell/key-bindings.fish
-#     ____      ____
-#    / __/___  / __/
-#   / /_/_  / / /_
-#  / __/ / /_/ __/
-# /_/   /___/_/ key-bindings.fish
-#
 # - $SKIM_TMUX_OPTS
 # - $SKIM_CTRL_T_COMMAND
 # - $SKIM_CTRL_T_OPTS
 # - $SKIM_CTRL_R_OPTS
 # - $SKIM_ALT_C_COMMAND
 # - $SKIM_ALT_C_OPTS
+# - $SKIM_COMPLETION_TRIGGER (default: '**')
+# - $SKIM_COMPLETION_OPTS    (default: empty)
 
 # Key bindings
 # ------------
@@ -160,5 +154,4 @@ function skim_key_bindings
 
     echo $dir
   end
-
 end
