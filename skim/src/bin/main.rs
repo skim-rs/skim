@@ -229,12 +229,13 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     });
 
     let mut num_matched = 0;
+    let mut stdout_lock = std::io::stdout().lock();
     stream_of_item
         .into_iter()
         .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
         .for_each(|(item, _match_result)| {
             num_matched += 1;
-            print!("{}{}", item.output(), bin_option.output_ending);
+            let _ = write!(stdout_lock, "{}{}", item.output(), bin_option.output_ending);
         });
 
     i32::from(num_matched == 0)
