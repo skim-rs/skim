@@ -792,7 +792,8 @@ pub struct SkimOptions {
     /// Run in a tmux popup
     ///
     /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
-    ///
+    /// Note: env vars are only passed to the tmux command if they are either `PATH` or prefixed with
+    /// `RUST` or `SKIM`
     /// Depending on the direction, the order and behavior of the sizes varies:
     ///
     /// * center: (width, height) or (size, size) if only one is provided
