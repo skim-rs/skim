@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 0.16.1" 
+.TH sk 1  "sk 0.16.2" 
 .SH NAME
 sk \- sk \- fuzzy finder in Rust
 .SH SYNOPSIS
@@ -538,9 +538,7 @@ The  first N lines of the input are treated as the sticky header. When \-\-with\
 \fB\-\-tmux\fR=\fITMUX\fR
 Run in a tmux popup
 
-Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
-
-Depending on the direction, the order and behavior of the sizes varies:
+Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]] Note: env vars are only passed to the tmux command if they are either PATH or prefixed with RUST or SKIM Depending on the direction, the order and behavior of the sizes varies:
 
 \- center: (width, height) or (size, size) if only one is provided
 
@@ -685,4 +683,4 @@ Pre\-select the items read from this file
 \fB\-f\fR, \fB\-\-filter\fR=\fIFILTER\fR
 Query for filter mode
 .SH VERSION
-v0.16.1
+v0.16.2
