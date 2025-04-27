@@ -26,6 +26,7 @@ If applicable, add screenshots to help explain your problem.
 **Environment (please complete the following information):**
  - OS (`uname -a`): 
  - `skim` version (`sk --version`): 
+- Shell and version: 
  - Variables (`env | grep '^SKIM'`): 
 
 **Additional context**
