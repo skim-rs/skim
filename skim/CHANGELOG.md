@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/skim-rs/skim/compare/v0.16.2...v0.17.0) (2025-04-27)
+
+
+### Features
+
+* **tui:** add tuikit as workspace member and update ([#741](https://github.com/skim-rs/skim/issues/741)) ([73fd406](https://github.com/skim-rs/skim/commit/73fd4068274bda836b71bffaf5d41d4746b29a0d))
+
 ## [0.16.2](https://github.com/skim-rs/skim/compare/v0.16.1...v0.16.2) (2025-04-26)
 
 ### Bug Fixes
