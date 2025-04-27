@@ -32,6 +32,7 @@ skim provides a single executable: `sk`. Anywhere you would want to use
    * [As Vim plugin](#as-vim-plugin)
    * [As filter](#as-filter)
    * [As Interactive Interface](#as-interactive-interface)
+   * [Shell Bindings](#shell-bindings)
    * [Key Bindings](#key-bindings)
    * [Search Syntax](#search-syntax)
    * [exit code](#exit-code)
@@ -158,6 +159,18 @@ sk --ansi -i -c 'rg --color=always --line-number "{}"'
 > To achieve fuzzy search, you need to pipe the command output into `sk`, without interactive mode.
 
 ![interactive mode demo](https://cloud.githubusercontent.com/assets/1527040/21603930/655d859a-d1db-11e6-9fec-c25099d30a12.gif)
+
+## Shell Bindings
+
+Bindings for Fish, Bash and Zsh are available in the `shell` directory:
+- `completion.{shell}` contains the completion scripts for `sk` cli usage
+- `key-bindings.{shell}` contains key-binds and shell integrations:
+    - `ctrl-t` to select a file through `sk`
+    - `ctrl-r` to select an history entry through `sk`
+    - `alt-c`  to `cd` into a directory selected through `sk`
+    - (not available in `fish`) `**` to complete file paths, for example `ls **<tab>` will show a `sk` widget to select a folder
+
+To enable them, you need to source the `key-bindings.{shell}` file and enable the completions according to your shell's documentation (usually by placing them in the right directory).
 
 ## Key Bindings
 
