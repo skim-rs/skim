@@ -52,10 +52,6 @@ name = "e2e"
 release = false
 publish = false
 [[package]]
-name = "common"
-release = false
-publish = false
-[[package]]
 name = "xtask"
 release = false
 publish = false
