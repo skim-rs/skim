@@ -1,0 +1,54 @@
+name: release-binaries
+
+permissions:
+  contents: write
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-binaries:
+    name: Build release binaries
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        arch:
+          - x86_64
+          - aarch64
+          - arm
+          - armv7
+        os:
+          - unknown-linux-musl
+          - apple-darwin
+        exclude:
+          - arch: arm
+            os: apple-darwin
+          - arch: armv7
+            os: apple-darwin
+    runs-on: ${{ contains(matrix.os, 'apple') && 'macos' || 'ubuntu' }}-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Build
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: build
+          target: ${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}
+          args: "--release --locked"
+      - name: Create archive
+        env:
+          BIN_NAME: "sk"
+          ARCHIVE_NAME: "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz"
+        run: |
+          tar -C target/*/release/ -czvf "$ARCHIVE_NAME" "$BIN_NAME"
+      - name: Upload binary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCHIVE_NAME: "skim-${{ matrix.arch }}-${{ matrix.os }}${{ contains(matrix.arch, 'arm') && 'eabi' || '' }}.tgz"
+        run: |
+          TAG=$(echo "$GITHUB_REF" | sed 's#refs/tags/##')
+          gh release upload "$TAG" "$ARCHIVE_NAME"
