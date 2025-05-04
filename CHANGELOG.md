@@ -12,7 +12,6 @@
 ### Contributors
 
 * @LoricAndre
-# Changelog
 
 ## [0.16.2](https://github.com/skim-rs/skim/compare/v0.16.1...v0.16.2) (2025-04-26)
 
