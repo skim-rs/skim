@@ -2,9 +2,10 @@
 members = [
   "e2e",
   "skim",
-  "xtask",
-  "tuikit"
-, "common"]
+  "skim-tuikit",
+  "skim-common",
+  "xtask"
+]
 resolver = "2"
 default-members = ["skim"]
 
