@@ -8,9 +8,9 @@ use crate::theme::DEFAULT_THEME;
 use crate::util::{clear_canvas, print_item, str_lines, LinePrinter};
 use crate::{DisplayContext, Matches, SkimOptions};
 use defer_drop::DeferDrop;
+use skim_tuikit::prelude::*;
 use std::cmp::max;
 use std::sync::Arc;
-use tuikit::prelude::*;
 
 pub struct Header {
     header: Vec<AnsiString<'static>>,

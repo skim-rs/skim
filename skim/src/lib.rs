@@ -10,7 +10,7 @@ use std::thread;
 
 use clap::ValueEnum;
 use crossbeam::channel::{Receiver, Sender};
-use tuikit::prelude::{Event as TermEvent, *};
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 pub use crate::ansi::AnsiString;
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
@@ -20,8 +20,8 @@ use crate::model::Model;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
-pub use common::spinlock;
-pub use tuikit;
+pub use skim_common::spinlock;
+pub use skim_tuikit;
 
 mod ansi;
 mod engine;

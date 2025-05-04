@@ -2,7 +2,7 @@
 use std::sync::LazyLock;
 
 use crate::options::SkimOptions;
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 
 pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 

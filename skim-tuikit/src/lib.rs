@@ -69,7 +69,7 @@ pub mod output;
 pub mod prelude;
 pub mod raw;
 pub mod screen;
-use common::spinlock;
+use skim_common::spinlock;
 mod sys;
 pub mod term;
 pub mod widget;

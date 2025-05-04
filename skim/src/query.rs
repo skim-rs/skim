@@ -1,7 +1,7 @@
 use std::mem;
 use std::sync::Arc;
 
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 use unicode_width::UnicodeWidthStr;
 
 use crate::event::{Event, EventHandler, UpdateScreen};

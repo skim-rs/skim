@@ -1,7 +1,7 @@
+use skim_tuikit::prelude::*;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
-use tuikit::prelude::*;
 
 extern crate env_logger;
 

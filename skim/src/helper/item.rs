@@ -2,8 +2,8 @@ use crate::ansi::ANSIParser;
 use crate::field::{parse_matching_fields, parse_transform_fields, FieldRange};
 use crate::{AnsiString, DisplayContext, Matches, SkimItem};
 use regex::Regex;
+use skim_tuikit::prelude::Attr;
 use std::borrow::Cow;
-use tuikit::prelude::Attr;
 
 //------------------------------------------------------------------------------
 /// An item will store everything that one line input will need to be operated and displayed.

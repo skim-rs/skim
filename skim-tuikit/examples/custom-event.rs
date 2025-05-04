@@ -1,6 +1,6 @@
 use bitflags::_core::result::Result::Ok;
 
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 
 fn main() {
     let term: Term<String> = Term::with_height(TermHeight::Percent(30)).expect("term creation error");

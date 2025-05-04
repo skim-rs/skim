@@ -34,7 +34,7 @@ tuikit = { git = "https://github.com/lotabout/tuikit.git" }
 Here is an example (could also be run by `cargo run --example hello-world`):
 
 ```rust
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 use std::cmp::{min, max};
 
 fn main() {
@@ -78,7 +78,7 @@ fn main() {
 For example:
 
 ```rust
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 
 struct Model(String);
 

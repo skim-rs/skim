@@ -1,4 +1,4 @@
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 
 struct Fit(String);
 

@@ -11,7 +11,7 @@ use std::thread::JoinHandle;
 use derive_builder::Builder;
 use nix::libc;
 use regex::Regex;
-use tuikit::prelude::{Event as TermEvent, *};
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};

@@ -1,7 +1,7 @@
 use crate::event::Event;
 use crate::SkimItem;
+use skim_tuikit::key::Key;
 use std::sync::Arc;
-use tuikit::key::Key;
 
 pub struct SkimOutput {
     /// The final event that makes skim accept/quit.

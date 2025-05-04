@@ -1,7 +1,7 @@
 // All the events that will be used
 
+use skim_tuikit::key::Key;
 use std::sync::mpsc::{Receiver, Sender};
-use tuikit::key::Key;
 
 pub type EventReceiver = Receiver<(Key, Event)>;
 pub type EventSender = Sender<(Key, Event)>;

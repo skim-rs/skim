@@ -10,7 +10,7 @@ use std::{
 
 use nix::{sys::stat, unistd::mkfifo};
 use rand::{distr::Alphanumeric, Rng};
-use tuikit::key::Key;
+use skim_tuikit::key::Key;
 use which::which;
 
 use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};

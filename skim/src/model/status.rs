@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tuikit::attr::{Attr, Effect};
-use tuikit::canvas::Canvas;
-use tuikit::draw::{Draw, DrawResult};
-use tuikit::widget::Widget;
+use skim_tuikit::attr::{Attr, Effect};
+use skim_tuikit::canvas::Canvas;
+use skim_tuikit::draw::{Draw, DrawResult};
+use skim_tuikit::widget::Widget;
 
 use crate::event::Event;
 use crate::theme::ColorTheme;

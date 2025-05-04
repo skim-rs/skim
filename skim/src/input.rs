@@ -2,10 +2,10 @@
 //! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use crate::event::{parse_event, Event};
 use regex::Regex;
+use skim_tuikit::event::Event as TermEvent;
+use skim_tuikit::key::{from_keyname, Key};
 use std::collections::HashMap;
 use std::sync::LazyLock;
-use tuikit::event::Event as TermEvent;
-use tuikit::key::{from_keyname, Key};
 
 pub type ActionChain = Vec<Event>;
 

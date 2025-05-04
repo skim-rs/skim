@@ -1,5 +1,5 @@
+use skim_tuikit::prelude::*;
 use std::cmp::{max, min};
-use tuikit::prelude::*;
 
 fn main() {
     let term: Term<()> = Term::with_height(TermHeight::Percent(30)).unwrap();

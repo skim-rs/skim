@@ -1,5 +1,5 @@
+use skim_tuikit::attr::Color;
 use std::io;
-use tuikit::attr::Color;
 use tuikit::output::Output;
 
 fn main() {

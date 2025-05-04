@@ -16,7 +16,7 @@ use chrono::Duration as TimerDuration;
 use defer_drop::DeferDrop;
 use regex::Regex;
 use timer::{Guard as TimerGuard, Timer};
-use tuikit::prelude::{Event as TermEvent, *};
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::event::{Event, EventHandler, EventReceiver, EventSender};

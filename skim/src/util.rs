@@ -7,7 +7,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use regex::{Captures, Regex};
-use tuikit::prelude::*;
+use skim_tuikit::prelude::*;
 use unicode_width::UnicodeWidthChar;
 
 use crate::field::get_string_by_range;

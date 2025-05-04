@@ -2,8 +2,8 @@
 use std::default::Default;
 
 use beef::lean::Cow;
+use skim_tuikit::prelude::*;
 use std::cmp::max;
-use tuikit::prelude::*;
 use vte::{Params, Perform};
 
 /// An ANSI Parser, will parse one line at a time.

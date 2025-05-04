@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use tuikit::prelude::{Event as TermEvent, *};
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;

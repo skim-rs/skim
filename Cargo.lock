@@ -246,10 +246,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
-name = "common"
-version = "0.1.0"
-
-[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,7 +904,6 @@ dependencies = [
  "bitflags 1.3.2",
  "chrono",
  "clap",
- "common",
  "crossbeam",
  "defer-drop",
  "derive_builder",
@@ -922,12 +917,31 @@ dependencies = [
  "regex",
  "shell-quote",
  "shlex",
+ "skim-common",
+ "skim-tuikit",
  "time",
  "timer",
- "tuikit",
  "unicode-width",
  "vte",
  "which",
+]
+
+[[package]]
+name = "skim-common"
+version = "0.1.0"
+
+[[package]]
+name = "skim-tuikit"
+version = "0.6.0"
+dependencies = [
+ "bitflags 1.3.2",
+ "env_logger",
+ "lazy_static",
+ "log",
+ "nix",
+ "skim-common",
+ "term",
+ "unicode-width",
 ]
 
 [[package]]
@@ -1027,20 +1041,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31d42176308937165701f50638db1c31586f183f1aab416268216577aec7306b"
 dependencies = [
  "chrono",
-]
-
-[[package]]
-name = "tuikit"
-version = "0.6.0"
-dependencies = [
- "bitflags 1.3.2",
- "common",
- "env_logger",
- "lazy_static",
- "log",
- "nix",
- "term",
- "unicode-width",
 ]
 
 [[package]]
