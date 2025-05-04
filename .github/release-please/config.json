@@ -16,7 +16,8 @@
     ".": {
       "package-name": "root",
       "component": "root",
-      "include-component-in-tag": false
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md"
     },
     "skim": {
       "skip-github-release": true
