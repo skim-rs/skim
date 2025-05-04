@@ -1,12 +1,16 @@
 on:
-  push:
-    branches:
-      - master
+  pull_request:
+    types:
+      - closed
 
-name: Create release PR
+name: Create GitHub release
 
 jobs:
   release-pr:
+    if: |
+      (github.event.pull_request.merged == true) &&
+      (github.repository_owner == 'skim-rs') &&
+      (contains(github.event.pull_request.labels, 'release'))
     permissions:
       contents: write
       pull-requests: write
@@ -32,4 +36,5 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         with:
           config: .github/release-plz.toml
-          command: release-pr
+          command: release
+
