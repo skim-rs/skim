@@ -14,7 +14,11 @@
     }
   ],
   "packages": {
-    ".": {},
+    ".": {
+      "package-name": "sk",
+      "component": "root",
+      "include-component-in-tag": false
+    },
     "skim": {
       "skip-github-release": true
     },
