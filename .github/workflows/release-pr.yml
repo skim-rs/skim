@@ -3,7 +3,7 @@ on:
     branches:
       - master
 
-name: release
+name: Create release PR or create github release
 
 jobs:
   release-pr:
