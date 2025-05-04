@@ -10,8 +10,8 @@ use regex::{Captures, Regex};
 use skim_tuikit::prelude::*;
 use unicode_width::UnicodeWidthChar;
 
-use crate::field::get_string_by_range;
 use crate::AnsiString;
+use crate::field::get_string_by_range;
 
 static RE_ESCAPE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"['\U{00}]").unwrap());
 static RE_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[+|-]?\d+").unwrap());

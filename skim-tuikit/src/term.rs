@@ -5,7 +5,7 @@
 //! - Output contents to the terminal
 //!
 //! ```no_run
-//! use tuikit::prelude::*;
+//! use skim_tuikit::prelude::*;
 //!
 //! let term = Term::<()>::new().unwrap();
 //!
@@ -23,12 +23,13 @@
 //! terminals as a table of fixed-size cells and input being a stream of structured messages
 
 use std::cmp::{max, min};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 use std::time::Duration;
 
+use crate::Result;
 use crate::attr::Attr;
 use crate::canvas::Canvas;
 use crate::cell::Cell;
@@ -39,11 +40,10 @@ use crate::input::{KeyBoard, KeyboardHandler};
 use crate::key::Key;
 use crate::output::Command;
 use crate::output::Output;
-use crate::raw::{get_tty, IntoRawMode};
+use crate::raw::{IntoRawMode, get_tty};
 use crate::screen::Screen;
 use crate::spinlock::SpinLock;
 use crate::sys::signal::{initialize_signals, notify_on_sigwinch, unregister_sigwinch};
-use crate::Result;
 
 const MIN_HEIGHT: usize = 1;
 const WAIT_TIMEOUT: Duration = Duration::from_millis(300);
@@ -143,7 +143,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     /// If the preferred height is larger than the current screen, whole screen is used.
     ///
     /// ```no_run
-    /// use tuikit::term::{Term, TermHeight};
+    /// use skim_tuikit::term::{Term, TermHeight};
     ///
     /// let term: Term<()> = Term::with_height(TermHeight::Percent(30)).unwrap(); // 30% of the terminal height
     /// let term: Term<()> = Term::with_height(TermHeight::Fixed(20)).unwrap(); // fixed 20 lines
@@ -155,7 +155,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     /// Create a Term (with 100% height)
     ///
     /// ```no_run
-    /// use tuikit::term::{Term, TermHeight};
+    /// use skim_tuikit::term::{Term, TermHeight};
     ///
     /// let term: Term<()> = Term::new().unwrap();
     /// let term: Term<()> = Term::with_height(TermHeight::Percent(100)).unwrap();
@@ -167,7 +167,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     /// Create a Term with custom options
     ///
     /// ```no_run
-    /// use tuikit::term::{Term, TermHeight, TermOptions};
+    /// use skim_tuikit::term::{Term, TermHeight, TermOptions};
     ///
     /// let term: Term<()> = Term::with_options(TermOptions::default().height(TermHeight::Percent(100))).unwrap();
     /// ```

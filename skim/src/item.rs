@@ -3,11 +3,11 @@
 use std::cmp::min;
 use std::default::Default;
 use std::ops::Deref;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use clap::builder::PossibleValue;
 use clap::ValueEnum;
+use clap::builder::PossibleValue;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
 use crate::{MatchRange, Rank, SkimItem};

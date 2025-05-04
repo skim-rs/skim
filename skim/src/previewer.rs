@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::env;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -16,7 +16,7 @@ use skim_tuikit::prelude::{Event as TermEvent, *};
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::spinlock::SpinLock;
-use crate::util::{atoi, clear_canvas, depends_on_items, inject_command, InjectContext};
+use crate::util::{InjectContext, atoi, clear_canvas, depends_on_items, inject_command};
 use crate::{ItemPreview, PreviewContext, PreviewPosition, SkimItem};
 
 const TAB_STOP: usize = 8;

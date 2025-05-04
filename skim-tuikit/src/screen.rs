@@ -1,10 +1,10 @@
 //! Buffering screen cells and try to optimize rendering contents
+use crate::Result;
 use crate::attr::Attr;
 use crate::canvas::Canvas;
 use crate::cell::Cell;
 use crate::error::TuikitError;
 use crate::output::Command;
-use crate::Result;
 use std::cmp::{max, min};
 use unicode_width::UnicodeWidthChar;
 
@@ -200,9 +200,9 @@ impl Screen {
     }
 
     /// ```
-    /// use tuikit::cell::Cell;
-    /// use tuikit::canvas::Canvas;
-    /// use tuikit::screen::Screen;
+    /// use skim_tuikit::cell::Cell;
+    /// use skim_tuikit::canvas::Canvas;
+    /// use skim_tuikit::screen::Screen;
     ///
     ///
     /// let mut screen = Screen::new(1, 1);

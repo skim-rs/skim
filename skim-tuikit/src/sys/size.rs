@@ -1,7 +1,7 @@
 use std::{io, mem};
 
 use super::cvt;
-use nix::libc::{c_int, c_ushort, ioctl, TIOCGWINSZ};
+use nix::libc::{TIOCGWINSZ, c_int, c_ushort, ioctl};
 
 #[repr(C)]
 struct TermSize {

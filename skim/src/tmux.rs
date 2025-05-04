@@ -9,11 +9,11 @@ use std::{
 };
 
 use nix::{sys::stat, unistd::mkfifo};
-use rand::{distr::Alphanumeric, Rng};
+use rand::{Rng, distr::Alphanumeric};
 use skim_tuikit::key::Key;
 use which::which;
 
-use crate::{event::Event, SkimItem, SkimOptions, SkimOutput};
+use crate::{SkimItem, SkimOptions, SkimOutput, event::Event};
 
 #[derive(Debug, PartialEq, Eq)]
 enum TmuxWindowDir {

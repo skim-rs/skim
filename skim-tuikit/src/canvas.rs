@@ -1,7 +1,7 @@
+use crate::Result;
 /// A canvas is a trait defining the draw actions
 use crate::attr::Attr;
 use crate::cell::Cell;
-use crate::Result;
 use unicode_width::UnicodeWidthChar;
 
 pub trait Canvas {

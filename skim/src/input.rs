@@ -1,9 +1,9 @@
 //! Input will listens to user input, modify the query string, send special
 //! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
-use crate::event::{parse_event, Event};
+use crate::event::{Event, parse_event};
 use regex::Regex;
 use skim_tuikit::event::Event as TermEvent;
-use skim_tuikit::key::{from_keyname, Key};
+use skim_tuikit::key::{Key, from_keyname};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 

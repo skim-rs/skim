@@ -1,6 +1,6 @@
 use skim_tuikit::attr::Color;
+use skim_tuikit::output::Output;
 use std::io;
-use tuikit::output::Output;
 
 // ported from: https://github.com/gnachman/iTerm2/blob/master/tests/24-bit-color.sh
 // should be run in terminals that supports true color

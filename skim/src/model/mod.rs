@@ -34,7 +34,7 @@ use crate::reader::{Reader, ReaderControl};
 use crate::selection::Selection;
 use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
-use crate::util::{depends_on_items, inject_command, margin_string_to_size, parse_margin, InjectContext};
+use crate::util::{InjectContext, depends_on_items, inject_command, margin_string_to_size, parse_margin};
 use crate::{FuzzyAlgorithm, MatchEngineFactory, MatchRange, SkimItem};
 
 const REFRESH_DURATION: i64 = 100;

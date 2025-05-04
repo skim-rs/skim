@@ -1,8 +1,8 @@
 //! module to handle keystrokes
 //!
 //! ```no_run
-//! use tuikit::input::KeyBoard;
-//! use tuikit::key::Key;
+//! use skim_tuikit::input::KeyBoard;
+//! use skim_tuikit::key::Key;
 //! use std::time::Duration;
 //! let mut keyboard = KeyBoard::new_with_tty();
 //! let key = keyboard.next_key();
@@ -15,15 +15,15 @@ use std::os::unix::io::AsRawFd;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use nix::fcntl::{fcntl, FcntlArg, OFlag};
+use nix::fcntl::{FcntlArg, OFlag, fcntl};
 
+use crate::Result;
 use crate::error::TuikitError;
 use crate::key::Key::*;
 use crate::key::{Key, MouseButton};
 use crate::raw::get_tty;
 use crate::spinlock::SpinLock;
 use crate::sys::file::wait_until_ready;
-use crate::Result;
 
 pub trait ReadAndAsRawFd: Read + AsRawFd + Send {}
 

@@ -3,9 +3,9 @@ use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
 use clap::ValueEnum;
+use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::clangd::ClangdMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};

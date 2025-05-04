@@ -1,11 +1,11 @@
 use lazy_static::lazy_static;
-use nix::sys::signal::{pthread_sigmask, sigaction};
 use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet, SigmaskHow, Signal};
+use nix::sys::signal::{pthread_sigmask, sigaction};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
 use std::sync::Once;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
 lazy_static! {

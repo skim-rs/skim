@@ -7,7 +7,7 @@ pub use crate::color::Color;
 /// `Attr` is a rendering attribute that contains fg color, bg color and text effect.
 ///
 /// ```
-/// use tuikit::attr::{Attr, Effect, Color};
+/// use skim_tuikit::attr::{Attr, Effect, Color};
 ///
 /// let attr = Attr { fg: Color::RED, effect: Effect::BOLD, ..Attr::default() };
 /// ```
@@ -31,7 +31,7 @@ impl Default for Attr {
 impl Attr {
     /// extend the properties with the new attr's if the properties in new attr is not default.
     /// ```
-    /// use tuikit::attr::{Attr, Color, Effect};
+    /// use skim_tuikit::attr::{Attr, Color, Effect};
     ///
     /// let default = Attr{fg: Color::BLUE, bg: Color::YELLOW, effect: Effect::BOLD};
     /// let new = Attr{fg: Color::Default, bg: Color::WHITE, effect: Effect::REVERSE};

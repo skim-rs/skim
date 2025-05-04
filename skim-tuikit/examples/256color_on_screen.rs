@@ -1,8 +1,8 @@
 use skim_tuikit::attr::{Attr, Color};
 use skim_tuikit::canvas::Canvas;
+use skim_tuikit::output::Output;
 use skim_tuikit::screen::Screen;
 use std::io;
-use tuikit::output::Output;
 
 fn main() {
     let mut output = Output::new(Box::new(io::stdout())).unwrap();

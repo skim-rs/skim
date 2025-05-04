@@ -1,4 +1,4 @@
-[![Crates.io](https://img.shields.io/crates/v/tuikit.svg)](https://crates.io/crates/tuikit) [![Build Status](https://github.com/lotabout/tuikit/workflows/Build%20&%20Test/badge.svg)](https://github.com/lotabout/tuikit/actions?query=workflow%3A%22Build+%26+Test%22)
+[![Crates.io](https://img.shields.io/crates/v/skim-tuikit.svg)](https://crates.io/crates/skim-tuikit)
 
 ## Tuikit
 
@@ -21,15 +21,9 @@ In your `Cargo.toml` add the following:
 
 ```toml
 [dependencies]
-tuikit = "*"
+skim-tuikit = "*"
 ```
 
-And if you'd like to use the latest snapshot version:
-
-```toml
-[dependencies]
-tuikit = { git = "https://github.com/lotabout/tuikit.git" }
-```
 
 Here is an example (could also be run by `cargo run --example hello-world`):
 

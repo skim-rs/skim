@@ -9,7 +9,7 @@ repository = "https://github.com/skim-rs/skim"
 readme = "../README.md"
 keywords = ["fuzzy", "menu", "util"]
 license = "MIT"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "skim"
