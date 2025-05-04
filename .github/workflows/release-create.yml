@@ -6,12 +6,6 @@ on:
 name: Create GitHub release
 
 jobs:
-  show-context:
-    steps:
-      - run: |
-          echo $GH_CTX
-        env:
-          GH_CTX: ${{ toJSON(github) }}
   release-pr:
     if: |
       (github.event.pull_request.merged == true) &&
