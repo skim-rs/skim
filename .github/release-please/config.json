@@ -17,9 +17,7 @@
     }
   ],
   "packages": {
-    "skim": {
-      "changelog-path": "../CHANGELOG.md"
-    },
+    "skim": {},
     "xtask": {},
     "e2e": {}
   }
