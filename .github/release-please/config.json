@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/googleapis/release-please/raw/refs/heads/main/schemas/config.json",
   "release-type": "rust",
-  "commit-search-depth": 100,
+  "last-release-sha": "e93e65c35205290f8e1d0ed833ac6c8016d7a818",
   "bump-minor-pre-major": true,
   "separate-pull-requests": false,
   "tag-separator": "@",
@@ -9,8 +9,7 @@
   "group-pull-request-title-pattern": "chore: release ${version}",
   "plugins": [
     {
-      "type": "cargo-workspace",
-      "merge": false
+      "type": "cargo-workspace"
     }
   ],
   "packages": {
