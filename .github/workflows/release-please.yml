@@ -22,6 +22,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
           path: "skim"
           release-type: "rust"
     outputs:
