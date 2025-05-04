@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-version = "0.1.1"
+version = "1.17.0"
 edition = "2021"
 
 [dependencies]

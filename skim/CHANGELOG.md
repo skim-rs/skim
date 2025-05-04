@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.17.0](https://github.com/skim-rs/skim/compare/skim@v1.16.2...skim@v1.17.0) (2025-05-04)
+
+
+### Features
+
+* add preview callback ([#407](https://github.com/skim-rs/skim/issues/407)) ([226d995](https://github.com/skim-rs/skim/commit/226d9951fa585958e0497e038729c1b6312d36fd))
+* **tui:** add tuikit as workspace member and update ([#741](https://github.com/skim-rs/skim/issues/741)) ([73fd406](https://github.com/skim-rs/skim/commit/73fd4068274bda836b71bffaf5d41d4746b29a0d))
+
+
+### Bug Fixes
+
+* **filter:** fix broken pipe while writing results to locked stdout (closes [#733](https://github.com/skim-rs/skim/issues/733)) ([#737](https://github.com/skim-rs/skim/issues/737)) ([ed1c48d](https://github.com/skim-rs/skim/commit/ed1c48d6d0e232ffe4e63e3294cd41664dfdf654))
+* fix --tmux quoting ([#643](https://github.com/skim-rs/skim/issues/643)) ([1abf545](https://github.com/skim-rs/skim/commit/1abf545ed953dcb9b26a7926df2df105be662c6f))
+* hasten deprecation of expect after [#703](https://github.com/skim-rs/skim/issues/703) ([47c5e1e](https://github.com/skim-rs/skim/commit/47c5e1e54ec848c61d1cfafdaf6aecd3ff4aef86))
+* remove atty ([#671](https://github.com/skim-rs/skim/issues/671)) ([b265179](https://github.com/skim-rs/skim/commit/b265179f200fe4fff50c3d39b7a8b19d2bdeaf6f))
+* **term:** clamp height option ([#690](https://github.com/skim-rs/skim/issues/690)) ([5152be1](https://github.com/skim-rs/skim/commit/5152be1945a8704062c4788f994d385e904d931f))
+* **tmux:** check if TMUX is set (closes [#734](https://github.com/skim-rs/skim/issues/734)) ([#736](https://github.com/skim-rs/skim/issues/736)) ([a9ba87b](https://github.com/skim-rs/skim/commit/a9ba87b892eccc847b39e7f228051f2789ebf813))
+* update rank to follow the readded index tiebreak ([#669](https://github.com/skim-rs/skim/issues/669)) ([920e774](https://github.com/skim-rs/skim/commit/920e7743e992405f6a79a6bdba834c96e6e1cd5c))
+
 ## [0.16.2](https://github.com/skim-rs/skim/compare/v0.16.1...v0.16.2) (2025-04-26)
 
 ### Bug Fixes
