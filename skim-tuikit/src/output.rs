@@ -20,8 +20,8 @@ use std::os::unix::io::AsRawFd;
 use crate::attr::{Attr, Color, Effect};
 use crate::sys::size::terminal_size;
 
-use term::terminfo::parm::{expand, Param, Variables};
 use term::terminfo::TermInfo;
+use term::terminfo::parm::{Param, Variables, expand};
 
 // modeled after python-prompt-toolkit
 // term info: https://ftp.netbsd.org/pub/NetBSD/NetBSD-release-7/src/share/terminfo/terminfo

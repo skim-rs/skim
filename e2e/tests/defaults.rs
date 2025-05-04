@@ -1,4 +1,4 @@
-use e2e::{sk, Keys, TmuxController};
+use e2e::{Keys, TmuxController, sk};
 use std::io::Result;
 
 #[test]

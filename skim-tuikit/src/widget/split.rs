@@ -1,11 +1,11 @@
-use super::util::adjust_event;
 use super::Size;
+use super::util::adjust_event;
 use super::{Rectangle, Widget};
 use crate::canvas::{BoundedCanvas, Canvas};
 use crate::draw::Draw;
 use crate::draw::DrawResult;
 use crate::event::Event;
-use std::cmp::{min, Ordering};
+use std::cmp::{Ordering, min};
 
 /// A Split item would contain 3 things
 /// 0. inner_size, will be used if `basis` is `Size::Default`.
@@ -528,11 +528,11 @@ impl<Message> Split<Message> for VSplit<'_, Message> {
 #[allow(dead_code)]
 mod test {
     use super::*;
+    use crate::Result;
     use crate::cell::Cell;
     use crate::key::Key;
     use crate::key::Key::*;
     use crate::key::MouseButton;
-    use crate::Result;
     use std::sync::Mutex;
 
     struct TestCanvas {

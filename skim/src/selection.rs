@@ -1,8 +1,8 @@
 //! Handle the selections of items
 use std::cmp::max;
 use std::cmp::min;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use skim_tuikit::prelude::{Event as TermEvent, *};
 
@@ -14,7 +14,7 @@ use crate::prelude::DefaultSkimSelector;
 use crate::theme::{ColorTheme, DEFAULT_THEME};
 use crate::util::clear_canvas;
 use crate::util::read_file_lines;
-use crate::util::{print_item, reshape_string, LinePrinter};
+use crate::util::{LinePrinter, print_item, reshape_string};
 use crate::{DisplayContext, MatchRange, Matches, Selector, SkimItem, SkimOptions};
 use indexmap::IndexMap;
 use regex::Regex;

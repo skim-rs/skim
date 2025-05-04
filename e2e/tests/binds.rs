@@ -1,6 +1,6 @@
-use e2e::sk;
 use e2e::Keys::*;
 use e2e::TmuxController;
+use e2e::sk;
 use std::io::Result;
 
 fn setup(input: &str, opts: &[&str]) -> Result<TmuxController> {

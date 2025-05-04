@@ -4,8 +4,8 @@ extern crate log;
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Display;
-use std::sync::mpsc::channel;
 use std::sync::Arc;
+use std::sync::mpsc::channel;
 use std::thread;
 
 use clap::ValueEnum;
@@ -343,15 +343,17 @@ impl Skim {
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
-        let input_thread = thread::spawn(move || loop {
-            if let Ok(key) = term_clone.poll_event() {
-                if key == TermEvent::User(()) {
-                    break;
-                }
+        let input_thread = thread::spawn(move || {
+            loop {
+                if let Ok(key) = term_clone.poll_event() {
+                    if key == TermEvent::User(()) {
+                        break;
+                    }
 
-                let (key, action_chain) = input.translate_event(key);
-                for event in action_chain {
-                    let _ = tx_clone.send((key, event));
+                    let (key, action_chain) = input.translate_event(key);
+                    for event in action_chain {
+                        let _ = tx_clone.send((key, event));
+                    }
                 }
             }
         });

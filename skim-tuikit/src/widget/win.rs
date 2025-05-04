@@ -1,6 +1,6 @@
+use super::Size;
 use super::split::Split;
 use super::util::adjust_event;
-use super::Size;
 use super::{Rectangle, Widget};
 use crate::attr::Attr;
 use crate::canvas::{BoundedCanvas, Canvas};

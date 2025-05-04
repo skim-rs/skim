@@ -9,7 +9,7 @@ use std::{
 };
 
 use rand::distr::{Alphanumeric, SampleString as _};
-use tempfile::{tempdir, NamedTempFile, TempDir};
+use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
 pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= cargo run --package skim --release --";

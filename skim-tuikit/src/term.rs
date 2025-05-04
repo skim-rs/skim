@@ -23,12 +23,13 @@
 //! terminals as a table of fixed-size cells and input being a stream of structured messages
 
 use std::cmp::{max, min};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 use std::time::Duration;
 
+use crate::Result;
 use crate::attr::Attr;
 use crate::canvas::Canvas;
 use crate::cell::Cell;
@@ -39,11 +40,10 @@ use crate::input::{KeyBoard, KeyboardHandler};
 use crate::key::Key;
 use crate::output::Command;
 use crate::output::Output;
-use crate::raw::{get_tty, IntoRawMode};
+use crate::raw::{IntoRawMode, get_tty};
 use crate::screen::Screen;
 use crate::spinlock::SpinLock;
 use crate::sys::signal::{initialize_signals, notify_on_sigwinch, unregister_sigwinch};
-use crate::Result;
 
 const MIN_HEIGHT: usize = 1;
 const WAIT_TIMEOUT: Duration = Duration::from_millis(300);

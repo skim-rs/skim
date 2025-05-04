@@ -5,7 +5,7 @@ use crate::event::{Event, EventHandler};
 use crate::item::ItemPool;
 use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
-use crate::util::{clear_canvas, print_item, str_lines, LinePrinter};
+use crate::util::{LinePrinter, clear_canvas, print_item, str_lines};
 use crate::{DisplayContext, Matches, SkimOptions};
 use defer_drop::DeferDrop;
 use skim_tuikit::prelude::*;
@@ -67,11 +67,7 @@ impl Header {
     }
 
     fn adjust_row(&self, index: usize, screen_height: usize) -> usize {
-        if self.reverse {
-            index
-        } else {
-            screen_height - index - 1
-        }
+        if self.reverse { index } else { screen_height - index - 1 }
     }
 }
 

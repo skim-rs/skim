@@ -22,7 +22,7 @@ use std::io::{self, Write};
 use std::ops;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 
-use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, SetArg, Termios};
+use nix::sys::termios::{SetArg, Termios, cfmakeraw, tcgetattr, tcsetattr};
 use nix::unistd::isatty;
 use std::fs;
 use std::os::unix::io::RawFd;
