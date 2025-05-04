@@ -17,7 +17,7 @@ jobs:
     if: |
       (github.event.pull_request.merged == true) &&
       (github.repository_owner == 'skim-rs') &&
-      (contains(github.event.pull_request.labels.*.name, 'release'))
+      (contains(github.event.pull_request.labels, 'release'))
     permissions:
       contents: write
       pull-requests: write
