@@ -14,7 +14,7 @@
   ],
   "packages": {
     ".": {
-      "package-name": "sk",
+      "package-name": "root",
       "component": "root",
       "include-component-in-tag": false
     },
