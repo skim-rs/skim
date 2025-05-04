@@ -1,5 +1,26 @@
 {
+  "$schema": "https://github.com/googleapis/release-please/raw/refs/heads/main/schemas/config.json",
   "release-type": "rust",
   "commit-search-depth": 100,
   "bump-minor-pre-major": true,
+  "separate-pull-requests": false,
+  "always-update": true,
+  "plugins": [
+    {
+      "type": "cargo-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "main",
+      "components": ["skim", "e2e", "xtask"]
+    }
+  ],
+  "packages": {
+    "skim": {
+      "changelog-path": "../CHANGELOG.md"
+    },
+    "xtask": {},
+    "e2e": {}
+  }
 }
