@@ -1,12 +1,6 @@
 # Changelog
 
 ## [Unreleased]
-## [0.17.1](https://github.com/skim-rs/skim/compare/v0.17.0...v0.17.1)
-
-### 🐛 Bug Fixes
-
-
-- **ci:** Split release pr and gh release - ([0a82220](https://github.com/skim-rs/skim/commit/0a822204ca5ab6fe9a67a168008099a634fd40fd))
 ## [0.17.0](https://github.com/skim-rs/skim/compare/v0.16.2...v0.17.0)
 
 ### ⛰️ Features
