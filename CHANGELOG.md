@@ -1,6 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+## [0.17.2](https://github.com/skim-rs/skim/compare/v0.17.1...v0.17.2)
+
+### 🐛 Bug Fixes
+
+
+- **ci:** Remove release commits filter - ([e0d0169](https://github.com/skim-rs/skim/commit/e0d01690d3b1d819f09f2df71f7e621c171eb0dc))
 ## [0.17.0](https://github.com/skim-rs/skim/compare/v0.16.2...v0.17.0)
 
 ### ⛰️ Features
