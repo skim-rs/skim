@@ -6,7 +6,7 @@
   "separate-pull-requests": false,
   "tag-separator": "@",
   "always-update": true,
-  "group-pull-request-title-pattern": "chore: release",
+  "group-pull-request-title-pattern": "chore: release ${version}",
   "plugins": [
     {
       "type": "cargo-workspace",
@@ -19,7 +19,9 @@
     }
   ],
   "packages": {
-    ".": {"component": "root"},
+    ".": {
+      "component": "root"
+    },
     "skim": {
       "skip-github-release": true
     },
