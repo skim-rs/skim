@@ -1,6 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+## [0.17.1](https://github.com/skim-rs/skim/compare/v0.17.0...v0.17.1)
+
+### 🐛 Bug Fixes
+
+
+- **ci:** Remove leftover package - ([4ed7f0c](https://github.com/skim-rs/skim/commit/4ed7f0cbedbdecd068456ccabd329c1722e0d55e))
 ## [0.17.0](https://github.com/skim-rs/skim/compare/v0.16.2...v0.17.0)
 
 ### ⛰️ Features
