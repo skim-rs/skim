@@ -187,7 +187,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         }
     }
 
-    tmux_cmd.arg(tmux_shell_cmd);
+    tmux_cmd.args(["sh", "-c", &tmux_shell_cmd]);
 
     debug!("tmux command: {:?}", tmux_cmd);
 
