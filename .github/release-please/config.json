@@ -10,16 +10,9 @@
     {
       "type": "cargo-workspace",
       "merge": false
-    },
-    {
-      "type": "linked-versions",
-      "groupName": "main",
-      "components": ["skim", "e2e", "xtask"]
     }
   ],
   "packages": {
-    "skim": {},
-    "xtask": {},
-    "e2e": {}
+    "skim": {}
   }
 }
