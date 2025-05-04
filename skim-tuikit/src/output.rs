@@ -3,8 +3,8 @@
 //!
 //! ```
 //! use std::io;
-//! use tuikit::attr::Color;
-//! use tuikit::output::Output;
+//! use skim_tuikit::attr::Color;
+//! use skim_tuikit::output::Output;
 //!
 //! let mut output = Output::new(Box::new(io::stdout())).unwrap();
 //! output.set_fg(Color::YELLOW);

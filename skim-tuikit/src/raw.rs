@@ -10,7 +10,7 @@
 //! # Example
 //!
 //! ```rust,no_run
-//! use tuikit::raw::IntoRawMode;
+//! use skim_tuikit::raw::IntoRawMode;
 //! use std::io::{Write, stdout};
 //!
 //! let mut stdout = stdout().into_raw_mode().unwrap();

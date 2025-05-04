@@ -1,7 +1,7 @@
 /// Color of a character, could be 8 bit(256 color) or RGB color
 ///
 /// ```
-/// use tuikit::attr::Color;
+/// use skim_tuikit::attr::Color;
 /// Color::RED; // predefined values
 /// Color::Rgb(255, 0, 0); // RED
 /// ```

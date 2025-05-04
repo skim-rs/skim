@@ -1,8 +1,8 @@
 use skim_tuikit::input::KeyBoard;
+use skim_tuikit::key::Key;
 use skim_tuikit::output::Output;
 use skim_tuikit::raw::IntoRawMode;
 use std::time::Duration;
-use tuikit::key::Key;
 
 fn main() {
     let _stdout = std::io::stdout().into_raw_mode().unwrap();

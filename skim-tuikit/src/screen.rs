@@ -200,9 +200,9 @@ impl Screen {
     }
 
     /// ```
-    /// use tuikit::cell::Cell;
-    /// use tuikit::canvas::Canvas;
-    /// use tuikit::screen::Screen;
+    /// use skim_tuikit::cell::Cell;
+    /// use skim_tuikit::canvas::Canvas;
+    /// use skim_tuikit::screen::Screen;
     ///
     ///
     /// let mut screen = Screen::new(1, 1);

@@ -1,8 +1,8 @@
 //! module to handle keystrokes
 //!
 //! ```no_run
-//! use tuikit::input::KeyBoard;
-//! use tuikit::key::Key;
+//! use skim_tuikit::input::KeyBoard;
+//! use skim_tuikit::key::Key;
 //! use std::time::Duration;
 //! let mut keyboard = KeyBoard::new_with_tty();
 //! let key = keyboard.next_key();

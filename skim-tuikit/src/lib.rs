@@ -23,9 +23,9 @@
 //! Here is an example:
 //!
 //! ```no_run
-//! use tuikit::attr::*;
-//! use tuikit::term::{Term, TermHeight};
-//! use tuikit::event::{Event, Key};
+//! use skim_tuikit::attr::*;
+//! use skim_tuikit::term::{Term, TermHeight};
+//! use skim_tuikit::event::{Event, Key};
 //! use std::cmp::{min, max};
 //!
 //! let term: Term<()> = Term::with_height(TermHeight::Percent(30)).unwrap();

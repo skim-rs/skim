@@ -5,7 +5,7 @@
 //! - Output contents to the terminal
 //!
 //! ```no_run
-//! use tuikit::prelude::*;
+//! use skim_tuikit::prelude::*;
 //!
 //! let term = Term::<()>::new().unwrap();
 //!
@@ -143,7 +143,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     /// If the preferred height is larger than the current screen, whole screen is used.
     ///
     /// ```no_run
-    /// use tuikit::term::{Term, TermHeight};
+    /// use skim_tuikit::term::{Term, TermHeight};
     ///
     /// let term: Term<()> = Term::with_height(TermHeight::Percent(30)).unwrap(); // 30% of the terminal height
     /// let term: Term<()> = Term::with_height(TermHeight::Fixed(20)).unwrap(); // fixed 20 lines
@@ -155,7 +155,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     /// Create a Term (with 100% height)
     ///
     /// ```no_run
-    /// use tuikit::term::{Term, TermHeight};
+    /// use skim_tuikit::term::{Term, TermHeight};
     ///
     /// let term: Term<()> = Term::new().unwrap();
     /// let term: Term<()> = Term::with_height(TermHeight::Percent(100)).unwrap();
@@ -167,7 +167,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
     /// Create a Term with custom options
     ///
     /// ```no_run
-    /// use tuikit::term::{Term, TermHeight, TermOptions};
+    /// use skim_tuikit::term::{Term, TermHeight, TermOptions};
     ///
     /// let term: Term<()> = Term::with_options(TermOptions::default().height(TermHeight::Percent(100))).unwrap();
     /// ```
