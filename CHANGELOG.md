@@ -1,6 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+## [0.17.1](https://github.com/skim-rs/skim/compare/v0.17.0...v0.17.1)
+
+### 🐛 Bug Fixes
+
+
+- Fix local dependencies - ([f5f87e4](https://github.com/skim-rs/skim/commit/f5f87e41b14976bb69dae53cffcca5bf01147626))
 ## [0.17.0](https://github.com/skim-rs/skim/compare/v0.16.2...v0.17.0)
 
 ### ⛰️ Features
