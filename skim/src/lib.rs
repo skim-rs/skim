@@ -21,7 +21,7 @@ pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
 pub use skim_common::spinlock;
-pub use skim_tuikit;
+pub use skim_tuikit as tuikit;
 
 mod ansi;
 mod engine;
