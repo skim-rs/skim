@@ -39,7 +39,7 @@ jobs:
     - name: Cache
       uses: Swatinem/rust-cache@v2
     - name: Run unit tests
-      run: cargo test --all
+      run: cargo test -p skim -p skim-common -p skim-tuikit
 
   e2e:
     runs-on: ${{matrix.os}}
