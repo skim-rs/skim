@@ -6,7 +6,7 @@
 //! use skim_tuikit::attr::Color;
 //! use skim_tuikit::output::Output;
 //!
-//! let mut output = Output::new(Box::new(io::stdout())).unwrap();
+//! let Ok(mut output) = Output::new(Box::new(io::stdout())) else { return; }
 //! output.set_fg(Color::YELLOW);
 //! output.write("YELLOW\n");
 //! output.flush();
