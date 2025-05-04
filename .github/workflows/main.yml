@@ -1,0 +1,23 @@
+on:
+  workflow_dispatch: {}
+
+name: Add crate owner
+
+jobs:
+  add-owner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install correct toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - id: release-pr
+        run: |
+          cd skim-tuikit && cargo owner --add LoricAndre && cd ..
+          cd skim-common && cargo owner --add LoricAndre && cd ..
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
