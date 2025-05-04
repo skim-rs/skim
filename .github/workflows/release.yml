@@ -3,10 +3,10 @@ on:
     branches:
       - master
 
-name: release-please
+name: release
 
 jobs:
-  release-please:
+  release-pr:
     permissions:
       contents: write
       pull-requests: write
@@ -17,46 +17,55 @@ jobs:
         with:
           app-id: ${{ vars.SKIM_RS_BOT_APP_ID }}
           private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
-      - id: release-please
-        uses: googleapis/release-please-action@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          token: ${{ steps.app-token.outputs.token }}
-          config-file: .github/release-please/config.json
-          manifest-file: .github/release-please/manifest.json
+          fetch-depth: 1
+      - name: Install correct toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - id: release-pr
+        uses: release-plz/action@v0.5
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        with:
+          config: .github/release-plz.toml
     outputs:
-      release_created: ${{ steps.release-please.outputs.releases_created }}
-      tag_name: ${{ steps.release-please.outputs.skim--tag_name }}
+      release_created: ${{ steps.release-pr.outputs.releases_created }}
+      tag_name: ${{ fromJSON(steps.release-pr.outputs.releases)[0].tag }}
 
   setup-release:
     runs-on: ubuntu-latest
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    needs: release-pr
+    if: ${{ needs.release-pr.outputs.release_created == 'true' }}
     steps:
       - run: |
-          echo '${{ needs.release-please.outputs.release_created }}'
+          echo '${{ needs.release-pr.outputs.release_created }}'
     outputs:
-      tag_name: ${{ needs.release-please.outputs.tag_name }}
+      tag_name: ${{ needs.release-pr.outputs.tag_name }}
 
-  publish-crate:
-    runs-on: ubuntu-latest
-    needs: setup-release
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-    - name: Install correct toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: Run cargo check
-      uses: actions-rs/cargo@v1
-      with:
-        command: check
-    - name: Publish to crates.io
-      run: cargo publish -p skim
-      env:
-        CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+  # publish-crate:
+  #   runs-on: ubuntu-latest
+  #   needs: setup-release
+  #   steps:
+  #   - name: Checkout repository
+  #     uses: actions/checkout@v4
+  #     with:
+  #       fetch-depth: 1
+  #   - name: Install correct toolchain
+  #     uses: actions-rs/toolchain@v1
+  #     with:
+  #       toolchain: stable
+  #   - name: Run cargo check
+  #     uses: actions-rs/cargo@v1
+  #     with:
+  #       command: check
+    # - name: Publish to crates.io
+    #   run: cargo publish -p skim
+    #   env:
+    #     CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
   build-binaries:
     needs: setup-release

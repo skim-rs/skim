@@ -1,1 +1,0 @@
-./skim/CHANGELOG.md

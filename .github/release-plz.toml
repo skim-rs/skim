@@ -1,0 +1,77 @@
+[workspace]
+allow_dirty = false
+changelog_update = false
+dependencies_update = false
+git_release_enable = false
+git_tag_enable = false
+pr_branch_prefix = "release-plz-"
+pr_labels = ["release"]
+pr_name = "chore: release"
+publish = false
+publish_no_verify = true
+release_commits = "^(feat|fix)[:(]"
+semver_check = true
+
+features_always_increment_minor = true
+
+[[package]]
+name = "skim"
+publish = true
+publish_no_verify = false
+changelog_include = [
+	"skim",
+	"shell",
+	"plugin",
+	"bin",
+	"xtask",
+	"common",
+	"e2e",
+	"tuikit"
+]
+changelog_path = "./CHANGELOG.md"
+changelog_update = true
+git_tag_enable = true
+git_release_enable = true
+git_tag_name = "v{{ version }}"
+
+[[package]]
+name = "e2e"
+release = false
+[[package]]
+name = "tuikit"
+release = false
+[[package]]
+name = "common"
+release = false
+[[package]]
+name = "common"
+release = false
+
+[changelog]
+body = """
+
+### `[{{ version }}]{%- if release_link -%}({{ release_link }}){% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% for group, commits in commits | group_by(attribute="group") %}
+#### {{ group | upper_first }}
+{% for commit in commits %}
+{%- if commit.scope -%}
+- *({{commit.scope}})* {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{{ self::username(commit=commit) }}{{ self::pr(commit=commit) }}{%- if commit.links %} ({% for link in commit.links %}[{{link.text}}]({{link.href}}) {% endfor -%}){% endif %}
+{% else -%}
+- {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message }}{{ self::username(commit=commit) }}{{ self::pr(commit=commit) }}
+{% endif -%}
+{% endfor -%}
+{% endfor -%}
+
+{%- if remote.contributors %}
+### Contributors
+{% for contributor in remote.contributors %}
+    * @{{ contributor.username }}
+{%- endfor %}
+{% endif -%}
+{%- macro username(commit) -%}
+    {% if commit.remote.username %} (by @{{ commit.remote.username }}){% endif -%}
+{% endmacro -%}
+{%- macro pr(commit) -%}
+    {% if commit.remote.pr_number %} - #{{ commit.remote.pr_number }}{% endif -%}
+{% endmacro -%}
+"""
