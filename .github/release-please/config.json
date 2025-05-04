@@ -11,11 +11,6 @@
     {
       "type": "cargo-workspace",
       "merge": false
-    },
-    {
-      "type": "linked-versions",
-      "groupName": "main",
-      "components": ["root", "skim", "e2e", "xtask", "common", "tuikit", "shell"]
     }
   ],
   "packages": {
