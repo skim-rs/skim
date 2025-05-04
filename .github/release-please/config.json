@@ -4,15 +4,40 @@
   "commit-search-depth": 100,
   "bump-minor-pre-major": true,
   "separate-pull-requests": false,
-  "include-component-in-tag": false,
+  "tag-separator": "@",
   "always-update": true,
   "group-pull-request-title-pattern": "chore: release",
   "plugins": [
     {
-      "type": "cargo-workspace"
+      "type": "cargo-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "main",
+      "components": ["root", "skim", "e2e", "xtask", "common", "tuikit", "shell"]
     }
   ],
   "packages": {
-    ".": {}
+    ".": {"component": "root"},
+    "skim": {
+      "skip-github-release": true
+    },
+    "xtask": {
+      "skip-github-release": true
+    },
+    "e2e": {
+      "skip-github-release": true
+    },
+    "common": {
+      "skip-github-release": true
+    },
+    "tuikit": {
+      "skip-github-release": true
+    },
+    "shell": {
+      "release-type": "simple",
+      "skip-github-release": true
+    }
   }
 }
