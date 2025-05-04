@@ -24,7 +24,6 @@ beef = { workspace = true }
 bitflags = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
-common = { path = "../common/" }
 crossbeam = { workspace = true }
 defer-drop = { workspace = true }
 derive_builder = { workspace = true }
@@ -38,9 +37,10 @@ rayon = { workspace = true }
 regex = { workspace = true }
 shell-quote = { workspace = true }
 shlex = { workspace = true, optional = true }
+skim-common = { path = "../skim-common/", version = "0.1.0" }
+skim-tuikit = { path = "../skim-tuikit/", version = "0.6.0" }
 time = { workspace = true }
 timer = { workspace = true }
-tuikit = { path = "../tuikit/" }
 unicode-width = { workspace = true }
 vte = { workspace = true }
 which = { workspace = true }
