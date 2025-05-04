@@ -3,13 +3,13 @@ name = "skim-tuikit"
 version = "0.6.0"
 authors = ["Jinzhou Zhang <lotabout@gmail.com>"]
 description = "Toolkit for writing TUI applications"
-documentation = "https://docs.rs/tuikit"
-homepage = "https://github.com/skim-rs/skim/tuikit"
+documentation = "https://docs.rs/skim-tuikit"
+homepage = "https://github.com/skim-rs/skim"
 repository = "https://github.com/skim-rs/skim"
-readme  = "README.md"
+readme  = "skim-tuikit/README.md"
 keywords = ["tui", "terminal", "tty", "color"]
 license = "MIT"
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 bitflags = { workspace = true }
