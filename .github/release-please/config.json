@@ -4,6 +4,7 @@
   "commit-search-depth": 100,
   "bump-minor-pre-major": true,
   "separate-pull-requests": false,
+  "include-component-in-tag": false,
   "always-update": true,
   "plugins": [
     {
