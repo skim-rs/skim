@@ -1,7 +1,7 @@
 [workspace]
 allow_dirty = false
 changelog_update = false
-dependencies_update = false
+dependencies_update = true
 git_release_enable = false
 git_tag_enable = false
 pr_branch_prefix = "release-plz-"
