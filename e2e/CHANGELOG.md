@@ -4,6 +4,13 @@
 
 
 
+## [0.2.0](https://github.com/skim-rs/skim/compare/e2e@v0.1.0...e2e@v0.2.0) (2025-05-04)
+
+
+### Features
+
+* **tui:** add tuikit as workspace member and update ([#741](https://github.com/skim-rs/skim/issues/741)) ([73fd406](https://github.com/skim-rs/skim/commit/73fd4068274bda836b71bffaf5d41d4746b29a0d))
+
 ## [0.1.0](https://github.com/skim-rs/skim/compare/e2e-v0.18.0...e2e-v0.1.0) (2025-01-22)
 
 

@@ -1,6 +1,6 @@
 [package]
 name = "tuikit"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Jinzhou Zhang <lotabout@gmail.com>"]
 description = "Toolkit for writing TUI applications"
 documentation = "https://docs.rs/tuikit"
