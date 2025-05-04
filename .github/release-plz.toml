@@ -58,16 +58,12 @@ body = """
 {%- macro username(commit) -%}
     {% if commit.remote.username %} (by @{{ commit.remote.username }}){% endif -%}
 {% endmacro -%}
-{%- macro pr(commit) -%}
-    {% if commit.remote.pr_number %} - #{{ commit.remote.pr_number }}{% endif -%}
-{% endmacro -%}
 {% macro print_commit(commit) -%}
-    - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+    - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
       {% if commit.breaking %}[**breaking**] {% endif %}\
       {{ commit.message | upper_first }} - \
       ([{{ commit.id | truncate(length=7, end="") }}]({{ remote.link }}/commit/{{ commit.id }}))\
 			{{ self::username(commit=commit) }}\
-      {{ self::pr(commit=commit) }}\
 {% endmacro -%}
 
 {% if version %}\
