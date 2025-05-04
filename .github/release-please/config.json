@@ -6,36 +6,13 @@
   "separate-pull-requests": false,
   "include-component-in-tag": false,
   "always-update": true,
+  "group-pull-request-title-pattern": "chore: release",
   "plugins": [
     {
-      "type": "cargo-workspace",
-      "merge": false
-    },
-    {
-      "type": "linked-versions",
-      "groupName": "main",
-      "components": ["skim", "e2e", "xtask", "common", "tuikit", "shell"]
+      "type": "cargo-workspace"
     }
   ],
   "packages": {
-    "skim": {
-      "include-component-in-tag": false
-    },
-    "xtask": {
-      "skip-github-release": true
-    },
-    "e2e": {
-      "skip-github-release": true
-    },
-    "common": {
-      "skip-github-release": true
-    },
-    "tuikit": {
-      "skip-github-release": true
-    },
-    "shell": {
-      "release-type": "simple",
-      "skip-github-release": true
-    }
+    ".": {}
   }
 }
