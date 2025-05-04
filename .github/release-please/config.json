@@ -10,9 +10,32 @@
     {
       "type": "cargo-workspace",
       "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "main",
+      "components": ["skim", "e2e", "xtask", "common", "tuikit", "shell"]
     }
   ],
   "packages": {
-    "skim": {}
+    "skim": {
+      "include-component-in-tag": false
+    },
+    "xtask": {
+      "skip-github-release": true
+    },
+    "e2e": {
+      "skip-github-release": true
+    },
+    "common": {
+      "skip-github-release": true
+    },
+    "tuikit": {
+      "skip-github-release": true
+    },
+    "shell": {
+      "release-type": "simple",
+      "skip-github-release": true
+    }
   }
 }
