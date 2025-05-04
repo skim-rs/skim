@@ -24,14 +24,14 @@ fn main() {
     commands.into_iter().for_each(|cmd| output.execute(cmd));
     output.flush();
 
-    let _ = screen.print_with_attr(0, 78, "HELLO WORLD", Attr::default());
+    let _ = screen.print_with_style(0, 78, "HELLO WORLD", Attr::default());
     let commands = screen.present();
 
     commands.into_iter().for_each(|cmd| output.execute(cmd));
     output.flush();
 
     for bg in 0..=255 {
-        let _ = screen.print_with_attr(
+        let _ = screen.print_with_style(
             bg / 16,
             (bg % 16) * 5,
             format!("{:5}", bg).as_str(),

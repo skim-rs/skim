@@ -1,11 +1,17 @@
 //! Buffering screen cells and try to optimize rendering contents
-use crate::attr::Attr;
-use crate::canvas::Canvas;
-use crate::cell::Cell;
+use crate::cell::{Cell, EMPTY_CELL};
 use crate::error::TuikitError;
-use crate::output::Command;
 use crate::Result;
-use std::cmp::{max, min};
+use crate::{canvas::Canvas, cell::BLANK_CELL};
+use crossterm::{
+    cursor, queue,
+    style::{self, Print, PrintStyledContent},
+    terminal,
+};
+use std::{
+    cmp::{max, min},
+    io::{stdout, Write},
+};
 use unicode_width::UnicodeWidthChar;
 
 // much of the code comes from https://github.com/agatan/termfest/blob/master/src/screen.rs
@@ -29,9 +35,9 @@ impl Screen {
         Self {
             width,
             height,
-            cells: vec![Cell::default(); width * height],
+            cells: vec![*BLANK_CELL; width * height],
             cursor: Cursor::default(),
-            painted_cells: vec![Cell::default(); width * height],
+            painted_cells: vec![*BLANK_CELL; width * height],
             painted_cursor: Cursor::default(),
             clear_on_start: false,
         }
@@ -63,7 +69,7 @@ impl Screen {
     }
 
     fn empty_canvas(&self, width: usize, height: usize) -> Vec<Cell> {
-        vec![Cell::empty(); width * height]
+        vec![*EMPTY_CELL; width * height]
     }
 
     fn copy_cells(&self, original: &[Cell], width: usize, height: usize) -> Vec<Cell> {
@@ -93,15 +99,11 @@ impl Screen {
     }
 
     /// sync internal buffer with the terminal
-    pub fn present(&mut self) -> Vec<Command> {
-        let mut commands = Vec::with_capacity(2048);
-        let default_attr = Attr::default();
-        let mut last_attr = default_attr;
+    pub fn present(&mut self) -> Result<()> {
+        let mut stdout = stdout();
 
-        // hide cursor && reset Attributes
-        commands.push(Command::CursorShow(false));
-        commands.push(Command::CursorGoto { row: 0, col: 0 });
-        commands.push(Command::ResetAttributes);
+        // hide cursor && reset ContentStyleibutes
+        queue!(stdout, cursor::Hide, cursor::MoveTo(0, 0), style::ResetColor)?;
 
         let mut last_cursor = Cursor::default();
 
@@ -111,7 +113,7 @@ impl Screen {
             for col in (0..self.width).rev() {
                 let index = self.index(row, col).unwrap();
                 let cell = &self.cells[index];
-                if cell.is_empty() {
+                if *cell.content() == '\0' {
                     self.painted_cells[index] = *cell;
                 } else {
                     empty_col_index = col + 1;
@@ -141,26 +143,20 @@ impl Screen {
 
                 // move cursor if necessary
                 if last_cursor.row != row || last_cursor.col != col {
-                    commands.push(Command::CursorGoto { row, col });
-                }
-
-                if cell_to_paint.attr != last_attr {
-                    commands.push(Command::ResetAttributes);
-                    commands.push(Command::SetAttribute(cell_to_paint.attr));
-                    last_attr = cell_to_paint.attr;
+                    queue!(stdout, cursor::MoveTo(col as u16, row as u16))?;
                 }
 
                 // correctly draw the characters
-                match cell_to_paint.ch {
+                match *cell_to_paint.content() {
                     '\n' | '\r' | '\t' | '\0' => {
-                        commands.push(Command::PutChar(' '));
+                        queue!(stdout, Print(' '))?;
                     }
                     _ => {
-                        commands.push(Command::PutChar(cell_to_paint.ch));
+                        queue!(stdout, PrintStyledContent(cell_to_paint))?;
                     }
                 }
 
-                let display_width = cell_to_paint.ch.width().unwrap_or(2);
+                let display_width = cell_to_paint.content().width().unwrap_or(2);
 
                 // wide character
                 if display_width == 2 {
@@ -173,30 +169,27 @@ impl Screen {
             }
 
             if empty_col_index != self.width {
-                commands.push(Command::CursorGoto {
-                    row,
-                    col: empty_col_index,
-                });
-                commands.push(Command::ResetAttributes);
+                queue!(
+                    stdout,
+                    cursor::MoveTo(empty_col_index as u16, row as u16),
+                    style::ResetColor,
+                    style::SetAttribute(style::Attribute::Reset)
+                )?;
                 if self.clear_on_start {
-                    commands.push(Command::EraseEndOfLine);
+                    queue!(stdout, terminal::Clear(terminal::ClearType::UntilNewLine))?;
                 }
-                last_attr = Attr::default();
             }
         }
 
         // restore cursor
-        commands.push(Command::CursorGoto {
-            row: self.cursor.row,
-            col: self.cursor.col,
-        });
+        queue!(stdout, cursor::MoveTo(self.cursor.col as u16, self.cursor.row as u16))?;
         if self.cursor.visible {
-            commands.push(Command::CursorShow(true));
+            queue!(stdout, cursor::Show)?;
         }
 
         self.painted_cursor = self.cursor;
 
-        commands
+        Ok(())
     }
 
     /// ```
@@ -229,18 +222,18 @@ impl Canvas for Screen {
     /// clear the screen buffer
     fn clear(&mut self) -> Result<()> {
         for cell in self.cells.iter_mut() {
-            *cell = Cell::empty();
+            *cell = *EMPTY_CELL;
         }
         Ok(())
     }
 
     /// change a cell of position `(row, col)` to `cell`
     fn put_cell(&mut self, row: usize, col: usize, cell: Cell) -> Result<usize> {
-        let ch_width = cell.ch.width().unwrap_or(2);
+        let ch_width = cell.content().width().unwrap_or(2);
         if ch_width > 1 {
             let _ = self.index(row, col + 1).map(|index| {
                 self.cells[index - 1] = cell;
-                self.cells[index].ch = ' ';
+                self.cells[index] = *BLANK_CELL;
             });
         } else {
             let _ = self.index(row, col).map(|index| {
@@ -295,89 +288,23 @@ struct Cursor {
 
 #[cfg(test)]
 mod test {
+    use crossterm::style::Stylize;
+
     use super::*;
 
     #[test]
     fn test_cell_iterator() {
         let mut screen = Screen::new(2, 2);
-        let _ = screen.put_cell(
-            0,
-            0,
-            Cell {
-                ch: 'a',
-                attr: Attr::default(),
-            },
-        );
-        let _ = screen.put_cell(
-            0,
-            1,
-            Cell {
-                ch: 'b',
-                attr: Attr::default(),
-            },
-        );
-        let _ = screen.put_cell(
-            1,
-            0,
-            Cell {
-                ch: 'c',
-                attr: Attr::default(),
-            },
-        );
-        let _ = screen.put_cell(
-            1,
-            1,
-            Cell {
-                ch: 'd',
-                attr: Attr::default(),
-            },
-        );
+        let _ = screen.put_cell(0, 0, 'a'.stylize());
+        let _ = screen.put_cell(0, 1, 'b'.stylize());
+        let _ = screen.put_cell(1, 0, 'c'.stylize());
+        let _ = screen.put_cell(1, 1, 'd'.stylize());
 
         let mut iter = screen.iter_cell();
-        assert_eq!(
-            Some((
-                0,
-                0,
-                &Cell {
-                    ch: 'a',
-                    attr: Attr::default()
-                }
-            )),
-            iter.next()
-        );
-        assert_eq!(
-            Some((
-                0,
-                1,
-                &Cell {
-                    ch: 'b',
-                    attr: Attr::default()
-                }
-            )),
-            iter.next()
-        );
-        assert_eq!(
-            Some((
-                1,
-                0,
-                &Cell {
-                    ch: 'c',
-                    attr: Attr::default()
-                }
-            )),
-            iter.next()
-        );
-        assert_eq!(
-            Some((
-                1,
-                1,
-                &Cell {
-                    ch: 'd',
-                    attr: Attr::default()
-                }
-            )),
-            iter.next()
-        );
+        assert_eq!(Some((0, 0, &'a'.stylize())), iter.next());
+        assert_eq!(Some((0, 1, &'b'.stylize())), iter.next());
+        assert_eq!(Some((1, 0, &'c'.stylize())), iter.next());
+        assert_eq!(Some((1, 1, &'c'.stylize())), iter.next());
         assert_eq!(None, iter.next());
 
         let empty_screen = Screen::new(0, 0);

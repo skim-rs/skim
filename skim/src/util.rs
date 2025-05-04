@@ -135,7 +135,7 @@ impl LinePrinter {
         let w = ch.width().unwrap_or(2);
 
         if !skip {
-            let _ = canvas.put_cell(self.row, self.screen_col, Cell::default().ch(ch).attribute(attr));
+            let _ = canvas.put_cell(self.row, self.screen_col, Cell::default().ch(ch).style(attr));
         }
 
         self.screen_col += w;

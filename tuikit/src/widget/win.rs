@@ -2,13 +2,13 @@ use super::split::Split;
 use super::util::adjust_event;
 use super::Size;
 use super::{Rectangle, Widget};
-use crate::attr::Attr;
 use crate::canvas::{BoundedCanvas, Canvas};
 use crate::cell::Cell;
 use crate::draw::{Draw, DrawResult};
 use crate::event::Event;
 use crate::widget::align::{AlignSelf, HorizontalAlign};
 use crate::{ok_or_return, some_or_return};
+use crossterm::style::ContentStyle;
 use std::cmp::max;
 use unicode_width::UnicodeWidthStr;
 
@@ -31,16 +31,16 @@ pub struct Win<'a, Message = ()> {
     border_bottom: bool,
     border_left: bool,
 
-    border_top_attr: Attr,
-    border_right_attr: Attr,
-    border_bottom_attr: Attr,
-    border_left_attr: Attr,
+    border_top_style: ContentStyle,
+    border_right_style: ContentStyle,
+    border_bottom_style: ContentStyle,
+    border_left_style: ContentStyle,
 
     fn_draw_header: Option<Box<FnDrawHeader>>,
     title: Option<String>,
-    title_attr: Attr,
+    title_style: ContentStyle,
     right_prompt: Option<String>,
-    right_prompt_attr: Attr,
+    right_prompt_style: ContentStyle,
     title_align: HorizontalAlign,
     title_on_top: bool,
 
@@ -67,15 +67,15 @@ impl<'a, Message> Win<'a, Message> {
             border_right: false,
             border_bottom: false,
             border_left: false,
-            border_top_attr: Default::default(),
-            border_right_attr: Default::default(),
-            border_bottom_attr: Default::default(),
-            border_left_attr: Default::default(),
+            border_top_style: Default::default(),
+            border_right_style: Default::default(),
+            border_bottom_style: Default::default(),
+            border_left_style: Default::default(),
             fn_draw_header: None,
             title: None,
-            title_attr: Default::default(),
+            title_style: Default::default(),
             right_prompt: None,
-            right_prompt_attr: Default::default(),
+            right_prompt_style: Default::default(),
             title_align: HorizontalAlign::Left,
             title_on_top: true,
             basis: Size::Default,
@@ -171,32 +171,32 @@ impl<'a, Message> Win<'a, Message> {
         self
     }
 
-    pub fn border_top_attr(mut self, border_top_attr: impl Into<Attr>) -> Self {
-        self.border_top_attr = border_top_attr.into();
+    pub fn border_top_style(mut self, border_top_style: impl Into<ContentStyle>) -> Self {
+        self.border_top_style = border_top_style.into();
         self
     }
 
-    pub fn border_right_attr(mut self, border_right_attr: impl Into<Attr>) -> Self {
-        self.border_right_attr = border_right_attr.into();
+    pub fn border_right_style(mut self, border_right_style: impl Into<ContentStyle>) -> Self {
+        self.border_right_style = border_right_style.into();
         self
     }
 
-    pub fn border_bottom_attr(mut self, border_bottom_attr: impl Into<Attr>) -> Self {
-        self.border_bottom_attr = border_bottom_attr.into();
+    pub fn border_bottom_style(mut self, border_bottom_style: impl Into<ContentStyle>) -> Self {
+        self.border_bottom_style = border_bottom_style.into();
         self
     }
 
-    pub fn border_left_attr(mut self, border_left_attr: impl Into<Attr>) -> Self {
-        self.border_left_attr = border_left_attr.into();
+    pub fn border_left_style(mut self, border_left_style: impl Into<ContentStyle>) -> Self {
+        self.border_left_style = border_left_style.into();
         self
     }
 
-    pub fn border_attr(mut self, attr: impl Into<Attr>) -> Self {
-        let attr = attr.into();
-        self.border_top_attr = attr;
-        self.border_right_attr = attr;
-        self.border_bottom_attr = attr;
-        self.border_left_attr = attr;
+    pub fn border_style(mut self, style: impl Into<ContentStyle>) -> Self {
+        let style = style.into();
+        self.border_top_style = style;
+        self.border_right_style = style;
+        self.border_bottom_style = style;
+        self.border_left_style = style;
         self
     }
 
@@ -210,8 +210,8 @@ impl<'a, Message> Win<'a, Message> {
         self
     }
 
-    pub fn title_attr(mut self, title_attr: impl Into<Attr>) -> Self {
-        self.title_attr = title_attr.into();
+    pub fn title_style(mut self, title_style: impl Into<ContentStyle>) -> Self {
+        self.title_style = title_style.into();
         self
     }
 
@@ -220,8 +220,8 @@ impl<'a, Message> Win<'a, Message> {
         self
     }
 
-    pub fn right_prompt_attr(mut self, right_prompt_attr: impl Into<Attr>) -> Self {
-        self.right_prompt_attr = right_prompt_attr.into();
+    pub fn right_prompt_style(mut self, right_prompt_style: impl Into<ContentStyle>) -> Self {
+        self.right_prompt_style = right_prompt_style.into();
         self
     }
 
@@ -425,45 +425,41 @@ impl<'a, Message> Win<'a, Message> {
         let right = max(left + width, 1) - 1;
 
         if self.border_top {
-            let _ = canvas.print_with_attr(top, left, &"─".repeat(width), self.border_top_attr);
+            let _ = canvas.print_with_style(top, left, &"─".repeat(width), self.border_top_style);
         }
 
         if self.border_bottom {
-            let _ = canvas.print_with_attr(bottom, left, &"─".repeat(width), self.border_bottom_attr);
+            let _ = canvas.print_with_style(bottom, left, &"─".repeat(width), self.border_bottom_style);
         }
 
         if self.border_left {
             for i in top..(top + height) {
-                let _ = canvas.print_with_attr(i, left, "│", self.border_left_attr);
+                let _ = canvas.print_with_style(i, left, "│", self.border_left_style);
             }
         }
 
         if self.border_right {
             for i in top..(top + height) {
-                let _ = canvas.print_with_attr(i, right, "│", self.border_right_attr);
+                let _ = canvas.print_with_style(i, right, "│", self.border_right_style);
             }
         }
 
         // draw 4 corners if necessary
 
         if self.border_top && self.border_left {
-            let _ = canvas.put_cell(top, left, Cell::default().ch('┌').attribute(self.border_top_attr));
+            let _ = canvas.put_cell(top, left, Cell::new(self.border_top_style, '┌'));
         }
 
         if self.border_top && self.border_right {
-            let _ = canvas.put_cell(top, right, Cell::default().ch('┐').attribute(self.border_top_attr));
+            let _ = canvas.put_cell(top, right, Cell::new(self.border_top_style, '┐'));
         }
 
         if self.border_bottom && self.border_left {
-            let _ = canvas.put_cell(bottom, left, Cell::default().ch('└').attribute(self.border_bottom_attr));
+            let _ = canvas.put_cell(bottom, left, Cell::new(self.border_bottom_style, '└'));
         }
 
         if self.border_bottom && self.border_right {
-            let _ = canvas.put_cell(
-                bottom,
-                right,
-                Cell::default().ch('┘').attribute(self.border_bottom_attr),
-            );
+            let _ = canvas.put_cell(bottom, right, Cell::new(self.border_bottom_style, '┘'));
         }
 
         Ok(())
@@ -477,14 +473,14 @@ impl<'a, Message> Win<'a, Message> {
             let prompt = self.right_prompt.as_ref().unwrap();
             let text_width = prompt.width_cjk();
             let left = HorizontalAlign::Right.adjust(0, width, text_width);
-            canvas.print_with_attr(row, left, prompt, self.right_prompt_attr)?;
+            canvas.print_with_style(row, left, prompt, self.right_prompt_style)?;
         }
 
         if self.title.is_some() {
             let title = self.title.as_ref().unwrap();
             let text_width = title.width_cjk();
             let left = self.title_align.adjust(0, width, text_width);
-            canvas.print_with_attr(row, left, title, self.right_prompt_attr)?;
+            canvas.print_with_style(row, left, title, self.right_prompt_style)?;
         }
 
         Ok(())

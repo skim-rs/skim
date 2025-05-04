@@ -23,13 +23,15 @@
 //! terminals as a table of fixed-size cells and input being a stream of structured messages
 
 use std::cmp::{max, min};
+use std::io::Write as _;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::attr::Attr;
+use crossterm::style::ContentStyle;
+
 use crate::canvas::Canvas;
 use crate::cell::Cell;
 use crate::draw::Draw;
@@ -37,7 +39,6 @@ use crate::error::TuikitError;
 use crate::event::Event;
 use crate::input::{KeyBoard, KeyboardHandler};
 use crate::key::Key;
-use crate::output::Command;
 use crate::output::Output;
 use crate::raw::{get_tty, IntoRawMode};
 use crate::screen::Screen;
@@ -454,14 +455,20 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
 
     /// Print `content` starting with position `(row, col)`
     pub fn print(&self, row: usize, col: usize, content: &str) -> Result<usize> {
-        self.print_with_attr(row, col, content, Attr::default())
+        self.print_with_style(row, col, content, ContentStyle::default())
     }
 
-    /// print `content` starting with position `(row, col)` with `attr`
-    pub fn print_with_attr(&self, row: usize, col: usize, content: &str, attr: impl Into<Attr>) -> Result<usize> {
+    /// print `content` starting with position `(row, col)` with `style`
+    pub fn print_with_style(
+        &self,
+        row: usize,
+        col: usize,
+        content: &str,
+        style: impl Into<ContentStyle>,
+    ) -> Result<usize> {
         self.ensure_not_stopped()?;
         let mut termlock = self.term_lock.lock();
-        termlock.print_with_attr(row, col, content, attr)
+        termlock.print_with_style(row, col, content, style)
     }
 
     /// Set cursor position to (row, col), and show the cursor
@@ -534,8 +541,8 @@ impl<UserEvent: Send + 'static> Canvas for TermCanvas<'_, UserEvent> {
         self.term.put_cell(row, col, cell)
     }
 
-    fn print_with_attr(&mut self, row: usize, col: usize, content: &str, attr: Attr) -> Result<usize> {
-        self.term.print_with_attr(row, col, content, attr)
+    fn print_with_style(&mut self, row: usize, col: usize, content: &str, style: ContentStyle) -> Result<usize> {
+        self.term.print_with_style(row, col, content, style)
     }
 
     fn set_cursor(&mut self, row: usize, col: usize) -> Result<()> {
@@ -602,24 +609,23 @@ impl TermLock {
 
     /// Present the content to the terminal
     pub fn present(&mut self) -> Result<()> {
-        let output = self.output.as_mut().ok_or(TuikitError::TerminalNotStarted)?;
-        let mut commands = self.screen.present();
+        self.screen.present()?;
 
-        let cursor_row = self.cursor_row;
-        // add cursor_row to all CursorGoto commands
-        for cmd in commands.iter_mut() {
-            if let Command::CursorGoto { row, col } = *cmd {
-                *cmd = Command::CursorGoto {
-                    row: row + cursor_row,
-                    col,
-                }
-            }
-        }
-
-        for cmd in commands.into_iter() {
-            output.execute(cmd);
-        }
-        output.flush();
+        //let cursor_row = self.cursor_row;
+        //// add cursor_row to all CursorGoto commands
+        //for cmd in commands.iter_mut() {
+        //    if let Command::CursorGoto { row, col } = *cmd {
+        //        *cmd = Command::CursorGoto {
+        //            row: row + cursor_row,
+        //            col,
+        //        }
+        //    }
+        //}
+        //
+        //for cmd in commands.into_iter() {
+        //    output.execute(cmd);
+        //}
+        std::io::stdout().flush()?;
         Ok(())
     }
 
@@ -786,8 +792,14 @@ impl TermLock {
     }
 
     /// print `content` starting with position `(row, col)`
-    pub fn print_with_attr(&mut self, row: usize, col: usize, content: &str, attr: impl Into<Attr>) -> Result<usize> {
-        self.screen.print_with_attr(row, col, content, attr.into())
+    pub fn print_with_style(
+        &mut self,
+        row: usize,
+        col: usize,
+        content: &str,
+        style: impl Into<ContentStyle>,
+    ) -> Result<usize> {
+        self.screen.print_with_style(row, col, content, style.into())
     }
 
     /// set cursor position to (row, col)

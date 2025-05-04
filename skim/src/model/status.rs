@@ -1,7 +1,8 @@
+use crate::Effect;
+use crossterm::style::ContentStyle;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tuikit::attr::{Attr, Effect};
 use tuikit::canvas::Canvas;
 use tuikit::draw::{Draw, DrawResult};
 use tuikit::widget::Widget;
@@ -55,11 +56,8 @@ impl Draw for Status {
             return Ok(());
         }
 
-        let info_attr = self.theme.info();
-        let info_attr_bold = Attr {
-            effect: Effect::BOLD,
-            ..self.theme.info()
-        };
+        let info_style = self.theme.info();
+        let info_style_bold = self.theme.info().bold();
 
         let a_while_since_read = self.time_since_read > Duration::from_millis(50);
         let a_while_since_match = self.time_since_match > Duration::from_millis(50);
@@ -72,7 +70,7 @@ impl Draw for Status {
         };
 
         if self.info == InfoDisplay::Inline {
-            col += canvas.put_char_with_attr(0, col, ' ', info_attr)?;
+            col += canvas.put_char_with_style(0, col, ' ', info_style)?;
         }
 
         // draw the spinner
@@ -80,36 +78,36 @@ impl Draw for Status {
             let mills = (self.time_since_read.as_secs() * 1000) as u32 + self.time_since_read.subsec_millis();
             let index = (mills / SPINNER_DURATION) % (spinner_set.len() as u32);
             let ch = spinner_set[index as usize];
-            col += canvas.put_char_with_attr(0, col, ch, self.theme.spinner())?;
+            col += canvas.put_char_with_style(0, col, ch, self.theme.spinner())?;
         } else {
             match self.info {
-                InfoDisplay::Inline => col += canvas.put_char_with_attr(0, col, '<', self.theme.prompt())?,
-                InfoDisplay::Default => col += canvas.put_char_with_attr(0, col, ' ', self.theme.prompt())?,
+                InfoDisplay::Inline => col += canvas.put_char_with_style(0, col, '<', self.theme.prompt())?,
+                InfoDisplay::Default => col += canvas.put_char_with_style(0, col, ' ', self.theme.prompt())?,
                 InfoDisplay::Hidden => panic!("This should never happen"),
             }
         }
 
         // display matched/total number
-        col += canvas.print_with_attr(0, col, format!(" {}/{}", self.matched, self.total).as_ref(), info_attr)?;
+        col += canvas.print_with_style(0, col, format!(" {}/{}", self.matched, self.total).as_ref(), info_style)?;
 
         // display the matcher mode
         if !self.matcher_mode.is_empty() {
-            col += canvas.print_with_attr(0, col, format!("/{}", &self.matcher_mode).as_ref(), info_attr)?;
+            col += canvas.print_with_style(0, col, format!("/{}", &self.matcher_mode).as_ref(), info_style)?;
         }
 
         // display the percentage of the number of processed items
         if self.matcher_running && a_while_since_match {
-            col += canvas.print_with_attr(
+            col += canvas.print_with_style(
                 0,
                 col,
                 format!(" ({}%) ", self.processed * 100 / self.total).as_ref(),
-                info_attr,
+                info_style,
             )?;
         }
 
         // selected number
         if self.multi_selection && self.selected > 0 {
-            col += canvas.print_with_attr(0, col, format!(" [{}]", self.selected).as_ref(), info_attr_bold)?;
+            col += canvas.print_with_style(0, col, format!(" [{}]", self.selected).as_ref(), info_style_bold)?;
         }
 
         // item cursor
@@ -119,7 +117,7 @@ impl Draw for Status {
             self.hscroll_offset,
             if self.matcher_running { '.' } else { ' ' }
         );
-        canvas.print_with_attr(0, screen_width - line_num_str.len(), &line_num_str, info_attr_bold)?;
+        canvas.print_with_style(0, screen_width - line_num_str.len(), &line_num_str, info_style_bold)?;
 
         Ok(())
     }

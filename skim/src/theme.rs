@@ -2,7 +2,7 @@
 use std::sync::LazyLock;
 
 use crate::options::SkimOptions;
-use tuikit::prelude::*;
+use crossterm::style::{Attribute, Attributes, Color};
 
 pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 
@@ -20,28 +20,28 @@ pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark2
 #[rustfmt::skip]
 #[derive(Copy, Clone, Debug)]
 pub struct ColorTheme {
-    fg:                   Color,
-    bg:                   Color,
-    normal_effect:        Effect,
-    matched:              Color,
-    matched_bg:           Color,
-    matched_effect:       Effect,
-    current:              Color,
-    current_bg:           Color,
-    current_effect:       Effect,
-    current_match:        Color,
-    current_match_bg:     Color,
-    current_match_effect: Effect,
-    query_fg:             Color,
-    query_bg:             Color,
-    query_effect:         Effect,
-    spinner:              Color,
-    info:                 Color,
-    prompt:               Color,
-    cursor:               Color,
-    selected:             Color,
-    header:               Color,
-    border:               Color,
+    fg:                   Option<Color>,
+    bg:                   Option<Color>,
+    normal_effect:        Attributes,
+    matched:              Option<Color>,
+    matched_bg:           Option<Color>,
+    matched_effect:       Attributes,
+    current:              Option<Color>,
+    current_bg:           Option<Color>,
+    current_effect:       Attributes,
+    current_match:        Option<Color>,
+    current_match_bg:     Option<Color>,
+    current_match_effect: Attributes,
+    query_fg:             Option<Color>,
+    query_bg:             Option<Color>,
+    query_effect:         Attributes,
+    spinner:              Option<Color>,
+    info:                 Option<Color>,
+    prompt:               Option<Color>,
+    cursor:               Option<Color>,
+    selected:             Option<Color>,
+    header:               Option<Color>,
+    border:               Option<Color>,
 }
 
 #[rustfmt::skip]
@@ -58,55 +58,55 @@ impl ColorTheme {
 
     fn empty() -> Self {
         ColorTheme {
-            fg:                   Color::Default,
-            bg:                   Color::Default,
-            normal_effect:        Effect::empty(),
-            matched:              Color::Default,
-            matched_bg:           Color::Default,
-            matched_effect:       Effect::empty(),
-            current:              Color::Default,
-            current_bg:           Color::Default,
-            current_effect:       Effect::empty(),
-            current_match:        Color::Default,
-            current_match_bg:     Color::Default,
-            current_match_effect: Effect::empty(),
-            query_fg:             Color::Default,
-            query_bg:             Color::Default,
-            query_effect:         Effect::empty(),
-            spinner:              Color::Default,
-            info:                 Color::Default,
-            prompt:               Color::Default,
-            cursor:               Color::Default,
-            selected:             Color::Default,
-            header:               Color::Default,
-            border:               Color::Default,
+            fg:                   None,
+            bg:                   None,
+            normal_effect:        Attributes::none(),
+            matched:              None,
+            matched_bg:           None,
+            matched_effect:       Attributes::none(),
+            current:              None,
+            current_bg:           None,
+            current_effect:       Attributes::none(),
+            current_match:        None,
+            current_match_bg:     None,
+            current_match_effect: Attributes::none(),
+            query_fg:             None,
+            query_bg:             None,
+            query_effect:         Attributes::none(),
+            spinner:              None,
+            info:                 None,
+            prompt:               None,
+            cursor:               None,
+            selected:             None,
+            header:               None,
+            border:               None,
         }
     }
 
     fn bw() -> Self {
         ColorTheme {
-            matched_effect:       Effect::UNDERLINE,
-            current_effect:       Effect::REVERSE,
-            current_match_effect: Effect::UNDERLINE | Effect::REVERSE,
+            matched_effect:       Attributes::none().with(Attribute::Underlined),
+            current_effect:       Attributes::none().with(Attribute::Reverse),
+            current_match_effect: Attributes::none().with(Attribute::Underlined).with(Attribute::Reverse),
             ..ColorTheme::empty()
         }
     }
 
     fn default16() -> Self {
         ColorTheme {
-            matched:          Color::GREEN,
-            matched_bg:       Color::BLACK,
-            current:          Color::YELLOW,
-            current_bg:       Color::BLACK,
-            current_match:    Color::GREEN,
-            current_match_bg: Color::BLACK,
-            spinner:          Color::GREEN,
-            info:             Color::WHITE,
-            prompt:           Color::BLUE,
-            cursor:           Color::RED,
-            selected:         Color::MAGENTA,
-            header:           Color::CYAN,
-            border:           Color::LIGHT_BLACK,
+            matched:          Some(Color::Green),
+            matched_bg:       Some(Color::Black),
+            current:          Some(Color::Yellow),
+            current_bg:       Some(Color::Black),
+            current_match:    Some(Color::Green),
+            current_match_bg: Some(Color::Black),
+            spinner:          Some(Color::Green),
+            info:             Some(Color::White),
+            prompt:           Some(Color::Blue),
+            cursor:           Some(Color::Red),
+            selected:         Some(Color::Magenta),
+            header:           Some(Color::Cyan),
+            border:           Some(Color::Grey),
             ..ColorTheme::empty()
         }
     }
@@ -151,19 +151,19 @@ impl ColorTheme {
 
     fn light256() -> Self {
         ColorTheme {
-            matched:          Color::AnsiValue(0),
-            matched_bg:       Color::AnsiValue(220),
-            current:          Color::AnsiValue(237),
-            current_bg:       Color::AnsiValue(251),
-            current_match:    Color::AnsiValue(66),
-            current_match_bg: Color::AnsiValue(251),
-            spinner:          Color::AnsiValue(65),
-            info:             Color::AnsiValue(101),
-            prompt:           Color::AnsiValue(25),
-            cursor:           Color::AnsiValue(161),
-            selected:         Color::AnsiValue(168),
-            header:           Color::AnsiValue(31),
-            border:           Color::AnsiValue(145),
+            matched:          Some(Color::AnsiValue(0)),
+            matched_bg:       Some(Color::AnsiValue(220)),
+            current:          Some(Color::AnsiValue(237)),
+            current_bg:       Some(Color::AnsiValue(251)),
+            current_match:    Some(Color::AnsiValue(66)),
+            current_match_bg: Some(Color::AnsiValue(251)),
+            spinner:          Some(Color::AnsiValue(65)),
+            info:             Some(Color::AnsiValue(101)),
+            prompt:           Some(Color::AnsiValue(25)),
+            cursor:           Some(Color::AnsiValue(161)),
+            selected:         Some(Color::AnsiValue(168)),
+            header:           Some(Color::AnsiValue(31)),
+            border:           Some(Color::AnsiValue(145)),
             ..ColorTheme::empty()
         }
     }
@@ -190,11 +190,13 @@ impl ColorTheme {
                 let r = u8::from_str_radix(&color[1][1..3], 16).unwrap_or(255);
                 let g = u8::from_str_radix(&color[1][3..5], 16).unwrap_or(255);
                 let b = u8::from_str_radix(&color[1][5..7], 16).unwrap_or(255);
-                Color::Rgb(r, g, b)
+                Some(Color::Rgb { r, g, b })
             } else {
-                color[1].parse::<u8>()
-                    .map(Color::AnsiValue)
-                    .unwrap_or(Color::Default)
+                let Ok(c) = color[1].parse::<u8>()
+                    .map(Color::AnsiValue) else {
+                    None
+                };
+                Some(c)
             };
 
             match color[0] {
@@ -221,7 +223,7 @@ impl ColorTheme {
         theme
     }
 
-    pub fn normal(&self) -> Attr {
+    pub fn normal(&self) -> Attributes {
         Attr {
             fg: self.fg,
             bg: self.bg,
