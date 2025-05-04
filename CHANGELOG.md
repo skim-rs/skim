@@ -1,6 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+## [0.17.1](https://github.com/skim-rs/skim/compare/v0.17.0...v0.17.1)
+
+### 🐛 Bug Fixes
+
+
+- **ci:** Add metadata to common package - ([a8dcc7e](https://github.com/skim-rs/skim/commit/a8dcc7ec4c3f730b24ee2aa2015f074e54b930e1))
 ## [0.17.0](https://github.com/skim-rs/skim/compare/v0.16.2...v0.17.0)
 
 ### ⛰️ Features
