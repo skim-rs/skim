@@ -14,9 +14,7 @@
     }
   ],
   "packages": {
-    ".": {
-      "component": "root"
-    },
+    ".": {},
     "skim": {
       "skip-github-release": true
     },
@@ -34,7 +32,8 @@
     },
     "shell": {
       "release-type": "simple",
-      "skip-github-release": true
+      "skip-github-release": true,
+      "package-name": "shell-integrations"
     }
   }
 }
