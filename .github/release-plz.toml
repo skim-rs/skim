@@ -9,7 +9,6 @@ pr_labels = ["release"]
 pr_name = "chore: release"
 publish = false
 publish_no_verify = true
-release_commits = "^(feat|fix)[:(]"
 semver_check = true
 
 features_always_increment_minor = true
