@@ -2,7 +2,7 @@
 use std::default::Default;
 
 use beef::lean::Cow;
-use crossterm::style::{Attribute, Attributes, ContentStyle, Color};
+use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
 use std::cmp::max;
 use vte::{Params, Perform};
 
@@ -240,7 +240,8 @@ impl<'a> AnsiString<'a> {
 
     /// assume the fragments are ordered by (start, end) while end is exclusive
     pub fn new_str(stripped: &'a str, fragments: Vec<AnsiFragment>) -> Self {
-        let fragments_empty = fragments.is_empty() || (fragments.len() == 1 && fragments[0].0 == ContentStyle::default());
+        let fragments_empty =
+            fragments.is_empty() || (fragments.len() == 1 && fragments[0].0 == ContentStyle::default());
         Self {
             stripped: Cow::borrowed(stripped),
             fragments: if fragments_empty { None } else { Some(fragments) },
@@ -249,7 +250,8 @@ impl<'a> AnsiString<'a> {
 
     /// assume the fragments are ordered by (start, end) while end is exclusive
     pub fn new_string(stripped: String, fragments: Vec<AnsiFragment>) -> Self {
-        let fragments_empty = fragments.is_empty() || (fragments.len() == 1 && fragments[0].0 == ContentStyle::default());
+        let fragments_empty =
+            fragments.is_empty() || (fragments.len() == 1 && fragments[0].0 == ContentStyle::default());
         Self {
             stripped: Cow::owned(stripped),
             fragments: if fragments_empty { None } else { Some(fragments) },
@@ -456,16 +458,8 @@ mod tests {
         let ansistring = ANSIParser::default().parse_ansi(input);
         let mut it = ansistring.iter();
         let attr = ContentStyle {
-            foreground_color: Some(Color::Rgb {
-                r: 70,
-                g: 130,
-                b: 180,
-            }),
-            background_color: Some(Color::Rgb {
-                r: 5,
-                g: 10,
-                b: 15,
-            }),
+            foreground_color: Some(Color::Rgb { r: 70, g: 130, b: 180 }),
+            background_color: Some(Color::Rgb { r: 5, g: 10, b: 15 }),
             ..ContentStyle::default()
         };
 
@@ -627,50 +621,50 @@ mod tests {
 
     #[test]
     fn test_ansi_string_add() {
-      let default_attr = ContentStyle::default();
-      let ar = ContentStyle::default().on(Color::Red);
-      let ab = ContentStyle::default().on(Color::Blue);
+        let default_attr = ContentStyle::default();
+        let ar = ContentStyle::default().on(Color::Red);
+        let ab = ContentStyle::default().on(Color::Blue);
 
-      let string_a = AnsiString::new_str("foo", vec![(ar, (1, 3))]);
-      let string_b = AnsiString::new_str("bar", vec![(ab, (0, 2))]);
-      let string_c = string_a + string_b;
+        let string_a = AnsiString::new_str("foo", vec![(ar, (1, 3))]);
+        let string_b = AnsiString::new_str("bar", vec![(ab, (0, 2))]);
+        let string_c = string_a + string_b;
 
-      let mut it = string_c.iter();
-      assert_eq!(Some(('f', default_attr)), it.next());
-      assert_eq!(Some(('o', ar)), it.next());
-      assert_eq!(Some(('o', ar)), it.next());
-      assert_eq!(Some(('b', ab)), it.next());
-      assert_eq!(Some(('a', ab)), it.next());
-      assert_eq!(Some(('r', default_attr)), it.next());
-      assert_eq!(None, it.next());
-  }
+        let mut it = string_c.iter();
+        assert_eq!(Some(('f', default_attr)), it.next());
+        assert_eq!(Some(('o', ar)), it.next());
+        assert_eq!(Some(('o', ar)), it.next());
+        assert_eq!(Some(('b', ab)), it.next());
+        assert_eq!(Some(('a', ab)), it.next());
+        assert_eq!(Some(('r', default_attr)), it.next());
+        assert_eq!(None, it.next());
+    }
 
-  #[test]
-  fn test_multi_byte_359() {
-      // https://github.com/lotabout/skim/issues/359
-      let highlight = ContentStyle::default().attribute(Attribute::Bold);
-      let ansistring = AnsiString::new_str("ああa", vec![(highlight, (2, 3))]);
-      let mut it = ansistring.iter();
-      assert_eq!(Some(('あ', ContentStyle::default())), it.next());
-      assert_eq!(Some(('あ', ContentStyle::default())), it.next());
-      assert_eq!(Some(('a', highlight)), it.next());
-      assert_eq!(None, it.next());
-  }
+    #[test]
+    fn test_multi_byte_359() {
+        // https://github.com/lotabout/skim/issues/359
+        let highlight = ContentStyle::default().attribute(Attribute::Bold);
+        let ansistring = AnsiString::new_str("ああa", vec![(highlight, (2, 3))]);
+        let mut it = ansistring.iter();
+        assert_eq!(Some(('あ', ContentStyle::default())), it.next());
+        assert_eq!(Some(('あ', ContentStyle::default())), it.next());
+        assert_eq!(Some(('a', highlight)), it.next());
+        assert_eq!(None, it.next());
+    }
 
-  #[test]
-  fn test_ansi_dim() {
-      // https://github.com/lotabout/skim/issues/495
-      let input = "\x1B[2mhi\x1b[0m";
-      let ansistring = ANSIParser::default().parse_ansi(input);
-      let mut it = ansistring.iter();
-      let attr = ContentStyle {
-          attributes: Attributes::from(Attribute::Dim),
-          ..ContentStyle::default()
-      };
+    #[test]
+    fn test_ansi_dim() {
+        // https://github.com/lotabout/skim/issues/495
+        let input = "\x1B[2mhi\x1b[0m";
+        let ansistring = ANSIParser::default().parse_ansi(input);
+        let mut it = ansistring.iter();
+        let attr = ContentStyle {
+            attributes: Attributes::from(Attribute::Dim),
+            ..ContentStyle::default()
+        };
 
-      assert_eq!(Some(('h', attr)), it.next());
-      assert_eq!(Some(('i', attr)), it.next());
-      assert_eq!(None, it.next());
-      assert_eq!(ansistring.stripped(), "hi");
-  }
+        assert_eq!(Some(('h', attr)), it.next());
+        assert_eq!(Some(('i', attr)), it.next());
+        assert_eq!(None, it.next());
+        assert_eq!(ansistring.stripped(), "hi");
+    }
 }

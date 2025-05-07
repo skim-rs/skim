@@ -175,9 +175,10 @@ impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
         match context.matches {
             Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_style)),
             #[allow(clippy::cast_possible_truncation)]
-            Matches::CharRange(start, end) => {
-                AnsiString::new_str(context.text, vec![(context.highlight_style, (start as u32, end as u32))])
-            }
+            Matches::CharRange(start, end) => AnsiString::new_str(
+                context.text,
+                vec![(context.highlight_style, (start as u32, end as u32))],
+            ),
             Matches::ByteRange(start, end) => {
                 let ch_start = context.text[..start].chars().count();
                 let ch_end = ch_start + context.text[start..end].chars().count();

@@ -192,15 +192,20 @@ impl LinePrinter {
 }
 
 pub fn extend_style(default: ContentStyle, new: ContentStyle) -> ContentStyle {
-  ContentStyle {
-    foreground_color: new.foreground_color.or(default.foreground_color),
-    background_color: new.background_color.or(default.background_color),
-    attributes: default.attributes | new.attributes,
-    underline_color: new.underline_color.or(default.underline_color),
-  }
+    ContentStyle {
+        foreground_color: new.foreground_color.or(default.foreground_color),
+        background_color: new.background_color.or(default.background_color),
+        attributes: default.attributes | new.attributes,
+        underline_color: new.underline_color.or(default.underline_color),
+    }
 }
 
-pub fn print_item(canvas: &mut dyn Canvas, printer: &mut LinePrinter, content: AnsiString, default_style: ContentStyle) {
+pub fn print_item(
+    canvas: &mut dyn Canvas,
+    printer: &mut LinePrinter,
+    content: AnsiString,
+    default_style: ContentStyle,
+) {
     for (ch, style) in content.iter() {
         printer.print_char(canvas, ch, extend_style(default_style, style), false);
     }
