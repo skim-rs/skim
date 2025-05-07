@@ -12,10 +12,18 @@ use skim_tuikit::prelude::*;
 use std::cmp::max;
 use std::sync::Arc;
 
+pub type HeaderCallback = Arc<dyn Fn(???)>;
+
 pub struct Header {
+    // The lines forming the header itself
     header: Vec<AnsiString<'static>>,
+    // A function, used for dynamic header rendering
+    header_fn: Option<HeaderCallback>,
+    // The size of the tabstop
     tabstop: usize,
+    // Whether or not the layout is reversed
     reverse: bool,
+    // The color theme
     theme: Arc<ColorTheme>,
 
     // for reserved header items
@@ -26,6 +34,7 @@ impl Header {
     pub fn empty() -> Self {
         Self {
             header: vec![],
+            header_fn: None,
             tabstop: 8,
             reverse: false,
             theme: Arc::new(*DEFAULT_THEME),
@@ -50,14 +59,17 @@ impl Header {
             self.reverse = true;
         }
 
-        match &options.header {
-            None => {}
-            Some(header) => {
+        match (&options.header, &options.header_fn) {
+            (None, None) => {}
+            (Some(header), None) => {
                 let mut parser = ANSIParser::default();
                 if !header.is_empty() {
                     self.header = str_lines(header).into_iter().map(|l| parser.parse_ansi(l)).collect();
                 }
             }
+            (_, Some(header_fn)) => {
+              self.header_fn = Some(header_fn.clone());
+            },
         }
         self
     }

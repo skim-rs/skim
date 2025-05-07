@@ -871,6 +871,14 @@ pub struct SkimOptions {
     /// and return a Vec<String> with the lines to display in UTF-8
     #[clap(skip)]
     pub preview_fn: Option<PreviewCallback>,
+    /// Header Callback
+    ///
+    /// Used to define a function or closure for the preview window, instead of a shell command.
+    ///
+    /// The function will take a `Vec<Arc<dyn SkimItem>>>` containing the currently selected items
+    /// and return a Vec<String> with the lines to display in UTF-8
+    #[clap(skip)]
+    pub header_fn: Option<HeaderCallback>,
 }
 
 impl Default for SkimOptions {
