@@ -1,3 +1,4 @@
+use crossterm::style::{ContentStyle, Stylize};
 use tuikit::prelude::*;
 
 struct Fit(String);
@@ -24,7 +25,7 @@ impl Draw for Model {
         let message_width = self.0.len();
         let left = (width - message_width) / 2;
         let top = height / 2;
-        let _ = canvas.print_with_attr(0, left, "press 'q' to exit", Effect::UNDERLINE.into());
+        let _ = canvas.print_with_style(0, left, "press 'q' to exit", ContentStyle::default().underlined());
         let _ = canvas.print(top, left, &self.0);
         Ok(())
     }

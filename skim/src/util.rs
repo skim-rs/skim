@@ -6,7 +6,7 @@ use std::prelude::v1::*;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use crossterm::style::{ContentStyle, Stylize as _};
+use crossterm::style::ContentStyle;
 use regex::{Captures, Regex};
 use tuikit::prelude::*;
 use unicode_width::UnicodeWidthChar;

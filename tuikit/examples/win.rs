@@ -1,3 +1,4 @@
+use crossterm::style::{ContentStyle, Stylize as _};
 use tuikit::prelude::*;
 
 struct Model(String);
@@ -52,10 +53,10 @@ fn main() {
             .title("Window Title")
             .right_prompt("Right Prompt")
             .border(true)
-            .border_top_attr(Color::BLUE)
-            .border_right_attr(Color::YELLOW)
-            .border_bottom_attr(Color::RED)
-            .border_left_attr(Color::GREEN);
+            .border_top_style(ContentStyle::new().blue())
+            .border_right_style(ContentStyle::new().yellow())
+            .border_bottom_style(ContentStyle::new().red())
+            .border_left_style(ContentStyle::new().green());
 
         let _ = term.draw(&win);
         let _ = term.present();

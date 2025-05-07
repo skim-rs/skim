@@ -10,7 +10,7 @@ use crossterm::{
 };
 use std::{
     cmp::{max, min},
-    io::{stdout, Write},
+    io::stdout,
 };
 use unicode_width::UnicodeWidthChar;
 

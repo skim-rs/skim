@@ -2,7 +2,7 @@
 //! It has a display character and an attribute (fg and bg color, effects).
 use std::sync::LazyLock;
 
-use crossterm::style::{Attributes, Color, ContentStyle, StyledContent, Stylize};
+use crossterm::style::{StyledContent, Stylize as _};
 
 const EMPTY_CHAR: char = '\0';
 

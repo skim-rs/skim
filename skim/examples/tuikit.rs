@@ -1,3 +1,4 @@
+use crossterm::style::{Color, ContentStyle, Stylize as _};
 use skim::tuikit::prelude::*;
 use std::cmp::{max, min};
 
@@ -23,7 +24,7 @@ fn main() {
             _ => {}
         }
 
-        let _ = term.print_with_attr(row, col, "Hello World! 你好！今日は。", Color::RED);
+        let _ = term.print_with_style(row, col, "Hello World! 你好！今日は。", ContentStyle::default().with(Color::Red));
         let _ = term.set_cursor(row, col);
         let _ = term.present();
     }

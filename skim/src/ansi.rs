@@ -2,7 +2,7 @@
 use std::default::Default;
 
 use beef::lean::Cow;
-use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use crossterm::style::ContentStyle;
 use std::cmp::max;
 use vte::{Params, Perform};
 
@@ -448,7 +448,7 @@ fn merge_fragments(old: &[AnsiFragment], new: &[AnsiFragment]) -> Vec<AnsiFragme
 
 #[cfg(test)]
 mod tests {
-    use crossterm::style::Stylize as _;
+    use crossterm::style::{Attribute, Attributes, Color, Stylize as _};
 
     use super::*;
 
