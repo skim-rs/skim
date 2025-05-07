@@ -12,6 +12,7 @@ use crate::item::MatchedItem;
 use crate::orderedvec::OrderedVec;
 use crate::prelude::DefaultSkimSelector;
 use crate::theme::{ColorTheme, DEFAULT_THEME};
+use crate::util;
 use crate::util::clear_canvas;
 use crate::util::read_file_lines;
 use crate::util::{print_item, reshape_string, LinePrinter};
@@ -468,9 +469,9 @@ impl Selection {
         // print selection cursor
         let index = (current_run_num(), matched_item.item_idx);
         if self.selected.contains_key(&index) {
-            let _ = canvas.print_with_attr(row, 1, ">", default_attr.extend(self.theme.selected()));
+            let _ = canvas.print_with_style(row, 1, ">", util::extend_style(default_attr, self.theme.selected()));
         } else {
-            let _ = canvas.print_with_attr(row, 1, " ", default_attr);
+            let _ = canvas.print_with_style(row, 1, " ", default_attr);
         }
 
         let item = &matched_item.item;
@@ -488,7 +489,7 @@ impl Selection {
             score: 0,
             matches,
             container_width,
-            highlight_attr: matched_attr,
+            highlight_style: matched_attr,
         };
 
         let display_content = item.display(context);
@@ -582,7 +583,7 @@ impl Draw for Selection {
 
             // print the cursor label
             let label = if line_cursor == self.line_cursor { ">" } else { " " };
-            let _next_col = canvas.print_with_attr(line_no, 0, label, self.theme.cursor()).unwrap();
+            let _next_col = canvas.print_with_style(line_no, 0, label, self.theme.cursor()).unwrap();
 
             let item = self
                 .items

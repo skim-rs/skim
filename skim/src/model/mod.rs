@@ -833,7 +833,7 @@ impl Model {
                 .basis(self.preview_size)
                 .grow(0)
                 .shrink(0)
-                .border_attr(self.theme.border());
+                .border_style(self.theme.border());
 
             let win_preview = match self.preview_direction {
                 Direction::Up => win.border_bottom(true),

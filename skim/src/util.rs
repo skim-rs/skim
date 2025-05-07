@@ -6,6 +6,7 @@ use std::prelude::v1::*;
 use std::str::FromStr;
 use std::sync::LazyLock;
 
+use crossterm::style::{ContentStyle, Stylize as _};
 use regex::{Captures, Regex};
 use tuikit::prelude::*;
 use unicode_width::UnicodeWidthChar;
@@ -131,17 +132,17 @@ impl LinePrinter {
         self.end = self.start + self.container_width;
     }
 
-    fn print_ch_to_canvas(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr, skip: bool) {
+    fn print_ch_to_canvas(&mut self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle, skip: bool) {
         let w = ch.width().unwrap_or(2);
 
         if !skip {
-            let _ = canvas.put_cell(self.row, self.screen_col, Cell::default().ch(ch).style(attr));
+            let _ = canvas.put_cell(self.row, self.screen_col, style.apply(ch));
         }
 
         self.screen_col += w;
     }
 
-    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr, skip: bool) {
+    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle, skip: bool) {
         // hide the content that outside the screen, and show the hint(i.e. `..`) for overflow
         // the hidden character
 
@@ -155,21 +156,21 @@ impl LinePrinter {
         } else if current < self.start + 2 && self.start > 0 {
             // print left ".."
             for _ in 0..min(w, current - self.start + 1) {
-                self.print_ch_to_canvas(canvas, '.', attr, skip);
+                self.print_ch_to_canvas(canvas, '.', style, skip);
             }
         } else if self.end - current <= 2 && (self.text_width > self.end) {
             // print right ".."
             for _ in 0..min(w, self.end - current) {
-                self.print_ch_to_canvas(canvas, '.', attr, skip);
+                self.print_ch_to_canvas(canvas, '.', style, skip);
             }
         } else {
-            self.print_ch_to_canvas(canvas, ch, attr, skip);
+            self.print_ch_to_canvas(canvas, ch, style, skip);
         }
 
         self.current_pos += w as i32;
     }
 
-    pub fn print_char(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr, skip: bool) {
+    pub fn print_char(&mut self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle, skip: bool) {
         match ch {
             '\u{08}' => {
                 // ignore \b character
@@ -182,17 +183,26 @@ impl LinePrinter {
                     self.tabstop - (self.current_pos as usize) % self.tabstop
                 };
                 for _ in 0..rest {
-                    self.print_char_raw(canvas, ' ', attr, skip);
+                    self.print_char_raw(canvas, ' ', style, skip);
                 }
             }
-            ch => self.print_char_raw(canvas, ch, attr, skip),
+            ch => self.print_char_raw(canvas, ch, style, skip),
         }
     }
 }
 
-pub fn print_item(canvas: &mut dyn Canvas, printer: &mut LinePrinter, content: AnsiString, default_attr: Attr) {
-    for (ch, attr) in content.iter() {
-        printer.print_char(canvas, ch, default_attr.extend(attr), false);
+pub fn extend_style(default: ContentStyle, new: ContentStyle) -> ContentStyle {
+  ContentStyle {
+    foreground_color: new.foreground_color.or(default.foreground_color),
+    background_color: new.background_color.or(default.background_color),
+    attributes: default.attributes | new.attributes,
+    underline_color: new.underline_color.or(default.underline_color),
+  }
+}
+
+pub fn print_item(canvas: &mut dyn Canvas, printer: &mut LinePrinter, content: AnsiString, default_style: ContentStyle) {
+    for (ch, style) in content.iter() {
+        printer.print_char(canvas, ch, extend_style(default_style, style), false);
     }
 }
 

@@ -1,4 +1,3 @@
-pub use crate::attr::{Attr, Color, Effect};
 pub use crate::canvas::Canvas;
 pub use crate::cell::Cell;
 pub use crate::draw::{Draw, DrawResult};

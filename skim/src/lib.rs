@@ -10,6 +10,7 @@ use std::thread;
 
 use clap::ValueEnum;
 use crossbeam::channel::{Receiver, Sender};
+use crossterm::style::ContentStyle;
 use tuikit::prelude::{Event as TermEvent, *};
 
 pub use crate::ansi::AnsiString;
@@ -166,16 +167,16 @@ pub struct DisplayContext<'a> {
     pub score: i32,
     pub matches: Matches<'a>,
     pub container_width: usize,
-    pub highlight_attr: Attr,
+    pub highlight_style: ContentStyle,
 }
 
 impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
     fn from(context: DisplayContext<'a>) -> Self {
         match context.matches {
-            Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_attr)),
+            Matches::CharIndices(indices) => AnsiString::from((context.text, indices, context.highlight_style)),
             #[allow(clippy::cast_possible_truncation)]
             Matches::CharRange(start, end) => {
-                AnsiString::new_str(context.text, vec![(context.highlight_attr, (start as u32, end as u32))])
+                AnsiString::new_str(context.text, vec![(context.highlight_style, (start as u32, end as u32))])
             }
             Matches::ByteRange(start, end) => {
                 let ch_start = context.text[..start].chars().count();
@@ -183,7 +184,7 @@ impl<'a> From<DisplayContext<'a>> for AnsiString<'a> {
                 #[allow(clippy::cast_possible_truncation)]
                 AnsiString::new_str(
                     context.text,
-                    vec![(context.highlight_attr, (ch_start as u32, ch_end as u32))],
+                    vec![(context.highlight_style, (ch_start as u32, ch_end as u32))],
                 )
             }
             Matches::None => AnsiString::new_str(context.text, vec![]),
@@ -343,6 +344,7 @@ impl Skim {
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
+        trace!("Starting input thread...");
         let input_thread = thread::spawn(move || loop {
             if let Ok(key) = term_clone.poll_event() {
                 if key == TermEvent::User(()) {
@@ -363,6 +365,7 @@ impl Skim {
 
         //------------------------------------------------------------------------------
         // model + previewer
+        trace!("Starting model...");
         let mut model = Model::new(rx, tx, reader, term.clone(), options);
         let ret = model.start();
         let _ = term.send_event(TermEvent::User(())); // interrupt the input thread

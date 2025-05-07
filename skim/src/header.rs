@@ -123,7 +123,7 @@ impl Draw for Header {
                 score: 0,
                 matches: Matches::None,
                 container_width: screen_width - 2,
-                highlight_attr: self.theme.header(),
+                highlight_style: self.theme.header(),
             };
 
             print_item(canvas, &mut printer, item.display(context), self.theme.header());

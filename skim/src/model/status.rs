@@ -1,5 +1,4 @@
-use crate::Effect;
-use crossterm::style::ContentStyle;
+use crossterm::style::Stylize as _;
 use std::sync::Arc;
 use std::time::Duration;
 

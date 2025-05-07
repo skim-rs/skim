@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+use crossterm::style::{Attribute, Attributes, ContentStyle};
 use derive_builder::Builder;
 use nix::libc;
 use regex::Regex;
@@ -406,13 +407,13 @@ impl Draw for Previewer {
         // print the vscroll info
         let status = format!("{}/{}", vscroll_offset, content.len());
         let col = max(status.len() + 1, screen_width - status.len() - 1);
-        canvas.print_with_attr(
+        canvas.print_with_style(
             0,
             col,
             &status,
-            Attr {
-                effect: Effect::REVERSE,
-                ..Attr::default()
+            ContentStyle {
+                attributes: Attributes::from(Attribute::Reverse),
+                ..ContentStyle::default()
             },
         )?;
 
@@ -599,7 +600,7 @@ impl Printer {
             }
 
             for (ch, attr) in line.iter() {
-                let _ = self.print_char_with_attr(canvas, ch, attr);
+                let _ = self.print_char_with_style(canvas, ch, attr);
 
                 // skip if the content already exceeded the canvas
                 if !self.wrap && self.col >= self.width + self.skip_cols {
@@ -620,7 +621,7 @@ impl Printer {
         self.col = 0;
     }
 
-    fn print_char_with_attr(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<()> {
+    fn print_char_with_style(&mut self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle) -> Result<()> {
         match ch {
             '\n' | '\r' | '\0' => {}
             '\t' => {
@@ -628,25 +629,25 @@ impl Printer {
                 let rest = TAB_STOP - self.col % TAB_STOP;
                 let rest = min(rest, max(self.col, self.width) - self.col);
                 for _ in 0..rest {
-                    self.print_char_raw(canvas, ' ', attr)?;
+                    self.print_char_raw(canvas, ' ', style)?;
                 }
             }
 
             ch => {
-                self.print_char_raw(canvas, ch, attr)?;
+                self.print_char_raw(canvas, ch, style)?;
             }
         }
         Ok(())
     }
 
-    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<()> {
+    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle) -> Result<()> {
         if self.row < self.skip_rows || self.row >= self.height + self.skip_rows {
             return Ok(());
         }
 
         if self.wrap {
             // if wrap is enabled, hscroll is discarded
-            self.col += self.adjust_scroll_print(canvas, ch, attr)?;
+            self.col += self.adjust_scroll_print(canvas, ch, style)?;
 
             if self.col >= self.width {
                 // re-print the wide character
@@ -654,20 +655,20 @@ impl Printer {
             }
 
             if self.col > self.width {
-                self.col += self.adjust_scroll_print(canvas, ch, attr)?;
+                self.col += self.adjust_scroll_print(canvas, ch, style)?;
             }
         } else {
-            self.col += self.adjust_scroll_print(canvas, ch, attr)?;
+            self.col += self.adjust_scroll_print(canvas, ch, style)?;
         }
 
         Ok(())
     }
 
-    fn adjust_scroll_print(&self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<usize> {
+    fn adjust_scroll_print(&self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle) -> Result<usize> {
         if self.row < self.skip_rows || self.col < self.skip_cols {
-            canvas.put_char_with_attr(usize::MAX, usize::MAX, ch, attr)
+            canvas.put_char_with_style(usize::MAX, usize::MAX, ch, style)
         } else {
-            canvas.put_char_with_attr(self.row - self.skip_rows, self.col - self.skip_cols, ch, attr)
+            canvas.put_char_with_style(self.row - self.skip_rows, self.col - self.skip_cols, ch, style)
         }
     }
 }
