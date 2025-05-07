@@ -2,7 +2,7 @@
 use std::sync::LazyLock;
 
 use crate::options::SkimOptions;
-use crossterm::style::{Attribute, Attributes, Color};
+use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
 
 pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 
@@ -113,38 +113,38 @@ impl ColorTheme {
 
     fn dark256() -> Self {
         ColorTheme {
-            matched:          Color::AnsiValue(108),
-            matched_bg:       Color::AnsiValue(0),
-            current:          Color::AnsiValue(254),
-            current_bg:       Color::AnsiValue(236),
-            current_match:    Color::AnsiValue(151),
-            current_match_bg: Color::AnsiValue(236),
-            spinner:          Color::AnsiValue(148),
-            info:             Color::AnsiValue(144),
-            prompt:           Color::AnsiValue(110),
-            cursor:           Color::AnsiValue(161),
-            selected:         Color::AnsiValue(168),
-            header:           Color::AnsiValue(109),
-            border:           Color::AnsiValue(59),
+          matched:          Some(Color::AnsiValue(108)),
+          matched_bg:       Some(Color::AnsiValue(0)),
+          current:          Some(Color::AnsiValue(254)),
+          current_bg:       Some(Color::AnsiValue(236)),
+          current_match:    Some(Color::AnsiValue(151)),
+          current_match_bg: Some(Color::AnsiValue(236)),
+          spinner:          Some(Color::AnsiValue(148)),
+          info:             Some(Color::AnsiValue(144)),
+          prompt:           Some(Color::AnsiValue(110)),
+          cursor:           Some(Color::AnsiValue(161)),
+          selected:         Some(Color::AnsiValue(168)),
+          header:           Some(Color::AnsiValue(109)),
+          border:           Some(Color::AnsiValue(59)),
             ..ColorTheme::empty()
         }
     }
 
     fn molokai256() -> Self {
         ColorTheme {
-            matched:          Color::AnsiValue(234),
-            matched_bg:       Color::AnsiValue(186),
-            current:          Color::AnsiValue(254),
-            current_bg:       Color::AnsiValue(236),
-            current_match:    Color::AnsiValue(234),
-            current_match_bg: Color::AnsiValue(186),
-            spinner:          Color::AnsiValue(148),
-            info:             Color::AnsiValue(144),
-            prompt:           Color::AnsiValue(110),
-            cursor:           Color::AnsiValue(161),
-            selected:         Color::AnsiValue(168),
-            header:           Color::AnsiValue(109),
-            border:           Color::AnsiValue(59),
+          matched:          Some(Color::AnsiValue(234)),
+          matched_bg:       Some(Color::AnsiValue(186)),
+          current:          Some(Color::AnsiValue(254)),
+          current_bg:       Some(Color::AnsiValue(236)),
+          current_match:    Some(Color::AnsiValue(234)),
+          current_match_bg: Some(Color::AnsiValue(186)),
+          spinner:          Some(Color::AnsiValue(148)),
+          info:             Some(Color::AnsiValue(144)),
+          prompt:           Some(Color::AnsiValue(110)),
+          cursor:           Some(Color::AnsiValue(161)),
+          selected:         Some(Color::AnsiValue(168)),
+          header:           Some(Color::AnsiValue(109)),
+          border:           Some(Color::AnsiValue(59)),
             ..ColorTheme::empty()
         }
     }
@@ -192,11 +192,7 @@ impl ColorTheme {
                 let b = u8::from_str_radix(&color[1][5..7], 16).unwrap_or(255);
                 Some(Color::Rgb { r, g, b })
             } else {
-                let Ok(c) = color[1].parse::<u8>()
-                    .map(Color::AnsiValue) else {
-                    None
-                };
-                Some(c)
+                color[1].parse::<u8>().ok().and_then(|x| Some(Color::AnsiValue(x)))
             };
 
             match color[0] {
@@ -223,99 +219,111 @@ impl ColorTheme {
         theme
     }
 
-    pub fn normal(&self) -> Attributes {
-        Attr {
-            fg: self.fg,
-            bg: self.bg,
-            effect: self.normal_effect,
+    pub fn normal(&self) -> ContentStyle {
+      ContentStyle {
+        foreground_color: self.fg,
+        background_color: self.bg,
+        attributes: self.normal_effect,
+        underline_color: self.fg
+      }
+    }
+
+    pub fn matched(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.matched,
+            background_color: self.matched_bg,
+            attributes: self.matched_effect,
+            underline_color: self.matched
         }
     }
 
-    pub fn matched(&self) -> Attr {
-        Attr {
-            fg: self.matched,
-            bg: self.matched_bg,
-            effect: self.matched_effect,
+    pub fn current(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.current,
+            background_color: self.current_bg,
+            attributes: self.current_effect,
+            underline_color: self.current
         }
     }
 
-    pub fn current(&self) -> Attr {
-        Attr {
-            fg: self.current,
-            bg: self.current_bg,
-            effect: self.current_effect,
+    pub fn current_match(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.current_match,
+            background_color: self.current_match_bg,
+            attributes: self.current_match_effect,
+            underline_color: self.current_match
         }
     }
 
-    pub fn current_match(&self) -> Attr {
-        Attr {
-            fg: self.current_match,
-            bg: self.current_match_bg,
-            effect: self.current_match_effect,
+    pub fn query(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.query_fg,
+            background_color: self.query_bg,
+            attributes: self.query_effect,
+            underline_color: self.query_fg
         }
     }
 
-    pub fn query(&self) -> Attr {
-        Attr {
-            fg: self.query_fg,
-            bg: self.query_bg,
-            effect: self.query_effect,
+    pub fn spinner(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.spinner,
+            background_color: self.bg,
+            attributes: Attributes::none().with(Attribute::Bold),
+            underline_color: self.spinner
         }
     }
 
-    pub fn spinner(&self) -> Attr {
-        Attr {
-            fg: self.spinner,
-            bg: self.bg,
-            effect: Effect::BOLD,
+    pub fn info(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.info,
+            background_color: self.bg,
+            attributes: Attributes::none(),
+            underline_color: None
         }
     }
 
-    pub fn info(&self) -> Attr {
-        Attr {
-            fg: self.info,
-            bg: self.bg,
-            effect: Effect::empty(),
+    pub fn prompt(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.prompt,
+            background_color: self.bg,
+            attributes: Attributes::none(),
+            underline_color: None
         }
     }
 
-    pub fn prompt(&self) -> Attr {
-        Attr {
-            fg: self.prompt,
-            bg: self.bg,
-            effect: Effect::empty(),
+    pub fn cursor(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.cursor,
+            background_color: self.current_bg,
+            attributes: Attributes::none(),
+            underline_color: None
         }
     }
 
-    pub fn cursor(&self) -> Attr {
-        Attr {
-            fg: self.cursor,
-            bg: self.current_bg,
-            effect: Effect::empty(),
+    pub fn selected(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.selected,
+            background_color: self.current_bg,
+            attributes: Attributes::none(),
+            underline_color: None
         }
     }
 
-    pub fn selected(&self) -> Attr {
-        Attr {
-            fg: self.selected,
-            bg: self.current_bg,
-            effect: Effect::empty(),
+    pub fn header(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.header,
+            background_color: self.bg,
+            attributes: Attributes::none(),
+            underline_color: None
         }
     }
 
-    pub fn header(&self) -> Attr {
-        Attr {
-            fg: self.header,
-            bg: self.bg,
-            effect: Effect::empty(),
-        }
-    }
-
-    pub fn border(&self) -> Attr {
-        Attr {
-            fg: self.border,
-            bg: self.bg,
-            effect: Effect::empty(),
+    pub fn border(&self) -> ContentStyle {
+        ContentStyle {
+            foreground_color: self.border,
+            background_color: self.bg,
+            attributes: Attributes::none(),
+            underline_color: None
         }
     }
 }
