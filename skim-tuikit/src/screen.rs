@@ -185,6 +185,12 @@ impl Screen {
             }
         }
 
+        // Reset background color past EOL of the last item.
+        // (= append ResetAttributes to "commands" if not done already)
+        if commands.last().is_some_and(|c| !matches!(c, Command::ResetAttributes)) {
+            commands.push(Command::ResetAttributes);
+        }
+
         // restore cursor
         commands.push(Command::CursorGoto {
             row: self.cursor.row,
