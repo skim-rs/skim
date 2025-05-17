@@ -114,9 +114,6 @@ fi
 
 ###########################################################
 
-# To redraw line after skim closes (printf '\e[5n')
-bind '"\e[0n": redraw-current-line'
-
 __skim_comprun() {
   if [ "$(type -t _skim_comprun 2>&1)" = function ]; then
     _skim_comprun "$@"
@@ -187,6 +184,8 @@ __skim_generic_path_completion() {
         else
           COMPREPLY=( "$cur" )
         fi
+        # To redraw line after skim closes (printf '\e[5n')
+        bind '"\e[0n": redraw-current-line'
         printf '\e[5n'
         return 0
       fi
@@ -240,6 +239,8 @@ _skim_complete() {
     else
       COMPREPLY=("$cur")
     fi
+    # To redraw line after skim closes (printf '\e[5n')
+    bind '"\e[0n": redraw-current-line'
     printf '\e[5n'
     echo -e "\033[0m"
     return 0
