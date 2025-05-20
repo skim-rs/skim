@@ -6,7 +6,7 @@ use unicode_width::UnicodeWidthChar;
 
 pub trait Canvas {
     /// Get the canvas size (width, height)
-    fn size(&self) -> Result<(usize, usize)>;
+    fn size(&self) -> Result<(u16, u16)>;
 
     /// clear the canvas
     fn clear(&mut self) -> Result<()>;
@@ -14,11 +14,11 @@ pub trait Canvas {
     /// change a cell of position `(row, col)` to `cell`
     /// if `(row, col)` is out of boundary, `Ok` is returned, but no operation is taken
     /// return the width of the character/cell
-    fn put_cell(&mut self, row: usize, col: usize, cell: Cell) -> Result<usize>;
+    fn put_cell(&mut self, row: u16, col: u16, cell: Cell) -> Result<usize>;
 
     /// just like put_cell, except it accept (char & style)
     /// return the width of the character/cell
-    fn put_char_with_style(&mut self, row: usize, col: usize, ch: char, style: ContentStyle) -> Result<usize> {
+    fn put_char_with_style(&mut self, row: u16, col: u16, ch: char, style: ContentStyle) -> Result<usize> {
         self.put_cell(row, col, Cell::new(style, ch))
     }
 
@@ -28,21 +28,21 @@ pub trait Canvas {
     /// - canvas should handle wide characters
     ///
     /// returns the printed width of the content
-    fn print_with_style(&mut self, row: usize, col: usize, content: &str, style: ContentStyle) -> Result<usize> {
+    fn print_with_style(&mut self, row: u16, col: u16, content: &str, style: ContentStyle) -> Result<usize> {
         let mut width = 0;
         for ch in content.chars() {
-            width += self.put_cell(row, col + width, Cell::new(style, ch))?;
+            width += self.put_cell(row, col + width as u16, Cell::new(style, ch))?;
         }
         Ok(width)
     }
 
     /// print `content` starting with position `(row, col)` with default style
-    fn print(&mut self, row: usize, col: usize, content: &str) -> Result<usize> {
+    fn print(&mut self, row: u16, col: u16, content: &str) -> Result<usize> {
         self.print_with_style(row, col, content, ContentStyle::default())
     }
 
     /// move cursor position (row, col) and show cursor
-    fn set_cursor(&mut self, row: usize, col: usize) -> Result<()>;
+    fn set_cursor(&mut self, row: u16, col: u16) -> Result<()>;
 
     /// show/hide cursor, set `show` to `false` to hide the cursor
     fn show_cursor(&mut self, show: bool) -> Result<()>;
@@ -53,14 +53,14 @@ pub trait Canvas {
 /// to for example (0, 0) and BoundedCanvas will adjust it to real position.
 pub struct BoundedCanvas<'a> {
     canvas: &'a mut dyn Canvas,
-    top: usize,
-    left: usize,
-    width: usize,
-    height: usize,
+    top: u16,
+    left: u16,
+    width: u16,
+    height: u16,
 }
 
 impl<'a> BoundedCanvas<'a> {
-    pub fn new(top: usize, left: usize, width: usize, height: usize, canvas: &'a mut dyn Canvas) -> Self {
+    pub fn new(top: u16, left: u16, width: u16, height: u16, canvas: &'a mut dyn Canvas) -> Self {
         Self {
             canvas,
             top,
@@ -72,7 +72,7 @@ impl<'a> BoundedCanvas<'a> {
 }
 
 impl Canvas for BoundedCanvas<'_> {
-    fn size(&self) -> Result<(usize, usize)> {
+    fn size(&self) -> Result<(u16, u16)> {
         Ok((self.width, self.height))
     }
 
@@ -86,7 +86,7 @@ impl Canvas for BoundedCanvas<'_> {
         Ok(())
     }
 
-    fn put_cell(&mut self, row: usize, col: usize, cell: Cell) -> Result<usize> {
+    fn put_cell(&mut self, row: u16, col: u16, cell: Cell) -> Result<usize> {
         if row >= self.height || col >= self.width {
             // do nothing
             Ok(cell.content().width().unwrap_or(2))
@@ -95,7 +95,7 @@ impl Canvas for BoundedCanvas<'_> {
         }
     }
 
-    fn set_cursor(&mut self, row: usize, col: usize) -> Result<()> {
+    fn set_cursor(&mut self, row: u16, col: u16) -> Result<()> {
         if row >= self.height || col >= self.width {
             // do nothing
             Ok(())

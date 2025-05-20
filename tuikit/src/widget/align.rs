@@ -3,7 +3,7 @@ pub trait AlignSelf {
     /// Adjust the actual start position of self.
     ///
     /// Note that if the container's size < self_size, will return `start`
-    fn adjust(&self, start: usize, end_exclusive: usize, self_size: usize) -> usize;
+    fn adjust(&self, start: u16, end_exclusive: u16, self_size: u16) -> u16;
 }
 
 pub enum HorizontalAlign {
@@ -19,7 +19,7 @@ pub enum VerticalAlign {
 }
 
 impl AlignSelf for HorizontalAlign {
-    fn adjust(&self, start: usize, end: usize, self_size: usize) -> usize {
+    fn adjust(&self, start: u16, end: u16, self_size: u16) -> u16 {
         if start >= end {
             // wrong input
             return start;
@@ -38,7 +38,7 @@ impl AlignSelf for HorizontalAlign {
 }
 
 impl AlignSelf for VerticalAlign {
-    fn adjust(&self, start: usize, end: usize, self_size: usize) -> usize {
+    fn adjust(&self, start: u16, end: u16, self_size: u16) -> u16 {
         if start >= end {
             // wrong input
             return start;

@@ -19,7 +19,7 @@ log = { workspace = true }
 nix = { workspace = true, default-features = false, features = ["fs", "poll", "signal", "term"] }
 term = { workspace = true }
 unicode-width = { workspace = true }
-crossterm = { workspace = true }
+crossterm = { workspace = true, features = ["bracketed-paste"]}
 
 [dev-dependencies]
 env_logger = { workspace = true }

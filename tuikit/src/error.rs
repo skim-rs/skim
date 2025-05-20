@@ -7,7 +7,7 @@ use std::time::Duration;
 pub enum TuikitError {
     UnknownSequence(String),
     NoCursorReportResponse,
-    IndexOutOfBound(usize, usize),
+    IndexOutOfBound(u16, u16),
     Timeout(Duration),
     Interrupted,
     TerminalNotStarted,
@@ -18,6 +18,7 @@ pub enum TuikitError {
     IOError(std::io::Error),
     NixError(nix::Error),
     ChannelReceiveError(std::sync::mpsc::RecvError),
+    TermLocked,
 }
 
 impl Display for TuikitError {
@@ -44,6 +45,7 @@ impl Display for TuikitError {
             TuikitError::IOError(error) => write!(f, "{}", error),
             TuikitError::NixError(error) => write!(f, "{}", error),
             TuikitError::ChannelReceiveError(error) => write!(f, "{}", error),
+            TuikitError::TermLocked => write!(f, "failed to acquire the terminal lock"),
         }
     }
 }

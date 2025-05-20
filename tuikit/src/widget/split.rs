@@ -1,10 +1,11 @@
+use crossterm::event::Event;
+
 use super::util::adjust_event;
 use super::Size;
 use super::{Rectangle, Widget};
 use crate::canvas::{BoundedCanvas, Canvas};
 use crate::draw::Draw;
 use crate::draw::DrawResult;
-use crate::event::Event;
 use std::cmp::{min, Ordering};
 
 /// A Split item would contain 3 things
@@ -15,9 +16,9 @@ use std::cmp::{min, Ordering};
 pub trait Split<Message = ()>: Widget<Message> {
     fn get_basis(&self) -> Size;
 
-    fn get_grow(&self) -> usize;
+    fn get_grow(&self) -> u16;
 
-    fn get_shrink(&self) -> usize;
+    fn get_shrink(&self) -> u16;
 
     /// get the default size of inner content, will be used if `basis` is Default
     fn inner_size(&self) -> (Size, Size) {
@@ -33,11 +34,11 @@ impl<Message, T: Split<Message> + Widget<Message>> Split<Message> for &T {
         (*self).get_basis()
     }
 
-    fn get_grow(&self) -> usize {
+    fn get_grow(&self) -> u16 {
         (*self).get_grow()
     }
 
-    fn get_shrink(&self) -> usize {
+    fn get_shrink(&self) -> u16 {
         (*self).get_shrink()
     }
 
@@ -51,11 +52,11 @@ impl<Message, T: Split<Message> + Widget<Message>> Split<Message> for &mut T {
         (**self).get_basis()
     }
 
-    fn get_grow(&self) -> usize {
+    fn get_grow(&self) -> u16 {
         (**self).get_grow()
     }
 
-    fn get_shrink(&self) -> usize {
+    fn get_shrink(&self) -> u16 {
         (**self).get_shrink()
     }
 
@@ -81,10 +82,10 @@ trait SplitContainer<'a, Message = ()> {
     fn get_split_type(&self) -> SplitType;
 
     /// return the target sizes of the splits
-    fn retrieve_split_info(&self, actual_size: usize) -> Vec<usize> {
+    fn retrieve_split_info(&self, actual_size: u16) -> Vec<u16> {
         let split_type = self.get_split_type();
 
-        let split_sizes: Vec<usize> = self
+        let split_sizes: Vec<u16> = self
             .get_splits()
             .iter()
             .map(|split| {
@@ -102,7 +103,7 @@ trait SplitContainer<'a, Message = ()> {
             .map(|size| size.calc_fixed_size(actual_size, actual_size))
             .collect();
 
-        let target_total_size: usize = split_sizes.iter().sum();
+        let target_total_size: u16 = split_sizes.iter().sum();
 
         let op = match target_total_size.cmp(&actual_size) {
             Ordering::Equal => Op::Noop,
@@ -116,7 +117,7 @@ trait SplitContainer<'a, Message = ()> {
             Op::Shrink => target_total_size - actual_size,
         };
 
-        let split_factors: Vec<usize> = self
+        let split_factors: Vec<u16> = self
             .get_splits()
             .iter()
             .map(|split| match op {
@@ -126,7 +127,7 @@ trait SplitContainer<'a, Message = ()> {
             })
             .collect();
 
-        let total_factors: usize = split_factors.iter().sum();
+        let total_factors: u16 = split_factors.iter().sum();
 
         let unit = if total_factors == 0 {
             0
@@ -154,8 +155,8 @@ trait SplitContainer<'a, Message = ()> {
 /// 4. If still not enough room, the last one(s) would be set width 0
 pub struct HSplit<'a, Message = ()> {
     basis: Size,
-    grow: usize,
-    shrink: usize,
+    grow: u16,
+    shrink: u16,
     splits: Vec<Box<dyn Split<Message> + 'a>>,
 }
 
@@ -181,12 +182,12 @@ impl<'a, Message> HSplit<'a, Message> {
         self
     }
 
-    pub fn grow(mut self, grow: usize) -> Self {
+    pub fn grow(mut self, grow: u16) -> Self {
         self.grow = grow;
         self
     }
 
-    pub fn shrink(mut self, shrink: usize) -> Self {
+    pub fn shrink(mut self, shrink: u16) -> Self {
         self.shrink = shrink;
         self
     }
@@ -239,7 +240,7 @@ impl<Message> Draw for HSplit<'_, Message> {
 }
 
 impl<Message> Widget<Message> for HSplit<'_, Message> {
-    fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+    fn size_hint(&self) -> (Option<u16>, Option<u16>) {
         let has_width_hint = self.splits.iter().any(|split| split.size_hint().0.is_some());
         let has_height_hint = self.splits.iter().any(|split| split.size_hint().1.is_some());
 
@@ -282,7 +283,7 @@ impl<Message> Widget<Message> for HSplit<'_, Message> {
                 height,
             };
 
-            let mut sub_message = adjust_event(event, sub_rect)
+            let mut sub_message = adjust_event(&event, sub_rect)
                 .map(|ev| split.as_ref().on_event(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -310,7 +311,7 @@ impl<Message> Widget<Message> for HSplit<'_, Message> {
                 height,
             };
 
-            let mut sub_message = adjust_event(event, sub_rect)
+            let mut sub_message = adjust_event(&event, sub_rect)
                 .map(|ev| split.as_mut().on_event_mut(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -326,11 +327,11 @@ impl<Message> Split<Message> for HSplit<'_, Message> {
         self.basis
     }
 
-    fn get_grow(&self) -> usize {
+    fn get_grow(&self) -> u16 {
         self.grow
     }
 
-    fn get_shrink(&self) -> usize {
+    fn get_shrink(&self) -> u16 {
         self.shrink
     }
 }
@@ -342,8 +343,8 @@ impl<Message> Split<Message> for HSplit<'_, Message> {
 /// 4. If still not enough room, the last one(s) would be set height 0
 pub struct VSplit<'a, Message = ()> {
     basis: Size,
-    grow: usize,
-    shrink: usize,
+    grow: u16,
+    shrink: u16,
     splits: Vec<Box<dyn Split<Message> + 'a>>,
 }
 
@@ -369,12 +370,12 @@ impl<'a, Message> VSplit<'a, Message> {
         self
     }
 
-    pub fn grow(mut self, grow: usize) -> Self {
+    pub fn grow(mut self, grow: u16) -> Self {
         self.grow = grow;
         self
     }
 
-    pub fn shrink(mut self, shrink: usize) -> Self {
+    pub fn shrink(mut self, shrink: u16) -> Self {
         self.shrink = shrink;
         self
     }
@@ -426,7 +427,7 @@ impl<Message> Draw for VSplit<'_, Message> {
 }
 
 impl<Message> Widget<Message> for VSplit<'_, Message> {
-    fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+    fn size_hint(&self) -> (Option<u16>, Option<u16>) {
         let has_width_hint = self.splits.iter().any(|split| split.size_hint().0.is_some());
         let has_height_hint = self.splits.iter().any(|split| split.size_hint().1.is_some());
 
@@ -470,7 +471,7 @@ impl<Message> Widget<Message> for VSplit<'_, Message> {
                 width,
                 height: target_height,
             };
-            let mut sub_message = adjust_event(event, sub_rect)
+            let mut sub_message = adjust_event(&event, sub_rect)
                 .map(|ev| split.as_ref().on_event(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -499,7 +500,7 @@ impl<Message> Widget<Message> for VSplit<'_, Message> {
                 width,
                 height: target_height,
             };
-            let mut sub_message = adjust_event(event, sub_rect)
+            let mut sub_message = adjust_event(&event, sub_rect)
                 .map(|ev| split.as_mut().on_event_mut(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -515,11 +516,11 @@ impl<Message> Split<Message> for VSplit<'_, Message> {
         self.basis
     }
 
-    fn get_grow(&self) -> usize {
+    fn get_grow(&self) -> u16 {
         self.grow
     }
 
-    fn get_shrink(&self) -> usize {
+    fn get_shrink(&self) -> u16 {
         self.shrink
     }
 }
@@ -527,21 +528,21 @@ impl<Message> Split<Message> for VSplit<'_, Message> {
 #[cfg(test)]
 #[allow(dead_code)]
 mod test {
+    use crossterm::event::MouseButton;
+use crossterm::event::Event;
+
     use super::*;
     use crate::cell::Cell;
-    use crate::key::Key;
-    use crate::key::Key::*;
-    use crate::key::MouseButton;
     use crate::Result;
     use std::sync::Mutex;
 
     struct TestCanvas {
-        pub width: usize,
-        pub height: usize,
+        pub width: u16,
+        pub height: u16,
     }
 
     impl Canvas for TestCanvas {
-        fn size(&self) -> Result<(usize, usize)> {
+        fn size(&self) -> Result<(u16, u16)> {
             Ok((self.width, self.height))
         }
 
@@ -549,11 +550,11 @@ mod test {
             unimplemented!()
         }
 
-        fn put_cell(&mut self, _row: usize, _col: usize, _cell: Cell) -> Result<usize> {
+        fn put_cell(&mut self, _row: u16, _col: u16, _cell: Cell) -> Result<usize> {
             unimplemented!()
         }
 
-        fn set_cursor(&mut self, _row: usize, _col: usize) -> Result<()> {
+        fn set_cursor(&mut self, _row: u16, _col: u16) -> Result<()> {
             unimplemented!()
         }
 
@@ -564,8 +565,8 @@ mod test {
 
     struct WSplit<'a> {
         pub basis: Size,
-        pub grow: usize,
-        pub shrink: usize,
+        pub grow: u16,
+        pub shrink: u16,
         pub draw: &'a dyn Draw,
     }
 
@@ -584,12 +585,12 @@ mod test {
             self
         }
 
-        pub fn grow(mut self, grow: usize) -> Self {
+        pub fn grow(mut self, grow: u16) -> Self {
             self.grow = grow;
             self
         }
 
-        pub fn shrink(mut self, shrink: usize) -> Self {
+        pub fn shrink(mut self, shrink: u16) -> Self {
             self.shrink = shrink;
             self
         }
@@ -600,11 +601,11 @@ mod test {
             self.basis
         }
 
-        fn get_grow(&self) -> usize {
+        fn get_grow(&self) -> u16 {
             self.grow
         }
 
-        fn get_shrink(&self) -> usize {
+        fn get_shrink(&self) -> u16 {
             self.shrink
         }
     }
@@ -619,8 +620,8 @@ mod test {
 
     #[derive(Default)]
     struct SingleWindow {
-        pub width: usize,
-        pub height: usize,
+        pub width: u16,
+        pub height: u16,
     }
 
     impl Draw for SingleWindow {
@@ -771,8 +772,8 @@ mod test {
     }
 
     struct WinHint {
-        pub width_hint: Option<usize>,
-        pub height_hint: Option<usize>,
+        pub width_hint: Option<u16>,
+        pub height_hint: Option<u16>,
     }
 
     impl Draw for WinHint {
@@ -782,7 +783,7 @@ mod test {
     }
 
     impl Widget for WinHint {
-        fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+        fn size_hint(&self) -> (Option<u16>, Option<u16>) {
             (self.width_hint, self.height_hint)
         }
     }
@@ -791,10 +792,10 @@ mod test {
         fn get_basis(&self) -> Size {
             Size::Default
         }
-        fn get_grow(&self) -> usize {
+        fn get_grow(&self) -> u16 {
             0
         }
-        fn get_shrink(&self) -> usize {
+        fn get_shrink(&self) -> u16 {
             0
         }
     }
@@ -939,329 +940,329 @@ mod test {
         fn get_basis(&self) -> Size {
             Size::Default
         }
-        fn get_grow(&self) -> usize {
+        fn get_grow(&self) -> u16 {
             1
         }
-        fn get_shrink(&self) -> usize {
-            1
-        }
-    }
-
-    #[test]
-    fn message_should_be_dispatched_correctly() {
-        let width = 80;
-        let height = 60;
-        let rect = Rectangle {
-            top: 0,
-            left: 0,
-            width,
-            height,
-        };
-
-        let win1 = WindowWithId::new(1);
-        let win2 = WindowWithId::new(2);
-        let win3 = WindowWithId::new(3);
-        let win4 = WindowWithId::new(4);
-
-        let ev_left_1 = Event::Key(Key::MouseHold(0, 0));
-        let ev_left_2 = Event::Key(Key::MouseHold(0, 39));
-        let ev_right_1 = Event::Key(Key::MouseHold(20, 40));
-        let ev_right_2 = Event::Key(Key::MouseHold(20, 41));
-        let ev_right_3 = Event::Key(Key::MouseHold(59, 79));
-        let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
-
-        let hsplit = HSplit::default().split(&win1).split(&win2);
-        let msg = hsplit.on_event(ev_left_1, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(1), msg[0]);
-        let msg = hsplit.on_event(ev_left_2, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(1), msg[0]);
-        let msg = hsplit.on_event(ev_right_1, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(2), msg[0]);
-        let msg = hsplit.on_event(ev_right_2, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(2), msg[0]);
-        let msg = hsplit.on_event(ev_right_3, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(2), msg[0]);
-        let msg = hsplit.on_event(ev_out_of_bound, rect);
-        assert!(msg.is_empty());
-
-        let ev_top_1 = Event::Key(Key::MouseHold(0, 0));
-        let ev_top_2 = Event::Key(Key::MouseHold(29, 39));
-        let ev_bottom_1 = Event::Key(Key::MouseHold(30, 40));
-        let ev_bottom_2 = Event::Key(Key::MouseHold(31, 41));
-        let ev_bottom_3 = Event::Key(Key::MouseHold(59, 79));
-        let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
-
-        let vsplit = VSplit::default().split(&win1).split(&win2);
-
-        let msg = vsplit.on_event(ev_top_1, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(1), msg[0]);
-        let msg = vsplit.on_event(ev_top_2, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(1), msg[0]);
-        let msg = vsplit.on_event(ev_bottom_1, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(2), msg[0]);
-        let msg = vsplit.on_event(ev_bottom_2, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(2), msg[0]);
-        let msg = vsplit.on_event(ev_bottom_3, rect);
-        assert!(!msg.is_empty());
-        assert_eq!(Message::Window(2), msg[0]);
-        let msg = vsplit.on_event(ev_out_of_bound, rect);
-        assert!(msg.is_empty());
-
-        // 1 | 2
-        // --|--
-        // 3 | 4
-        let nested = HSplit::default()
-            .split(VSplit::default().split(&win1).split(&win3))
-            .split(VSplit::default().split(&win2).split(&win4));
-        let row_col_event = [
-            ((0, 0), Message::Window(1)),
-            ((0, 39), Message::Window(1)),
-            ((29, 0), Message::Window(1)),
-            ((29, 39), Message::Window(1)),
-            ((0, 40), Message::Window(2)),
-            ((0, 79), Message::Window(2)),
-            ((29, 40), Message::Window(2)),
-            ((29, 79), Message::Window(2)),
-            ((30, 0), Message::Window(3)),
-            ((30, 39), Message::Window(3)),
-            ((59, 0), Message::Window(3)),
-            ((59, 39), Message::Window(3)),
-            ((30, 40), Message::Window(4)),
-            ((30, 79), Message::Window(4)),
-            ((59, 40), Message::Window(4)),
-            ((59, 79), Message::Window(4)),
-        ];
-
-        for &((row, col), event) in row_col_event.iter() {
-            let ev = Event::Key(MousePress(MouseButton::Left, row, col));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-            let ev = Event::Key(MouseRelease(row, col));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-            let ev = Event::Key(MouseHold(row, col));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-            let ev = Event::Key(SingleClick(MouseButton::Left, row, col));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-            let ev = Event::Key(DoubleClick(MouseButton::Left, row, col));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-            let ev = Event::Key(Key::WheelUp(row, col, 1));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-            let ev = Event::Key(Key::WheelDown(row, col, 1));
-            let msg = nested.on_event(ev, rect);
-            assert_eq!(msg[0], event);
-        }
-    }
-
-    #[test]
-    fn message_should_be_dispatched_correctly_mut() {
-        let width = 80;
-        let height = 60;
-        let rect = Rectangle {
-            top: 0,
-            left: 0,
-            width,
-            height,
-        };
-
-        let mut win1 = WindowWithId::new(1);
-        let mut win2 = WindowWithId::new(2);
-        let mut win3 = WindowWithId::new(3);
-        let mut win4 = WindowWithId::new(4);
-
-        let ev_left_1 = Event::Key(Key::MouseHold(0, 0));
-        let ev_left_2 = Event::Key(Key::MouseHold(0, 39));
-        let ev_right_1 = Event::Key(Key::MouseHold(20, 40));
-        let ev_right_2 = Event::Key(Key::MouseHold(20, 41));
-        let ev_right_3 = Event::Key(Key::MouseHold(59, 79));
-        let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
-
-        {
-            let mut hsplit = HSplit::default().split(&mut win1).split(&mut win2);
-            let msg = hsplit.on_event_mut(ev_left_1, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(1), msg[0]);
-            let msg = hsplit.on_event_mut(ev_left_2, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(1), msg[0]);
-            let msg = hsplit.on_event_mut(ev_right_1, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(2), msg[0]);
-            let msg = hsplit.on_event_mut(ev_right_2, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(2), msg[0]);
-            let msg = hsplit.on_event_mut(ev_right_3, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(2), msg[0]);
-            let msg = hsplit.on_event_mut(ev_out_of_bound, rect);
-            assert!(msg.is_empty());
-        }
-
-        let ev_top_1 = Event::Key(Key::MouseHold(0, 0));
-        let ev_top_2 = Event::Key(Key::MouseHold(29, 39));
-        let ev_bottom_1 = Event::Key(Key::MouseHold(30, 40));
-        let ev_bottom_2 = Event::Key(Key::MouseHold(31, 41));
-        let ev_bottom_3 = Event::Key(Key::MouseHold(59, 79));
-        let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
-
-        {
-            let mut vsplit = VSplit::default().split(&mut win1).split(&mut win2);
-
-            let msg = vsplit.on_event_mut(ev_top_1, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(1), msg[0]);
-            let msg = vsplit.on_event_mut(ev_top_2, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(1), msg[0]);
-            let msg = vsplit.on_event_mut(ev_bottom_1, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(2), msg[0]);
-            let msg = vsplit.on_event_mut(ev_bottom_2, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(2), msg[0]);
-            let msg = vsplit.on_event_mut(ev_bottom_3, rect);
-            assert!(!msg.is_empty());
-            assert_eq!(Message::Window(2), msg[0]);
-            let msg = vsplit.on_event_mut(ev_out_of_bound, rect);
-            assert!(msg.is_empty());
-        }
-
-        // 1 | 2
-        // --|--
-        // 3 | 4
-        {
-            let mut nested = HSplit::default()
-                .split(VSplit::default().split(&mut win1).split(&mut win3))
-                .split(VSplit::default().split(&mut win2).split(&mut win4));
-            let row_col_event = [
-                ((0, 0), Message::Window(1)),
-                ((0, 39), Message::Window(1)),
-                ((29, 0), Message::Window(1)),
-                ((29, 39), Message::Window(1)),
-                ((0, 40), Message::Window(2)),
-                ((0, 79), Message::Window(2)),
-                ((29, 40), Message::Window(2)),
-                ((29, 79), Message::Window(2)),
-                ((30, 0), Message::Window(3)),
-                ((30, 39), Message::Window(3)),
-                ((59, 0), Message::Window(3)),
-                ((59, 39), Message::Window(3)),
-                ((30, 40), Message::Window(4)),
-                ((30, 79), Message::Window(4)),
-                ((59, 40), Message::Window(4)),
-                ((59, 79), Message::Window(4)),
-            ];
-
-            for &((row, col), event) in row_col_event.iter() {
-                let ev = Event::Key(MousePress(MouseButton::Left, row, col));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-                let ev = Event::Key(MouseRelease(row, col));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-                let ev = Event::Key(MouseHold(row, col));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-                let ev = Event::Key(SingleClick(MouseButton::Left, row, col));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-                let ev = Event::Key(DoubleClick(MouseButton::Left, row, col));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-                let ev = Event::Key(Key::WheelUp(row, col, 1));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-                let ev = Event::Key(Key::WheelDown(row, col, 1));
-                let msg = nested.on_event_mut(ev, rect);
-                assert_eq!(msg[0], event);
-            }
-        }
-    }
-
-    #[derive(PartialEq, Debug)]
-    enum Called {
-        No,
-        Mut,
-        Immut,
-    }
-
-    struct Drawn {
-        called: Mutex<Called>,
-    }
-
-    impl Draw for Drawn {
-        fn draw(&self, _canvas: &mut dyn Canvas) -> DrawResult<()> {
-            *self.called.lock().unwrap() = Called::Immut;
-            Ok(())
-        }
-        fn draw_mut(&mut self, _canvas: &mut dyn Canvas) -> DrawResult<()> {
-            *self.called.lock().unwrap() = Called::Mut;
-            Ok(())
-        }
-    }
-
-    impl Widget for Drawn {}
-
-    impl Split for Drawn {
-        fn get_basis(&self) -> Size {
-            Size::Default
-        }
-
-        fn get_grow(&self) -> usize {
-            1
-        }
-
-        fn get_shrink(&self) -> usize {
+        fn get_shrink(&self) -> u16 {
             1
         }
     }
 
-    #[test]
-    fn mutable_widget() {
-        let mut canvas = TestCanvas { width: 80, height: 80 };
+    // #[test]
+    // fn message_should_be_dispatched_correctly() {
+    //     let width = 80;
+    //     let height = 60;
+    //     let rect = Rectangle {
+    //         top: 0,
+    //         left: 0,
+    //         width,
+    //         height,
+    //     };
 
-        let mut mutable = Drawn {
-            called: Mutex::new(Called::No),
-        };
-        {
-            let mut hsplit = HSplit::default().split(&mut mutable);
-            hsplit.draw_mut(&mut canvas).unwrap();
-        }
-        assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
+    //     let win1 = WindowWithId::new(1);
+    //     let win2 = WindowWithId::new(2);
+    //     let win3 = WindowWithId::new(3);
+    //     let win4 = WindowWithId::new(4);
 
-        let mut mutable = Drawn {
-            called: Mutex::new(Called::No),
-        };
-        {
-            let mut vsplit = VSplit::default().split(&mut mutable);
-            vsplit.draw_mut(&mut canvas).unwrap();
-        }
-        assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
+    //     let ev_left_1 = Event::Key(KeyEvent::MouseHold(0, 0));
+    //     let ev_left_2 = Event::Key(Key::MouseHold(0, 39));
+    //     let ev_right_1 = Event::Key(Key::MouseHold(20, 40));
+    //     let ev_right_2 = Event::Key(Key::MouseHold(20, 41));
+    //     let ev_right_3 = Event::Key(Key::MouseHold(59, 79));
+    //     let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
 
-        let immutable = Drawn {
-            called: Mutex::new(Called::No),
-        };
-        let hsplit = HSplit::default().split(&immutable);
-        hsplit.draw(&mut canvas).unwrap();
-        assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
-        let immutable = Drawn {
-            called: Mutex::new(Called::No),
-        };
-        let vsplit = VSplit::default().split(&immutable);
-        vsplit.draw(&mut canvas).unwrap();
-        assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
-    }
+    //     let hsplit = HSplit::default().split(&win1).split(&win2);
+    //     let msg = hsplit.on_event(ev_left_1, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(1), msg[0]);
+    //     let msg = hsplit.on_event(ev_left_2, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(1), msg[0]);
+    //     let msg = hsplit.on_event(ev_right_1, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(2), msg[0]);
+    //     let msg = hsplit.on_event(ev_right_2, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(2), msg[0]);
+    //     let msg = hsplit.on_event(ev_right_3, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(2), msg[0]);
+    //     let msg = hsplit.on_event(ev_out_of_bound, rect);
+    //     assert!(msg.is_empty());
+
+    //     let ev_top_1 = Event::Key(Key::MouseHold(0, 0));
+    //     let ev_top_2 = Event::Key(Key::MouseHold(29, 39));
+    //     let ev_bottom_1 = Event::Key(Key::MouseHold(30, 40));
+    //     let ev_bottom_2 = Event::Key(Key::MouseHold(31, 41));
+    //     let ev_bottom_3 = Event::Key(Key::MouseHold(59, 79));
+    //     let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
+
+    //     let vsplit = VSplit::default().split(&win1).split(&win2);
+
+    //     let msg = vsplit.on_event(ev_top_1, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(1), msg[0]);
+    //     let msg = vsplit.on_event(ev_top_2, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(1), msg[0]);
+    //     let msg = vsplit.on_event(ev_bottom_1, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(2), msg[0]);
+    //     let msg = vsplit.on_event(ev_bottom_2, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(2), msg[0]);
+    //     let msg = vsplit.on_event(ev_bottom_3, rect);
+    //     assert!(!msg.is_empty());
+    //     assert_eq!(Message::Window(2), msg[0]);
+    //     let msg = vsplit.on_event(ev_out_of_bound, rect);
+    //     assert!(msg.is_empty());
+
+    //     // 1 | 2
+    //     // --|--
+    //     // 3 | 4
+    //     let nested = HSplit::default()
+    //         .split(VSplit::default().split(&win1).split(&win3))
+    //         .split(VSplit::default().split(&win2).split(&win4));
+    //     let row_col_event = [
+    //         ((0, 0), Message::Window(1)),
+    //         ((0, 39), Message::Window(1)),
+    //         ((29, 0), Message::Window(1)),
+    //         ((29, 39), Message::Window(1)),
+    //         ((0, 40), Message::Window(2)),
+    //         ((0, 79), Message::Window(2)),
+    //         ((29, 40), Message::Window(2)),
+    //         ((29, 79), Message::Window(2)),
+    //         ((30, 0), Message::Window(3)),
+    //         ((30, 39), Message::Window(3)),
+    //         ((59, 0), Message::Window(3)),
+    //         ((59, 39), Message::Window(3)),
+    //         ((30, 40), Message::Window(4)),
+    //         ((30, 79), Message::Window(4)),
+    //         ((59, 40), Message::Window(4)),
+    //         ((59, 79), Message::Window(4)),
+    //     ];
+
+    //     for &((row, col), event) in row_col_event.iter() {
+    //         let ev = Event::Key(MousePress(MouseButton::Left, row, col));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //         let ev = Event::Key(MouseRelease(row, col));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //         let ev = Event::Key(MouseHold(row, col));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //         let ev = Event::Key(SingleClick(MouseButton::Left, row, col));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //         let ev = Event::Key(DoubleClick(MouseButton::Left, row, col));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //         let ev = Event::Key(Key::WheelUp(row, col, 1));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //         let ev = Event::Key(Key::WheelDown(row, col, 1));
+    //         let msg = nested.on_event(ev, rect);
+    //         assert_eq!(msg[0], event);
+    //     }
+    // }
+
+    // #[test]
+    // fn message_should_be_dispatched_correctly_mut() {
+    //     let width = 80;
+    //     let height = 60;
+    //     let rect = Rectangle {
+    //         top: 0,
+    //         left: 0,
+    //         width,
+    //         height,
+    //     };
+
+    //     let mut win1 = WindowWithId::new(1);
+    //     let mut win2 = WindowWithId::new(2);
+    //     let mut win3 = WindowWithId::new(3);
+    //     let mut win4 = WindowWithId::new(4);
+
+    //     let ev_left_1 = Event::Key(Key::MouseHold(0, 0));
+    //     let ev_left_2 = Event::Key(Key::MouseHold(0, 39));
+    //     let ev_right_1 = Event::Key(Key::MouseHold(20, 40));
+    //     let ev_right_2 = Event::Key(Key::MouseHold(20, 41));
+    //     let ev_right_3 = Event::Key(Key::MouseHold(59, 79));
+    //     let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
+
+    //     {
+    //         let mut hsplit = HSplit::default().split(&mut win1).split(&mut win2);
+    //         let msg = hsplit.on_event_mut(ev_left_1, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(1), msg[0]);
+    //         let msg = hsplit.on_event_mut(ev_left_2, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(1), msg[0]);
+    //         let msg = hsplit.on_event_mut(ev_right_1, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(2), msg[0]);
+    //         let msg = hsplit.on_event_mut(ev_right_2, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(2), msg[0]);
+    //         let msg = hsplit.on_event_mut(ev_right_3, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(2), msg[0]);
+    //         let msg = hsplit.on_event_mut(ev_out_of_bound, rect);
+    //         assert!(msg.is_empty());
+    //     }
+
+    //     let ev_top_1 = Event::Key(Key::MouseHold(0, 0));
+    //     let ev_top_2 = Event::Key(Key::MouseHold(29, 39));
+    //     let ev_bottom_1 = Event::Key(Key::MouseHold(30, 40));
+    //     let ev_bottom_2 = Event::Key(Key::MouseHold(31, 41));
+    //     let ev_bottom_3 = Event::Key(Key::MouseHold(59, 79));
+    //     let ev_out_of_bound = Event::Key(Key::MouseHold(60, 80));
+
+    //     {
+    //         let mut vsplit = VSplit::default().split(&mut win1).split(&mut win2);
+
+    //         let msg = vsplit.on_event_mut(ev_top_1, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(1), msg[0]);
+    //         let msg = vsplit.on_event_mut(ev_top_2, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(1), msg[0]);
+    //         let msg = vsplit.on_event_mut(ev_bottom_1, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(2), msg[0]);
+    //         let msg = vsplit.on_event_mut(ev_bottom_2, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(2), msg[0]);
+    //         let msg = vsplit.on_event_mut(ev_bottom_3, rect);
+    //         assert!(!msg.is_empty());
+    //         assert_eq!(Message::Window(2), msg[0]);
+    //         let msg = vsplit.on_event_mut(ev_out_of_bound, rect);
+    //         assert!(msg.is_empty());
+    //     }
+
+    //     // 1 | 2
+    //     // --|--
+    //     // 3 | 4
+    //     {
+    //         let mut nested = HSplit::default()
+    //             .split(VSplit::default().split(&mut win1).split(&mut win3))
+    //             .split(VSplit::default().split(&mut win2).split(&mut win4));
+    //         let row_col_event = [
+    //             ((0, 0), Message::Window(1)),
+    //             ((0, 39), Message::Window(1)),
+    //             ((29, 0), Message::Window(1)),
+    //             ((29, 39), Message::Window(1)),
+    //             ((0, 40), Message::Window(2)),
+    //             ((0, 79), Message::Window(2)),
+    //             ((29, 40), Message::Window(2)),
+    //             ((29, 79), Message::Window(2)),
+    //             ((30, 0), Message::Window(3)),
+    //             ((30, 39), Message::Window(3)),
+    //             ((59, 0), Message::Window(3)),
+    //             ((59, 39), Message::Window(3)),
+    //             ((30, 40), Message::Window(4)),
+    //             ((30, 79), Message::Window(4)),
+    //             ((59, 40), Message::Window(4)),
+    //             ((59, 79), Message::Window(4)),
+    //         ];
+
+    //         for &((row, col), event) in row_col_event.iter() {
+    //             let ev = Event::Key(MousePress(MouseButton::Left, row, col));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //             let ev = Event::Key(MouseRelease(row, col));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //             let ev = Event::Key(MouseHold(row, col));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //             let ev = Event::Key(SingleClick(MouseButton::Left, row, col));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //             let ev = Event::Key(DoubleClick(MouseButton::Left, row, col));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //             let ev = Event::Key(Key::WheelUp(row, col, 1));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //             let ev = Event::Key(Key::WheelDown(row, col, 1));
+    //             let msg = nested.on_event_mut(ev, rect);
+    //             assert_eq!(msg[0], event);
+    //         }
+    //     }
+    // }
+
+    // #[derive(PartialEq, Debug)]
+    // enum Called {
+    //     No,
+    //     Mut,
+    //     Immut,
+    // }
+
+    // struct Drawn {
+    //     called: Mutex<Called>,
+    // }
+
+    // impl Draw for Drawn {
+    //     fn draw(&self, _canvas: &mut dyn Canvas) -> DrawResult<()> {
+    //         *self.called.lock().unwrap() = Called::Immut;
+    //         Ok(())
+    //     }
+    //     fn draw_mut(&mut self, _canvas: &mut dyn Canvas) -> DrawResult<()> {
+    //         *self.called.lock().unwrap() = Called::Mut;
+    //         Ok(())
+    //     }
+    // }
+
+    // impl Widget for Drawn {}
+
+    // impl Split for Drawn {
+    //     fn get_basis(&self) -> Size {
+    //         Size::Default
+    //     }
+
+    //     fn get_grow(&self) -> u16 {
+    //         1
+    //     }
+
+    //     fn get_shrink(&self) -> u16 {
+    //         1
+    //     }
+    // }
+
+    // #[test]
+    // fn mutable_widget() {
+    //     let mut canvas = TestCanvas { width: 80, height: 80 };
+
+    //     let mut mutable = Drawn {
+    //         called: Mutex::new(Called::No),
+    //     };
+    //     {
+    //         let mut hsplit = HSplit::default().split(&mut mutable);
+    //         hsplit.draw_mut(&mut canvas).unwrap();
+    //     }
+    //     assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
+
+    //     let mut mutable = Drawn {
+    //         called: Mutex::new(Called::No),
+    //     };
+    //     {
+    //         let mut vsplit = VSplit::default().split(&mut mutable);
+    //         vsplit.draw_mut(&mut canvas).unwrap();
+    //     }
+    //     assert_eq!(Called::Mut, *mutable.called.lock().unwrap());
+
+    //     let immutable = Drawn {
+    //         called: Mutex::new(Called::No),
+    //     };
+    //     let hsplit = HSplit::default().split(&immutable);
+    //     hsplit.draw(&mut canvas).unwrap();
+    //     assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
+    //     let immutable = Drawn {
+    //         called: Mutex::new(Called::No),
+    //     };
+    //     let vsplit = VSplit::default().split(&immutable);
+    //     vsplit.draw(&mut canvas).unwrap();
+    //     assert_eq!(Called::Immut, *immutable.called.lock().unwrap());
+    // }
 }

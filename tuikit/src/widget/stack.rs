@@ -1,6 +1,7 @@
+use crossterm::event::Event;
+
 use crate::canvas::Canvas;
 use crate::draw::{Draw, DrawResult};
-use crate::event::Event;
 use crate::widget::{Rectangle, Widget};
 
 /// A stack of widgets, will draw the including widgets back to front
@@ -48,7 +49,7 @@ impl<Message> Draw for Stack<'_, Message> {
 }
 
 impl<Message> Widget<Message> for Stack<'_, Message> {
-    fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+    fn size_hint(&self) -> (Option<u16>, Option<u16>) {
         // max of the inner widgets
         let width = self
             .inner
@@ -65,10 +66,10 @@ impl<Message> Widget<Message> for Stack<'_, Message> {
         (width, height)
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         // like javascript's capture, from top to bottom
         for widget in self.inner.iter().rev() {
-            let message = widget.on_event(event, rect);
+            let message = widget.on_event(&event, rect);
             if !message.is_empty() {
                 return message;
             }
@@ -96,8 +97,8 @@ mod test {
     use std::sync::Mutex;
 
     struct WinHint {
-        pub width_hint: Option<usize>,
-        pub height_hint: Option<usize>,
+        pub width_hint: Option<u16>,
+        pub height_hint: Option<u16>,
     }
 
     impl Draw for WinHint {
@@ -107,7 +108,7 @@ mod test {
     }
 
     impl Widget for WinHint {
-        fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+        fn size_hint(&self) -> (Option<u16>, Option<u16>) {
             (self.width_hint, self.height_hint)
         }
     }
@@ -178,7 +179,7 @@ mod test {
 
     #[allow(unused_variables)]
     impl Canvas for TestCanvas {
-        fn size(&self) -> crate::Result<(usize, usize)> {
+        fn size(&self) -> crate::Result<(u16, u16)> {
             Ok((100, 100))
         }
 
@@ -186,11 +187,11 @@ mod test {
             unimplemented!()
         }
 
-        fn put_cell(&mut self, row: usize, col: usize, cell: Cell) -> crate::Result<usize> {
+        fn put_cell(&mut self, row: u16, col: u16, cell: Cell) -> crate::Result<usize> {
             Ok(1)
         }
 
-        fn set_cursor(&mut self, row: usize, col: usize) -> crate::Result<()> {
+        fn set_cursor(&mut self, row: u16, col: u16) -> crate::Result<()> {
             unimplemented!()
         }
 

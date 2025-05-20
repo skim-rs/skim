@@ -55,19 +55,19 @@
 //!     let _ = term.present();
 //! }
 //! ```
-pub mod attr;
+// pub mod attr;
 pub mod canvas;
 pub mod cell;
 mod color;
 pub mod draw;
 pub mod error;
 pub mod event;
-pub mod input;
-pub mod key;
+// pub mod input;
+// pub mod key;
 mod macros;
-pub mod output;
+// pub mod output;
 pub mod prelude;
-pub mod raw;
+// pub mod raw;
 pub mod screen;
 use common::spinlock;
 mod sys;

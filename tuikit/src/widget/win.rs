@@ -5,9 +5,9 @@ use super::{Rectangle, Widget};
 use crate::canvas::{BoundedCanvas, Canvas};
 use crate::cell::Cell;
 use crate::draw::{Draw, DrawResult};
-use crate::event::Event;
 use crate::widget::align::{AlignSelf, HorizontalAlign};
 use crate::{ok_or_return, some_or_return};
+use crossterm::event::Event;
 use crossterm::style::ContentStyle;
 use std::cmp::max;
 use unicode_width::UnicodeWidthStr;
@@ -45,8 +45,8 @@ pub struct Win<'a, Message = ()> {
     title_on_top: bool,
 
     basis: Size,
-    grow: usize,
-    shrink: usize,
+    grow: u16,
+    shrink: u16,
 
     inner: Box<dyn Widget<Message> + 'a>,
 }
@@ -240,12 +240,12 @@ impl<'a, Message> Win<'a, Message> {
         self
     }
 
-    pub fn grow(mut self, grow: usize) -> Self {
+    pub fn grow(mut self, grow: u16) -> Self {
         self.grow = grow;
         self
     }
 
-    pub fn shrink(mut self, shrink: usize) -> Self {
+    pub fn shrink(mut self, shrink: u16) -> Self {
         self.shrink = shrink;
         self
     }
@@ -425,11 +425,11 @@ impl<'a, Message> Win<'a, Message> {
         let right = max(left + width, 1) - 1;
 
         if self.border_top {
-            let _ = canvas.print_with_style(top, left, &"─".repeat(width), self.border_top_style);
+            let _ = canvas.print_with_style(top, left, &"─".repeat(width as usize), self.border_top_style);
         }
 
         if self.border_bottom {
-            let _ = canvas.print_with_style(bottom, left, &"─".repeat(width), self.border_bottom_style);
+            let _ = canvas.print_with_style(bottom, left, &"─".repeat(width as usize), self.border_bottom_style);
         }
 
         if self.border_left {
@@ -472,14 +472,14 @@ impl<'a, Message> Win<'a, Message> {
         if self.right_prompt.is_some() {
             let prompt = self.right_prompt.as_ref().unwrap();
             let text_width = prompt.width_cjk();
-            let left = HorizontalAlign::Right.adjust(0, width, text_width);
+            let left = HorizontalAlign::Right.adjust(0, width, text_width as u16);
             canvas.print_with_style(row, left, prompt, self.right_prompt_style)?;
         }
 
         if self.title.is_some() {
             let title = self.title.as_ref().unwrap();
             let text_width = title.width_cjk();
-            let left = self.title_align.adjust(0, width, text_width);
+            let left = self.title_align.adjust(0, width, text_width as u16);
             canvas.print_with_style(row, left, title, self.right_prompt_style)?;
         }
 
@@ -547,7 +547,7 @@ impl<Message> Draw for Win<'_, Message> {
 }
 
 impl<Message> Widget<Message> for Win<'_, Message> {
-    fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+    fn size_hint(&self) -> (Option<u16>, Option<u16>) {
         // plus border size
         let (width, height) = self.inner.size_hint();
         let width = width.map(|mut w| {
@@ -568,14 +568,14 @@ impl<Message> Widget<Message> for Win<'_, Message> {
     fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
         let empty = vec![];
         let inner_rect = ok_or_return!(self.calc_inner_rect(rect), empty);
-        let adjusted_event = some_or_return!(adjust_event(event, inner_rect), empty);
+        let adjusted_event = some_or_return!(adjust_event(&event, inner_rect), empty);
         self.inner.on_event(adjusted_event, inner_rect)
     }
 
     fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
         let empty = vec![];
         let inner_rect = ok_or_return!(self.calc_inner_rect(rect), empty);
-        let adjusted_event = some_or_return!(adjust_event(event, inner_rect), empty);
+        let adjusted_event = some_or_return!(adjust_event(&event, inner_rect), empty);
         self.inner.on_event(adjusted_event, inner_rect)
     }
 }
@@ -585,11 +585,11 @@ impl<Message> Split<Message> for Win<'_, Message> {
         self.basis
     }
 
-    fn get_grow(&self) -> usize {
+    fn get_grow(&self) -> u16 {
         self.grow
     }
 
-    fn get_shrink(&self) -> usize {
+    fn get_shrink(&self) -> u16 {
         self.shrink
     }
 }
@@ -601,8 +601,8 @@ mod test {
     use std::sync::Mutex;
 
     struct WinHint {
-        pub width_hint: Option<usize>,
-        pub height_hint: Option<usize>,
+        pub width_hint: Option<u16>,
+        pub height_hint: Option<u16>,
     }
 
     impl Draw for WinHint {
@@ -612,7 +612,7 @@ mod test {
     }
 
     impl Widget for WinHint {
-        fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+        fn size_hint(&self) -> (Option<u16>, Option<u16>) {
             (self.width_hint, self.height_hint)
         }
     }
@@ -688,7 +688,7 @@ mod test {
 
     #[allow(unused_variables)]
     impl Canvas for TestCanvas {
-        fn size(&self) -> crate::Result<(usize, usize)> {
+        fn size(&self) -> crate::Result<(u16, u16)> {
             Ok((100, 100))
         }
 
@@ -696,11 +696,11 @@ mod test {
             unimplemented!()
         }
 
-        fn put_cell(&mut self, row: usize, col: usize, cell: Cell) -> crate::Result<usize> {
+        fn put_cell(&mut self, row: u16, col: u16, cell: Cell) -> crate::Result<usize> {
             Ok(1)
         }
 
-        fn set_cursor(&mut self, row: usize, col: usize) -> crate::Result<()> {
+        fn set_cursor(&mut self, row: u16, col: u16) -> crate::Result<()> {
             unimplemented!()
         }
 

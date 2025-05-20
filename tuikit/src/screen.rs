@@ -8,10 +8,8 @@ use crossterm::{
     style::{self, Print, PrintStyledContent},
     terminal,
 };
-use std::{
-    cmp::{max, min},
-    io::stdout,
-};
+use std::io::Write;
+use std::cmp::{max, min};
 use unicode_width::UnicodeWidthChar;
 
 // much of the code comes from https://github.com/agatan/termfest/blob/master/src/screen.rs
@@ -20,8 +18,8 @@ use unicode_width::UnicodeWidthChar;
 /// It's a buffer holding the contents
 #[derive(Debug)]
 pub struct Screen {
-    width: usize,
-    height: usize,
+    width: u16,
+    height: u16,
     cursor: Cursor,
     cells: Vec<Cell>,
     painted_cells: Vec<Cell>,
@@ -31,13 +29,13 @@ pub struct Screen {
 
 impl Screen {
     /// create an empty screen with size: (width, height)
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: u16, height: u16) -> Self {
         Self {
             width,
             height,
-            cells: vec![*BLANK_CELL; width * height],
+            cells: vec![*BLANK_CELL; (width * height) as usize],
             cursor: Cursor::default(),
-            painted_cells: vec![*BLANK_CELL; width * height],
+            painted_cells: vec![*BLANK_CELL; (width * height) as usize],
             painted_cursor: Cursor::default(),
             clear_on_start: false,
         }
@@ -49,38 +47,38 @@ impl Screen {
 
     /// get the width of the screen
     #[inline]
-    pub fn width(&self) -> usize {
+    pub fn width(&self) -> u16 {
         self.width
     }
 
     /// get the height of the screen
     #[inline]
-    pub fn height(&self) -> usize {
+    pub fn height(&self) -> u16 {
         self.height
     }
 
     #[inline]
-    fn index(&self, row: usize, col: usize) -> Result<usize> {
+    fn index(&self, row: u16, col: u16) -> Result<usize> {
         if row >= self.height || col >= self.width {
             Err(TuikitError::IndexOutOfBound(row, col))
         } else {
-            Ok(row * self.width + col)
+            Ok((row * self.width + col) as usize)
         }
     }
 
-    fn empty_canvas(&self, width: usize, height: usize) -> Vec<Cell> {
-        vec![*EMPTY_CELL; width * height]
+    fn empty_canvas(&self, width: u16, height: u16) -> Vec<Cell> {
+        vec![*EMPTY_CELL; (width * height) as usize]
     }
 
-    fn copy_cells(&self, original: &[Cell], width: usize, height: usize) -> Vec<Cell> {
+    fn copy_cells(&self, original: &[Cell], width: u16, height: u16) -> Vec<Cell> {
         let mut new_cells = self.empty_canvas(width, height);
         use std::cmp;
-        let min_height = cmp::min(height, self.height);
-        let min_width = cmp::min(width, self.width);
+        let min_height = cmp::min(height, self.height) as usize;
+        let min_width = cmp::min(width, self.width) as usize;
         for row in 0..min_height {
-            let orig_start = row * self.width;
+            let orig_start = row * self.width as usize;
             let orig_end = min_width + orig_start;
-            let start = row * width;
+            let start = row * width as usize;
             let end = min_width + start;
             new_cells[start..end].copy_from_slice(&original[orig_start..orig_end]);
         }
@@ -88,7 +86,7 @@ impl Screen {
     }
 
     /// to resize the screen to `(width, height)`
-    pub fn resize(&mut self, width: usize, height: usize) {
+    pub fn resize(&mut self, width: u16, height: u16) {
         self.cells = self.copy_cells(&self.cells, width, height);
         self.painted_cells = self.empty_canvas(width, height);
         self.width = width;
@@ -99,11 +97,10 @@ impl Screen {
     }
 
     /// sync internal buffer with the terminal
-    pub fn present(&mut self) -> Result<()> {
-        let mut stdout = stdout();
+    pub fn present<Output: Write>(&mut self, output: &mut Output) -> Result<()> {
 
         // hide cursor && reset ContentStyleibutes
-        queue!(stdout, cursor::Hide, cursor::MoveTo(0, 0), style::ResetColor)?;
+        queue!(output, cursor::Hide, cursor::MoveTo(0, 0), style::ResetColor)?;
 
         let mut last_cursor = Cursor::default();
 
@@ -143,16 +140,16 @@ impl Screen {
 
                 // move cursor if necessary
                 if last_cursor.row != row || last_cursor.col != col {
-                    queue!(stdout, cursor::MoveTo(col as u16, row as u16))?;
+                    queue!(output, cursor::MoveTo(col as u16, row as u16))?;
                 }
 
                 // correctly draw the characters
                 match *cell_to_paint.content() {
                     '\n' | '\r' | '\t' | '\0' => {
-                        queue!(stdout, Print(' '))?;
+                        queue!(output, Print(' '))?;
                     }
                     _ => {
-                        queue!(stdout, PrintStyledContent(cell_to_paint))?;
+                        queue!(output, PrintStyledContent(cell_to_paint))?;
                     }
                 }
 
@@ -164,27 +161,27 @@ impl Screen {
                 }
 
                 last_cursor.row = row;
-                last_cursor.col = col + display_width;
+                last_cursor.col = col + display_width as u16;
                 self.painted_cells[index] = cell_to_paint;
             }
 
             if empty_col_index != self.width {
                 queue!(
-                    stdout,
+                    output,
                     cursor::MoveTo(empty_col_index as u16, row as u16),
                     style::ResetColor,
                     style::SetAttribute(style::Attribute::Reset)
                 )?;
                 if self.clear_on_start {
-                    queue!(stdout, terminal::Clear(terminal::ClearType::UntilNewLine))?;
+                    queue!(output, terminal::Clear(terminal::ClearType::UntilNewLine))?;
                 }
             }
         }
 
         // restore cursor
-        queue!(stdout, cursor::MoveTo(self.cursor.col as u16, self.cursor.row as u16))?;
+        queue!(output, cursor::MoveTo(self.cursor.col as u16, self.cursor.row as u16))?;
         if self.cursor.visible {
-            queue!(stdout, cursor::Show)?;
+            queue!(output, cursor::Show)?;
         }
 
         self.painted_cursor = self.cursor;
@@ -215,7 +212,7 @@ impl Screen {
 
 impl Canvas for Screen {
     /// Get the canvas size (width, height)
-    fn size(&self) -> Result<(usize, usize)> {
+    fn size(&self) -> Result<(u16, u16)> {
         Ok((self.width(), self.height()))
     }
 
@@ -228,7 +225,7 @@ impl Canvas for Screen {
     }
 
     /// change a cell of position `(row, col)` to `cell`
-    fn put_cell(&mut self, row: usize, col: usize, cell: Cell) -> Result<usize> {
+    fn put_cell(&mut self, row: u16, col: u16, cell: Cell) -> Result<usize> {
         let ch_width = cell.content().width().unwrap_or(2);
         if ch_width > 1 {
             let _ = self.index(row, col + 1).map(|index| {
@@ -244,7 +241,7 @@ impl Canvas for Screen {
     }
 
     /// move cursor position (row, col) and show cursor
-    fn set_cursor(&mut self, row: usize, col: usize) -> Result<()> {
+    fn set_cursor(&mut self, row: u16, col: u16) -> Result<()> {
         self.cursor.row = min(row, max(self.height, 1) - 1);
         self.cursor.col = min(col, max(self.width, 1) - 1);
         self.cursor.visible = true;
@@ -259,20 +256,20 @@ impl Canvas for Screen {
 }
 
 pub struct CellIterator<'a> {
-    width: usize,
+    width: u16,
     index: usize,
     vec: &'a Vec<Cell>,
 }
 
 impl<'a> Iterator for CellIterator<'a> {
-    type Item = (usize, usize, &'a Cell);
+    type Item = (u16, usize, &'a Cell);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.vec.len() {
             return None;
         }
 
-        let (row, col) = (self.index / self.width, self.index % self.width);
+        let (row, col) = ((self.index / self.width as usize) as u16, self.index % self.width as usize);
         let ret = self.vec.get(self.index).map(|cell| (row, col, cell));
         self.index += 1;
         ret
@@ -281,8 +278,8 @@ impl<'a> Iterator for CellIterator<'a> {
 
 #[derive(Debug, Clone, Copy, Default)]
 struct Cursor {
-    pub row: usize,
-    pub col: usize,
+    pub row: u16,
+    pub col: u16,
     visible: bool,
 }
 
