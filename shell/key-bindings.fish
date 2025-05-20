@@ -26,9 +26,8 @@ function skim_key_bindings
     -o -type d -print \
     -o -type l -print 2> /dev/null | sed 's@^\./@@'"
 
-    test -n "$SKIM_TMUX_HEIGHT"; or set SKIM_TMUX_HEIGHT 40%
     begin
-      set -lx SKIM_DEFAULT_OPTIONS "--height $SKIM_TMUX_HEIGHT --reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS"
+      set -lx SKIM_DEFAULT_OPTIONS "--reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS"
       eval "$SKIM_CTRL_T_COMMAND | "(__skimcmd)' -m --query "'$skim_query'"' | while read -l r; set result $result $r; end
     end
     if [ -z "$result" ]
@@ -46,9 +45,8 @@ function skim_key_bindings
   end
 
   function skim-history-widget -d "Show command history"
-    test -n "$SKIM_TMUX_HEIGHT"; or set SKIM_TMUX_HEIGHT 40%
     begin
-      set -lx SKIM_DEFAULT_OPTIONS "--height $SKIM_TMUX_HEIGHT $SKIM_DEFAULT_OPTIONS --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi"
+      set -lx SKIM_DEFAULT_OPTIONS "$SKIM_DEFAULT_OPTIONS --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi"
 
       set -l FISH_MAJOR (echo $version | cut -f1 -d.)
       set -l FISH_MINOR (echo $version | cut -f2 -d.)
@@ -75,9 +73,8 @@ function skim_key_bindings
     test -n "$SKIM_ALT_C_COMMAND"; or set -l SKIM_ALT_C_COMMAND "
     command find -L \$dir -mindepth 1 \\( -path \$dir'*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' \\) -prune \
     -o -type d -print 2> /dev/null | sed 's@^\./@@'"
-    test -n "$SKIM_TMUX_HEIGHT"; or set SKIM_TMUX_HEIGHT 40%
     begin
-      set -lx SKIM_DEFAULT_OPTIONS "--height $SKIM_TMUX_HEIGHT --reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS"
+      set -lx SKIM_DEFAULT_OPTIONS "--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS"
       eval "$SKIM_ALT_C_COMMAND | "(__skimcmd)' --no-multi --query "'$skim_query'"' | read -l result
 
       if [ -n "$result" ]
@@ -95,9 +92,9 @@ function skim_key_bindings
     test -n "$SKIM_TMUX"; or set SKIM_TMUX 0
     test -n "$SKIM_TMUX_HEIGHT"; or set SKIM_TMUX_HEIGHT 40%
     if [ -n "$SKIM_TMUX_OPTS" ]
-      echo "sk-tmux $SKIM_TMUX_OPTS -- "
+      echo "sk --tmux=$SKIM_TMUX_OPTS "
     else if [ $SKIM_TMUX -eq 1 ]
-      echo "sk-tmux -d$SKIM_TMUX_HEIGHT -- "
+      echo "sk --tmux=center,$SKIM_TMUX_HEIGHT"
     else
       echo "sk"
     end
