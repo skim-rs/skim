@@ -75,7 +75,7 @@ __fsel() {
 
 __skimcmd() {
   [ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; } &&
-    echo "sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}} -- " || echo "sk"
+    echo "sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}}" || echo "sk"
 }
 
 skim-file-widget() {
@@ -191,9 +191,9 @@ __skim_comprun() {
   elif [ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; }; then
     shift
     if [ -n "$SKIM_TMUX_OPTS" ]; then
-      sk --tmux=${(Q)${(Z+n+)SKIM_TMUX_OPTS}} -- "$@"
+      sk --tmux=${(Q)${(Z+n+)SKIM_TMUX_OPTS}} "$@"
     else
-      sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}} -- "$@"
+      sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}} "$@"
     fi
   else
     shift
