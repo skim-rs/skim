@@ -1,6 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+## [0.17.3](https://github.com/skim-rs/skim/compare/v0.17.2...v0.17.3)
+
+### ⚙️ Miscellaneous Tasks
+
+
+- Update Cargo.toml dependencies - ([0000000](https://github.com/skim-rs/skim/commit/0000000))
 ## [0.17.2](https://github.com/skim-rs/skim/compare/v0.17.1...v0.17.2)
 
 ### 🐛 Bug Fixes
