@@ -696,6 +696,7 @@ impl TermLock {
                     output.write("\n");
                 }
             }
+            output.reset_attributes();
             output.flush();
         }
         Ok(())
