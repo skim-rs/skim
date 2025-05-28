@@ -21,7 +21,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_else(|| Vec::new());
 
-    println!("\n\n\n\n\n\n");
+    println!("{}", "\n".repeat(6));
     for item in selected_items.iter() {
         println!("{:?}", item.output().chars().collect::<Vec<char>>());
     }
