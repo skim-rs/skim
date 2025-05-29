@@ -281,22 +281,73 @@ other order you want.
 ## Color Scheme
 
 It is a high chance that you are a better artist than me. Luckily you won't
-be stuck with the default colors - `skim` supports customization of the color scheme.
+be stuck with the default colors - `skim` supports comprehensive customization of its color scheme.
 
 ```sh
 --color=[BASE_SCHEME][,COLOR:ANSI]
 ```
 
-The configuration of colors starts with the name of the base color scheme,
-followed by custom color mappings. For example:
+### Base Color Schemes
 
+Skim comes with several built-in color schemes that you can use as a starting point:
 
 ```sh
-sk --color=current_bg:24
+sk --color=dark      # Default dark theme (256 colors)
+sk --color=light     # Light theme (256 colors)
+sk --color=16        # Simple 16-color theme
+sk --color=bw        # Minimal black & white theme (no colors, just styles)
+sk --color=molokai   # Molokai-inspired theme (256 colors)
+```
+
+### Customizing Colors
+
+You can customize individual UI elements by specifying color values after the base scheme:
+
+```sh
 sk --color=light,fg:232,bg:255,current_bg:116,info:27
 ```
 
-See the `--color` option in the man page for details.
+Colors can be specified in several ways:
+
+- ANSI colors (0-255): `sk --color=fg:232,bg:255`
+- RGB hex values: `sk --color=fg:#FF0000` (red text)
+
+### Available Color Customization Options
+
+The following UI elements can be customized:
+
+| Element            | Description                                 | Example                  |
+|--------------------|---------------------------------------------|-------------------------|
+| `fg`               | Normal text foreground color                | `--color=fg:232`        |
+| `bg`               | Normal text background color                | `--color=bg:255`        |
+| `matched`          | Matched text in search results              | `--color=matched:108`   |
+| `matched_bg`       | Background of matched text                  | `--color=matched_bg:0`  |
+| `current`          | Current line foreground color               | `--color=current:254`   |
+| `current_bg`       | Current line background color               | `--color=current_bg:236`|
+| `current_match`    | Matched text in current line                | `--color=current_match:151` |
+| `current_match_bg` | Background of matched text in current line  | `--color=current_match_bg:236` |
+| `spinner`          | Progress indicator color                     | `--color=spinner:148`   |
+| `info`             | Information line color                      | `--color=info:144`      |
+| `prompt`           | Prompt color                                | `--color=prompt:110`    |
+| `cursor`           | Cursor color                                | `--color=cursor:161`    |
+| `selected`         | Selected item marker color                  | `--color=selected:168`  |
+| `header`           | Header text color                           | `--color=header:109`    |
+| `border`           | Border color for preview/layout             | `--color=border:59`     |
+
+### Examples
+
+```sh
+# Use light theme but change the current line background
+sk --color=light,current_bg:24
+
+# Custom theme with multiple colors
+sk --color=dark,matched:#00FF00,current:#FFFFFF,current_bg:#000080
+
+# High contrast theme
+sk --color=fg:232,bg:255,matched:160,current:255,current_bg:20
+```
+
+For more details, check the man page (`man sk`).
 
 ## Misc
 
