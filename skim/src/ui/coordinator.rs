@@ -139,7 +139,7 @@ impl UICoordinator {
             if event::poll(Duration::from_millis(10))? {
                 if let Event::Key(key) = event::read()? {
                     match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => {
+                        KeyCode::Esc => {
                             self.should_quit = true;
                         }
                         KeyCode::Enter => {
@@ -150,6 +150,9 @@ impl UICoordinator {
                         }
                         KeyCode::Down => {
                             self.next_item();
+                        }
+                        KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                            self.should_quit = true;
                         }
                         KeyCode::Char(c) => {
                             self.current_query.push(c);
