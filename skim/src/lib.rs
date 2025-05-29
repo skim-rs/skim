@@ -6,13 +6,11 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::mpsc::channel;
+use std::thread;
 
 use clap::ValueEnum;
 use crossbeam::channel::{Receiver, Sender};
-// Ratatui-based UI system
-use crate::ui::{UICoordinator, LegacyAttr as Attr};
-use crate::ui::{Size, TermHeight};
-use crate::ui::tuikit_compat::{Term, TermOptions};
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 pub use crate::ansi::AnsiString;
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
@@ -23,9 +21,7 @@ pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::Reader;
 pub use skim_common::spinlock;
-
-// New UI system
-pub mod ui;
+pub use skim_tuikit as tuikit;
 
 mod ansi;
 mod engine;
@@ -319,94 +315,6 @@ impl Skim {
     /// Panics if the tui fails to initilize
     #[must_use]
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
-        // Feature flag: use environment variable to choose UI system
-        let use_ratatui = std::env::var("SKIM_USE_RATATUI").is_ok();
-        
-        if use_ratatui {
-            // New ratatui-based system (experimental)
-            Self::run_with_ratatui(options, source)
-        } else {
-            // Legacy tuikit-based system (stable, default)
-            Self::run_with_legacy(options, source)
-        }
-    }
-    
-    /// Run with the new ratatui-based UI system (experimental)
-    fn run_with_ratatui(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
-        let min_height = Skim::parse_height_string(&options.min_height);
-        let height = Skim::parse_height_string(&options.height);
-
-        let (tx, rx): (EventSender, EventReceiver) = channel();
-        
-        // Create UI coordinator for new ratatui system
-        let mut ui_coordinator = match UICoordinator::new(options) {
-            Ok(coordinator) => coordinator,
-            Err(e) => {
-                eprintln!("Failed to create UI coordinator: {}", e);
-                return None;
-            }
-        };
-
-        // Set up data processing
-        let item_receiver = if let Some(receiver) = source {
-            receiver
-        } else {
-            // Determine command to use - follow legacy logic: user cmd option > SKIM_DEFAULT_COMMAND > "find ."
-            let command = if let Some(cmd) = &options.cmd {
-                cmd.clone()
-            } else {
-                match std::env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
-                    Ok("") | Err(_) => "find .".to_owned(),
-                    Ok(val) => val.to_owned(),
-                }
-            };
-            
-            let reader_opts = crate::helper::item_reader::SkimItemReaderOption::default();
-            let reader = crate::helper::item_reader::SkimItemReader::new(reader_opts);
-            
-            use crate::helper::item_reader::CollectorInput;
-            use std::sync::atomic::AtomicUsize;
-            use std::sync::Arc;
-            
-            let components_to_stop = Arc::new(AtomicUsize::new(0));
-            reader.read_and_collect_from_command(components_to_stop, CollectorInput::Command(command)).0
-        };
-        
-        ui_coordinator.set_item_source(item_receiver);
-
-        // Run the UI coordinator with integrated data processing
-        match ui_coordinator.run() {
-            Ok(_) => {
-                // Extract selected items from UI coordinator
-                let selected_items: Vec<Arc<dyn SkimItem>> = ui_coordinator
-                    .ui_state()
-                    .selection_state
-                    .get_selected_items()
-                    .into_iter()
-                    .map(|matched_item| matched_item.item.clone())
-                    .collect();
-                
-                Some(SkimOutput {
-                    is_abort: false,
-                    query: ui_coordinator.ui_state().query_state.content.clone(),
-                    cmd: String::new(),
-                    selected_items,
-                    final_key: crate::ui::LegacyKey::Null,
-                    final_event: crate::event::Event::EvActAccept(None),
-                })
-            }
-            Err(e) => {
-                eprintln!("UI coordinator failed: {}", e);
-                None
-            }
-        }
-    }
-    
-    /// Run with the legacy tuikit-based UI system (stable, default)  
-    fn run_with_legacy(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
-        // Import legacy types conditionally to avoid conflicts
-        use skim_tuikit::prelude::{Event as TermEvent, *};
-        
         let min_height = Skim::parse_height_string(&options.min_height);
         let height = Skim::parse_height_string(&options.height);
 
@@ -429,13 +337,13 @@ impl Skim {
 
         //------------------------------------------------------------------------------
         // input
-        let mut input = crate::input::Input::new();
+        let mut input = input::Input::new();
         input.parse_keymaps(options.bind.iter().map(String::as_str));
         input.parse_expect_keys(options.expect.iter().map(String::as_str));
 
         let tx_clone = tx.clone();
         let term_clone = term.clone();
-        let input_thread = std::thread::spawn(move || {
+        let input_thread = thread::spawn(move || {
             loop {
                 if let Ok(key) = term_clone.poll_event() {
                     if key == TermEvent::User(()) {
@@ -452,15 +360,16 @@ impl Skim {
 
         //------------------------------------------------------------------------------
         // reader
+
         let reader = Reader::with_options(options).source(source);
 
         //------------------------------------------------------------------------------
         // model + previewer
-        let mut model = Model::new(rx, tx, reader, term, options);
-        let result = model.start();
-
+        let mut model = Model::new(rx, tx, reader, term.clone(), options);
+        let ret = model.start();
+        let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
         let _ = input_thread.join();
-        result
+        ret
     }
 
     /// Converts a &str to a TermHeight, based on whether or not it ends with a percent sign

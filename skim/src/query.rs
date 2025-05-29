@@ -1,7 +1,7 @@
 use std::mem;
 use std::sync::Arc;
 
-use crate::ui::tuikit_compat::*;
+use skim_tuikit::prelude::*;
 use unicode_width::UnicodeWidthStr;
 
 use crate::event::{Event, EventHandler, UpdateScreen};
@@ -543,7 +543,7 @@ impl EventHandler for Query {
 }
 
 impl Draw for Query {
-    fn draw(&mut self, canvas: &mut dyn Canvas) -> DrawResult<()> {
+    fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         canvas.clear()?;
         let before = self.get_before();
         let after = self.get_after();
@@ -561,10 +561,6 @@ impl Draw for Query {
 }
 
 impl Widget<Event> for Query {
-    fn on_event(&mut self, _event: Event, _area: Rect) -> EventResult {
-        EventResult::Ignored
-    }
-    
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
         let before = self.get_before();
         let after = self.get_after();

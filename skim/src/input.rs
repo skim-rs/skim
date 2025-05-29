@@ -2,7 +2,8 @@
 //! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use crate::event::{Event, parse_event};
 use regex::Regex;
-use crate::ui::{SkimEvent as TermEvent, LegacyKey as Key, from_keyname};
+use skim_tuikit::event::Event as TermEvent;
+use skim_tuikit::key::{Key, from_keyname};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -22,20 +23,16 @@ impl Input {
     pub fn translate_event(&self, event: TermEvent) -> (Key, ActionChain) {
         match event {
             // search event from keymap
-            TermEvent::Key(key_event) => {
-                let key = Key::from_crossterm(key_event);
-                let key_clone = key.clone();
-                (
-                    key,
-                    self.keymap.get(&key_clone).cloned().unwrap_or_else(|| {
-                        if let Key::Char(ch) = key_clone {
-                            vec![Event::EvActAddChar(ch)]
-                        } else {
-                            vec![Event::EvInputKey(key_clone)]
-                        }
-                    }),
-                )
-            },
+            TermEvent::Key(key) => (
+                key,
+                self.keymap.get(&key).cloned().unwrap_or_else(|| {
+                    if let Key::Char(ch) = key {
+                        vec![Event::EvActAddChar(ch)]
+                    } else {
+                        vec![Event::EvInputKey(key)]
+                    }
+                }),
+            ),
             TermEvent::Resize { .. } => (Key::Null, vec![Event::EvActRedraw]),
             _ => (Key::Null, vec![Event::EvInputInvalid]),
         }

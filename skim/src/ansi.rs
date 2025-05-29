@@ -2,8 +2,7 @@
 use std::default::Default;
 
 use beef::lean::Cow;
-use crate::ui::tuikit_compat::{Attr, Effect, color::*};
-use ratatui::style::{Color, Modifier};
+use skim_tuikit::prelude::*;
 use std::cmp::max;
 use vte::{Params, Perform};
 
@@ -75,12 +74,12 @@ impl Perform for ANSIParser {
         while let Some(code) = iter.next() {
             match code[0] {
                 0 => attr = Attr::default(),
-                1 => attr.effect |= Modifier::BOLD,
-                2 => attr.effect |= Modifier::DIM,
-                4 => attr.effect |= Modifier::UNDERLINED,
-                5 => attr.effect |= Modifier::SLOW_BLINK,
-                7 => attr.effect |= Modifier::REVERSED,
-                num @ 30..=37 => attr.fg = Some(Color::Indexed((num - 30) as u8)),
+                1 => attr.effect |= Effect::BOLD,
+                2 => attr.effect |= Effect::DIM,
+                4 => attr.effect |= Effect::UNDERLINE,
+                5 => attr.effect |= Effect::BLINK,
+                7 => attr.effect |= Effect::REVERSE,
+                num @ 30..=37 => attr.fg = Color::AnsiValue((num - 30) as u8),
                 38 => match iter.next() {
                     Some(&[2]) => {
                         // ESC[ 38;2;<r>;<g>;<b> m Select RGB foreground color
@@ -92,7 +91,7 @@ impl Perform for ANSIParser {
                             }
                         };
 
-                        attr.fg = Some(Color::Rgb(r, g, b));
+                        attr.fg = Color::Rgb(r, g, b);
                     }
                     Some(&[5]) => {
                         // ESC[ 38;5;<n> m Select foreground color
@@ -104,14 +103,14 @@ impl Perform for ANSIParser {
                             }
                         };
 
-                        attr.fg = Some(Color::Indexed(color));
+                        attr.fg = Color::AnsiValue(color);
                     }
                     _ => {
                         trace!("error on parsing CSI {:?} m", params);
                     }
                 },
-                39 => attr.fg = Some(Color::Reset),
-                num @ 40..=47 => attr.bg = Some(Color::Indexed((num - 40) as u8)),
+                39 => attr.fg = Color::Default,
+                num @ 40..=47 => attr.bg = Color::AnsiValue((num - 40) as u8),
                 48 => match iter.next() {
                     Some(&[2]) => {
                         // ESC[ 48;2;<r>;<g>;<b> m Select RGB background color
@@ -123,7 +122,7 @@ impl Perform for ANSIParser {
                             }
                         };
 
-                        attr.bg = Some(Color::Rgb(r, g, b));
+                        attr.bg = Color::Rgb(r, g, b);
                     }
                     Some(&[5]) => {
                         // ESC[ 48;5;<n> m Select background color
@@ -135,15 +134,15 @@ impl Perform for ANSIParser {
                             }
                         };
 
-                        attr.bg = Some(Color::Indexed(color));
+                        attr.bg = Color::AnsiValue(color);
                     }
                     _ => {
                         trace!("ignore CSI {:?} m", params);
                     }
                 },
-                49 => attr.bg = Some(Color::Reset),
-                num @ 90..=97 => attr.fg = Some(Color::Indexed((num - 82) as u8)),
-                num @ 100..=107 => attr.bg = Some(Color::Indexed((num - 92) as u8)),
+                49 => attr.bg = Color::Default,
+                num @ 90..=97 => attr.fg = Color::AnsiValue((num - 82) as u8),
+                num @ 100..=107 => attr.bg = Color::AnsiValue((num - 92) as u8),
                 _ => {
                     trace!("ignore CSI {:?} m", params);
                 }
@@ -451,8 +450,8 @@ mod tests {
         let ansistring = ANSIParser::default().parse_ansi(input);
         let mut it = ansistring.iter();
         let attr = Attr {
-            fg: Some(Color::Rgb(70, 130, 180)),
-            bg: Some(Color::Rgb(5, 10, 15)),
+            fg: Color::Rgb(70, 130, 180),
+            bg: Color::Rgb(5, 10, 15),
             ..Attr::default()
         };
 
@@ -467,8 +466,8 @@ mod tests {
         let text = "abc";
         let indices: Vec<usize> = vec![1];
         let attr = Attr {
-            fg: Some(Color::Rgb(70, 130, 180)),
-            bg: Some(Color::Rgb(5, 10, 15)),
+            fg: Color::Rgb(70, 130, 180),
+            bg: Color::Rgb(5, 10, 15),
             ..Attr::default()
         };
 
@@ -502,8 +501,8 @@ mod tests {
         let ansistring = ANSIParser::default().parse_ansi(input);
         let mut it = ansistring.iter();
         let attr = Attr {
-            fg: Some(Color::Indexed(1)),
-            effect: Modifier::BOLD,
+            fg: Color::AnsiValue(1),
+            effect: Effect::BOLD,
             ..Attr::default()
         };
 
@@ -528,8 +527,8 @@ mod tests {
         let mut it = ansistring.iter();
         let default_attr = Attr::default();
         let annotated = Attr {
-            fg: Some(Color::Indexed(1)),
-            effect: Modifier::BOLD,
+            fg: Color::AnsiValue(1),
+            effect: Effect::BOLD,
             ..default_attr
         };
 
@@ -546,7 +545,7 @@ mod tests {
     #[test]
     fn test_merge_fragments() {
         let ao = Attr::default();
-        let an = Attr::default().bg(Color::Blue);
+        let an = Attr::default().bg(Color::BLUE);
 
         assert_eq!(
             merge_fragments(&[(ao, (0, 1)), (ao, (1, 2))], &[]),
@@ -615,8 +614,8 @@ mod tests {
     #[test]
     fn test_ansi_string_add() {
         let default_attr = Attr::default();
-        let ar = Attr::default().bg(Color::Red);
-        let ab = Attr::default().bg(Color::Blue);
+        let ar = Attr::default().bg(Color::RED);
+        let ab = Attr::default().bg(Color::BLUE);
 
         let string_a = AnsiString::new_str("foo", vec![(ar, (1, 3))]);
         let string_b = AnsiString::new_str("bar", vec![(ab, (0, 2))]);
@@ -635,7 +634,7 @@ mod tests {
     #[test]
     fn test_multi_byte_359() {
         // https://github.com/lotabout/skim/issues/359
-        let highlight = Attr::default().effect(Modifier::BOLD);
+        let highlight = Attr::default().effect(Effect::BOLD);
         let ansistring = AnsiString::new_str("ああa", vec![(highlight, (2, 3))]);
         let mut it = ansistring.iter();
         assert_eq!(Some(('あ', Attr::default())), it.next());
@@ -651,7 +650,7 @@ mod tests {
         let ansistring = ANSIParser::default().parse_ansi(input);
         let mut it = ansistring.iter();
         let attr = Attr {
-            effect: Modifier::DIM,
+            effect: Effect::DIM,
             ..Attr::default()
         };
 

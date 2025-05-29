@@ -11,8 +11,7 @@ use std::thread::JoinHandle;
 use derive_builder::Builder;
 use nix::libc;
 use regex::Regex;
-use crate::ui::tuikit_compat::*;
-use ratatui::style::Modifier;
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
@@ -326,17 +325,17 @@ impl Previewer {
         let v_scroll = if nums.is_empty() {
             Size::Default
         } else {
-            Size::Fixed(atoi::<usize>(nums[0]).unwrap_or(0) as u16)
+            Size::Fixed(atoi::<usize>(nums[0]).unwrap_or(0))
         };
 
         let v_offset = if nums.len() >= 2 {
             let expr = nums[1];
             if expr.starts_with('/') {
                 let num = atoi::<usize>(expr).unwrap_or(0);
-                Size::Percent(if num == 0 { 0 } else { (100 / num) as u16 })
+                Size::Percent(if num == 0 { 0 } else { 100 / num })
             } else {
                 let num = atoi::<usize>(expr).unwrap_or(0);
-                Size::Fixed(num as u16)
+                Size::Fixed(num)
             }
         } else {
             Size::Default
@@ -377,7 +376,7 @@ impl EventHandler for Previewer {
 }
 
 impl Draw for Previewer {
-    fn draw(&mut self, canvas: &mut dyn Canvas) -> DrawResult<()> {
+    fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         canvas.clear()?;
         let (screen_width, screen_height) = canvas.size()?;
         clear_canvas(canvas)?;
@@ -412,7 +411,7 @@ impl Draw for Previewer {
             col,
             &status,
             Attr {
-                effect: Modifier::REVERSED,
+                effect: Effect::REVERSE,
                 ..Attr::default()
             },
         )?;
@@ -422,24 +421,14 @@ impl Draw for Previewer {
 }
 
 impl Widget<Event> for Previewer {
-    fn on_event(&mut self, event: Event, _area: Rect) -> EventResult {
-        // Handle preview scroll events (basic implementation)
+    fn on_event(&self, event: TermEvent, _rect: Rectangle) -> Vec<Event> {
+        let mut ret = vec![];
         match event {
-            Event::EvInputKey(key) => {
-                match key {
-                    Key::Up | Key::Char('k') => {
-                        // Scroll up logic would go here
-                        EventResult::Consumed(None)
-                    }
-                    Key::Down | Key::Char('j') => {
-                        // Scroll down logic would go here
-                        EventResult::Consumed(None)
-                    }
-                    _ => EventResult::Ignored,
-                }
-            }
-            _ => EventResult::Ignored,
+            TermEvent::Key(Key::WheelUp(.., count)) => ret.push(Event::EvActPreviewUp(count as i32)),
+            TermEvent::Key(Key::WheelDown(.., count)) => ret.push(Event::EvActPreviewDown(count as i32)),
+            _ => {}
         }
+        ret
     }
 }
 
@@ -631,7 +620,7 @@ impl Printer {
         self.col = 0;
     }
 
-    fn print_char_with_attr(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<(), Box<dyn std::error::Error>> {
+    fn print_char_with_attr(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<()> {
         match ch {
             '\n' | '\r' | '\0' => {}
             '\t' => {
@@ -650,7 +639,7 @@ impl Printer {
         Ok(())
     }
 
-    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<(), Box<dyn std::error::Error>> {
+    fn print_char_raw(&mut self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<()> {
         if self.row < self.skip_rows || self.row >= self.height + self.skip_rows {
             return Ok(());
         }
@@ -674,7 +663,7 @@ impl Printer {
         Ok(())
     }
 
-    fn adjust_scroll_print(&self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<usize, Box<dyn std::error::Error>> {
+    fn adjust_scroll_print(&self, canvas: &mut dyn Canvas, ch: char, attr: Attr) -> Result<usize> {
         if self.row < self.skip_rows || self.col < self.skip_cols {
             canvas.put_char_with_attr(usize::MAX, usize::MAX, ch, attr)
         } else {

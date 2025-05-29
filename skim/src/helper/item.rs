@@ -2,7 +2,7 @@ use crate::ansi::ANSIParser;
 use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::{AnsiString, DisplayContext, Matches, SkimItem};
 use regex::Regex;
-use crate::ui::LegacyAttr as Attr;
+use skim_tuikit::prelude::Attr;
 use std::borrow::Cow;
 
 //------------------------------------------------------------------------------

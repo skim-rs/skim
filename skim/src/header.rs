@@ -8,7 +8,7 @@ use crate::theme::DEFAULT_THEME;
 use crate::util::{LinePrinter, clear_canvas, print_item, str_lines};
 use crate::{DisplayContext, Matches, SkimOptions};
 use defer_drop::DeferDrop;
-use crate::ui::tuikit_compat::*;
+use skim_tuikit::prelude::*;
 use std::cmp::max;
 use std::sync::Arc;
 
@@ -72,7 +72,7 @@ impl Header {
 }
 
 impl Draw for Header {
-    fn draw(&mut self, canvas: &mut dyn Canvas) -> DrawResult<()> {
+    fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let (screen_width, screen_height) = canvas.size()?;
         if screen_width < 3 {
             return Err("screen width is too small".into());
@@ -130,10 +130,6 @@ impl Draw for Header {
 }
 
 impl Widget<Event> for Header {
-    fn on_event(&mut self, _event: Event, _area: Rect) -> EventResult {
-        EventResult::Ignored
-    }
-    
     fn size_hint(&self) -> (Option<usize>, Option<usize>) {
         (None, Some(self.lines_of_header()))
     }

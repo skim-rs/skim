@@ -15,7 +15,7 @@ use std::time::Instant;
 use chrono::Duration as TimerDuration;
 use defer_drop::DeferDrop;
 use regex::Regex;
-use crate::ui::tuikit_compat::*;
+use skim_tuikit::prelude::{Event as TermEvent, *};
 use timer::{Guard as TimerGuard, Timer};
 
 use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
@@ -620,10 +620,21 @@ impl Model {
                     self.act_append_and_select(&mut env);
                 }
 
-                Event::EvInputKey(ref key) => {
+                Event::EvInputKey(key) => {
                     // dispatch key(normally the mouse keys) to sub-widgets
-                    // For now, skip this since the widgets don't handle key events in the new system
-                    // This would normally dispatch to sub-widgets, but we're simplifying for migration
+                    self.do_with_widget(|root| {
+                        let (width, height) = self.term.term_size().unwrap();
+                        let rect = Rectangle {
+                            top: 0,
+                            left: 0,
+                            width,
+                            height,
+                        };
+                        let messages = root.on_event(TermEvent::Key(key), rect);
+                        for message in messages {
+                            let _ = self.tx.send((key, message));
+                        }
+                    })
                 }
 
                 Event::EvActRefreshCmd => {
@@ -664,9 +675,8 @@ impl Model {
 
             self.draw_preview(&env, false);
 
-            // Drawing is handled by the new UI system
-            // let _ = self.do_with_widget(|root| self.term.draw(&root));
-            // let _ = self.term.present();
+            let _ = self.do_with_widget(|root| self.term.draw(&root));
+            let _ = self.term.present();
         }
     }
 
@@ -745,7 +755,7 @@ impl Model {
     /// construct the widget tree
     fn do_with_widget<R, F>(&'_ self, action: F) -> R
     where
-        F: FnOnce(Box<dyn Widget<Event> + '_>) -> R,
+        F: Fn(Box<dyn Widget<Event> + '_>) -> R,
     {
         let total = self.item_pool.len();
         let matched = self.num_options + self.matcher_control.as_ref().map(|c| c.get_num_matched()).unwrap_or(0);
@@ -849,35 +859,5 @@ impl Model {
             .margin_left(self.margin_left);
 
         action(Box::new(root))
-    }
-
-    /// construct the widget tree with mutable access
-    fn do_with_widget_mut<R, F>(&self, action: F) -> R
-    where
-        F: FnOnce(Box<dyn Widget<Event> + '_>) -> R,
-    {
-        // This is similar to do_with_widget but allows for mutation
-        // For now, we'll create a simplified widget tree that doesn't require mutation
-        // since the actual Widget trait on_event method signature is problematic
-        let (width, height) = self.term.term_size().unwrap();
-        let rect = Rect {
-            x: 0,
-            y: 0,
-            width: width as u16,
-            height: height as u16,
-            top: 0,
-            left: 0,
-        };
-        
-        // Create a minimal root widget that ignores events
-        struct NoOpWidget;
-        impl Widget<Event> for NoOpWidget {
-            fn on_event(&mut self, _event: Event, _area: Rect) -> EventResult {
-                EventResult::Ignored
-            }
-        }
-        
-        let root: Box<dyn Widget<Event>> = Box::new(NoOpWidget);
-        action(root)
     }
 }

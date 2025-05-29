@@ -1,8 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::ui::tuikit_compat::{Attr, Effect, Canvas, Draw, DrawResult, Widget, Rect, EventResult};
-use ratatui::style::Modifier;
+use skim_tuikit::attr::{Attr, Effect};
+use skim_tuikit::canvas::Canvas;
+use skim_tuikit::draw::{Draw, DrawResult};
+use skim_tuikit::widget::Widget;
 
 use crate::event::Event;
 use crate::theme::ColorTheme;
@@ -35,7 +37,7 @@ pub(crate) struct Status {
 
 #[allow(unused_assignments)]
 impl Draw for Status {
-    fn draw(&mut self, canvas: &mut dyn Canvas) -> DrawResult<()> {
+    fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         // example:
         //    /--num_matched/num_read        /-- current_item_index
         // [| 869580/869580                  0.]
@@ -55,7 +57,7 @@ impl Draw for Status {
 
         let info_attr = self.theme.info();
         let info_attr_bold = Attr {
-            effect: Modifier::BOLD,
+            effect: Effect::BOLD,
             ..self.theme.info()
         };
 
@@ -123,11 +125,7 @@ impl Draw for Status {
     }
 }
 
-impl Widget<Event> for Status {
-    fn on_event(&mut self, _event: Event, _area: Rect) -> EventResult {
-        EventResult::Ignored
-    }
-}
+impl Widget<Event> for Status {}
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub(crate) enum Direction {

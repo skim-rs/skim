@@ -8,7 +8,7 @@ pub use crate::output::SkimOutput;
 pub use crate::previewer::PreviewCallback;
 pub use crate::*;
 pub use crossbeam::channel::{Receiver, Sender, bounded, unbounded};
-pub use crate::ui::{LegacyKey as Key, SkimEvent};
+pub use skim_tuikit::event::Key;
 pub use std::borrow::Cow;
 pub use std::cell::RefCell;
 pub use std::rc::Rc;

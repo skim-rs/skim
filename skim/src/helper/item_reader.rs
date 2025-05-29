@@ -206,7 +206,7 @@ impl SkimItemReader {
 
     /// components_to_stop == 0 => all the threads have been stopped
     /// return (channel_for_receive_item, channel_to_stop_command)
-    pub fn read_and_collect_from_command(
+    fn read_and_collect_from_command(
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,

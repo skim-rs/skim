@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::ui::tuikit_compat::*;
+use skim_tuikit::prelude::{Event as TermEvent, *};
 
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
@@ -560,7 +560,7 @@ impl Selection {
 }
 
 impl Draw for Selection {
-    fn draw(&mut self, canvas: &mut dyn Canvas) -> DrawResult<()> {
+    fn draw(&self, canvas: &mut dyn Canvas) -> DrawResult<()> {
         let (_screen_width, screen_height) = canvas.size()?;
         canvas.clear()?;
 
@@ -597,29 +597,21 @@ impl Draw for Selection {
 }
 
 impl Widget<Event> for Selection {
-    fn on_event(&mut self, event: Event, _area: Rect) -> EventResult {
-        // Handle selection events (basic implementation)
+    fn on_event(&self, event: TermEvent, _rect: Rectangle) -> Vec<Event> {
+        let mut ret = vec![];
         match event {
-            Event::EvInputKey(key) => {
-                match key {
-                    Key::Up | Key::Char('k') => {
-                        self.item_cursor = self.item_cursor.saturating_sub(1);
-                        EventResult::Consumed(Some(Event::EvInputKey(key)))
-                    }
-                    Key::Down | Key::Char('j') => {
-                        if self.item_cursor + 1 < self.items.len() {
-                            self.item_cursor += 1;
-                        }
-                        EventResult::Consumed(Some(Event::EvInputKey(key)))
-                    }
-                    Key::Tab => {
-                        self.act_toggle();
-                        EventResult::Consumed(Some(Event::EvInputKey(key)))
-                    }
-                    _ => EventResult::Ignored,
-                }
+            TermEvent::Key(Key::WheelUp(.., count)) => ret.push(Event::EvActUp(count as i32)),
+            TermEvent::Key(Key::WheelDown(.., count)) => ret.push(Event::EvActDown(count as i32)),
+            TermEvent::Key(Key::SingleClick(MouseButton::Left, row, _)) => {
+                ret.push(Event::EvActSelectRow(row as usize))
             }
-            _ => EventResult::Ignored,
+            TermEvent::Key(Key::DoubleClick(MouseButton::Left, ..)) => ret.push(Event::EvActAccept(None)),
+            TermEvent::Key(Key::SingleClick(MouseButton::Right, row, _)) => {
+                ret.push(Event::EvActSelectRow(row as usize));
+                ret.push(Event::EvActToggle);
+            }
+            _ => {}
         }
+        ret
     }
 }
