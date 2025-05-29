@@ -1,451 +1,646 @@
 //! UI Coordinator for the ratatui-based interface
+//!
+//! This module implements an event-driven UI coordinator that integrates with
+//! skim's existing Reader and Matcher threads. It follows these principles:
+//! 
+//! 1. UI thread is display-only - never blocks on background operations
+//! 2. Input is polled with 1ms timeout for immediate responsiveness
+//! 3. No custom background threads - uses existing skim infrastructure
+//! 4. Immediate visual feedback - query updates shown without waiting
 
 use std::io;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
 use crate::{
-    SkimOptions, SkimItemReceiver, SkimItem, CaseMatching,
-    event::{Event as SkimEvent, EventReceiver, EventSender},
-    item::{ItemPool, MatchedItem, RankBuilder},
-    matcher::{Matcher, MatcherControl},
-    engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory},
+    SkimOptions, SkimItemReceiver,
+    item::{MatchedItem, ItemPool},
     reader::{Reader, ReaderControl},
+    matcher::{Matcher, MatcherControl},
+    engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory},
     MatchEngineFactory,
 };
-use std::sync::{
-    Arc,
-    mpsc::{self, Receiver, Sender},
-};
 use defer_drop::DeferDrop;
+use crate::spinlock::SpinLock;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
-use skim_tuikit::prelude::Key;
 
-pub struct UICoordinator {
-    terminal: Terminal<CrosstermBackend<io::Stdout>>,
-    
-    // Threading components
-    event_tx: EventSender,
-    event_rx: EventReceiver,
-    item_pool: Arc<DeferDrop<ItemPool>>,
-    matcher: Matcher,
-    matcher_control: Option<MatcherControl>,
-    
-    // Reader system (properly handles input sources)
-    reader: Reader,
-    reader_control: Option<ReaderControl>,
-    
-    // Query and filtered results
-    current_query: String,
+// Spinner characters for loading animation (same as legacy)
+const SPINNERS: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const SPINNER_DURATION_MS: u64 = 200;
+
+/// Lightweight UI state for immediate visual updates
+struct UIState {
+    // Visual state - updated immediately
+    display_query: String,
+    selected_index: usize,
     matched_items: Vec<MatchedItem>,
+    total_items: usize,
     
-    // UI state
-    list_state: ListState,
-    should_quit: bool,
+    // Status flags
+    is_running: bool,
+    is_reading: bool,
+    needs_redraw: bool,
     
-    // Timing
+    // Timing for throttled operations
+    last_draw: Instant,
+    last_query_sent: String,
+    last_matched_count: usize,
     last_matcher_restart: Instant,
+    query_debounce_timer: Instant,
+    
+    // Matcher progress tracking (for loading indicator)
+    processed_items: usize,
+    matcher_running: bool,
+    read_start_time: Instant,
+    match_start_time: Instant,
 }
 
-impl UICoordinator {
-    pub fn new(options: &SkimOptions) -> Result<Self, io::Error> {
-        // Setup terminal
+impl UIState {
+    fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            display_query: String::new(),
+            selected_index: 0,
+            matched_items: Vec::new(),
+            total_items: 0,
+            is_running: true,
+            is_reading: true,
+            needs_redraw: true, // Initial draw needed
+            last_draw: now,
+            last_query_sent: String::new(),
+            last_matched_count: 0,
+            last_matcher_restart: now,
+            query_debounce_timer: now,
+            processed_items: 0,
+            matcher_running: false,
+            read_start_time: now,
+            match_start_time: now,
+        }
+    }
+}
+
+pub struct UICoordinator<'a> {
+    terminal: Terminal<CrosstermBackend<io::Stdout>>,
+    state: UIState,
+    options: &'a SkimOptions,
+    
+    // Core components
+    reader: Reader,
+    reader_control: Option<ReaderControl>,
+    matcher: Matcher,
+    regex_matcher: Matcher,
+    matcher_control: Option<MatcherControl>,
+    item_pool: Arc<DeferDrop<ItemPool>>,
+    
+    // Item source for reader
+    item_source: Option<SkimItemReceiver>,
+    
+    // Matcher state
+    matched_items: Arc<SpinLock<Vec<MatchedItem>>>,
+    matcher_generation: Arc<SpinLock<u64>>,
+    use_regex: bool,
+    
+    // Draw timing
+    draw_interval: Duration,
+}
+
+impl<'a> UICoordinator<'a> {
+    pub fn new(options: &'a SkimOptions) -> io::Result<Self> {
+        // Terminal setup
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
-
-        // Setup event communication
-        let (event_tx, event_rx) = mpsc::channel();
         
-        // Setup item pool for threaded processing
+        // Create shared item pool
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new()));
         
-        // Setup matcher with proper engine
+        // Create reader
+        let reader = Reader::with_options(&options);
+        
+        // Create matchers with proper configuration to match legacy system
+        use crate::item::RankBuilder;
         let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
-        let fuzzy_engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
+        
+        // Use the same engine factory configuration as legacy system
+        let engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
             ExactOrFuzzyEngineFactory::builder()
                 .exact_mode(options.exact)
-                .rank_builder(rank_builder)
+                .fuzzy_algorithm(options.algorithm)
+                .rank_builder(rank_builder.clone())
                 .build(),
         ));
-        let matcher = Matcher::builder(fuzzy_engine_factory)
+        
+        let matcher = Matcher::builder(engine_factory.clone())
             .case(options.case)
             .build();
-
-        // Setup reader to handle input sources
-        let reader = Reader::with_options(options);
-
-        Ok(UICoordinator {
+            
+        let regex_matcher = Matcher::builder(Rc::new(RegexEngineFactory::builder()
+                .rank_builder(rank_builder.clone())
+                .build()))
+            .build();
+        
+        Ok(Self {
             terminal,
-            
-            // Threading components
-            event_tx,
-            event_rx,
-            item_pool,
-            matcher,
-            matcher_control: None,
-            
-            // Reader system
+            state: UIState::new(),
+            options,
             reader,
             reader_control: None,
-            
-            // Query and results
-            current_query: String::new(),
-            matched_items: Vec::new(),
-            
-            // UI state
-            list_state: ListState::default(),
-            should_quit: false,
-            
-            // Timing
-            last_matcher_restart: Instant::now(),
+            matcher,
+            regex_matcher,
+            matcher_control: None,
+            item_pool,
+            item_source: None,
+            matched_items: Arc::new(SpinLock::new(Vec::new())),
+            matcher_generation: Arc::new(SpinLock::new(0)),
+            use_regex: false,
+            draw_interval: Duration::from_millis(16), // 60 FPS but only when needed
         })
     }
-
+    
     pub fn set_item_source(&mut self, source: SkimItemReceiver) {
-        // Update reader with the new source - Reader::source() consumes self and returns Self
-        self.reader = Reader::with_options(&SkimOptions::default()).source(Some(source));
+        self.item_source = Some(source);
     }
-
-    pub fn run(&mut self) -> Result<(), io::Error> {
-        // Start reader with default command (like the legacy system)
-        let default_command = match std::env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
-            Ok("") | Err(_) => "find .".to_owned(),
-            Ok(val) => val.to_owned(),
+    
+    pub fn run(mut self) -> io::Result<(Vec<MatchedItem>, String)> {
+        // Start reader with item source or default command
+        self.reader = if let Some(source) = self.item_source.take() {
+            // If we have an item source, use it 
+            self.reader.source(Some(source))
+        } else {
+            // Otherwise just use the reader as is
+            self.reader
         };
-        self.reader_control = Some(self.reader.run(&default_command));
         
-        // Start heartbeat to process incoming items
-        self.send_heartbeat();
+        let reader_control = self.reader.run(&self.options.cmd.clone().unwrap_or_default());
+        self.reader_control = Some(reader_control);
         
-        loop {
-            self.draw()?;
-            
-            if self.should_quit {
+        // Start initial matcher with empty query
+        self.restart_matcher();
+        
+        // Main event loop - event-driven with prioritized input handling
+        'outer: loop {
+            // Quick exit check at top of loop
+            if !self.state.is_running {
                 break;
             }
-
-            // Handle crossterm events with timeout
-            if event::poll(Duration::from_millis(10))? {
-                if let Event::Key(key) = event::read()? {
-                    match key.code {
-                        KeyCode::Esc => {
-                            self.should_quit = true;
+            
+            // 1. Prioritize input events - always check for keys first
+            while event::poll(Duration::ZERO)? {
+                match event::read()? {
+                    Event::Key(key) => {
+                        if self.handle_key_event(key)? {
+                            break 'outer;
                         }
-                        KeyCode::Enter => {
-                            self.should_quit = true;
+                        // Force immediate redraw for key events
+                        if self.state.needs_redraw {
+                            self.draw()?;
+                            self.state.last_draw = Instant::now();
+                            self.state.needs_redraw = false;
                         }
-                        KeyCode::Up => {
-                            self.previous_item();
+                    }
+                    Event::Resize(_, _) => {
+                        self.state.needs_redraw = true;
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Early exit check after input processing
+            if !self.state.is_running {
+                break;
+            }
+            
+            // 2. Check reader status - but only every few iterations when reading
+            let mut needs_restart = false;
+            if self.state.is_running {
+                if let Some(ref reader_control) = self.reader_control {
+                    let was_reading = self.state.is_reading;
+                    self.state.is_reading = !reader_control.is_done();
+                    
+                    // Track read start time for spinner
+                    if !was_reading && self.state.is_reading {
+                        self.state.read_start_time = Instant::now();
+                    }
+                    
+                    // Only process new items periodically during reading to avoid blocking input
+                    if !self.state.is_reading || self.state.last_draw.elapsed() >= Duration::from_millis(200) {
+                        let new_items = reader_control.take();
+                        let has_new_items = !new_items.is_empty();
+                        if has_new_items {
+                            let _ = self.item_pool.append(new_items);
+                            self.state.total_items = self.item_pool.len();
+                            
+                            // Throttle matcher restarts more aggressively during loading
+                            let min_restart_interval = if self.state.is_reading {
+                                Duration::from_millis(300) // Much slower during loading
+                            } else {
+                                Duration::from_millis(10)  // Much faster when not loading
+                            };
+                            
+                            if self.state.last_matcher_restart.elapsed() >= min_restart_interval {
+                                needs_restart = true;
+                                self.state.last_matcher_restart = Instant::now();
+                            }
                         }
-                        KeyCode::Down => {
-                            self.next_item();
-                        }
-                        KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                            self.should_quit = true;
-                        }
-                        KeyCode::Char(c) => {
-                            self.current_query.push(c);
-                            self.on_query_change();
-                        }
-                        KeyCode::Backspace => {
-                            self.current_query.pop();
-                            self.on_query_change();
-                        }
-                        _ => {}
+                    } else {
+                        // Just update total items count without taking items (much faster)
+                        self.state.total_items = self.item_pool.len();
                     }
                 }
             }
-
-            // Process threaded events (heartbeats, matcher results)
-            self.process_events();
             
-            // Process incoming items from source
-            self.process_incoming_items();
-        }
-
-        // Cleanup
-        if let Some(ctrl) = self.reader_control.take() {
-            ctrl.kill();
-        }
-        if let Some(ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
-
-        // Restore terminal
-        disable_raw_mode()?;
-        execute!(
-            self.terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
-        self.terminal.show_cursor()?;
-
-        Ok(())
-    }
-
-    fn process_events(&mut self) {
-        // Process all available events without blocking
-        while let Ok((key, event)) = self.event_rx.try_recv() {
-            match event {
-                SkimEvent::EvHeartBeat => {
-                    self.handle_heartbeat();
-                }
-                _ => {
-                    // Handle other events as needed
-                }
+            if needs_restart && self.state.is_running {
+                self.restart_matcher();
             }
-        }
-    }
-
-    fn process_incoming_items(&mut self) {
-        // Process incoming items from reader and add them to item pool
-        if let Some(ref reader_control) = self.reader_control {
-            let new_items = reader_control.take();
             
-            if !new_items.is_empty() {
-                self.item_pool.append(new_items);
-                // Restart matcher if we have new items and it's not currently running
-                if self.matcher_control.is_none() {
-                    self.restart_matcher();
+            // 3. Check for matcher updates (non-blocking) - only copy if changed
+            // During heavy reading, check much less frequently to prioritize input responsiveness
+            let should_check_matcher = self.state.is_running && (!self.state.is_reading || 
+                self.state.last_draw.elapsed() >= Duration::from_millis(150));
+                
+            if should_check_matcher && self.matcher_control.is_some() {
+                let items = self.matched_items.lock();
+                let current_count = items.len();
+                
+                // Update matcher progress for loading indicator
+                if let Some(ref ctrl) = self.matcher_control {
+                    let new_processed = ctrl.get_num_processed();
+                    let new_matched = ctrl.get_num_matched();
+                    
+                    if new_processed != self.state.processed_items || 
+                       new_matched != self.state.last_matched_count {
+                        self.state.processed_items = new_processed;
+                        self.state.needs_redraw = true; // Progress changed, need redraw
+                    }
+                    
+                    self.state.matcher_running = !ctrl.stopped();
                 }
+                
+                // Only copy if the number of items changed (significant optimization)
+                if current_count != self.state.last_matched_count {
+                    self.state.matched_items = items.clone();
+                    self.state.last_matched_count = current_count;
+                    self.state.needs_redraw = true; // Items changed, need redraw
+                    
+                    // Reset selection if needed
+                    if self.state.selected_index >= self.state.matched_items.len() 
+                        && !self.state.matched_items.is_empty() {
+                        self.state.selected_index = self.state.matched_items.len() - 1;
+                    }
+                }
+                drop(items);
             }
-        }
-    }
-
-    fn handle_heartbeat(&mut self) {
-        // Check if matcher has finished and collect results
-        let matcher_stopped = self
-            .matcher_control
-            .as_ref()
-            .map(|ctrl| ctrl.stopped())
-            .unwrap_or(false);
-
-        if matcher_stopped {
-            if let Some(ctrl) = self.matcher_control.take() {
-                let items_lock = ctrl.into_items();
-                let mut items = items_lock.lock();
-                let matched = std::mem::take(&mut *items);
-                
-                // Update matched items and sort by rank (like legacy Selection system)
-                self.matched_items = matched;
-                self.matched_items.sort();
-                
-                // Reset selection to first item
-                if !self.matched_items.is_empty() {
-                    self.list_state.select(Some(0));
+            
+            // 4. Send query update to matcher if changed (with debouncing for responsiveness)
+            if self.state.is_running && self.state.display_query != self.state.last_query_sent {
+                // Debounce query changes - wait for user to stop typing before matching
+                let debounce_delay = if self.state.is_reading {
+                    Duration::from_millis(150) // Longer delay during loading
                 } else {
-                    self.list_state.select(None);
+                    Duration::from_millis(10)  // Much shorter delay when not loading
+                };
+                
+                if self.state.query_debounce_timer.elapsed() >= debounce_delay {
+                    self.state.last_query_sent = self.state.display_query.clone();
+                    self.state.needs_redraw = true; // Query changed, need redraw
+                    self.restart_matcher();
+                } else {
+                    // User is still typing - kill current matcher to save CPU
+                    if let Some(ctrl) = self.matcher_control.take() {
+                        ctrl.kill();
+                    }
                 }
             }
-        }
-
-        // Check if we should restart matcher (like legacy system logic)
-        let items_consumed = self.item_pool.num_not_taken() == 0;
-        let reader_stopped = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
-        let processed = reader_stopped && items_consumed;
-        
-        // Run matcher if matcher had been stopped and reader had new items
-        if !processed && self.matcher_control.is_none() {
-            self.restart_matcher();
-        }
-
-        // Send next heartbeat if matcher is still running or there are items not been processed
-        if self.matcher_control.is_some() || !processed {
-            self.send_heartbeat_delayed();
-        }
-    }
-
-    fn on_query_change(&mut self) {
-        // Kill existing matcher (like legacy system)
-        if let Some(ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
-        
-        // CRITICAL: Clear previous results and reset item pool (like legacy system)
-        self.matched_items.clear();
-        self.item_pool.reset();
-        
-        // Restart matcher with new query
-        self.restart_matcher();
-    }
-
-    fn restart_matcher(&mut self) {
-        self.last_matcher_restart = Instant::now();
-        
-        // Kill existing matcher if it exists
-        if let Some(ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
-
-        // CRITICAL: Move items from reader to item pool (like legacy system)
-        let processed = self.reader_control.as_ref().map(|c| c.is_done()).unwrap_or(true);
-        if !processed {
-            // Take out new items and put them into item pool
-            if let Some(ref reader_control) = self.reader_control {
-                let new_items = reader_control.take();
-                if !new_items.is_empty() {
-                    self.item_pool.append(new_items);
-                }
+            
+            // 5. Draw only when needed and enough time has passed
+            // Use different intervals: fast for user input, slower during heavy loading
+            let draw_interval = if self.state.is_reading || self.state.matcher_running {
+                Duration::from_millis(SPINNER_DURATION_MS) // Update for spinner animation
+            } else {
+                self.draw_interval // Normal speed when not loading
+            };
+            
+            let should_draw_for_animation = (self.state.is_reading || self.state.matcher_running) && 
+                self.state.last_draw.elapsed() >= Duration::from_millis(SPINNER_DURATION_MS);
+            
+            if (self.state.needs_redraw && self.state.last_draw.elapsed() >= draw_interval) || should_draw_for_animation {
+                self.draw()?;
+                self.state.last_draw = Instant::now();
+                self.state.needs_redraw = false;
+            }
+            
+            // Small delay to prevent 100% CPU usage, but only if no input is pending
+            // Also break immediately if quit was requested
+            if !self.state.is_running {
+                break;
+            }
+            if !event::poll(Duration::ZERO)? {
+                let sleep_duration = if self.state.is_reading {
+                    Duration::from_millis(1)   // Normal during loading
+                } else {
+                    Duration::from_nanos(500_000) // Ultra responsive when idle (0.5ms)
+                };
+                std::thread::sleep(sleep_duration);
             }
         }
-
-        // Send heartbeat to trigger processing
-        self.send_heartbeat();
-
-        // Start new matcher with current query
-        let tx = self.event_tx.clone();
-        let matcher_control = self.matcher.run(&self.current_query, self.item_pool.clone(), move |_| {
-            // Send heartbeat when matcher has results
-            let _ = tx.send((Key::Null, SkimEvent::EvHeartBeat));
-        });
-
-        self.matcher_control = Some(matcher_control);
+        
+        // Clean up
+        self.cleanup()?;
+        
+        // Return selected items and query
+        let selected = if self.state.selected_index < self.state.matched_items.len() {
+            vec![self.state.matched_items[self.state.selected_index].clone()]
+        } else {
+            Vec::new()
+        };
+        
+        Ok((selected, self.state.display_query))
     }
-
-    fn send_heartbeat(&self) {
-        let _ = self.event_tx.send((Key::Null, SkimEvent::EvHeartBeat));
+    
+    fn handle_key_event(&mut self, key: event::KeyEvent) -> io::Result<bool> {
+        match (key.code, key.modifiers) {
+            // Quit keys - immediate exit without cleanup in main loop
+            (KeyCode::Esc, _) => {
+                self.state.is_running = false;
+                // Signal stop to matcher without waiting (much faster)
+                if let Some(ctrl) = self.matcher_control.take() {
+                    // Use a custom fast kill that doesn't wait for thread join
+                    self.fast_kill_matcher(ctrl);
+                }
+                return Ok(true);
+            }
+            (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                self.state.is_running = false;
+                // Signal stop to matcher without waiting (much faster)
+                if let Some(ctrl) = self.matcher_control.take() {
+                    // Use a custom fast kill that doesn't wait for thread join
+                    self.fast_kill_matcher(ctrl);
+                }
+                return Ok(true);
+            }
+            
+            // Selection
+            (KeyCode::Enter, _) => {
+                return Ok(true);
+            }
+            
+            // Navigation
+            (KeyCode::Up, _) => {
+                if self.state.selected_index > 0 {
+                    self.state.selected_index -= 1;
+                    self.state.needs_redraw = true;
+                }
+            }
+            (KeyCode::Down, _) => {
+                if self.state.selected_index + 1 < self.state.matched_items.len() {
+                    self.state.selected_index += 1;
+                    self.state.needs_redraw = true;
+                }
+            }
+            
+            // Query editing - IMMEDIATE visual update but debounced matching
+            (KeyCode::Char(c), _) => {
+                self.state.display_query.push(c);
+                self.state.needs_redraw = true;
+                self.state.query_debounce_timer = Instant::now(); // Reset debounce timer
+            }
+            (KeyCode::Backspace, _) => {
+                self.state.display_query.pop();
+                self.state.needs_redraw = true;
+                self.state.query_debounce_timer = Instant::now(); // Reset debounce timer
+            }
+            
+            _ => {}
+        }
+        
+        Ok(false)
     }
-
-    fn send_heartbeat_delayed(&self) {
-        // Use a simple approach: send heartbeat after a delay
-        // In a real implementation, you'd use a timer thread
-        let tx = self.event_tx.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(100));
-            let _ = tx.send((Key::Null, SkimEvent::EvHeartBeat));
-        });
-    }
-
-    fn draw(&mut self) -> Result<(), io::Error> {
+    
+    fn draw(&mut self) -> io::Result<()> {
+        // Pre-compute status line to avoid borrowing issues
+        let status_line = self.format_status_line();
+        
         self.terminal.draw(|f| {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
+                .margin(1)
                 .constraints([
-                    Constraint::Length(3), // Query input
-                    Constraint::Min(0),    // Items list
-                    Constraint::Length(1), // Status line
+                    Constraint::Length(3), // Query
+                    Constraint::Min(1),    // Items
+                    Constraint::Length(1), // Status
                 ])
                 .split(f.area());
-
-            // Query input
-            let query_widget = Paragraph::new(format!("> {}", self.current_query))
-                .block(Block::default().borders(Borders::ALL).title("Query"));
-            f.render_widget(query_widget, chunks[0]);
-
-            // Items list using threaded results
-            let items: Vec<ListItem> = self
-                .matched_items
+            
+            // Query input - shows immediately typed characters
+            let query_block = Block::default()
+                .borders(Borders::ALL)
+                .title("Query");
+            let query = Paragraph::new(self.state.display_query.as_str())
+                .block(query_block);
+            f.render_widget(query, chunks[0]);
+            
+            // Items list with virtual scrolling for performance
+            let items_area = chunks[1];
+            let visible_height = items_area.height.saturating_sub(2) as usize; // Subtract borders
+            
+            // Calculate visible range around selected index
+            let total_items = self.state.matched_items.len();
+            let start_index = if total_items <= visible_height {
+                0
+            } else if self.state.selected_index < visible_height / 2 {
+                0
+            } else if self.state.selected_index + visible_height / 2 >= total_items {
+                total_items.saturating_sub(visible_height)
+            } else {
+                self.state.selected_index.saturating_sub(visible_height / 2)
+            };
+            
+            let end_index = (start_index + visible_height).min(total_items);
+            
+            // Only create ListItems for visible items (major performance improvement)
+            let items: Vec<ListItem> = self.state.matched_items[start_index..end_index]
                 .iter()
-                .map(|matched_item| ListItem::new(matched_item.item.output().to_string()))
+                .enumerate()
+                .map(|(i, item)| {
+                    let global_index = start_index + i;
+                    // Avoid string allocation by using text() directly
+                    let content = item.item.text();
+                    let style = if global_index == self.state.selected_index {
+                        Style::default().bg(Color::DarkGray)
+                    } else {
+                        Style::default()
+                    };
+                    ListItem::new(content).style(style)
+                })
                 .collect();
-
-            let items_widget = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title("Items"))
-                .highlight_style(Style::default().bg(Color::LightBlue));
-
-            f.render_stateful_widget(items_widget, chunks[1], &mut self.list_state);
-
-            // Status line
-            let total = self.item_pool.len();
-            let matched = self.matched_items.len();
-            let processing = self.matcher_control.is_some();
-            let reading = self.reader_control.as_ref().map(|c| !c.is_done()).unwrap_or(false);
-            let status_text = format!(
-                " {}/{} {}{}", 
-                matched, 
-                total,
-                if reading { "(reading...)" } else { "" },
-                if processing { "(processing...)" } else { "" }
-            );
-            let status_widget = Paragraph::new(status_text);
+            
+            let items_block = Block::default()
+                .borders(Borders::ALL)
+                .title("Items");
+            let items_list = List::new(items).block(items_block);
+            f.render_widget(items_list, chunks[1]);
+            
+            // Status line with loading indicator (like legacy skim)
+            let status_widget = Paragraph::new(status_line.clone());
             f.render_widget(status_widget, chunks[2]);
         })?;
-
+        
         Ok(())
     }
-
-    fn next_item(&mut self) {
-        let i = match self.list_state.selected() {
-            Some(i) => {
-                if i >= self.matched_items.len().saturating_sub(1) {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
-        };
-        if !self.matched_items.is_empty() {
-            self.list_state.select(Some(i));
-        }
-    }
-
-    fn previous_item(&mut self) {
-        let i = match self.list_state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.matched_items.len().saturating_sub(1)
-                } else {
-                    i - 1
-                }
-            }
-            None => 0,
-        };
-        if !self.matched_items.is_empty() {
-            self.list_state.select(Some(i));
-        }
-    }
-
-    pub fn ui_state(&self) -> UIState {
-        UIState {
-            selection_state: SelectionState {
-                items: self.matched_items.clone(),
-                selected_index: self.list_state.selected(),
-            },
-            query_state: QueryState {
-                content: self.current_query.clone(),
-            }
-        }
-    }
-
-}
-
-// Placeholder structures to match the expected interface
-pub struct UIState {
-    pub selection_state: SelectionState,
-    pub query_state: QueryState,
-}
-
-pub struct QueryState {
-    pub content: String,
-}
-
-pub struct SelectionState {
-    items: Vec<MatchedItem>,
-    selected_index: Option<usize>,
-}
-
-impl SelectionState {
-    pub fn get_selected_items(&self) -> Vec<MatchedItem> {
-        if let Some(index) = self.selected_index {
-            if index < self.items.len() {
-                vec![self.items[index].clone()]
-            } else {
-                vec![]
-            }
+    
+    fn format_status_line(&self) -> String {
+        let mut status = String::new();
+        
+        // 1. Spinner during reading or matching (like legacy)
+        let time_since_read = Instant::now().duration_since(self.state.read_start_time);
+        let time_since_match = Instant::now().duration_since(self.state.match_start_time);
+        let reading_for_a_while = time_since_read.as_millis() > 50;
+        let matching_for_a_while = time_since_match.as_millis() > 50;
+        
+        if (self.state.is_reading && reading_for_a_while) || 
+           (self.state.matcher_running && matching_for_a_while) {
+            // Animated spinner
+            let mills = time_since_match.as_millis() as u64;
+            let index = (mills / SPINNER_DURATION_MS) % (SPINNERS.len() as u64);
+            let spinner = SPINNERS[index as usize];
+            status.push(spinner);
         } else {
-            vec![]
+            status.push(' ');
         }
+        
+        // 2. Matched/total counts (like legacy: " 123/456")
+        status.push_str(&format!(" {}/{}", self.state.matched_items.len(), self.state.total_items));
+        
+        // 3. Processing percentage during long matching operations (like legacy)
+        if self.state.matcher_running && matching_for_a_while && self.state.total_items > 0 {
+            let percentage = (self.state.processed_items * 100) / self.state.total_items;
+            status.push_str(&format!(" ({}%)", percentage));
+        }
+        
+        // 4. Current item index/horizontal scroll offset (like legacy: " 1/0")
+        if !self.state.matched_items.is_empty() {
+            // In legacy: current_item_idx/hscroll_offset  
+            // For now, we don't have horizontal scrolling, so use 0
+            status.push_str(&format!(" {}/0", self.state.selected_index + 1));
+        }
+        
+        // 5. Matcher running indicator (dot after cursor like legacy)
+        if self.state.matcher_running {
+            status.push('.');
+        }
+        
+        status
+    }
+    
+    fn restart_matcher(&mut self) {
+        
+        // Kill existing matcher if any
+        if let Some(ctrl) = self.matcher_control.take() {
+            ctrl.kill();
+        }
+        
+        // Always try to move new items from reader to item pool
+        if let Some(ref reader_control) = self.reader_control {
+            let new_items = reader_control.take();
+            if !new_items.is_empty() {
+                let _ = self.item_pool.append(new_items);
+            }
+        }
+        
+        // DON'T clear matched items here - let them persist until matcher callback runs
+        // This prevents the UI from showing empty results during matcher processing
+        
+        // Reset the item pool's taken counter so matcher can access all items
+        self.item_pool.reset();
+        
+        // Choose the right matcher
+        let matcher = if self.use_regex {
+            &self.regex_matcher
+        } else {
+            &self.matcher
+        };
+        
+        // Run the matcher with current query
+        let matched_items = self.matched_items.clone();
+        let matcher_generation = self.matcher_generation.clone();
+        
+        // Increment generation to invalidate old callbacks
+        let current_generation = {
+            let mut generation = matcher_generation.lock();
+            *generation += 1;
+            *generation
+        };
+        
+        let control = matcher.run(
+            &self.state.display_query,
+            self.item_pool.clone(),
+            move |items| {
+                // Only update if this is still the current generation
+                let current_gen = *matcher_generation.lock();
+                if current_gen == current_generation {
+                    let mut matched = matched_items.lock();
+                    matched.clear();
+                    let new_items = items.lock();
+                    matched.extend(new_items.iter().cloned());
+                }
+            }
+        );
+        
+        self.matcher_control = Some(control);
+        
+        // Update matcher timing for loading indicator
+        self.state.match_start_time = Instant::now();
+        self.state.matcher_running = true;
+    }
+    
+    fn fast_kill_matcher(&self, ctrl: MatcherControl) {
+        // Signal the matcher to stop but don't wait for it
+        // We can't access the private stopped field, so we'll use a different approach
+        
+        // First, check if it's already stopped
+        if ctrl.stopped() {
+            return;
+        }
+        
+        // For fast exit, just forget about the controller entirely
+        // This prevents the Drop trait from calling the blocking kill() method
+        // The matcher thread will eventually detect that no one is listening and exit
+        std::mem::forget(ctrl);
+    }
+    
+    fn cleanup(&mut self) -> io::Result<()> {
+        // Fast cleanup - don't wait for components to finish gracefully
+        // Just kill them and restore terminal immediately
+        
+        // Kill components without waiting (already done in quit handler)
+        if let Some(ctrl) = self.matcher_control.take() {
+            ctrl.kill();
+        }
+        if let Some(reader_control) = self.reader_control.take() {
+            reader_control.kill();
+        }
+        
+        // Restore terminal as quickly as possible
+        let _ = disable_raw_mode(); // Ignore errors for speed
+        let _ = execute!(
+            self.terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        ); // Ignore errors for speed
+        let _ = self.terminal.show_cursor(); // Ignore errors for speed
+        
+        Ok(())
     }
 }

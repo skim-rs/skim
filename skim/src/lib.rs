@@ -435,19 +435,16 @@ impl Skim {
 
         // Run the ratatui event loop
         match ui_coordinator.run() {
-            Ok(_) => {
-                // Extract selected items from UI coordinator
-                let selected_items: Vec<Arc<dyn SkimItem>> = ui_coordinator
-                    .ui_state()
-                    .selection_state
-                    .get_selected_items()
+            Ok((selected_items, query)) => {
+                // Convert matched items to SkimItems
+                let selected_items: Vec<Arc<dyn SkimItem>> = selected_items
                     .into_iter()
-                    .map(|matched_item| matched_item.item.clone())
+                    .map(|matched_item| matched_item.item)
                     .collect();
                 
                 Some(SkimOutput {
-                    is_abort: false,
-                    query: ui_coordinator.ui_state().query_state.content.clone(),
+                    is_abort: selected_items.is_empty(),
+                    query,
                     cmd: String::new(),
                     selected_items,
                     final_key: Key::Null,
