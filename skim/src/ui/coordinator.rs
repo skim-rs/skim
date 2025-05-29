@@ -234,8 +234,9 @@ impl UICoordinator {
                 let mut items = items_lock.lock();
                 let matched = std::mem::take(&mut *items);
                 
-                // Update matched items (we clear on query change, so this replaces)
+                // Update matched items and sort by rank (like legacy Selection system)
                 self.matched_items = matched;
+                self.matched_items.sort();
                 
                 // Reset selection to first item
                 if !self.matched_items.is_empty() {
