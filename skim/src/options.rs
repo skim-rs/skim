@@ -451,8 +451,50 @@ pub struct SkimOptions {
     pub replstr: String,
 
     /// Set color theme
-    ///
-    /// Format: [BASE][,COLOR:ANSI]
+    /// 
+    /// Use `--color` to customize the color scheme of skim. The format is:
+    /// 
+    /// **Format**: [BASE_SCHEME][,COLOR:ANSI_VALUE]
+    /// 
+    /// ### Base Color Schemes
+    /// 
+    /// - **dark**: Default 256-color dark theme (default)
+    /// - **light**: 256-color light theme
+    /// - **16**: Basic 16-color theme
+    /// - **bw**: Minimal black & white theme (no colors, just styles)
+    /// - **molokai**: Molokai-inspired 256-color theme
+    /// 
+    /// ### Color Customization
+    /// 
+    /// Colors can be specified in two ways:
+    /// - ANSI color code (0-255): `--color=fg:232,bg:255`
+    /// - RGB hex values: `--color=fg:#FF0000` (red text)
+    /// 
+    /// ### Customizable UI Elements
+    /// 
+    /// - **fg**: Normal text foreground color
+    /// - **bg**: Normal text background color
+    /// - **matched** (or **hl**): Matched text in search results
+    /// - **matched_bg**: Background of matched text
+    /// - **current** (or **fg+**): Current line foreground color
+    /// - **current_bg** (or **bg+**): Current line background color
+    /// - **current_match** (or **hl+**): Matched text in current line
+    /// - **current_match_bg**: Background of matched text in current line
+    /// - **spinner**: Progress indicator color
+    /// - **info**: Information line color
+    /// - **prompt**: Prompt color
+    /// - **cursor** (or **pointer**): Cursor color
+    /// - **selected** (or **marker**): Selected item marker color
+    /// - **header**: Header text color
+    /// - **border**: Border color for preview/layout
+    /// 
+    /// ### Examples
+    /// 
+    /// - `--color=light`: Use light color scheme
+    /// - `--color=dark,fg:232,bg:255`: Use dark scheme with custom colors
+    /// - `--color=current_bg:24`: Default scheme with custom current line background
+    /// - `--color=dark,matched:#00FF00`: Green matched text on dark theme
+    /// - `--color=fg:#FFFFFF,bg:#000000`: Custom white-on-black color scheme
     #[arg(long, help_heading = "Interface")]
     pub color: Option<String>,
 
