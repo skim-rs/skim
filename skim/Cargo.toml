@@ -49,3 +49,13 @@ which = { workspace = true }
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger"]
+ratatui-ui = ["dep:ratatui", "dep:crossterm"]
+
+# Optional ratatui dependencies (only when ratatui-ui feature is enabled)
+[dependencies.ratatui]
+workspace = true
+optional = true
+
+[dependencies.crossterm]  
+workspace = true
+optional = true
