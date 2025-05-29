@@ -522,8 +522,8 @@ pub struct SkimOptions {
     /// Do not clear previous items if new command returns empty result. This might be useful  to
     /// reduce flickering when typing new commands and the half-complete commands are not valid.
     ///
-    /// This is not default however because similar usecases for grep and rg had already been op‐
-    /// timized  where  empty  result  of  a query do mean "empty" and previous results should be
+    /// This is not the default behavior because similar use cases for grep and rg have already been op‐
+    /// timized where empty query results actually mean "empty" and previous results should be
     /// cleared.
     #[arg(long, help_heading = "Interface")]
     pub no_clear_if_empty: bool,
