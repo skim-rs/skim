@@ -15,13 +15,13 @@
 
 > Life is short, skim!
 
-Half of our life is spent on navigation: files, lines, commands… You need skim!
-It's a general fuzzy finder that saves you time.
+We spend so much of our time navigating through files, lines, and commands. That's where Skim comes in!
+It's a powerful fuzzy finder designed to make your workflow faster and more efficient.
 
 [![skim demo](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm.svg)](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm)
 
-skim provides a single executable: `sk`. Anywhere you would want to use
-`grep`, try `sk` instead!
+Skim provides a single executable called `sk`. Think of it as a smarter alternative to tools like
+`grep` - once you try it, you'll wonder how you ever lived without it!
 
 # Table of contents
 
@@ -65,9 +65,9 @@ skim provides a single executable: `sk`. Anywhere you would want to use
 
 The skim project contains several components:
 
-1. `sk` executable -- the core.
-2. `sk-tmux` -- script for launching `sk` in a tmux pane.
-3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
+1. `sk` executable - the core program
+2. `sk-tmux` - a script for launching `sk` in a tmux pane
+3. Vim/Nvim plugin - to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
 
 ## Package Managers
 
@@ -95,21 +95,21 @@ Any of the following applies:
     $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ ~/.skim/install
     ```
-- Using Binary: directly [download the sk executable](https://github.com/skim-rs/skim/releases).
-- Install from [crates.io](https://crates.io/): `cargo install skim`
-- Build Manually
+- Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
+- Install from [crates.io](https://crates.io/): Run `cargo install skim`
+- Build Manually:
     ```sh
     $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ cd ~/.skim
     $ cargo install
     $ cargo build --release
-    $ # put the resulting `target/release/sk` executable on your PATH.
+    $ # Add the resulting `target/release/sk` executable to your PATH
     ```
 
 # Usage
 
-skim can be used as a general filter (like `grep`) or as an interactive
-interface for invoking commands.
+Skim can be used either as a general filter (similar to `grep`) or as an interactive
+interface for running commands.
 
 ## As Vim plugin
 
@@ -122,17 +122,17 @@ Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
 
 ## As filter
 
-Try the following:
+Here are some examples to get you started:
 
 ```bash
 # directly invoke skim
 sk
 
-# or pipe some input to it: (press TAB key to select multiple items with -m enabled)
+# Or pipe some input to it (press TAB key to select multiple items when -m is enabled)
 vim $(find . -name "*.rs" | sk -m)
 ```
-The above command will allow you to select files with ".rs" extension and open
-the ones you selected in Vim.
+This last command lets you select files with the ".rs" extension and opens
+your selections in Vim - a great time-saver for developers!
 
 ## As Interactive Interface
 
@@ -154,9 +154,9 @@ sk --ansi -i -c 'ag --color "{}"'
 sk --ansi -i -c 'rg --color=always --line-number "{}"'
 ```
 
-> **Note**: in these examples, `{}` will be litterally expanded to the current input query.
-> This does mean that these examples will search for the exact query string, and not fuzzily.
-> To achieve fuzzy search, you need to pipe the command output into `sk`, without interactive mode.
+> **Note**: In these examples, `{}` will be literally expanded to the current input query.
+> This means these examples will search for the exact query string, not fuzzily.
+> For fuzzy searching, pipe the command output into `sk` without using interactive mode.
 
 ![interactive mode demo](https://cloud.githubusercontent.com/assets/1527040/21603930/655d859a-d1db-11e6-9fec-c25099d30a12.gif)
 
@@ -170,7 +170,7 @@ Bindings for Fish, Bash and Zsh are available in the `shell` directory:
     - `alt-c`  to `cd` into a directory selected through `sk`
     - (not available in `fish`) `**` to complete file paths, for example `ls **<tab>` will show a `sk` widget to select a folder
 
-To enable them, you need to source the `key-bindings.{shell}` file and enable the completions according to your shell's documentation (usually by placing them in the right directory).
+To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation (typically by placing them in the appropriate directory).
 
 ## Key Bindings
 
@@ -185,7 +185,7 @@ Some commonly used key bindings:
 | TAB               | Toggle selection and move down (with `-m`) |
 | Shift-TAB         | Toggle selection and move up (with `-m`)   |
 
-For the full list of key bindings, check out the [man
+For a complete list of key bindings, refer to the [man
 page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 
 ## Search Syntax
@@ -208,10 +208,10 @@ page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 - ` | ` means `OR` (note the spaces around `|`). With the term `.md$ |
     .markdown$`, `skim` will search for items ends with either `.md` or
     `.markdown`.
-- `OR` has higher precedence. So `readme .md$ | .markdown$` is grouped into
+- `OR` has higher precedence. For example, `readme .md$ | .markdown$` is interpreted as
     `readme AND (.md$ OR .markdown$)`.
 
-In case that you want to use regular expressions, `skim` provides `regex` mode:
+If you prefer using regular expressions, `skim` offers a `regex` mode:
 
 ```sh
 sk --regex
@@ -280,14 +280,14 @@ other order you want.
 
 ## Color Scheme
 
-It is a high chance that you are a better artist than me. Luckily you won't
-be stuck with the default colors - `skim` supports comprehensive customization of its color scheme.
+You probably have your own aesthetic preferences! Fortunately, you aren't
+limited to the default appearance - Skim supports comprehensive customization of its color scheme.
 
 ```sh
 --color=[BASE_SCHEME][,COLOR:ANSI]
 ```
 
-### Base Color Schemes
+### Available Base Color Schemes
 
 Skim comes with several built-in color schemes that you can use as a starting point:
 
@@ -366,7 +366,7 @@ sk --ansi -i -c 'rg --color=always --line-number "{}"'
 
 ### How does it work?
 
-![skim's interactive mode](https://user-images.githubusercontent.com/1527040/53381293-461ce380-39ab-11e9-8e86-7c3bbfd557bc.png)
+![How Skim's interactive mode works](https://user-images.githubusercontent.com/1527040/53381293-461ce380-39ab-11e9-8e86-7c3bbfd557bc.png)
 
 - Skim  accepts two kinds of sources: Command output or piped input
 - Skim has two kinds of prompts: A query prompt to specify the query pattern and a
@@ -374,12 +374,12 @@ sk --ansi -i -c 'rg --color=always --line-number "{}"'
 - `-c` is used to specify the command to execute and defaults to `SKIM_DEFAULT_COMMAND`
 - `-i` tells skim to open command prompt on startup, which will show `c>` by default.
 
-If you want to further narrow down the results returned by the command, press
+To further narrow down the results returned by the command, press
 `Ctrl-Q` to toggle interactive mode.
 
 ## Executing external programs
 
-You can set up key bindings for starting external processes without leaving skim (`execute`, `execute-silent`).
+You can configure key bindings to start external processes without leaving Skim (`execute`, `execute-silent`).
 
 ```sh
 # Press F1 to open the file with less without leaving skim
@@ -521,7 +521,7 @@ Check [the README](./tuikit/README.md) for more details.
 ## How to ignore files?
 
 Skim invokes `find .` to fetch a list of files for filtering. You can override
-that by setting the environment variable `SKIM_DEFAULT_COMMAND`. For example:
+this by setting the environment variable `SKIM_DEFAULT_COMMAND`. For example:
 
 ```sh
 $ SKIM_DEFAULT_COMMAND="fd --type f || git ls-tree -r --name-only HEAD || rg --files || find ."
@@ -532,7 +532,7 @@ You could put it in your `.bashrc` or `.zshrc` if you like it to be default.
 
 ## Some files are not shown in Vim plugin
 
-If you use the Vim plugin and execute the `:SK` command, you might find some
+If you use the Vim plugin and execute the `:SK` command, you may find some
 of your files not shown.
 
 As described in [#3](https://github.com/skim-rs/skim/issues/3), in the Vim
@@ -542,8 +542,8 @@ plugin, `SKIM_DEFAULT_COMMAND` is set to the command by default:
 let $SKIM_DEFAULT_COMMAND = "git ls-tree -r --name-only HEAD || rg --files || ag -l -g \"\" || find ."
 ```
 
-That means, the files not recognized by git will not shown. Either override the
-default with `let $SKIM_DEFAULT_COMMAND = ''` or find the missing file by
+This means files not recognized by git won't be shown. You can either override the
+default with `let $SKIM_DEFAULT_COMMAND = ''` or locate the missing files by
 yourself.
 
 # Differences from fzf
