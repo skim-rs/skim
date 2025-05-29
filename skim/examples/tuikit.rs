@@ -1,3 +1,24 @@
+// Example showcasing the new ratatui-based tuikit-compatible API
+// This demonstrates how to use skim's UI components directly
+
+use skim::ui::demo::run_demo;
+use std::io;
+
+fn main() -> io::Result<()> {
+    println!("Running skim UI demo (ratatui-based)");
+    println!("Controls:");
+    println!("  - q/Esc: Quit");
+    println!("  - j/k or Up/Down: Navigate");
+    println!("  - Tab: Toggle selection");
+    println!("  - F2: Toggle preview");
+    println!();
+    
+    run_demo()
+}
+
+/*
+Original tuikit code - disabled during migration:
+
 use skim::tuikit::prelude::*;
 use std::cmp::{max, min};
 
@@ -28,3 +49,4 @@ fn main() {
         let _ = term.present();
     }
 }
+*/

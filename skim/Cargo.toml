@@ -40,6 +40,8 @@ shell-quote = { workspace = true }
 shlex = { workspace = true, optional = true }
 skim-common = { path = "../skim-common/", version = "0.1.2" }
 skim-tuikit = { path = "../skim-tuikit/", version = "0.6.2" }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
 time = { workspace = true }
 timer = { workspace = true }
 unicode-width = { workspace = true }

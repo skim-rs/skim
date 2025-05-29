@@ -1,6 +1,6 @@
 // All the events that will be used
 
-use skim_tuikit::key::Key;
+use crate::ui::LegacyKey as Key;
 use std::sync::mpsc::{Receiver, Sender};
 
 pub type EventReceiver = Receiver<(Key, Event)>;

@@ -78,6 +78,17 @@ pub struct MatchedItem {
 
 impl MatchedItem {}
 
+impl std::fmt::Debug for MatchedItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MatchedItem")
+            .field("rank", &self.rank)
+            .field("matched_range", &self.matched_range)
+            .field("item_idx", &self.item_idx)
+            .field("item", &"<SkimItem>")
+            .finish()
+    }
+}
+
 use std::cmp::Ordering as CmpOrd;
 
 impl PartialEq for MatchedItem {

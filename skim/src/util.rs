@@ -7,7 +7,8 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use regex::{Captures, Regex};
-use skim_tuikit::prelude::*;
+use crate::ui::tuikit_compat::*;
+use ratatui::buffer::Cell;
 use unicode_width::UnicodeWidthChar;
 
 use crate::AnsiString;
@@ -135,7 +136,7 @@ impl LinePrinter {
         let w = ch.width().unwrap_or(2);
 
         if !skip {
-            let _ = canvas.put_cell(self.row, self.screen_col, Cell::default().ch(ch).attribute(attr));
+            let _ = canvas.put_cell(self.row, self.screen_col, ch, attr);
         }
 
         self.screen_col += w;
@@ -267,9 +268,9 @@ pub fn reshape_string(
 /// 10% -> Size::Percent(10)
 pub fn margin_string_to_size(margin: &str) -> Size {
     if margin.ends_with('%') {
-        Size::Percent(min(100, margin[0..margin.len() - 1].parse::<usize>().unwrap_or(100)))
+        Size::Percent(min(100, margin[0..margin.len() - 1].parse::<usize>().unwrap_or(100)) as u16)
     } else {
-        Size::Fixed(margin.parse::<usize>().unwrap_or(0))
+        Size::Fixed(margin.parse::<usize>().unwrap_or(0) as u16)
     }
 }
 

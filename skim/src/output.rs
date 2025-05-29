@@ -1,6 +1,6 @@
 use crate::SkimItem;
 use crate::event::Event;
-use skim_tuikit::key::Key;
+use crate::ui::LegacyKey as Key;
 use std::sync::Arc;
 
 pub struct SkimOutput {
