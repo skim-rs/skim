@@ -46,6 +46,10 @@ mod theme;
 pub mod tmux;
 mod util;
 
+// Optional ratatui-based UI module (only when ratatui-ui feature is enabled)
+#[cfg(feature = "ratatui-ui")]
+pub mod ui;
+
 //------------------------------------------------------------------------------
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -315,6 +319,21 @@ impl Skim {
     /// Panics if the tui fails to initilize
     #[must_use]
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
+        // Feature flag: use environment variable to choose UI system
+        #[cfg(feature = "ratatui-ui")]
+        {
+            let use_ratatui = std::env::var("SKIM_USE_RATATUI").is_ok();
+            if use_ratatui {
+                return Self::run_with_ratatui(options, source);
+            }
+        }
+        
+        // Default: use legacy tuikit system
+        Self::run_with_legacy(options, source)
+    }
+    
+    /// Run with legacy tuikit system (stable, always available)
+    fn run_with_legacy(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
         let min_height = Skim::parse_height_string(&options.min_height);
         let height = Skim::parse_height_string(&options.height);
 
@@ -370,6 +389,64 @@ impl Skim {
         let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
         let _ = input_thread.join();
         ret
+    }
+    
+    /// Run with experimental ratatui system (only available when ratatui-ui feature is enabled)
+    #[cfg(feature = "ratatui-ui")]
+    fn run_with_ratatui(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
+        // Import ratatui-specific modules
+        use crate::ui::UICoordinator;
+        
+        let mut ui_coordinator = match UICoordinator::new(options) {
+            Ok(coordinator) => coordinator,
+            Err(e) => {
+                eprintln!("Failed to create ratatui UI coordinator: {}", e);
+                return None;
+            }
+        };
+
+        // Set item source if provided, otherwise read from stdin
+        if let Some(source) = source {
+            ui_coordinator.set_item_source(source);
+        } else {
+            // Create stdin source like the main binary does
+            use std::io::{BufReader, IsTerminal};
+            use crate::helper::item_reader::{SkimItemReader, SkimItemReaderOption};
+            
+            if !std::io::stdin().is_terminal() {
+                let reader_opts = SkimItemReaderOption::default();
+                let item_reader = SkimItemReader::new(reader_opts);
+                let stdin_source = item_reader.of_bufread(BufReader::new(std::io::stdin()));
+                ui_coordinator.set_item_source(stdin_source);
+            }
+        }
+
+        // Run the ratatui event loop
+        match ui_coordinator.run() {
+            Ok(_) => {
+                // Extract selected items from UI coordinator
+                let selected_items: Vec<Arc<dyn SkimItem>> = ui_coordinator
+                    .ui_state()
+                    .selection_state
+                    .get_selected_items()
+                    .into_iter()
+                    .map(|matched_item| matched_item.item.clone())
+                    .collect();
+                
+                Some(SkimOutput {
+                    is_abort: false,
+                    query: ui_coordinator.ui_state().query_state.content.clone(),
+                    cmd: String::new(),
+                    selected_items,
+                    final_key: Key::Null,
+                    final_event: crate::event::Event::EvActAccept(None),
+                })
+            }
+            Err(e) => {
+                eprintln!("Ratatui UI coordinator failed: {}", e);
+                None
+            }
+        }
     }
 
     /// Converts a &str to a TermHeight, based on whether or not it ends with a percent sign
