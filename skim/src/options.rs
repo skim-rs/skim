@@ -451,27 +451,27 @@ pub struct SkimOptions {
     pub replstr: String,
 
     /// Set color theme
-    /// 
+    ///
     /// Use `--color` to customize the color scheme of skim. The format is:
-    /// 
+    ///
     /// **Format**: [BASE_SCHEME][,COLOR:ANSI_VALUE]
-    /// 
+    ///
     /// ### Base Color Schemes
-    /// 
+    ///
     /// - **dark**: Default 256-color dark theme (default)
     /// - **light**: 256-color light theme
     /// - **16**: Basic 16-color theme
     /// - **bw**: Minimal black & white theme (no colors, just styles)
     /// - **molokai**: Molokai-inspired 256-color theme
-    /// 
+    ///
     /// ### Color Customization
-    /// 
+    ///
     /// Colors can be specified in two ways:
     /// - ANSI color code (0-255): `--color=fg:232,bg:255`
     /// - RGB hex values: `--color=fg:#FF0000` (red text)
-    /// 
+    ///
     /// ### Customizable UI Elements
-    /// 
+    ///
     /// - **fg**: Normal text foreground color
     /// - **bg**: Normal text background color
     /// - **matched** (or **hl**): Matched text in search results
@@ -487,9 +487,9 @@ pub struct SkimOptions {
     /// - **selected** (or **marker**): Selected item marker color
     /// - **header**: Header text color
     /// - **border**: Border color for preview/layout
-    /// 
+    ///
     /// ### Examples
-    /// 
+    ///
     /// - `--color=light`: Use light color scheme
     /// - `--color=dark,fg:232,bg:255`: Use dark scheme with custom colors
     /// - `--color=current_bg:24`: Default scheme with custom current line background
