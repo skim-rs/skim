@@ -405,19 +405,31 @@ impl Skim {
             }
         };
 
-        // Set item source if provided, otherwise read from stdin
+        // Set item source if provided, otherwise create default source
         if let Some(source) = source {
             ui_coordinator.set_item_source(source);
         } else {
-            // Create stdin source like the main binary does
+            // Create source like the legacy system does
             use std::io::{BufReader, IsTerminal};
             use crate::helper::item_reader::{SkimItemReader, SkimItemReaderOption};
             
             if !std::io::stdin().is_terminal() {
+                // Read from stdin when piped
                 let reader_opts = SkimItemReaderOption::default();
                 let item_reader = SkimItemReader::new(reader_opts);
                 let stdin_source = item_reader.of_bufread(BufReader::new(std::io::stdin()));
                 ui_coordinator.set_item_source(stdin_source);
+            } else {
+                // Use default command when no input (like legacy system)
+                let default_command = match std::env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
+                    Ok("") | Err(_) => "find .".to_owned(),
+                    Ok(val) => val.to_owned(),
+                };
+                
+                // Use the cmd_collector to execute the default command
+                let components_to_stop = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+                let (cmd_source, _tx_interrupt) = options.cmd_collector.borrow_mut().invoke(&default_command, components_to_stop);
+                ui_coordinator.set_item_source(cmd_source);
             }
         }
 
