@@ -34,9 +34,26 @@ use defer_drop::DeferDrop;
 use crate::spinlock::SpinLock;
 use std::rc::Rc;
 
-// Spinner characters for loading animation (same as legacy)
+// Spinner animation constants
 const SPINNERS: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const SPINNER_DURATION_MS: u64 = 200;
+
+// Timing constants for UI responsiveness
+const LOADING_INDICATOR_DELAY_MS: u64 = 50;  // Show spinner/progress after this delay
+const QUERY_DEBOUNCE_READING_MS: u64 = 150;  // Query debounce during reading
+const QUERY_DEBOUNCE_IDLE_MS: u64 = 10;      // Query debounce when idle
+const MATCHER_RESTART_READING_MS: u64 = 300; // Matcher restart throttle during reading  
+const MATCHER_RESTART_IDLE_MS: u64 = 10;     // Matcher restart throttle when idle
+const READER_CHECK_INTERVAL_MS: u64 = 200;   // How often to check for new items during reading
+const MATCHER_CHECK_INTERVAL_MS: u64 = 150;  // How often to check matcher results during reading
+
+// Sleep durations for CPU efficiency
+const SLEEP_READING_MS: u64 = 1;              // Sleep during reading
+const SLEEP_IDLE_NANOS: u64 = 500_000;       // Sleep when idle (0.5ms)
+
+// UI refresh rates
+const UI_REFRESH_RATE_FPS: u64 = 60;          // Target FPS for normal UI
+const UI_REFRESH_INTERVAL_MS: u64 = 1000 / UI_REFRESH_RATE_FPS; // 16ms
 
 /// Lightweight UI state for immediate visual updates
 struct UIState {
@@ -90,28 +107,27 @@ impl UIState {
 }
 
 pub struct UICoordinator<'a> {
+    // === UI Components ===
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
     state: UIState,
-    options: &'a SkimOptions,
+    draw_interval: Duration,
     
-    // Core components
+    // === Configuration ===
+    options: &'a SkimOptions,
+    use_regex: bool,
+    
+    // === Reader Integration ===
     reader: Reader,
     reader_control: Option<ReaderControl>,
+    item_source: Option<SkimItemReceiver>,
+    item_pool: Arc<DeferDrop<ItemPool>>,
+    
+    // === Matcher Integration ===
     matcher: Matcher,
     regex_matcher: Matcher,
     matcher_control: Option<MatcherControl>,
-    item_pool: Arc<DeferDrop<ItemPool>>,
-    
-    // Item source for reader
-    item_source: Option<SkimItemReceiver>,
-    
-    // Matcher state
     matched_items: Arc<SpinLock<Vec<MatchedItem>>>,
     matcher_generation: Arc<SpinLock<u64>>,
-    use_regex: bool,
-    
-    // Draw timing
-    draw_interval: Duration,
 }
 
 impl<'a> UICoordinator<'a> {
@@ -165,7 +181,7 @@ impl<'a> UICoordinator<'a> {
             matched_items: Arc::new(SpinLock::new(Vec::new())),
             matcher_generation: Arc::new(SpinLock::new(0)),
             use_regex: false,
-            draw_interval: Duration::from_millis(16), // 60 FPS but only when needed
+            draw_interval: Duration::from_millis(UI_REFRESH_INTERVAL_MS),
         })
     }
     
@@ -235,7 +251,7 @@ impl<'a> UICoordinator<'a> {
                     }
                     
                     // Only process new items periodically during reading to avoid blocking input
-                    if !self.state.is_reading || self.state.last_draw.elapsed() >= Duration::from_millis(200) {
+                    if !self.state.is_reading || self.state.last_draw.elapsed() >= Duration::from_millis(READER_CHECK_INTERVAL_MS) {
                         let new_items = reader_control.take();
                         let has_new_items = !new_items.is_empty();
                         if has_new_items {
@@ -243,11 +259,7 @@ impl<'a> UICoordinator<'a> {
                             self.state.total_items = self.item_pool.len();
                             
                             // Throttle matcher restarts more aggressively during loading
-                            let min_restart_interval = if self.state.is_reading {
-                                Duration::from_millis(300) // Much slower during loading
-                            } else {
-                                Duration::from_millis(10)  // Much faster when not loading
-                            };
+                            let min_restart_interval = self.get_matcher_restart_interval();
                             
                             if self.state.last_matcher_restart.elapsed() >= min_restart_interval {
                                 needs_restart = true;
@@ -268,7 +280,7 @@ impl<'a> UICoordinator<'a> {
             // 3. Check for matcher updates (non-blocking) - only copy if changed
             // During heavy reading, check much less frequently to prioritize input responsiveness
             let should_check_matcher = self.state.is_running && (!self.state.is_reading || 
-                self.state.last_draw.elapsed() >= Duration::from_millis(150));
+                self.state.last_draw.elapsed() >= Duration::from_millis(MATCHER_CHECK_INTERVAL_MS));
                 
             if should_check_matcher && self.matcher_control.is_some() {
                 let items = self.matched_items.lock();
@@ -306,11 +318,7 @@ impl<'a> UICoordinator<'a> {
             // 4. Send query update to matcher if changed (with debouncing for responsiveness)
             if self.state.is_running && self.state.display_query != self.state.last_query_sent {
                 // Debounce query changes - wait for user to stop typing before matching
-                let debounce_delay = if self.state.is_reading {
-                    Duration::from_millis(150) // Longer delay during loading
-                } else {
-                    Duration::from_millis(10)  // Much shorter delay when not loading
-                };
+                let debounce_delay = self.get_query_debounce_delay();
                 
                 if self.state.query_debounce_timer.elapsed() >= debounce_delay {
                     self.state.last_query_sent = self.state.display_query.clone();
@@ -348,9 +356,9 @@ impl<'a> UICoordinator<'a> {
             }
             if !event::poll(Duration::ZERO)? {
                 let sleep_duration = if self.state.is_reading {
-                    Duration::from_millis(1)   // Normal during loading
+                    Duration::from_millis(SLEEP_READING_MS)
                 } else {
-                    Duration::from_nanos(500_000) // Ultra responsive when idle (0.5ms)
+                    Duration::from_nanos(SLEEP_IDLE_NANOS)
                 };
                 std::thread::sleep(sleep_duration);
             }
@@ -504,14 +512,13 @@ impl<'a> UICoordinator<'a> {
         let mut status = String::new();
         
         // 1. Spinner during reading or matching (like legacy)
-        let time_since_read = Instant::now().duration_since(self.state.read_start_time);
-        let time_since_match = Instant::now().duration_since(self.state.match_start_time);
-        let reading_for_a_while = time_since_read.as_millis() > 50;
-        let matching_for_a_while = time_since_match.as_millis() > 50;
+        let reading_for_a_while = self.should_show_loading_indicator(self.state.read_start_time);
+        let matching_for_a_while = self.should_show_loading_indicator(self.state.match_start_time);
         
         if (self.state.is_reading && reading_for_a_while) || 
            (self.state.matcher_running && matching_for_a_while) {
             // Animated spinner
+            let time_since_match = Instant::now().duration_since(self.state.match_start_time);
             let mills = time_since_match.as_millis() as u64;
             let index = (mills / SPINNER_DURATION_MS) % (SPINNERS.len() as u64);
             let spinner = SPINNERS[index as usize];
@@ -542,6 +549,29 @@ impl<'a> UICoordinator<'a> {
         }
         
         status
+    }
+    
+    /// Check if enough time has passed to show loading indicators
+    fn should_show_loading_indicator(&self, start_time: Instant) -> bool {
+        start_time.elapsed().as_millis() > LOADING_INDICATOR_DELAY_MS as u128
+    }
+    
+    /// Get appropriate debounce delay based on current state
+    fn get_query_debounce_delay(&self) -> Duration {
+        if self.state.is_reading {
+            Duration::from_millis(QUERY_DEBOUNCE_READING_MS)
+        } else {
+            Duration::from_millis(QUERY_DEBOUNCE_IDLE_MS)
+        }
+    }
+    
+    /// Get appropriate matcher restart interval based on current state
+    fn get_matcher_restart_interval(&self) -> Duration {
+        if self.state.is_reading {
+            Duration::from_millis(MATCHER_RESTART_READING_MS)
+        } else {
+            Duration::from_millis(MATCHER_RESTART_IDLE_MS)
+        }
     }
     
     fn restart_matcher(&mut self) {
