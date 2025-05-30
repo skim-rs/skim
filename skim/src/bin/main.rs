@@ -77,7 +77,8 @@ impl From<clap::Error> for SkMainError {
 }
 
 fn generate_completion<G: Generator>(shell: G) {
-    generate(shell, &mut SkimOptions::command(), "sk", &mut stdout());
+    // Generate directly to stdout for direct sourcing
+    generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
 }
 
 fn sk_main() -> Result<i32, SkMainError> {
