@@ -5,8 +5,9 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
-use clap::{Error, Parser};
-use clap_complete::{generate, Generator};
+use clap::{CommandFactory, Error, Parser};
+use clap_complete::{generate, Shell};
+
 use derive_builder::Builder;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
@@ -75,33 +76,31 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
-// Import CommandFactory trait to use command() method
-use clap::CommandFactory;
-
-fn generate_completion<G: Generator>(shell: G) {
-    // Generate directly to stdout for direct sourcing
-    // Create a command instance from SkimOptions struct
-    generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
-}
-
 fn sk_main() -> Result<i32, SkMainError> {
     let mut opts = parse_args()?;
 
     // Handle shell completion generation if requested
     if let Some(shell) = opts.shell.as_deref() {
-        match shell.to_lowercase().as_str() {
-            "bash" => generate_completion(clap_complete::Shell::Bash),
-            "zsh" => generate_completion(clap_complete::Shell::Zsh),
-            "fish" => generate_completion(clap_complete::Shell::Fish),
-            "powershell" => generate_completion(clap_complete::Shell::PowerShell),
-            "elvish" => generate_completion(clap_complete::Shell::Elvish),
+        // Map shell name to clap_complete Shell enum
+        let shell_variant = match shell.to_lowercase().as_str() {
+            "bash" => Shell::Bash,
+            "zsh" => Shell::Zsh,
+            "fish" => Shell::Fish,
+            "powershell" => Shell::PowerShell,
+            "elvish" => Shell::Elvish,
             _ => {
-                eprintln!("Unsupported shell: {}. Supported shells are: bash, zsh, fish, powershell, elvish", shell);
+                eprintln!(
+                    "Unsupported shell: {}. Supported shells are: bash, zsh, fish, powershell, elvish", 
+                    shell
+                );
                 return Ok(1);
             }
-        }
+        };
+        
+        // Generate completion script directly to stdout
+        generate(shell_variant, &mut SkimOptions::command(), "sk", &mut io::stdout());
         return Ok(0);
-    }
+        }
 
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)
