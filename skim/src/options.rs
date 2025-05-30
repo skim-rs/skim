@@ -831,6 +831,20 @@ pub struct SkimOptions {
     #[arg(long, short, help_heading = "Scripting")]
     pub filter: Option<String>,
 
+    /// Generate shell completion script
+    ///
+    /// Generate completion script for the specified shell: bash, zsh, fish, etc.
+    /// The output can be directly sourced or saved to a file for automatic loading.
+    /// Examples: `source <(sk --shell bash)` (immediate use)
+    ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
+    ///
+    /// Supported shells: bash, zsh, fish, powershell, elvish
+    ///
+    /// Note: While PowerShell completions are supported, Windows is not supported for now.
+    #[arg(long, value_name = "SHELL", help_heading = "Scripting")]
+    #[arg(value_enum)]
+    pub shell: Option<clap_complete::Shell>,
+
     /// Run in a tmux popup
     ///
     /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
@@ -867,20 +881,6 @@ pub struct SkimOptions {
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
     pub filepath_word: bool,
-
-    /// Generate shell completion script
-    ///
-    /// Generate completion script for the specified shell: bash, zsh, fish, etc.
-    /// The output can be directly sourced or saved to a file for automatic loading.
-    /// Examples: `source <(sk --shell bash)` (immediate use)
-    ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
-    ///
-    /// Supported shells: bash, zsh, fish, powershell, elvish
-    ///
-    /// Note: While PowerShell completions are supported, Windows is not supported for now.
-    #[arg(long, value_name = "SHELL", help_heading = "Scripting", help_heading = "Scripting")]
-    #[arg(value_enum)]
-    pub shell: Option<clap_complete::Shell>,
 
     /// Reserved for later use
     #[arg(

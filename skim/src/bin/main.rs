@@ -81,8 +81,6 @@ fn sk_main() -> Result<i32, SkMainError> {
 
     // Handle shell completion generation if requested
     if let Some(shell) = opts.shell {
-        // Use the Shell enum directly
-
         // Generate completion script directly to stdout
         generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
         return Ok(0);
