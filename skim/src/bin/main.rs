@@ -6,7 +6,7 @@ extern crate skim;
 extern crate time;
 
 use clap::{CommandFactory, Error, Parser};
-use clap_complete::{generate, Shell};
+use clap_complete::generate;
 
 use derive_builder::Builder;
 use std::fs::File;
@@ -80,25 +80,11 @@ fn sk_main() -> Result<i32, SkMainError> {
     let mut opts = parse_args()?;
 
     // Handle shell completion generation if requested
-    if let Some(shell) = opts.shell.as_deref() {
-        // Map shell name to clap_complete Shell enum
-        let shell_variant = match shell.to_lowercase().as_str() {
-            "bash" => Shell::Bash,
-            "zsh" => Shell::Zsh,
-            "fish" => Shell::Fish,
-            "powershell" => Shell::PowerShell,
-            "elvish" => Shell::Elvish,
-            _ => {
-                eprintln!(
-                    "Unsupported shell: {}. Supported shells are: bash, zsh, fish, powershell, elvish", 
-                    shell
-                );
-                return Ok(1);
-            }
-        };
+    if let Some(shell) = opts.shell {
+        // Use the Shell enum directly
         
         // Generate completion script directly to stdout
-        generate(shell_variant, &mut SkimOptions::command(), "sk", &mut io::stdout());
+        generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
         return Ok(0);
         }
 

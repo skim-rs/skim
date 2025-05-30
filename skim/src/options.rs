@@ -874,9 +874,13 @@ pub struct SkimOptions {
     /// The output can be directly sourced or saved to a file for automatic loading.
     /// Examples: `source <(sk --shell bash)` (immediate use)
     ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
+    /// 
     /// Supported shells: bash, zsh, fish, powershell, elvish
+    /// 
+    /// Note: While PowerShell completions are supported, Windows is not supported for now.
     #[arg(long, value_name = "SHELL", help_heading = "Scripting", help_heading = "Scripting")]
-    pub shell: Option<String>,
+    #[arg(value_enum)]
+    pub shell: Option<clap_complete::Shell>,
 
     /// Reserved for later use
     #[arg(
