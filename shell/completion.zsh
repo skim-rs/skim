@@ -58,6 +58,7 @@ _sk() {
 '--pre-select-file=[Pre-select the items read from this file]:PRE_SELECT_FILE:_default' \
 '-f+[Query for filter mode]:FILTER:_default' \
 '--filter=[Query for filter mode]:FILTER:_default' \
+'--shell=[Generate shell completion script]:SHELL:(bash elvish fish powershell zsh)' \
 '--tmux=[Run in a tmux popup]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \

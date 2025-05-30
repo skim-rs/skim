@@ -24,6 +24,7 @@ beef = { workspace = true }
 bitflags = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
+clap_complete = { workspace = true, optional = true }
 crossbeam = { workspace = true }
 defer-drop = { workspace = true }
 derive_builder = { workspace = true }
@@ -47,4 +48,4 @@ which = { workspace = true }
 
 [features]
 default = ["cli"]
-cli = ["dep:clap", "dep:shlex", "dep:env_logger"]
+cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger"]
