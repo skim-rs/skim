@@ -16,3 +16,4 @@
 
 # E2E
 __pycache__
+.aider*
