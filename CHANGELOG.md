@@ -2,8 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
 
-## [0.17.3]
+### 🚀 Features
+
+- *(shell)* Improve shell completion with dynamic generation (#790)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Remove version from pr name
+
+### 📚 Documentation
+
+- *(contributing)* Refine guidelines for GPT-assisted development
+- Improve theming documentation (#788)
+- Improve wording in README and options.rs (#789)
+
+## [0.17.3] - 2025-05-20
 
 ### 🐛 Bug Fixes
 
