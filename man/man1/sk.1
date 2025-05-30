@@ -733,6 +733,14 @@ Query for filter mode
 \fB\-\-shell\fR=\fISHELL\fR
 Generate shell completion script
 
-Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use) Supported shells: bash, zsh, fish, powershell, elvish
+Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use)
+
+Supported shells: bash, zsh, fish, powershell, elvish
+
+Note: While PowerShell completions are supported, Windows is not supported for now.
+.br
+
+.br
+[\fIpossible values: \fRbash, elvish, fish, powershell, zsh]
 .SH VERSION
 v0.17.3

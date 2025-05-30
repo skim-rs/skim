@@ -210,7 +210,7 @@ _sk() {
                     return 0
                     ;;
                 --shell)
-                    COMPREPLY=($(compgen -f "${cur}"))
+                    COMPREPLY=($(compgen -W "bash elvish fish powershell zsh" -- "${cur}"))
                     return 0
                     ;;
                 --jump-labels)

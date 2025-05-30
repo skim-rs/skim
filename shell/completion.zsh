@@ -60,7 +60,7 @@ _sk() {
 '--filter=[Query for filter mode]:FILTER:_default' \
 '--tmux=[Run in a tmux popup]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
-'--shell=[Generate shell completion script]:SHELL:_default' \
+'--shell=[Generate shell completion script]:SHELL:(bash elvish fish powershell zsh)' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
 '--tac[Show results in reverse order]' \
 '--no-sort[Do not sort the results]' \

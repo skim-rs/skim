@@ -52,7 +52,11 @@ complete -c sk -l pre-select-file -d 'Pre-select the items read from this file' 
 complete -c sk -s f -l filter -d 'Query for filter mode' -r
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r
-complete -c sk -l shell -d 'Generate shell completion script' -r
+complete -c sk -l shell -d 'Generate shell completion script' -r -f -a "bash\t''
+elvish\t''
+fish\t''
+powershell\t''
+zsh\t''"
 complete -c sk -l jump-labels -d 'Reserved for later use' -r
 complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
