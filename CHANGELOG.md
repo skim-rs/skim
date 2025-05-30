@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+## [0.18.0](https://github.com/skim-rs/skim/compare/v0.17.3...v0.18.0)
+
+### ⚙️ Miscellaneous Tasks
+
+
+- Generate changelog - ([6b555b0](https://github.com/skim-rs/skim/commit/6b555b0d277ca2d187b4661cd8ba1f4e36e4060f))
+# Changelog
+
 All notable changes to this project will be documented in this file.
 
 ## [unreleased]
