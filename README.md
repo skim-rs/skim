@@ -170,7 +170,39 @@ Bindings for Fish, Bash and Zsh are available in the `shell` directory:
     - `alt-c`  to `cd` into a directory selected through `sk`
     - (not available in `fish`) `**` to complete file paths, for example `ls **<tab>` will show a `sk` widget to select a folder
 
-To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation (typically by placing them in the appropriate directory).
+To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation or see below.
+
+### Shell Completions
+
+You can generate shell completions for your preferred shell using the `--shell` flag with one of the supported shells: `bash`, `zsh`, `fish`, `powershell`, or `elvish`:
+
+> **Note:** While PowerShell completions are supported, Windows is not supported for now.
+
+#### Option 1: Source directly in your current shell session
+
+```sh
+# For bash
+source <(sk --shell bash)
+
+# For zsh
+source <(sk --shell zsh)
+
+# For fish
+sk --shell fish | source
+```
+
+#### Option 2: Save to a file to be loaded automatically on shell startup
+
+```sh
+# For bash, add to ~/.bashrc
+echo 'source <(sk --shell bash)' >> ~/.bashrc  # Or save to ~/.bash_completion
+
+# For zsh, add to ~/.zshrc
+sk --shell zsh > ~/.zfunc/_sk  # Create ~/.zfunc directory and add to fpath in ~/.zshrc
+
+# For fish, add to ~/.config/fish/completions/
+sk --shell fish > ~/.config/fish/completions/sk.fish
+```
 
 ## Key Bindings
 
