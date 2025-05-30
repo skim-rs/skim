@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+## [0.18.0](https://github.com/skim-rs/skim/compare/v0.17.3...v0.18.0)
+
+### 🐛 Bug Fixes
+
+
+- **ci:** Remove version from pr name - ([d08eae2](https://github.com/skim-rs/skim/commit/d08eae26665f79a0538406a3b85040901ea9259c))
+# Changelog
+
 All notable changes to this project will be documented in this file.
 
 
