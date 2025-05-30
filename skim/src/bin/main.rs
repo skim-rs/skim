@@ -5,13 +5,15 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
-use clap::{Error, Parser};
+use clap::{Error, Parser, Shell};
+use clap_complete::{generate, Generator};
 use derive_builder::Builder;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};
 
 use skim::prelude::*;
+use std::io::stdout;
 
 fn parse_args() -> Result<SkimOptions, Error> {
     let mut args = Vec::new();
@@ -74,8 +76,28 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
+fn generate_completion<G: Generator>(shell: G) {
+    generate(shell, &mut SkimOptions::command(), "sk", &mut stdout());
+}
+
 fn sk_main() -> Result<i32, SkMainError> {
     let mut opts = parse_args()?;
+
+    // Handle shell completion generation if requested
+    if let Some(shell) = opts.shell.as_deref() {
+        match shell.to_lowercase().as_str() {
+            "bash" => generate_completion(clap_complete::Shell::Bash),
+            "zsh" => generate_completion(clap_complete::Shell::Zsh),
+            "fish" => generate_completion(clap_complete::Shell::Fish),
+            "powershell" => generate_completion(clap_complete::Shell::PowerShell),
+            "elvish" => generate_completion(clap_complete::Shell::Elvish),
+            _ => {
+                eprintln!("Unsupported shell: {}. Supported shells are: bash, zsh, fish, powershell, elvish", shell);
+                return Ok(1);
+            }
+        }
+        return Ok(0);
+    }
 
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)

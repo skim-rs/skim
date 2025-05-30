@@ -868,6 +868,12 @@ pub struct SkimOptions {
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
     pub filepath_word: bool,
 
+    /// Generate shell completion script
+    ///
+    /// Generate completion script for the specified shell: bash, zsh, fish, etc.
+    #[arg(long, value_name = "SHELL", help_heading = "Scripting")]
+    pub shell: Option<String>,
+
     /// Reserved for later use
     #[arg(
         long,
