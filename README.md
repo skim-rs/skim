@@ -170,7 +170,7 @@ Bindings for Fish, Bash and Zsh are available in the `shell` directory:
     - `alt-c`  to `cd` into a directory selected through `sk`
     - (not available in `fish`) `**` to complete file paths, for example `ls **<tab>` will show a `sk` widget to select a folder
 
-To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation.
+To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation or see below.
 
 ### Shell Completions
 
