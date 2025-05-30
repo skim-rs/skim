@@ -5,15 +5,14 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
-use clap::{Error, Parser, Shell};
-use clap_complete::{generate, Generator};
+use clap::{Error, Parser};
+use clap_complete::{generate, Generator, Shell};
 use derive_builder::Builder;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};
 
 use skim::prelude::*;
-use std::io::stdout;
 
 fn parse_args() -> Result<SkimOptions, Error> {
     let mut args = Vec::new();
