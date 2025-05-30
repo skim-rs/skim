@@ -6,7 +6,7 @@ extern crate skim;
 extern crate time;
 
 use clap::{Error, Parser};
-use clap_complete::{generate, Generator, Shell};
+use clap_complete::{generate, Generator};
 use derive_builder::Builder;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
@@ -75,8 +75,12 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
+// Import CommandFactory trait to use command() method
+use clap::CommandFactory;
+
 fn generate_completion<G: Generator>(shell: G) {
     // Generate directly to stdout for direct sourcing
+    // Create a command instance from SkimOptions struct
     generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
 }
 

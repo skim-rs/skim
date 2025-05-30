@@ -871,7 +871,11 @@ pub struct SkimOptions {
     /// Generate shell completion script
     ///
     /// Generate completion script for the specified shell: bash, zsh, fish, etc.
-    #[arg(long, value_name = "SHELL", help_heading = "Scripting")]
+    /// The output can be directly sourced or saved to a file for automatic loading.
+    /// Examples: `source <(sk --shell bash)` (immediate use)
+    ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
+    /// Supported shells: bash, zsh, fish, powershell, elvish
+    #[arg(long, value_name = "SHELL", help_heading = "Scripting", help_heading = "Scripting")]
     pub shell: Option<String>,
 
     /// Reserved for later use
