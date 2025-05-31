@@ -23,51 +23,43 @@
 //! Here is an example:
 //!
 //! ```no_run
-//! use tuikit::attr::*;
-//! use tuikit::term::{Term, TermHeight};
-//! use tuikit::event::{Event, Key};
+//! use tuikit::prelude::*;
+//! use crossterm::event::{Event, KeyCode};
 //! use std::cmp::{min, max};
 //!
 //! let term: Term<()> = Term::with_height(TermHeight::Percent(30)).unwrap();
 //! let mut row = 1;
 //! let mut col = 0;
 //!
-//! let _ = term.print(0, 0, "press arrow key to move the text, (q) to quit");
+//! let _ = term.clear();
 //! let _ = term.present();
 //!
 //! while let Ok(ev) = term.poll_event() {
 //!     let _ = term.clear();
-//!     let _ = term.print(0, 0, "press arrow key to move the text, (q) to quit");
 //!
 //!     let (width, height) = term.term_size().unwrap();
 //!     match ev {
-//!         Event::Key(Key::ESC) | Event::Key(Key::Char('q')) => break,
-//!         Event::Key(Key::Up) => row = max(row-1, 1),
-//!         Event::Key(Key::Down) => row = min(row+1, height-1),
-//!         Event::Key(Key::Left) => col = max(col, 1)-1,
-//!         Event::Key(Key::Right) => col = min(col+1, width-1),
+//!         Event::Key(key_event) if key_event.code == KeyCode::Esc => break,
+//!         Event::Key(key_event) if key_event.code == KeyCode::Char('q') => break,
+//!         Event::Key(key_event) if key_event.code == KeyCode::Up => row = max(row-1, 1),
+//!         Event::Key(key_event) if key_event.code == KeyCode::Down => row = min(row+1, height-1),
+//!         Event::Key(key_event) if key_event.code == KeyCode::Left => col = max(col, 1)-1,
+//!         Event::Key(key_event) if key_event.code == KeyCode::Right => col = min(col+1, width-1),
 //!         _ => {}
 //!     }
 //!
-//!     let attr = Attr{ fg: Color::RED, ..Attr::default() };
-//!     let _ = term.print_with_attr(row, col, "Hello World! 你好！今日は。", attr);
-//!     let _ = term.set_cursor(row, col);
 //!     let _ = term.present();
 //! }
 //! ```
-// pub mod attr;
 pub mod canvas;
 pub mod cell;
 mod color;
 pub mod draw;
 pub mod error;
 pub mod event;
-// pub mod input;
-// pub mod key;
+pub mod key;
 mod macros;
-// pub mod output;
 pub mod prelude;
-// pub mod raw;
 pub mod screen;
 use common::spinlock;
 mod sys;

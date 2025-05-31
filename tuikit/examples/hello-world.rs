@@ -1,5 +1,5 @@
-use std::cmp::{max, min};
 use crossterm::style::{ContentStyle, Stylize};
+use std::cmp::{max, min};
 use tuikit::prelude::*;
 
 fn main() {

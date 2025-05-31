@@ -30,9 +30,7 @@ use std::thread;
 use std::time::Duration;
 
 use crossterm::cursor::MoveTo;
-use crossterm::event::{
-    self, DisableMouseCapture, EnableBracketedPaste, EnableFocusChange, EnableMouseCapture, Event, MouseEvent,
-};
+use crossterm::event::{self, DisableMouseCapture, EnableBracketedPaste, EnableFocusChange, EnableMouseCapture};
 use crossterm::style::{ContentStyle, PrintStyledContent, StyledContent};
 use crossterm::{cursor, execute, queue, terminal};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr as _};
@@ -41,6 +39,8 @@ use crate::canvas::Canvas;
 use crate::cell::Cell;
 use crate::draw::Draw;
 use crate::error::TuikitError;
+use crate::event::Event;
+use crate::key::Key;
 use crate::screen::Screen;
 use crate::spinlock::SpinLock;
 use crate::Result;
@@ -266,22 +266,45 @@ impl Term {
 
     fn filter_event(&self, event: Event) -> Option<Event> {
         match event {
-            Event::Resize { .. } => {
+            Event::Resize { width, height } => {
                 {
                     let mut termlock = self.term_lock.lock();
                     let _ = termlock.on_resize();
                 }
-                let (width, height) = self.term_size().unwrap_or((0, 0));
-                Some(Event::Resize(width, height))
+                let (width, height) = self.term_size().unwrap_or((width, height));
+                Some(Event::Resize { width, height })
             }
-            Event::Mouse(mut e) => {
-                // adjust mouse event position
+            // Mouse events are now encoded in Key variants
+            Event::Key(Key::WheelUp(row, col, count)) => {
                 let cursor_row = self.term_lock.lock().get_term_start_row() as u16;
-                if e.row < cursor_row {
+                if row < cursor_row {
                     None
                 } else {
-                    e.row -= cursor_row;
-                    Some(Event::Mouse(e))
+                    Some(Event::Key(Key::WheelUp(row - cursor_row, col, count)))
+                }
+            }
+            Event::Key(Key::WheelDown(row, col, count)) => {
+                let cursor_row = self.term_lock.lock().get_term_start_row() as u16;
+                if row < cursor_row {
+                    None
+                } else {
+                    Some(Event::Key(Key::WheelDown(row - cursor_row, col, count)))
+                }
+            }
+            Event::Key(Key::SingleClick(button, row, col)) => {
+                let cursor_row = self.term_lock.lock().get_term_start_row() as u16;
+                if row < cursor_row {
+                    None
+                } else {
+                    Some(Event::Key(Key::SingleClick(button, row - cursor_row, col)))
+                }
+            }
+            Event::Key(Key::DoubleClick(button, row, col)) => {
+                let cursor_row = self.term_lock.lock().get_term_start_row() as u16;
+                if row < cursor_row {
+                    None
+                } else {
+                    Some(Event::Key(Key::DoubleClick(button, row - cursor_row, col)))
                 }
             }
             ev => Some(ev),
@@ -297,8 +320,9 @@ impl Term {
 
     /// Wait for an event indefinitely and return it
     pub fn poll_event(&self) -> Result<Option<Event>> {
-        let ev = event::read()?;
-        Ok(self.filter_event(ev))
+        let crossterm_event = event::read()?;
+        let tuikit_event = Event::from(crossterm_event);
+        Ok(self.filter_event(tuikit_event))
     }
 
     /// Sync internal buffer with terminal
@@ -558,7 +582,7 @@ impl<Output: Write> TermLock<Output> {
             } else {
                 queue!(output, cursor::MoveTo(0, self.cursor_row + self.screen_height))?;
                 if self.bottom_intact {
-                    output.write(b"\n");
+                    let _ = output.write(b"\n");
                 }
             }
             output.flush()?;
@@ -593,7 +617,7 @@ impl<Output: Write> TermLock<Output> {
 
             // go to a new line so that existing line won't be messed up
             if cursor_col > 0 {
-                output.write(b"\n");
+                let _ = output.write(b"\n");
                 cursor_row += 1;
             }
 
@@ -602,7 +626,7 @@ impl<Output: Write> TermLock<Output> {
                 self.cursor_row = cursor_row;
             } else {
                 for _ in 0..(height_to_be - 1) {
-                    output.write(b"\n");
+                    let _ = output.write(b"\n");
                 }
                 self.bottom_intact = true;
                 self.cursor_row = min(cursor_row, screen_height - height_to_be);

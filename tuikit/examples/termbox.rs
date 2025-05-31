@@ -1,7 +1,7 @@
+use crossterm::style::{ContentStyle, Stylize as _};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
-use crossterm::style::{ContentStyle, Stylize as _};
 use tuikit::prelude::*;
 
 extern crate env_logger;

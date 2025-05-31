@@ -347,14 +347,15 @@ impl Skim {
         let term_clone = term.clone();
         trace!("Starting input thread...");
         let input_thread = thread::spawn(move || loop {
-            if let Ok(key) = term_clone.poll_event() {
-                if key == TermEvent::User(()) {
-                    break;
-                }
-
-                let (key, action_chain) = input.translate_event(key);
-                for event in action_chain {
-                    let _ = tx_clone.send((key, event));
+            if let Ok(Some(event)) = term_clone.poll_event() {
+                match event {
+                    TermEvent::User(()) => break,
+                    event => {
+                        let (key, action_chain) = input.translate_event(event);
+                        for action in action_chain {
+                            let _ = tx_clone.send((key, action));
+                        }
+                    }
                 }
             }
         });
@@ -369,7 +370,7 @@ impl Skim {
         trace!("Starting model...");
         let mut model = Model::new(rx, tx, reader, term.clone(), options);
         let ret = model.start();
-        let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
+        // Note: crossterm doesn't have send_event, the thread will exit when term drops
         let _ = input_thread.join();
         ret
     }

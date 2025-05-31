@@ -13,4 +13,4 @@ pub use std::cell::RefCell;
 pub use std::rc::Rc;
 pub use std::sync::atomic::{AtomicUsize, Ordering};
 pub use std::sync::Arc;
-pub use tuikit::event::Key;
+pub use tuikit::key::Key;

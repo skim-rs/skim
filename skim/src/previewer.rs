@@ -12,7 +12,7 @@ use crossterm::style::{Attribute, Attributes, ContentStyle};
 use derive_builder::Builder;
 use nix::libc;
 use regex::Regex;
-use tuikit::prelude::{Event as TermEvent, *};
+use tuikit::prelude::*;
 
 use crate::ansi::{ANSIParser, AnsiString};
 use crate::event::{Event, EventHandler, UpdateScreen};
@@ -98,13 +98,13 @@ impl Previewer {
                 let width = width_clone.load(Ordering::SeqCst);
                 let height = height_clone.load(Ordering::SeqCst);
 
-                let hscroll = pos.h_scroll.calc_fixed_size(lines.len(), 0);
-                let hoffset = pos.h_offset.calc_fixed_size(width, 0);
-                let vscroll = pos.v_scroll.calc_fixed_size(usize::MAX, 0);
-                let voffset = pos.v_offset.calc_fixed_size(height, 0);
+                let hscroll = pos.h_scroll.calc_fixed_size(lines.len().try_into().unwrap_or(0), 0);
+                let hoffset = pos.h_offset.calc_fixed_size(width as u16, 0);
+                let vscroll = pos.v_scroll.calc_fixed_size(u16::MAX, 0);
+                let voffset = pos.v_offset.calc_fixed_size(height as u16, 0);
 
-                hscroll_offset_clone.store(max(1, max(hscroll, hoffset) - hoffset), Ordering::SeqCst);
-                vscroll_offset_clone.store(max(1, max(vscroll, voffset) - voffset), Ordering::SeqCst);
+                hscroll_offset_clone.store(max(1, (max(hscroll, hoffset) - hoffset) as usize), Ordering::SeqCst);
+                vscroll_offset_clone.store(max(1, (max(vscroll, voffset) - voffset) as usize), Ordering::SeqCst);
                 *content_clone.lock() = lines;
 
                 callback();
@@ -326,17 +326,17 @@ impl Previewer {
         let v_scroll = if nums.is_empty() {
             Size::Default
         } else {
-            Size::Fixed(atoi::<usize>(nums[0]).unwrap_or(0))
+            Size::Fixed(atoi::<u16>(nums[0]).unwrap_or(0))
         };
 
         let v_offset = if nums.len() >= 2 {
             let expr = nums[1];
             if expr.starts_with('/') {
                 let num = atoi::<usize>(expr).unwrap_or(0);
-                Size::Percent(if num == 0 { 0 } else { 100 / num })
+                Size::Percent(if num == 0 { 0 } else { (100 / num) as u16 })
             } else {
                 let num = atoi::<usize>(expr).unwrap_or(0);
-                Size::Fixed(num)
+                Size::Fixed(num as u16)
             }
         } else {
             Size::Default
@@ -386,8 +386,8 @@ impl Draw for Previewer {
             return Ok(());
         }
 
-        self.width.store(screen_width, Ordering::Relaxed);
-        self.height.store(screen_height, Ordering::Relaxed);
+        self.width.store(screen_width.into(), Ordering::Relaxed);
+        self.height.store(screen_height.into(), Ordering::Relaxed);
 
         let content = self.content_lines.lock();
 
@@ -395,8 +395,8 @@ impl Draw for Previewer {
         let hscroll_offset = self.hscroll_offset.load(Ordering::SeqCst);
 
         let mut printer = PrinterBuilder::default()
-            .width(screen_width)
-            .height(screen_height)
+            .width(screen_width.into())
+            .height(screen_height.into())
             .skip_rows(max(1, vscroll_offset) - 1)
             .skip_cols(max(1, hscroll_offset) - 1)
             .wrap(self.wrap)
@@ -406,10 +406,10 @@ impl Draw for Previewer {
 
         // print the vscroll info
         let status = format!("{}/{}", vscroll_offset, content.len());
-        let col = max(status.len() + 1, screen_width - status.len() - 1);
+        let col = max(status.len() + 1, (screen_width as usize) - status.len() - 1);
         canvas.print_with_style(
             0,
-            col,
+            col.try_into().unwrap_or(0),
             &status,
             ContentStyle {
                 attributes: Attributes::from(Attribute::Reverse),
@@ -422,11 +422,13 @@ impl Draw for Previewer {
 }
 
 impl Widget<Event> for Previewer {
-    fn on_event(&self, event: TermEvent, _rect: Rectangle) -> Vec<Event> {
+    fn on_event(&self, event: &crossterm::event::Event, _rect: Rectangle) -> Vec<Event> {
         let mut ret = vec![];
-        match event {
-            TermEvent::Key(Key::WheelUp(.., count)) => ret.push(Event::EvActPreviewUp(count as i32)),
-            TermEvent::Key(Key::WheelDown(.., count)) => ret.push(Event::EvActPreviewDown(count as i32)),
+        // Convert crossterm event to tuikit event for compatibility
+        let tuikit_event: tuikit::event::Event<()> = tuikit::event::Event::from(event.clone());
+        match tuikit_event {
+            tuikit::event::Event::Key(Key::WheelUp(.., count)) => ret.push(Event::EvActPreviewUp(count as i32)),
+            tuikit::event::Event::Key(Key::WheelDown(.., count)) => ret.push(Event::EvActPreviewDown(count as i32)),
             _ => {}
         }
         ret
@@ -666,9 +668,14 @@ impl Printer {
 
     fn adjust_scroll_print(&self, canvas: &mut dyn Canvas, ch: char, style: ContentStyle) -> Result<usize> {
         if self.row < self.skip_rows || self.col < self.skip_cols {
-            canvas.put_char_with_style(usize::MAX, usize::MAX, ch, style)
+            canvas.put_char_with_style(u16::MAX, u16::MAX, ch, style)
         } else {
-            canvas.put_char_with_style(self.row - self.skip_rows, self.col - self.skip_cols, ch, style)
+            canvas.put_char_with_style(
+                (self.row - self.skip_rows) as u16,
+                (self.col - self.skip_cols) as u16,
+                ch,
+                style,
+            )
         }
     }
 }

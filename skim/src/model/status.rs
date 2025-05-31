@@ -69,7 +69,7 @@ impl Draw for Status {
         };
 
         if self.info == InfoDisplay::Inline {
-            col += canvas.put_char_with_style(0, col, ' ', info_style)?;
+            col = col + (canvas.put_char_with_style(0, col, ' ', info_style)? as u16);
         }
 
         // draw the spinner
@@ -77,36 +77,45 @@ impl Draw for Status {
             let mills = (self.time_since_read.as_secs() * 1000) as u32 + self.time_since_read.subsec_millis();
             let index = (mills / SPINNER_DURATION) % (spinner_set.len() as u32);
             let ch = spinner_set[index as usize];
-            col += canvas.put_char_with_style(0, col, ch, self.theme.spinner())?;
+            col = col + (canvas.put_char_with_style(0, col, ch, self.theme.spinner())? as u16);
         } else {
             match self.info {
-                InfoDisplay::Inline => col += canvas.put_char_with_style(0, col, '<', self.theme.prompt())?,
-                InfoDisplay::Default => col += canvas.put_char_with_style(0, col, ' ', self.theme.prompt())?,
+                InfoDisplay::Inline => {
+                    col = col + (canvas.put_char_with_style(0, col, '<', self.theme.prompt())? as u16)
+                }
+                InfoDisplay::Default => {
+                    col = col + (canvas.put_char_with_style(0, col, ' ', self.theme.prompt())? as u16)
+                }
                 InfoDisplay::Hidden => panic!("This should never happen"),
             }
         }
 
         // display matched/total number
-        col += canvas.print_with_style(0, col, format!(" {}/{}", self.matched, self.total).as_ref(), info_style)?;
+        col = col
+            + (canvas.print_with_style(0, col, format!(" {}/{}", self.matched, self.total).as_ref(), info_style)?
+                as u16);
 
         // display the matcher mode
         if !self.matcher_mode.is_empty() {
-            col += canvas.print_with_style(0, col, format!("/{}", &self.matcher_mode).as_ref(), info_style)?;
+            col = col
+                + (canvas.print_with_style(0, col, format!("/{}", &self.matcher_mode).as_ref(), info_style)? as u16);
         }
 
         // display the percentage of the number of processed items
         if self.matcher_running && a_while_since_match {
-            col += canvas.print_with_style(
+            let width = canvas.print_with_style(
                 0,
                 col,
                 format!(" ({}%) ", self.processed * 100 / self.total).as_ref(),
                 info_style,
             )?;
+            col = col + (width as u16);
         }
 
         // selected number
         if self.multi_selection && self.selected > 0 {
-            col += canvas.print_with_style(0, col, format!(" [{}]", self.selected).as_ref(), info_style_bold)?;
+            col = col
+                + (canvas.print_with_style(0, col, format!(" [{}]", self.selected).as_ref(), info_style_bold)? as u16);
         }
 
         // item cursor
@@ -116,7 +125,12 @@ impl Draw for Status {
             self.hscroll_offset,
             if self.matcher_running { '.' } else { ' ' }
         );
-        canvas.print_with_style(0, screen_width - line_num_str.len(), &line_num_str, info_style_bold)?;
+        canvas.print_with_style(
+            0,
+            screen_width - (line_num_str.len() as u16),
+            &line_num_str,
+            info_style_bold,
+        )?;
 
         Ok(())
     }

@@ -24,7 +24,12 @@ fn main() {
             _ => {}
         }
 
-        let _ = term.print_with_style(row, col, "Hello World! 你好！今日は。", ContentStyle::default().with(Color::Red));
+        let _ = term.print_with_style(
+            row,
+            col,
+            "Hello World! 你好！今日は。",
+            ContentStyle::default().with(Color::Red),
+        );
         let _ = term.set_cursor(row, col);
         let _ = term.present();
     }

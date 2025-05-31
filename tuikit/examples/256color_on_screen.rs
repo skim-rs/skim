@@ -1,5 +1,5 @@
-use std::io;
 use crossterm::style::{Color, ContentStyle, Stylize as _};
+use std::io;
 use tuikit::canvas::Canvas;
 use tuikit::output::Output;
 use tuikit::screen::Screen;

@@ -565,18 +565,18 @@ impl<Message> Widget<Message> for Win<'_, Message> {
         (width, height)
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         let empty = vec![];
         let inner_rect = ok_or_return!(self.calc_inner_rect(rect), empty);
-        let adjusted_event = some_or_return!(adjust_event(&event, inner_rect), empty);
-        self.inner.on_event(adjusted_event, inner_rect)
+        let adjusted_event = some_or_return!(adjust_event(event, inner_rect), empty);
+        self.inner.on_event(&adjusted_event, inner_rect)
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         let empty = vec![];
         let inner_rect = ok_or_return!(self.calc_inner_rect(rect), empty);
-        let adjusted_event = some_or_return!(adjust_event(&event, inner_rect), empty);
-        self.inner.on_event(adjusted_event, inner_rect)
+        let adjusted_event = some_or_return!(adjust_event(event, inner_rect), empty);
+        self.inner.on_event(&adjusted_event, inner_rect)
     }
 }
 

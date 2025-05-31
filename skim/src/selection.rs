@@ -1,10 +1,11 @@
 //! Handle the selections of items
+use crossterm::event::MouseButton;
 use std::cmp::max;
 use std::cmp::min;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use tuikit::prelude::{Event as TermEvent, *};
+use tuikit::prelude::*;
 
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
@@ -448,7 +449,7 @@ impl Selection {
         let (screen_width, screen_height) = canvas.size()?;
 
         // update item heights
-        self.height.store(screen_height, Ordering::Relaxed);
+        self.height.store(screen_height.into(), Ordering::Relaxed);
 
         if screen_width < 3 {
             return Err("screen width is too small".into());
@@ -469,9 +470,14 @@ impl Selection {
         // print selection cursor
         let index = (current_run_num(), matched_item.item_idx);
         if self.selected.contains_key(&index) {
-            let _ = canvas.print_with_style(row, 1, ">", util::extend_style(default_attr, self.theme.selected()));
+            let _ = canvas.print_with_style(
+                row as u16,
+                1,
+                ">",
+                util::extend_style(default_attr, self.theme.selected()),
+            );
         } else {
-            let _ = canvas.print_with_style(row, 1, " ", default_attr);
+            let _ = canvas.print_with_style(row as u16, 1, " ", default_attr);
         }
 
         let item = &matched_item.item;
@@ -488,7 +494,7 @@ impl Selection {
             text: &item_text,
             score: 0,
             matches,
-            container_width,
+            container_width: container_width.into(),
             highlight_style: matched_attr,
         };
 
@@ -514,7 +520,7 @@ impl Selection {
 
             let (shift, full_width) = reshape_string(
                 &item_text,
-                container_width,
+                container_width.into(),
                 match_start_char,
                 match_end_char,
                 self.tabstop,
@@ -525,7 +531,7 @@ impl Selection {
             } else if match_start_char == 0 && match_end_char == 0 {
                 // no match
                 if self.keep_right {
-                    max(full_width, container_width) - container_width
+                    max(full_width, container_width as usize) - (container_width as usize)
                 } else {
                     self.calc_skip_width(&item_text)
                 }
@@ -537,7 +543,7 @@ impl Selection {
                 .row(row)
                 .col(2)
                 .tabstop(self.tabstop)
-                .container_width(container_width)
+                .container_width(container_width.into())
                 .shift(shift)
                 .text_width(full_width)
                 .hscroll_offset(self.hscroll_offset)
@@ -547,7 +553,7 @@ impl Selection {
                 .row(row)
                 .col(2)
                 .tabstop(self.tabstop)
-                .container_width(container_width)
+                .container_width(container_width.into())
                 .text_width(display_content.stripped().width_cjk())
                 .hscroll_offset(self.hscroll_offset)
                 .build()
@@ -566,7 +572,7 @@ impl Draw for Selection {
         canvas.clear()?;
 
         let item_idx_lower = self.item_cursor;
-        let max_upper = self.item_cursor + screen_height;
+        let max_upper = self.item_cursor + (screen_height as usize);
         let item_idx_upper = min(max_upper, self.items.len());
 
         clear_canvas(canvas)?;
@@ -578,12 +584,14 @@ impl Draw for Selection {
                 line_cursor
             } else {
                 // bottom up
-                screen_height - 1 - line_cursor
+                (screen_height as usize) - 1 - line_cursor
             };
 
             // print the cursor label
             let label = if line_cursor == self.line_cursor { ">" } else { " " };
-            let _next_col = canvas.print_with_style(line_no, 0, label, self.theme.cursor()).unwrap();
+            let _next_col = canvas
+                .print_with_style(line_no as u16, 0, label, self.theme.cursor())
+                .unwrap();
 
             let item = self
                 .items
@@ -598,16 +606,18 @@ impl Draw for Selection {
 }
 
 impl Widget<Event> for Selection {
-    fn on_event(&self, event: TermEvent, _rect: Rectangle) -> Vec<Event> {
+    fn on_event(&self, event: &crossterm::event::Event, _rect: Rectangle) -> Vec<Event> {
         let mut ret = vec![];
-        match event {
-            TermEvent::Key(Key::WheelUp(.., count)) => ret.push(Event::EvActUp(count as i32)),
-            TermEvent::Key(Key::WheelDown(.., count)) => ret.push(Event::EvActDown(count as i32)),
-            TermEvent::Key(Key::SingleClick(MouseButton::Left, row, _)) => {
+        // Convert crossterm event to tuikit event for compatibility
+        let tuikit_event: tuikit::event::Event<()> = tuikit::event::Event::from(event.clone());
+        match tuikit_event {
+            tuikit::event::Event::Key(Key::WheelUp(.., count)) => ret.push(Event::EvActUp(count as i32)),
+            tuikit::event::Event::Key(Key::WheelDown(.., count)) => ret.push(Event::EvActDown(count as i32)),
+            tuikit::event::Event::Key(Key::SingleClick(MouseButton::Left, row, _)) => {
                 ret.push(Event::EvActSelectRow(row as usize))
             }
-            TermEvent::Key(Key::DoubleClick(MouseButton::Left, ..)) => ret.push(Event::EvActAccept(None)),
-            TermEvent::Key(Key::SingleClick(MouseButton::Right, row, _)) => {
+            tuikit::event::Event::Key(Key::DoubleClick(MouseButton::Left, ..)) => ret.push(Event::EvActAccept(None)),
+            tuikit::event::Event::Key(Key::SingleClick(MouseButton::Right, row, _)) => {
                 ret.push(Event::EvActSelectRow(row as usize));
                 ret.push(Event::EvActToggle);
             }

@@ -8,8 +8,8 @@ use crossterm::{
     style::{self, Print, PrintStyledContent},
     terminal,
 };
-use std::io::Write;
 use std::cmp::{max, min};
+use std::io::Write;
 use unicode_width::UnicodeWidthChar;
 
 // much of the code comes from https://github.com/agatan/termfest/blob/master/src/screen.rs
@@ -98,7 +98,6 @@ impl Screen {
 
     /// sync internal buffer with the terminal
     pub fn present<Output: Write>(&mut self, output: &mut Output) -> Result<()> {
-
         // hide cursor && reset ContentStyleibutes
         queue!(output, cursor::Hide, cursor::MoveTo(0, 0), style::ResetColor)?;
 
@@ -269,7 +268,10 @@ impl<'a> Iterator for CellIterator<'a> {
             return None;
         }
 
-        let (row, col) = ((self.index / self.width as usize) as u16, self.index % self.width as usize);
+        let (row, col) = (
+            (self.index / self.width as usize) as u16,
+            self.index % self.width as usize,
+        );
         let ret = self.vec.get(self.index).map(|cell| (row, col, cell));
         self.index += 1;
         ret

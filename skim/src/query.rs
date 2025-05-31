@@ -551,8 +551,8 @@ impl Draw for Query {
         clear_canvas(canvas)?;
 
         let prompt_width = canvas.print_with_style(0, 0, prompt, self.theme.prompt())?;
-        let before_width = canvas.print_with_style(0, prompt_width, &before, self.theme.query())?;
-        let col = prompt_width + before_width;
+        let before_width = canvas.print_with_style(0, prompt_width as u16, &before, self.theme.query())?;
+        let col = (prompt_width + before_width) as u16;
         canvas.print_with_style(0, col, &after, self.theme.query())?;
         canvas.set_cursor(0, col)?;
         canvas.show_cursor(true)?;
@@ -561,11 +561,11 @@ impl Draw for Query {
 }
 
 impl Widget<Event> for Query {
-    fn size_hint(&self) -> (Option<usize>, Option<usize>) {
+    fn size_hint(&self) -> (Option<u16>, Option<u16>) {
         let before = self.get_before();
         let after = self.get_after();
         let prompt = self.get_prompt();
-        (Some(prompt.width() + before.width() + after.width() + 1), None)
+        (Some((prompt.width() + before.width() + after.width() + 1) as u16), None)
     }
 }
 

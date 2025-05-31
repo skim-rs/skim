@@ -146,7 +146,7 @@ pub fn parse_action_arg(action_arg: &str) -> Option<Event> {
 #[rustfmt::skip]
 fn get_default_key_map() -> HashMap<Key, ActionChain> {
     let mut ret = HashMap::new();
-    ret.insert(Key::ESC,          vec![Event::EvActAbort]);
+    ret.insert(Key::Esc,          vec![Event::EvActAbort]);
     ret.insert(Key::Ctrl('c'),    vec![Event::EvActAbort]);
     ret.insert(Key::Ctrl('g'),    vec![Event::EvActAbort]);
     ret.insert(Key::Enter,        vec![Event::EvActAccept(None)]);
@@ -154,10 +154,10 @@ fn get_default_key_map() -> HashMap<Key, ActionChain> {
     ret.insert(Key::Ctrl('b'),    vec![Event::EvActBackwardChar]);
     ret.insert(Key::Ctrl('h'),    vec![Event::EvActBackwardDeleteChar]);
     ret.insert(Key::Backspace,    vec![Event::EvActBackwardDeleteChar]);
-    ret.insert(Key::AltBackspace, vec![Event::EvActBackwardKillWord]);
+    ret.insert(Key::Alt(char::from(8)), vec![Event::EvActBackwardKillWord]); // Alt+Backspace
     ret.insert(Key::Alt('b'),     vec![Event::EvActBackwardWord]);
-    ret.insert(Key::ShiftLeft,    vec![Event::EvActBackwardWord]);
-    ret.insert(Key::CtrlLeft,     vec![Event::EvActBackwardWord]);
+    // Removed ShiftLeft - use Alt+b instead
+    // Removed CtrlLeft - use Alt+b instead
     ret.insert(Key::Ctrl('a'),    vec![Event::EvActBeginningOfLine]);
     ret.insert(Key::Home,         vec![Event::EvActBeginningOfLine]);
     ret.insert(Key::Ctrl('l'),    vec![Event::EvActClearScreen]);
@@ -171,11 +171,11 @@ fn get_default_key_map() -> HashMap<Key, ActionChain> {
     ret.insert(Key::Ctrl('f'),    vec![Event::EvActForwardChar]);
     ret.insert(Key::Right,        vec![Event::EvActForwardChar]);
     ret.insert(Key::Alt('f'),     vec![Event::EvActForwardWord]);
-    ret.insert(Key::CtrlRight,    vec![Event::EvActForwardWord]);
-    ret.insert(Key::ShiftRight,   vec![Event::EvActForwardWord]);
+    // Removed CtrlRight - use Alt+f instead
+    // Removed ShiftRight - use Alt+f instead
     ret.insert(Key::Alt('d'),     vec![Event::EvActKillWord]);
-    ret.insert(Key::ShiftUp,      vec![Event::EvActPreviewUp(1)]);
-    ret.insert(Key::ShiftDown,    vec![Event::EvActPreviewDown(1)]);
+    // Removed ShiftUp - remapped to Alt+Up if needed
+    // Removed ShiftDown - remapped to Alt+Down if needed
     ret.insert(Key::PageDown,     vec![Event::EvActPageDown(1)]);
     ret.insert(Key::PageUp,       vec![Event::EvActPageUp(1)]);
     ret.insert(Key::Ctrl('r'),    vec![Event::EvActRotateMode]);

@@ -16,7 +16,7 @@ use chrono::Duration as TimerDuration;
 use defer_drop::DeferDrop;
 use regex::Regex;
 use timer::{Guard as TimerGuard, Timer};
-use tuikit::prelude::{Event as TermEvent, *};
+use tuikit::prelude::*;
 
 use crate::engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::event::{Event, EventHandler, EventReceiver, EventSender};
@@ -630,7 +630,9 @@ impl Model {
                             width,
                             height,
                         };
-                        let messages = root.on_event(TermEvent::Key(key), rect);
+                        // Using FocusGained as a placeholder since we can't convert tuikit::key::Key to crossterm::event::KeyEvent easily
+                        let crossterm_event = crossterm::event::Event::FocusGained;
+                        let messages = root.on_event(&crossterm_event, rect);
                         for message in messages {
                             let _ = self.tx.send((key, message));
                         }

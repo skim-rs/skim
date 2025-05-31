@@ -82,7 +82,7 @@ impl Draw for Header {
             return Err("screen width is too small".into());
         }
 
-        if screen_height < self.lines_of_header() {
+        if (screen_height as usize) < self.lines_of_header() {
             return Err("screen height is too small".into());
         }
 
@@ -92,12 +92,12 @@ impl Draw for Header {
         for (idx, header) in self.header.iter().enumerate() {
             // print fixed header(specified by --header)
             let mut printer = LinePrinter::builder()
-                .row(self.adjust_row(idx, screen_height))
+                .row(self.adjust_row(idx, screen_height as usize))
                 .col(2)
                 .tabstop(self.tabstop)
-                .container_width(screen_width - 2)
-                .shift(0)
-                .text_width(screen_width - 2)
+                .container_width((screen_width - 2) as usize)
+                .shift(0 as usize)
+                .text_width((screen_width - 2) as usize)
                 .build();
 
             for (ch, _attr) in header.iter() {
@@ -110,19 +110,19 @@ impl Draw for Header {
         // print "reserved" header lines (--header-lines)
         for (idx, item) in self.item_pool.reserved().iter().enumerate() {
             let mut printer = LinePrinter::builder()
-                .row(self.adjust_row(idx + lines_used, screen_height))
+                .row(self.adjust_row(idx + lines_used, screen_height as usize))
                 .col(2)
                 .tabstop(self.tabstop)
-                .container_width(screen_width - 2)
+                .container_width((screen_width - 2) as usize)
                 .shift(0)
-                .text_width(screen_width - 2)
+                .text_width((screen_width - 2) as usize)
                 .build();
 
             let context = DisplayContext {
                 text: &item.text(),
                 score: 0,
                 matches: Matches::None,
-                container_width: screen_width - 2,
+                container_width: (screen_width - 2) as usize,
                 highlight_style: self.theme.header(),
             };
 
@@ -134,8 +134,8 @@ impl Draw for Header {
 }
 
 impl Widget<Event> for Header {
-    fn size_hint(&self) -> (Option<usize>, Option<usize>) {
-        (None, Some(self.lines_of_header()))
+    fn size_hint(&self) -> (Option<u16>, Option<u16>) {
+        (None, Some(self.lines_of_header() as u16))
     }
 }
 

@@ -77,7 +77,7 @@ impl<Message> Widget<Message> for Stack<'_, Message> {
         vec![]
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         // like javascript's capture, from top to bottom
         for widget in self.inner.iter_mut().rev() {
             let message = widget.on_event_mut(event, rect);

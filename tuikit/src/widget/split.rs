@@ -265,7 +265,7 @@ impl<Message> Widget<Message> for HSplit<'_, Message> {
         (width, height)
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         // should collect events from every children
         let target_widths = self.retrieve_split_info(rect.width);
         let Rectangle { top, width, height, .. } = rect;
@@ -283,7 +283,8 @@ impl<Message> Widget<Message> for HSplit<'_, Message> {
                 height,
             };
 
-            let mut sub_message = adjust_event(&event, sub_rect)
+            let mut sub_message = adjust_event(event, sub_rect)
+                .as_ref()
                 .map(|ev| split.as_ref().on_event(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -293,7 +294,7 @@ impl<Message> Widget<Message> for HSplit<'_, Message> {
         messages
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         // should collect events from every children
         let target_widths = self.retrieve_split_info(rect.width);
         let Rectangle { top, width, height, .. } = rect;
@@ -311,7 +312,8 @@ impl<Message> Widget<Message> for HSplit<'_, Message> {
                 height,
             };
 
-            let mut sub_message = adjust_event(&event, sub_rect)
+            let mut sub_message = adjust_event(event, sub_rect)
+                .as_ref()
                 .map(|ev| split.as_mut().on_event_mut(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -452,7 +454,7 @@ impl<Message> Widget<Message> for VSplit<'_, Message> {
         (width, height)
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         // should collect events from every children
         let target_heights = self.retrieve_split_info(rect.height);
         let Rectangle {
@@ -471,7 +473,8 @@ impl<Message> Widget<Message> for VSplit<'_, Message> {
                 width,
                 height: target_height,
             };
-            let mut sub_message = adjust_event(&event, sub_rect)
+            let mut sub_message = adjust_event(event, sub_rect)
+                .as_ref()
                 .map(|ev| split.as_ref().on_event(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -481,7 +484,7 @@ impl<Message> Widget<Message> for VSplit<'_, Message> {
         messages
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         // should collect events from every children
         let target_heights = self.retrieve_split_info(rect.height);
         let Rectangle {
@@ -500,7 +503,8 @@ impl<Message> Widget<Message> for VSplit<'_, Message> {
                 width,
                 height: target_height,
             };
-            let mut sub_message = adjust_event(&event, sub_rect)
+            let mut sub_message = adjust_event(event, sub_rect)
+                .as_ref()
                 .map(|ev| split.as_mut().on_event_mut(ev, sub_rect.adjust_origin()))
                 .unwrap_or_default();
             messages.append(&mut sub_message);
@@ -528,8 +532,8 @@ impl<Message> Split<Message> for VSplit<'_, Message> {
 #[cfg(test)]
 #[allow(dead_code)]
 mod test {
+    use crossterm::event::Event;
     use crossterm::event::MouseButton;
-use crossterm::event::Event;
 
     use super::*;
     use crate::cell::Cell;

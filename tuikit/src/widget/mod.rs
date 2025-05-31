@@ -83,13 +83,13 @@ pub trait Widget<Message = ()>: Draw {
     /// given a key event, emit zero or more messages
     /// typical usage is the mouse click event where containers would pass the event down
     /// to their children.
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         let _ = (event, rect); // avoid warning
         Vec::new()
     }
 
     /// same as `on_event` except that the self reference is mutable
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         let _ = (event, rect); // avoid warning
         Vec::new()
     }
@@ -100,11 +100,11 @@ impl<Message, T: Widget<Message>> Widget<Message> for &T {
         (*self).size_hint()
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         (*self).on_event(event, rect)
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         (**self).on_event(event, rect)
     }
 }
@@ -114,11 +114,11 @@ impl<Message, T: Widget<Message>> Widget<Message> for &mut T {
         (**self).size_hint()
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         (**self).on_event(event, rect)
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         (**self).on_event_mut(event, rect)
     }
 }
@@ -128,11 +128,11 @@ impl<Message, T: Widget<Message> + ?Sized> Widget<Message> for Box<T> {
         self.as_ref().size_hint()
     }
 
-    fn on_event(&self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event(&self, event: &Event, rect: Rectangle) -> Vec<Message> {
         self.as_ref().on_event(event, rect)
     }
 
-    fn on_event_mut(&mut self, event: Event, rect: Rectangle) -> Vec<Message> {
+    fn on_event_mut(&mut self, event: &Event, rect: Rectangle) -> Vec<Message> {
         self.as_mut().on_event_mut(event, rect)
     }
 }
