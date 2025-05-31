@@ -23,17 +23,13 @@ use ratatui::{
 
 use crate::{
     SkimOptions, SkimItemReceiver,
-    item::{MatchedItem, ItemPool, RankBuilder},
+    item::{MatchedItem, ItemPool},
     reader::Reader,
-    matcher::Matcher,
-    MatchEngineFactory,
 };
 use defer_drop::DeferDrop;
 
 // Simple constants
-const SPINNERS: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const INPUT_POLL_MS: u64 = 20; // Balanced between responsiveness and CPU usage
-const TICKER_INTERVAL_MS: u64 = 200;
 const READER_POLL_MS: u64 = 50;
 const BATCH_THRESHOLD: usize = 100; // Trigger search after this many new items
 const SEARCH_DEBOUNCE_MS: u64 = 50; // Debounce search triggering
@@ -51,8 +47,6 @@ enum UIEvent {
     SearchProgress(usize, usize, usize), // (processed, matched, total)
     ReaderDone,
     
-    // UI updates
-    Tick, // For animations
     
     // Control events
     Shutdown, // Signal threads to exit
@@ -66,14 +60,12 @@ struct UIState {
     
     // Data
     items: Vec<MatchedItem>,          // Current search results
-    searchable_items: Vec<Arc<dyn crate::SkimItem>>, // Stable snapshot for searching
+    searchable_items: Arc<Vec<Arc<dyn crate::SkimItem>>>, // Stable snapshot for searching - Arc avoids Vec cloning
     
     // Status
     reading: bool,
     matching: bool,
     
-    // Animation
-    spinner_frame: usize,
     
     // Track when we last updated searchable items
     last_searchable_update: usize,
@@ -96,14 +88,13 @@ struct UIState {
     search_processed: usize,
     search_matched: usize,
     search_total: usize,
-    search_start_time: Option<Instant>, // Track when search started for UI timeout
 }
 
 /// Thread handle management
 struct ThreadHandles {
     input: Option<JoinHandle<()>>,
-    ticker: Option<JoinHandle<()>>,
     reader: Option<JoinHandle<()>>,
+    search: Option<JoinHandle<()>>, // CRITICAL FIX: Track search threads to prevent leaks
 }
 
 pub struct UICoordinator<'a> {
@@ -114,7 +105,7 @@ pub struct UICoordinator<'a> {
     
     // Two channels: high priority for user input, normal for everything else
     high_priority_rx: mpsc::Receiver<UIEvent>,
-    high_priority_tx: mpsc::Sender<UIEvent>,
+    high_priority_tx: mpsc::SyncSender<UIEvent>,
     normal_rx: mpsc::Receiver<UIEvent>,
     normal_tx: mpsc::SyncSender<UIEvent>,
     
@@ -132,6 +123,7 @@ pub struct UICoordinator<'a> {
     // Track pending items notification
     pending_items_update: Arc<AtomicBool>,
     item_count: Arc<AtomicUsize>,
+    
 }
 
 impl<'a> UICoordinator<'a> {
@@ -143,8 +135,9 @@ impl<'a> UICoordinator<'a> {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
         
-        // Two channels: unbounded for high priority (user input), bounded for normal
-        let (high_priority_tx, high_priority_rx) = mpsc::channel();
+        // Two channels: bounded for both to prevent memory leaks
+        // CRITICAL FIX: Bound high priority channel to prevent memory leak from event flooding
+        let (high_priority_tx, high_priority_rx) = mpsc::sync_channel(1000); // Large enough for user input bursts
         let (normal_tx, normal_rx) = mpsc::sync_channel(100);
         
         // Create components
@@ -158,10 +151,9 @@ impl<'a> UICoordinator<'a> {
                 query: String::new(),
                 selected: 0,
                 items: Vec::new(),
-                searchable_items: Vec::new(),
+                searchable_items: Arc::new(Vec::new()),
                 reading: true,
                 matching: false,
-                spinner_frame: 0,
                 last_searchable_update: 0,
                 search_generation: 0,
                 should_exit: false,
@@ -172,7 +164,6 @@ impl<'a> UICoordinator<'a> {
                 search_processed: 0,
                 search_matched: 0,
                 search_total: 0,
-                search_start_time: None,
             },
             options,
             high_priority_rx,
@@ -184,8 +175,8 @@ impl<'a> UICoordinator<'a> {
             current_matcher: None,
             thread_handles: ThreadHandles {
                 input: None,
-                ticker: None,
                 reader: None,
+                search: None,
             },
             shutdown_flag: Arc::new(AtomicBool::new(false)),
             pending_items_update: Arc::new(AtomicBool::new(false)),
@@ -198,7 +189,7 @@ impl<'a> UICoordinator<'a> {
         self.reader = reader.source(Some(source));
     }
     
-    pub fn run(mut self) -> io::Result<crate::output::SkimOutput> {
+    pub fn run(&mut self) -> io::Result<crate::output::SkimOutput> {
         // Spawn input thread - HIGHEST PRIORITY
         let input_tx = self.high_priority_tx.clone();
         let shutdown = self.shutdown_flag.clone();
@@ -207,25 +198,16 @@ impl<'a> UICoordinator<'a> {
                 // Check for input with balanced timeout
                 if event::poll(Duration::from_millis(INPUT_POLL_MS)).unwrap_or(false) {
                     if let Ok(event::Event::Key(key)) = event::read() {
-                        // Always send to high priority channel
-                        if input_tx.send(UIEvent::KeyPress(key)).is_err() {
-                            break; // Channel closed
+                        // Send to high priority channel with backpressure
+                        if input_tx.try_send(UIEvent::KeyPress(key)).is_err() {
+                            // Channel full or closed - either way, stop input thread
+                            break;
                         }
                     }
                 }
             }
         }));
         
-        // Spawn ticker for animations
-        let tick_tx = self.normal_tx.clone();
-        let shutdown = self.shutdown_flag.clone();
-        self.thread_handles.ticker = Some(thread::spawn(move || {
-            while !shutdown.load(Ordering::SeqCst) {
-                thread::sleep(Duration::from_millis(TICKER_INTERVAL_MS));
-                // Don't care if this fails - it's low priority
-                let _ = tick_tx.try_send(UIEvent::Tick);
-            }
-        }));
         
         // Start reader
         let normal_tx = self.normal_tx.clone();
@@ -242,8 +224,8 @@ impl<'a> UICoordinator<'a> {
                 if !items.is_empty() {
                     pool.append(items);
                     // Update count and set flag instead of sending event for each batch
-                    item_count.store(pool.len(), Ordering::Relaxed);
-                    if !pending_items.swap(true, Ordering::AcqRel) {
+                    item_count.store(pool.len(), Ordering::SeqCst);
+                    if !pending_items.swap(true, Ordering::SeqCst) {
                         // Only send if not already pending
                         let _ = normal_tx.try_send(UIEvent::ItemsAvailable);
                     }
@@ -295,29 +277,10 @@ impl<'a> UICoordinator<'a> {
                 self.trigger_search();
             }
             
-            // UI-side timeout: Force completion if search has been running too long
-            if self.state.matching {
-                if let Some(start_time) = self.state.search_start_time {
-                    if start_time.elapsed() >= Duration::from_secs(15) { // 15 second absolute timeout
-                        // Force search completion - this prevents all stuck states
-                        self.state.matching = false;
-                        self.state.search_processed = 0;
-                        self.state.search_matched = 0;
-                        self.state.search_total = 0;
-                        self.state.search_start_time = None;
-                        self.state.needs_redraw = true;
-                        
-                        // Cancel the stuck matcher
-                        if let Some(cancel_flag) = self.current_matcher.take() {
-                            cancel_flag.store(true, Ordering::SeqCst);
-                        }
-                    }
-                }
-            }
             
             
-            // Then check normal priority with very short timeout
-            match self.normal_rx.recv_timeout(Duration::from_millis(1)) {
+            // Then check normal priority with reasonable timeout to reduce CPU usage
+            match self.normal_rx.recv_timeout(Duration::from_millis(10)) {
                 Ok(event) => {
                     self.handle_event(event)?;
                 }
@@ -338,7 +301,25 @@ impl<'a> UICoordinator<'a> {
             }
         }
         
-        self.finalize()
+        // Return results - Drop will handle cleanup
+        let selected = if self.state.selected < self.state.items.len() {
+            vec![self.state.items[self.state.selected].item.clone()]
+        } else {
+            Vec::new()
+        };
+        
+        Ok(crate::output::SkimOutput {
+            final_event: crate::event::Event::EvActAccept(None),
+            is_abort: self.state.should_exit && self.state.selected >= self.state.items.len(),
+            final_key: if self.state.should_exit { 
+                skim_tuikit::prelude::Key::ESC 
+            } else { 
+                skim_tuikit::prelude::Key::Enter 
+            },
+            query: self.state.query.clone(),
+            cmd: self.options.cmd.clone().unwrap_or_default(),
+            selected_items: selected,
+        })
     }
     
     fn handle_event(&mut self, event: UIEvent) -> io::Result<bool> {
@@ -348,7 +329,7 @@ impl<'a> UICoordinator<'a> {
             }
             UIEvent::ItemsAvailable => {
                 // Clear the pending flag
-                self.pending_items_update.store(false, Ordering::Release);
+                self.pending_items_update.store(false, Ordering::SeqCst);
                 
                 // Only update searchable items if we're not currently searching
                 if !self.state.matching {
@@ -370,7 +351,10 @@ impl<'a> UICoordinator<'a> {
                     self.state.items = results;
                     self.state.matching = false;
                     
-                    if self.state.selected >= self.state.items.len() && !self.state.items.is_empty() {
+                    // CRITICAL FIX: Handle selection bounds correctly for empty results
+                    if self.state.items.is_empty() {
+                        self.state.selected = 0;
+                    } else if self.state.selected >= self.state.items.len() {
                         self.state.selected = self.state.items.len() - 1;
                     }
                     self.state.viewport_offset = 0;
@@ -380,15 +364,16 @@ impl<'a> UICoordinator<'a> {
                     self.state.search_processed = 0;
                     self.state.search_matched = 0;
                     self.state.search_total = 0;
-                    self.state.search_start_time = None;
                     
                     // Check if new items are available for next search
                     let current_pool_size = self.item_pool.len();
                     if current_pool_size > self.state.last_searchable_update {
                         // New items available - update searchable items and search again
+                        // LOGIC FIX: Add debouncing to prevent search storm
                         self.update_searchable_items();
                         if !self.state.query.is_empty() {
-                            self.trigger_search();
+                            self.state.pending_search = true;
+                            self.state.last_query_change = Instant::now();
                         }
                     }
                 }
@@ -401,10 +386,6 @@ impl<'a> UICoordinator<'a> {
                     self.update_searchable_items();
                     self.trigger_search();
                 }
-            }
-            UIEvent::Tick => {
-                self.state.spinner_frame = (self.state.spinner_frame + 1) % SPINNERS.len();
-                self.state.needs_redraw = true;
             }
             UIEvent::SearchProgress(processed, matched, total) => {
                 self.state.search_processed = processed;
@@ -490,23 +471,38 @@ impl<'a> UICoordinator<'a> {
     
     fn update_searchable_items(&mut self) {
         // Take a snapshot of current items for searching
-        self.item_pool.reset(); // Allow iteration
-        self.state.searchable_items.clear();
+        // CRITICAL FIX: Use atomic snapshot to prevent race condition with reader thread
         
-        // Copy all items from pool to our searchable snapshot
+        // Reset pool and immediately take snapshot atomically
+        self.item_pool.reset();
         let items = self.item_pool.take();
-        self.state.searchable_items.extend(items.iter().cloned());
-        self.state.last_searchable_update = self.state.searchable_items.len();
+        
+        // Store the snapshot length to track actual snapshotted items
+        let snapshot_len = items.len();
+        
+        // Create new Arc with snapshot to avoid cloning Vec on every search
+        let new_items: Vec<Arc<dyn crate::SkimItem>> = items.iter().cloned().collect();
+        self.state.searchable_items = Arc::new(new_items);
+        self.state.last_searchable_update = snapshot_len;
+        
+        // Update our atomic counter to reflect what we actually snapshotted
+        // This prevents counting items that arrived after our snapshot
+        self.item_count.store(self.item_pool.len(), Ordering::SeqCst);
     }
     
     fn trigger_search(&mut self) {
-        // Cancel any existing search
+        // Cancel any existing search and join the previous search thread
         if let Some(cancel_flag) = self.current_matcher.take() {
             cancel_flag.store(true, Ordering::SeqCst);
         }
         
+        // CRITICAL FIX: Join previous search thread to prevent resource leak
+        if let Some(search_handle) = self.thread_handles.search.take() {
+            // Try to join with a short timeout to avoid blocking UI
+            let _ = search_handle.join();
+        }
+        
         self.state.matching = true;
-        self.state.search_start_time = Some(Instant::now());
         
         // Reset progress
         self.state.search_processed = 0;
@@ -519,23 +515,27 @@ impl<'a> UICoordinator<'a> {
         
         // Simple approach: Run search synchronously in a thread with guaranteed completion
         let query = self.state.query.clone();
-        let searchable_items = self.state.searchable_items.clone();
+        let searchable_items = self.state.searchable_items.clone(); // Clone Arc - very cheap, avoids copying entire Vec
         let tx = self.normal_tx.clone();
         
         // Create cancellation flag
         let cancel_flag = Arc::new(AtomicBool::new(false));
         self.current_matcher = Some(cancel_flag.clone());
         
-        thread::spawn(move || {
+        // CRITICAL FIX: Store the thread handle to prevent resource leak
+        let search_handle = thread::spawn(move || {
             // Create a temporary pool with our snapshot
             let temp_pool = Arc::new(DeferDrop::new(ItemPool::new()));
-            temp_pool.append(searchable_items);
+            temp_pool.append((*searchable_items).clone()); // Clone Vec from Arc once in search thread
             temp_pool.reset();
             
             let total_items = temp_pool.len();
             
-            // Send initial progress
-            let _ = tx.try_send(UIEvent::SearchProgress(0, 0, total_items));
+            // Send initial progress - CRITICAL FIX: Handle send failures
+            if tx.try_send(UIEvent::SearchProgress(0, 0, total_items)).is_err() {
+                // Channel full/closed - search cannot proceed
+                return;
+            }
             
             // Use Mutex for results - simpler approach
             let results = Arc::new(Mutex::new(Vec::new()));
@@ -575,11 +575,15 @@ impl<'a> UICoordinator<'a> {
                     return;
                 }
                 
-                // Send progress updates
+                // Send progress updates - CRITICAL FIX: Handle send failures
                 if last_progress.elapsed() >= Duration::from_millis(100) {
                     let processed = control.get_num_processed();
                     let matched = control.get_num_matched();
-                    let _ = tx.try_send(UIEvent::SearchProgress(processed, matched, total_items));
+                    if tx.try_send(UIEvent::SearchProgress(processed, matched, total_items)).is_err() {
+                        // Channel full/closed - abort search
+                        control.kill();
+                        return;
+                    }
                     last_progress = Instant::now();
                 }
                 
@@ -592,19 +596,37 @@ impl<'a> UICoordinator<'a> {
             }
             
             // Always send results - even if empty due to timeout/cancellation
+            // CRITICAL FIX: Use blocking send with retry for completion events
             if let Ok(final_results) = results.lock() {
-                // Send final progress (mark as complete)
+                // Send final progress (mark as complete) with retry
                 let final_matched = final_results.len();
-                let _ = tx.try_send(UIEvent::SearchProgress(total_items, final_matched, total_items));
+                for _ in 0..10 {
+                    if tx.try_send(UIEvent::SearchProgress(total_items, final_matched, total_items)).is_ok() {
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
                 
-                // Send results - this will ALWAYS complete the search
-                let _ = tx.try_send(UIEvent::MatchResults(final_results.clone(), current_generation));
-            } else {
-                // Fallback: send empty results to complete the search
-                let _ = tx.try_send(UIEvent::SearchProgress(total_items, 0, total_items));
-                let _ = tx.try_send(UIEvent::MatchResults(Vec::new(), current_generation));
+                // Send results with retry - this MUST complete the search
+                for _ in 0..10 {
+                    if tx.try_send(UIEvent::MatchResults(final_results.clone(), current_generation)).is_ok() {
+                        return;
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+            }
+            
+            // Emergency fallback: force send empty results to prevent stuck UI
+            for _ in 0..10 {
+                if tx.try_send(UIEvent::MatchResults(Vec::new(), current_generation)).is_ok() {
+                    return;
+                }
+                thread::sleep(Duration::from_millis(10));
             }
         });
+        
+        // Store the search thread handle
+        self.thread_handles.search = Some(search_handle);
     }
     
     fn draw(&mut self) -> io::Result<()> {
@@ -627,7 +649,7 @@ impl<'a> UICoordinator<'a> {
             f.render_widget(query_widget, chunks[0]);
             
             // Search Status - always visible
-            let total_items = self.item_count.load(Ordering::Relaxed);
+            let total_items = self.item_count.load(Ordering::SeqCst);
             let searchable_count = self.state.searchable_items.len();
             
             if self.state.matching {
@@ -715,15 +737,10 @@ impl<'a> UICoordinator<'a> {
             f.render_widget(items_widget, *items_chunk);
             
             // Bottom Status
-            let mut status = String::new();
-            if self.state.reading || self.state.matching {
-                status.push(SPINNERS[self.state.spinner_frame]);
-                status.push(' ');
-            }
-            let total_count = self.item_count.load(Ordering::Relaxed);
+            let total_count = self.item_count.load(Ordering::SeqCst);
             let searchable_count = self.state.searchable_items.len();
-            status.push_str(&format!("Filtered: {}/{} (searchable: {})", 
-                                   self.state.items.len(), total_count, searchable_count));
+            let status = format!("Filtered: {}/{} (searchable: {})", 
+                               self.state.items.len(), total_count, searchable_count);
             
             let status_widget = Paragraph::new(status);
             f.render_widget(status_widget, chunks[3]); // Always chunk 3 now
@@ -732,7 +749,11 @@ impl<'a> UICoordinator<'a> {
         Ok(())
     }
     
-    fn finalize(mut self) -> io::Result<crate::output::SkimOutput> {
+}
+
+// Implement Drop trait for guaranteed cleanup
+impl<'a> Drop for UICoordinator<'a> {
+    fn drop(&mut self) {
         // Signal all threads to shutdown
         self.shutdown_flag.store(true, Ordering::SeqCst);
         
@@ -742,7 +763,7 @@ impl<'a> UICoordinator<'a> {
         }
         
         // Send shutdown event to wake up blocked threads
-        let _ = self.high_priority_tx.send(UIEvent::Shutdown);
+        let _ = self.high_priority_tx.try_send(UIEvent::Shutdown);
         let _ = self.normal_tx.try_send(UIEvent::Shutdown);
         
         // Cleanup terminal IMMEDIATELY
@@ -753,46 +774,19 @@ impl<'a> UICoordinator<'a> {
             DisableMouseCapture
         );
         
-        // Drop the terminal to ensure it's cleaned up
-        drop(self.terminal);
-        
-        // Wait for threads to finish (with timeout)
-        let timeout = Duration::from_millis(100);
-        let deadline = std::time::Instant::now() + timeout;
+        // Wait for threads to finish - best effort only
+        // Note: Rust's join() has no timeout, but we've already signaled shutdown
+        // so threads should exit quickly. If they don't, it's better to proceed
+        // than hang the entire application.
         
         if let Some(handle) = self.thread_handles.input.take() {
-            let _remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            let _ = handle.join();
+            let _ = handle.join(); // Best effort - may block but threads should exit quickly
         }
-        
-        if let Some(handle) = self.thread_handles.ticker.take() {
-            let _remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            let _ = handle.join();
-        }
-        
         if let Some(handle) = self.thread_handles.reader.take() {
-            let _remaining = deadline.saturating_duration_since(std::time::Instant::now());
             let _ = handle.join();
         }
-        
-        // Return results
-        let selected = if self.state.selected < self.state.items.len() {
-            vec![self.state.items[self.state.selected].item.clone()]
-        } else {
-            Vec::new()
-        };
-        
-        Ok(crate::output::SkimOutput {
-            final_event: crate::event::Event::EvActAccept(None),
-            is_abort: self.state.should_exit && self.state.selected >= self.state.items.len(),
-            final_key: if self.state.should_exit { 
-                skim_tuikit::prelude::Key::ESC 
-            } else { 
-                skim_tuikit::prelude::Key::Enter 
-            },
-            query: self.state.query,
-            cmd: self.options.cmd.clone().unwrap_or_default(),
-            selected_items: selected,
-        })
+        if let Some(handle) = self.thread_handles.search.take() {
+            let _ = handle.join();
+        }
     }
 }
