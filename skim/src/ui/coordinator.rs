@@ -1,433 +1,543 @@
-//! UI Coordinator for the ratatui-based interface
+//! Event-driven UI Coordinator for ratatui interface
 //!
-//! This module implements an event-driven UI coordinator that integrates with
-//! skim's existing Reader and Matcher threads. It follows these principles:
-//! 
-//! 1. UI thread is display-only - never blocks on background operations
-//! 2. Input is polled with 1ms timeout for immediate responsiveness
-//! 3. No custom background threads - uses existing skim infrastructure
-//! 4. Immediate visual feedback - query updates shown without waiting
+//! Architecture principles:
+//! - User input always has highest priority via separate channel
+//! - Event-driven design prevents unnecessary CPU polling
+//! - State isolated to prevent race conditions
+//! - Background threads handle I/O without blocking UI
 
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, mpsc};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{List, ListItem, Paragraph},
+    text::{Line, Span},
 };
 
 use crate::{
     SkimOptions, SkimItemReceiver,
     item::{MatchedItem, ItemPool},
-    reader::{Reader, ReaderControl},
-    matcher::{Matcher, MatcherControl},
-    engine::factory::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory},
-    MatchEngineFactory,
+    reader::Reader,
 };
 use defer_drop::DeferDrop;
-use crate::spinlock::SpinLock;
-use std::rc::Rc;
 
-// Spinner animation constants
-const SPINNERS: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-const SPINNER_DURATION_MS: u64 = 200;
+// Timing constants balancing responsiveness vs CPU usage
+const INPUT_POLL_MS: u64 = 20;        // Fast input response
+const READER_POLL_MS: u64 = 50;       // Reader thread polling
+const BATCH_THRESHOLD: usize = 100;   // Trigger search after N new items
 
-// Timing constants for UI responsiveness
-const LOADING_INDICATOR_DELAY_MS: u64 = 50;  // Show spinner/progress after this delay
-const QUERY_DEBOUNCE_READING_MS: u64 = 150;  // Query debounce during reading
-const QUERY_DEBOUNCE_IDLE_MS: u64 = 10;      // Query debounce when idle
-const MATCHER_RESTART_READING_MS: u64 = 300; // Matcher restart throttle during reading  
-const MATCHER_RESTART_IDLE_MS: u64 = 10;     // Matcher restart throttle when idle
-const READER_CHECK_INTERVAL_MS: u64 = 200;   // How often to check for new items during reading
-const MATCHER_CHECK_INTERVAL_MS: u64 = 150;  // How often to check matcher results during reading
-
-// Sleep durations for CPU efficiency
-const SLEEP_READING_MS: u64 = 1;              // Sleep during reading
-const SLEEP_IDLE_NANOS: u64 = 500_000;       // Sleep when idle (0.5ms)
-
-// UI refresh rates
-const UI_REFRESH_RATE_FPS: u64 = 60;          // Target FPS for normal UI
-const UI_REFRESH_INTERVAL_MS: u64 = 1000 / UI_REFRESH_RATE_FPS; // 16ms
-
-/// Lightweight UI state for immediate visual updates
-struct UIState {
-    // Visual state - updated immediately
-    display_query: String,
-    selected_index: usize,
-    matched_items: Vec<MatchedItem>,
-    total_items: usize,
-    
-    // Status flags
-    is_running: bool,
-    is_reading: bool,
-    needs_redraw: bool,
-    
-    // Timing for throttled operations
-    last_draw: Instant,
-    last_query_sent: String,
-    last_matched_count: usize,
-    last_matcher_restart: Instant,
-    query_debounce_timer: Instant,
-    
-    // Matcher progress tracking (for loading indicator)
-    processed_items: usize,
-    matcher_running: bool,
-    read_start_time: Instant,
-    match_start_time: Instant,
+/// Events flowing through the UI system
+/// 
+/// High priority: KeyPress (goes to separate channel)
+/// Normal priority: All others (batched/throttled as needed)
+#[derive(Clone)]
+enum UIEvent {
+    KeyPress(KeyEvent),
+    ItemsAvailable,                    // New items ready for search
+    MatchResults(Vec<MatchedItem>),    // Search completed
+    SearchProgress(usize, usize),      // (processed, total) for progress bar
+    ReaderDone,                        // Input stream finished
+    Shutdown,                          // Graceful shutdown signal
 }
 
-impl UIState {
+/// Core UI state - kept minimal to reduce complexity
+struct UIState {
+    // User interaction
+    query: String,
+    viewport: Viewport,
+    
+    // Search results
+    items: Vec<MatchedItem>,
+    // Arc prevents copying entire Vec when sending to search thread
+    searchable_items: Arc<Vec<Arc<dyn crate::SkimItem>>>,
+    
+    // Status flags
+    reading: bool,                     // Still reading input
+    matching: bool,                    // Search in progress
+    should_exit: bool,
+    
+    // Performance optimizations
+    last_searchable_update: usize,    // Prevents redundant snapshots
+    last_query_change: Instant,       // For debouncing
+    pending_search: bool,              // Debounced search pending
+    
+    // UI state
+    needs_redraw: bool,
+    
+    // Progress tracking
+    search_processed: usize,
+    search_total: usize,
+    
+    // Multi-select support
+    selected_items: std::collections::HashSet<usize>,
+}
+
+/// Coordination flags for inter-thread communication
+#[derive(Clone)]
+struct CoordinationState {
+    shutdown: Arc<AtomicBool>,
+    pending_items: Arc<AtomicBool>,    // Prevents event flooding
+    item_count: Arc<AtomicUsize>,      // Atomic counter for UI display
+}
+
+impl CoordinationState {
     fn new() -> Self {
-        let now = Instant::now();
         Self {
-            display_query: String::new(),
-            selected_index: 0,
-            matched_items: Vec::new(),
-            total_items: 0,
-            is_running: true,
-            is_reading: true,
-            needs_redraw: true, // Initial draw needed
-            last_draw: now,
-            last_query_sent: String::new(),
-            last_matched_count: 0,
-            last_matcher_restart: now,
-            query_debounce_timer: now,
-            processed_items: 0,
-            matcher_running: false,
-            read_start_time: now,
-            match_start_time: now,
+            shutdown: Arc::new(AtomicBool::new(false)),
+            pending_items: Arc::new(AtomicBool::new(false)),
+            item_count: Arc::new(AtomicUsize::new(0)),
         }
     }
 }
 
+/// Viewport management for scrolling through long item lists
+struct Viewport {
+    selected: usize,
+    offset: usize,
+}
+
+impl Viewport {
+    fn new() -> Self {
+        Self {
+            selected: 0,
+            offset: 0,
+        }
+    }
+    
+    /// Update selection and adjust viewport if needed
+    fn update_selection(&mut self, new_selected: usize, item_count: usize, viewport_height: usize) {
+        if item_count == 0 {
+            self.selected = 0;
+            self.offset = 0;
+            return;
+        }
+        
+        self.selected = new_selected.min(item_count - 1);
+        
+        // Keep selected item in view
+        if self.selected < self.offset {
+            self.offset = self.selected;
+        } else if self.selected >= self.offset + viewport_height {
+            self.offset = self.selected.saturating_sub(viewport_height - 1);
+        }
+    }
+    
+    /// Reset viewport for new search results
+    fn reset(&mut self) {
+        self.selected = 0;
+        self.offset = 0;
+    }
+    
+    fn selected(&self) -> usize {
+        self.selected
+    }
+    
+    fn offset(&self) -> usize {
+        self.offset
+    }
+}
+
+
+/// Main UI coordinator managing all UI state and background threads
+/// 
+/// Uses dual-channel architecture:
+/// - High priority channel for user input (never blocks UI)
+/// - Normal priority channel for background updates (can be throttled)
 pub struct UICoordinator<'a> {
-    // === UI Components ===
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
     state: UIState,
-    draw_interval: Duration,
-    
-    // === Configuration ===
     options: &'a SkimOptions,
-    use_regex: bool,
     
-    // === Reader Integration ===
+    // Dual channel architecture for priority-based event handling
+    high_priority_rx: mpsc::Receiver<UIEvent>,
+    high_priority_tx: mpsc::SyncSender<UIEvent>,
+    normal_rx: mpsc::Receiver<UIEvent>,
+    normal_tx: mpsc::SyncSender<UIEvent>,
+    
+    // Background workers
     reader: Reader,
-    reader_control: Option<ReaderControl>,
-    item_source: Option<SkimItemReceiver>,
     item_pool: Arc<DeferDrop<ItemPool>>,
     
-    // === Matcher Integration ===
-    matcher: Matcher,
-    regex_matcher: Matcher,
-    matcher_control: Option<MatcherControl>,
-    matched_items: Arc<SpinLock<Vec<MatchedItem>>>,
-    matcher_generation: Arc<SpinLock<u64>>,
+    // Search cancellation - allows immediate abort on new search/exit
+    current_matcher: Option<Arc<AtomicBool>>,
+    
+    // Thread lifecycle management - ensures clean shutdown without resource leaks
+    input_thread: Option<JoinHandle<()>>,
+    reader_thread: Option<JoinHandle<()>>,
+    search_thread: Option<JoinHandle<()>>,   // Critical: search threads must be joined
+    
+    /// Inter-thread coordination
+    coordination: CoordinationState,
 }
 
 impl<'a> UICoordinator<'a> {
+    /// Create highlighted text with matched portions in different color
+    fn create_highlighted_text(item: &MatchedItem, parse_ansi: bool) -> Line<'static> {
+        let text = item.item.text();
+        
+        // Parse ANSI codes if enabled
+        if parse_ansi {
+            let ansi_string = crate::AnsiString::parse(text.as_ref());
+            
+            // For now, just use the stripped text since we can't access the styling information
+            // This removes ANSI codes but doesn't apply the colors
+            // TODO: Enhance AnsiString API or implement our own ANSI parser for ratatui
+            let stripped_text = ansi_string.stripped();
+            
+            // Apply match highlighting on the stripped text
+            if let Some(ref range) = item.matched_range {
+                let mut spans = vec![];
+                
+                match range {
+                    crate::MatchRange::ByteRange(start, end) => {
+                        if *start > 0 {
+                            spans.push(Span::raw(stripped_text[..*start].to_string()));
+                        }
+                        spans.push(Span::styled(
+                            stripped_text[*start..*end].to_string(),
+                            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                        ));
+                        if *end < stripped_text.len() {
+                            spans.push(Span::raw(stripped_text[*end..].to_string()));
+                        }
+                    }
+                    crate::MatchRange::Chars(indices) => {
+                        let chars: Vec<char> = stripped_text.chars().collect();
+                        let mut last_end = 0;
+                        
+                        for &idx in indices {
+                            if idx > last_end && idx < chars.len() {
+                                let unmatched: String = chars[last_end..idx].iter().collect();
+                                spans.push(Span::raw(unmatched));
+                            }
+                            if idx < chars.len() {
+                                spans.push(Span::styled(
+                                    chars[idx].to_string(),
+                                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                                ));
+                            }
+                            last_end = idx + 1;
+                        }
+                        
+                        if last_end < chars.len() {
+                            let remaining: String = chars[last_end..].iter().collect();
+                            spans.push(Span::raw(remaining));
+                        }
+                    }
+                }
+                
+                Line::from(spans)
+            } else {
+                Line::from(stripped_text.to_string())
+            }
+        } else if let Some(ref range) = item.matched_range {
+            // No ANSI parsing, just match highlighting
+            let mut spans = vec![];
+            
+            match range {
+                crate::MatchRange::ByteRange(start, end) => {
+                    // Simple byte range highlight
+                    if *start > 0 {
+                        spans.push(Span::raw(text[..*start].to_string()));
+                    }
+                    spans.push(Span::styled(
+                        text[*start..*end].to_string(),
+                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                    ));
+                    if *end < text.len() {
+                        spans.push(Span::raw(text[*end..].to_string()));
+                    }
+                }
+                crate::MatchRange::Chars(indices) => {
+                    // Individual character indices
+                    let chars: Vec<char> = text.chars().collect();
+                    let mut last_end = 0;
+                    
+                    for &idx in indices {
+                        if idx > last_end {
+                            // Add unmatched portion
+                            let unmatched: String = chars[last_end..idx].iter().collect();
+                            spans.push(Span::raw(unmatched));
+                        }
+                        // Add matched character
+                        if idx < chars.len() {
+                            spans.push(Span::styled(
+                                chars[idx].to_string(),
+                                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                            ));
+                        }
+                        last_end = idx + 1;
+                    }
+                    
+                    // Add remaining unmatched portion
+                    if last_end < chars.len() {
+                        let remaining: String = chars[last_end..].iter().collect();
+                        spans.push(Span::raw(remaining));
+                    }
+                }
+            }
+            
+            Line::from(spans)
+        } else {
+            // No match range, return plain text
+            Line::from(text.to_string())
+        }
+    }
+
     pub fn new(options: &'a SkimOptions) -> io::Result<Self> {
-        // Terminal setup
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
         
-        // Create shared item pool
+        let (high_priority_tx, high_priority_rx) = mpsc::sync_channel(1000);
+        let (normal_tx, normal_rx) = mpsc::sync_channel(100);
+        
+        let reader = Reader::with_options(options);
         let item_pool = Arc::new(DeferDrop::new(ItemPool::new()));
         
-        // Create reader
-        let reader = Reader::with_options(&options);
         
-        // Create matchers with proper configuration to match legacy system
-        use crate::item::RankBuilder;
-        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
-        
-        // Use the same engine factory configuration as legacy system
-        let engine_factory: Rc<dyn MatchEngineFactory> = Rc::new(AndOrEngineFactory::new(
-            ExactOrFuzzyEngineFactory::builder()
-                .exact_mode(options.exact)
-                .fuzzy_algorithm(options.algorithm)
-                .rank_builder(rank_builder.clone())
-                .build(),
-        ));
-        
-        let matcher = Matcher::builder(engine_factory.clone())
-            .case(options.case)
-            .build();
-            
-        let regex_matcher = Matcher::builder(Rc::new(RegexEngineFactory::builder()
-                .rank_builder(rank_builder.clone())
-                .build()))
-            .build();
         
         Ok(Self {
             terminal,
-            state: UIState::new(),
+            state: UIState {
+                query: options.query.clone().unwrap_or_default(),
+                viewport: Viewport::new(),
+                items: Vec::new(),
+                searchable_items: Arc::new(Vec::new()),
+                reading: true,
+                matching: false,
+                last_searchable_update: 0,
+                should_exit: false,
+                last_query_change: Instant::now(),
+                pending_search: false,
+                needs_redraw: true,
+                search_processed: 0,
+                search_total: 0,
+                selected_items: std::collections::HashSet::new(),
+            },
             options,
+            high_priority_rx,
+            high_priority_tx,
+            normal_rx,
+            normal_tx,
             reader,
-            reader_control: None,
-            matcher,
-            regex_matcher,
-            matcher_control: None,
             item_pool,
-            item_source: None,
-            matched_items: Arc::new(SpinLock::new(Vec::new())),
-            matcher_generation: Arc::new(SpinLock::new(0)),
-            use_regex: false,
-            draw_interval: Duration::from_millis(UI_REFRESH_INTERVAL_MS),
+            current_matcher: None,
+            input_thread: None,
+            reader_thread: None,
+            search_thread: None,
+            coordination: CoordinationState::new(),
         })
     }
     
     pub fn set_item_source(&mut self, source: SkimItemReceiver) {
-        self.item_source = Some(source);
+        let reader = std::mem::replace(&mut self.reader, Reader::with_options(self.options));
+        self.reader = reader.source(Some(source));
     }
     
-    pub fn run(mut self) -> io::Result<(Vec<MatchedItem>, String)> {
-        // Start reader with item source or default command
-        self.reader = if let Some(source) = self.item_source.take() {
-            // If we have an item source, use it 
-            self.reader.source(Some(source))
-        } else {
-            // Otherwise just use the reader as is
-            self.reader
-        };
+    pub fn run(&mut self) -> io::Result<crate::output::SkimOutput> {
+        // Start background threads for input and reading
+        self.spawn_input_thread();
+        self.spawn_reader_thread();
         
-        let reader_control = self.reader.run(&self.options.cmd.clone().unwrap_or_default());
-        self.reader_control = Some(reader_control);
+        // Initial UI setup
+        self.draw()?;
+        self.update_searchable_items();
         
-        // Start initial matcher with empty query
-        self.restart_matcher();
-        
-        // Main event loop - event-driven with prioritized input handling
-        'outer: loop {
-            // Quick exit check at top of loop
-            if !self.state.is_running {
-                break;
-            }
-            
-            // 1. Prioritize input events - always check for keys first
-            while event::poll(Duration::ZERO)? {
-                match event::read()? {
-                    Event::Key(key) => {
-                        if self.handle_key_event(key)? {
-                            break 'outer;
-                        }
-                        // Force immediate redraw for key events
-                        if self.state.needs_redraw {
-                            self.draw()?;
-                            self.state.last_draw = Instant::now();
-                            self.state.needs_redraw = false;
-                        }
-                    }
-                    Event::Resize(_, _) => {
-                        self.state.needs_redraw = true;
-                    }
-                    _ => {}
-                }
-            }
-            
-            // Early exit check after input processing
-            if !self.state.is_running {
-                break;
-            }
-            
-            // 2. Check reader status - but only every few iterations when reading
-            let mut needs_restart = false;
-            if self.state.is_running {
-                if let Some(ref reader_control) = self.reader_control {
-                    let was_reading = self.state.is_reading;
-                    self.state.is_reading = !reader_control.is_done();
-                    
-                    // Track read start time for spinner
-                    if !was_reading && self.state.is_reading {
-                        self.state.read_start_time = Instant::now();
-                    }
-                    
-                    // Only process new items periodically during reading to avoid blocking input
-                    if !self.state.is_reading || self.state.last_draw.elapsed() >= Duration::from_millis(READER_CHECK_INTERVAL_MS) {
-                        let new_items = reader_control.take();
-                        let has_new_items = !new_items.is_empty();
-                        if has_new_items {
-                            let _ = self.item_pool.append(new_items);
-                            self.state.total_items = self.item_pool.len();
-                            
-                            // Throttle matcher restarts more aggressively during loading
-                            let min_restart_interval = self.get_matcher_restart_interval();
-                            
-                            if self.state.last_matcher_restart.elapsed() >= min_restart_interval {
-                                needs_restart = true;
-                                self.state.last_matcher_restart = Instant::now();
-                            }
-                        }
-                    } else {
-                        // Just update total items count without taking items (much faster)
-                        self.state.total_items = self.item_pool.len();
-                    }
-                }
-            }
-            
-            if needs_restart && self.state.is_running {
-                self.restart_matcher();
-            }
-            
-            // 3. Check for matcher updates (non-blocking) - only copy if changed
-            // During heavy reading, check much less frequently to prioritize input responsiveness
-            let should_check_matcher = self.state.is_running && (!self.state.is_reading || 
-                self.state.last_draw.elapsed() >= Duration::from_millis(MATCHER_CHECK_INTERVAL_MS));
-                
-            if should_check_matcher && self.matcher_control.is_some() {
-                let items = self.matched_items.lock();
-                let current_count = items.len();
-                
-                // Update matcher progress for loading indicator
-                if let Some(ref ctrl) = self.matcher_control {
-                    let new_processed = ctrl.get_num_processed();
-                    let new_matched = ctrl.get_num_matched();
-                    
-                    if new_processed != self.state.processed_items || 
-                       new_matched != self.state.last_matched_count {
-                        self.state.processed_items = new_processed;
-                        self.state.needs_redraw = true; // Progress changed, need redraw
-                    }
-                    
-                    self.state.matcher_running = !ctrl.stopped();
-                }
-                
-                // Only copy if the number of items changed (significant optimization)
-                if current_count != self.state.last_matched_count {
-                    self.state.matched_items = items.clone();
-                    self.state.last_matched_count = current_count;
-                    self.state.needs_redraw = true; // Items changed, need redraw
-                    
-                    // Reset selection if needed
-                    if self.state.selected_index >= self.state.matched_items.len() 
-                        && !self.state.matched_items.is_empty() {
-                        self.state.selected_index = self.state.matched_items.len() - 1;
-                    }
-                }
-                drop(items);
-            }
-            
-            // 4. Send query update to matcher if changed (with debouncing for responsiveness)
-            if self.state.is_running && self.state.display_query != self.state.last_query_sent {
-                // Debounce query changes - wait for user to stop typing before matching
-                let debounce_delay = self.get_query_debounce_delay();
-                
-                if self.state.query_debounce_timer.elapsed() >= debounce_delay {
-                    self.state.last_query_sent = self.state.display_query.clone();
-                    self.state.needs_redraw = true; // Query changed, need redraw
-                    self.restart_matcher();
-                } else {
-                    // User is still typing - kill current matcher to save CPU
-                    if let Some(ctrl) = self.matcher_control.take() {
-                        ctrl.kill();
-                    }
-                }
-            }
-            
-            // 5. Draw only when needed and enough time has passed
-            // Use different intervals: fast for user input, slower during heavy loading
-            let draw_interval = if self.state.is_reading || self.state.matcher_running {
-                Duration::from_millis(SPINNER_DURATION_MS) // Update for spinner animation
-            } else {
-                self.draw_interval // Normal speed when not loading
-            };
-            
-            let should_draw_for_animation = (self.state.is_reading || self.state.matcher_running) && 
-                self.state.last_draw.elapsed() >= Duration::from_millis(SPINNER_DURATION_MS);
-            
-            if (self.state.needs_redraw && self.state.last_draw.elapsed() >= draw_interval) || should_draw_for_animation {
-                self.draw()?;
-                self.state.last_draw = Instant::now();
-                self.state.needs_redraw = false;
-            }
-            
-            // Small delay to prevent 100% CPU usage, but only if no input is pending
-            // Also break immediately if quit was requested
-            if !self.state.is_running {
-                break;
-            }
-            if !event::poll(Duration::ZERO)? {
-                let sleep_duration = if self.state.is_reading {
-                    Duration::from_millis(SLEEP_READING_MS)
-                } else {
-                    Duration::from_nanos(SLEEP_IDLE_NANOS)
-                };
-                std::thread::sleep(sleep_duration);
-            }
+        // Show all items initially if we have data
+        if !self.state.searchable_items.is_empty() {
+            self.trigger_search();
         }
         
-        // Clean up
-        self.cleanup()?;
+        // Main event loop - prioritizes user input over background events
+        self.run_event_loop()?;
         
-        // Return selected items and query
-        let selected = if self.state.selected_index < self.state.matched_items.len() {
-            vec![self.state.matched_items[self.state.selected_index].clone()]
+        let selected = if self.options.multi && !self.state.selected_items.is_empty() {
+            // Return multi-selected items
+            let mut selected: Vec<_> = self.state.selected_items
+                .iter()
+                .filter_map(|&idx| {
+                    if idx < self.state.items.len() {
+                        Some(self.state.items[idx].item.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            selected.sort_by_key(|item| item.text().to_string());
+            selected
+        } else if self.state.viewport.selected() < self.state.items.len() {
+            // Single selection
+            vec![self.state.items[self.state.viewport.selected()].item.clone()]
         } else {
             Vec::new()
         };
         
-        Ok((selected, self.state.display_query))
+        Ok(crate::output::SkimOutput {
+            final_event: crate::event::Event::EvActAccept(None),
+            is_abort: self.state.should_exit && self.state.viewport.selected() >= self.state.items.len(),
+            final_key: if self.state.should_exit { 
+                skim_tuikit::prelude::Key::ESC 
+            } else { 
+                skim_tuikit::prelude::Key::Enter 
+            },
+            query: self.state.query.clone(),
+            cmd: self.options.cmd.clone().unwrap_or_default(),
+            selected_items: selected,
+        })
     }
     
-    fn handle_key_event(&mut self, key: event::KeyEvent) -> io::Result<bool> {
-        match (key.code, key.modifiers) {
-            // Quit keys - immediate exit without cleanup in main loop
-            (KeyCode::Esc, _) => {
-                self.state.is_running = false;
-                // Signal stop to matcher without waiting (much faster)
-                if let Some(ctrl) = self.matcher_control.take() {
-                    // Use a custom fast kill that doesn't wait for thread join
-                    self.fast_kill_matcher(ctrl);
+    fn handle_event(&mut self, event: UIEvent) -> io::Result<bool> {
+        match event {
+            UIEvent::KeyPress(key) => {
+                return self.handle_key(key);
+            }
+            UIEvent::ItemsAvailable => {
+                self.coordination.pending_items.store(false, Ordering::SeqCst);
+                
+                if !self.state.matching {
+                    let current_pool_size = self.item_pool.len();
+                    let diff = current_pool_size.saturating_sub(self.state.last_searchable_update);
+                    
+                    if diff >= BATCH_THRESHOLD || !self.state.reading {
+                        self.update_searchable_items();
+                        self.trigger_search();
+                    }
                 }
+            }
+            UIEvent::MatchResults(mut results) => {
+                if !self.options.no_sort {
+                    results.sort();
+                    results.reverse(); // Put best matches at the end (bottom)
+                }
+                self.state.items = results;
+                self.state.matching = false;
+                self.state.search_processed = 0;
+                self.state.search_total = 0;
+                
+                // Start selection at the bottom (best match)
+                if !self.state.items.is_empty() {
+                    let viewport_height = self.get_viewport_height();
+                    let last_idx = self.state.items.len() - 1;
+                    
+                    // Set selection to last item
+                    self.state.viewport.selected = last_idx;
+                    
+                    // Adjust offset to make sure the selected item is visible
+                    if last_idx >= viewport_height {
+                        self.state.viewport.offset = last_idx - viewport_height + 1;
+                    } else {
+                        self.state.viewport.offset = 0;
+                    }
+                } else {
+                    self.state.viewport.reset();
+                }
+                self.state.needs_redraw = true;
+                
+                // Handle exit_0 option
+                if self.options.exit_0 && self.state.items.is_empty() && !self.state.reading {
+                    return Ok(true);
+                }
+                
+                // Handle select_1 option
+                if self.options.select_1 && self.state.items.len() == 1 && !self.state.reading {
+                    return Ok(true);
+                }
+                
+                let current_pool_size = self.item_pool.len();
+                if current_pool_size > self.state.last_searchable_update {
+                    self.update_searchable_items();
+                    if !self.state.query.is_empty() {
+                        self.state.pending_search = true;
+                        self.state.last_query_change = Instant::now();
+                    }
+                }
+            }
+            UIEvent::SearchProgress(processed, total) => {
+                self.state.search_processed = processed;
+                self.state.search_total = total;
+                self.state.needs_redraw = true;
+            }
+            UIEvent::ReaderDone => {
+                self.state.reading = false;
+                if !self.state.matching {
+                    self.update_searchable_items();
+                    self.trigger_search();
+                }
+            }
+            UIEvent::Shutdown => {
                 return Ok(true);
             }
-            (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
-                self.state.is_running = false;
-                // Signal stop to matcher without waiting (much faster)
-                if let Some(ctrl) = self.matcher_control.take() {
-                    // Use a custom fast kill that doesn't wait for thread join
-                    self.fast_kill_matcher(ctrl);
+        }
+        Ok(false)
+    }
+    
+    fn handle_key(&mut self, key: KeyEvent) -> io::Result<bool> {
+        match (key.code, key.modifiers) {
+            (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                if let Some(cancel_flag) = self.current_matcher.take() {
+                    cancel_flag.store(true, Ordering::SeqCst);
                 }
                 return Ok(true);
             }
             
-            // Selection
             (KeyCode::Enter, _) => {
                 return Ok(true);
             }
             
-            // Navigation
             (KeyCode::Up, _) => {
-                if self.state.selected_index > 0 {
-                    self.state.selected_index -= 1;
-                    self.state.needs_redraw = true;
+                if self.state.viewport.selected() > 0 {
+                    let new_selected = self.state.viewport.selected() - 1;
+                    let viewport_height = self.get_viewport_height();
+                    self.state.viewport.update_selection(new_selected, self.state.items.len(), viewport_height);
                 }
             }
             (KeyCode::Down, _) => {
-                if self.state.selected_index + 1 < self.state.matched_items.len() {
-                    self.state.selected_index += 1;
-                    self.state.needs_redraw = true;
+                if self.state.viewport.selected() + 1 < self.state.items.len() {
+                    let new_selected = self.state.viewport.selected() + 1;
+                    let viewport_height = self.get_viewport_height();
+                    self.state.viewport.update_selection(new_selected, self.state.items.len(), viewport_height);
                 }
             }
             
-            // Query editing - IMMEDIATE visual update but debounced matching
+            (KeyCode::Tab, _) => {
+                // Toggle selection in multi-select mode
+                if self.options.multi {
+                    let selected_idx = self.state.viewport.selected();
+                    if self.state.selected_items.contains(&selected_idx) {
+                        self.state.selected_items.remove(&selected_idx);
+                    } else {
+                        self.state.selected_items.insert(selected_idx);
+                    }
+                }
+                // Always move down (same as DOWN key)
+                if self.state.viewport.selected() + 1 < self.state.items.len() {
+                    let new_selected = self.state.viewport.selected() + 1;
+                    let viewport_height = self.get_viewport_height();
+                    self.state.viewport.update_selection(new_selected, self.state.items.len(), viewport_height);
+                }
+            }
+            
             (KeyCode::Char(c), _) => {
-                self.state.display_query.push(c);
-                self.state.needs_redraw = true;
-                self.state.query_debounce_timer = Instant::now(); // Reset debounce timer
+                self.state.query.push(c);
+                self.state.last_query_change = Instant::now();
+                self.state.pending_search = true;
             }
             (KeyCode::Backspace, _) => {
-                self.state.display_query.pop();
-                self.state.needs_redraw = true;
-                self.state.query_debounce_timer = Instant::now(); // Reset debounce timer
+                self.state.query.pop();
+                self.state.last_query_change = Instant::now();
+                self.state.pending_search = true;
             }
             
             _ => {}
@@ -436,241 +546,423 @@ impl<'a> UICoordinator<'a> {
         Ok(false)
     }
     
-    fn draw(&mut self) -> io::Result<()> {
-        // Pre-compute status line to avoid borrowing issues
-        let status_line = self.format_status_line();
+    fn get_viewport_height(&self) -> usize {
+        if let Ok(size) = self.terminal.size() {
+            // Subtract 2 for status line and query line
+            size.height.saturating_sub(2) as usize
+        } else {
+            20
+        }
+    }
+    
+    /// Create atomic snapshot of current items for searching
+    /// This prevents race conditions where items change during search
+    fn update_searchable_items(&mut self) {
+        self.item_pool.reset();
+        let items = self.item_pool.take();
         
+        let snapshot_len = items.len();
+        
+        // Arc wrapper prevents cloning entire Vec when sending to search thread
+        let new_items: Vec<Arc<dyn crate::SkimItem>> = items.iter().cloned().collect();
+        self.state.searchable_items = Arc::new(new_items);
+        self.state.last_searchable_update = snapshot_len;
+        
+        // Update atomic counter for consistent UI display
+        self.coordination.item_count.store(self.item_pool.len(), Ordering::SeqCst);
+    }
+    
+    /// Launch search in background thread with cancellation support
+    /// Previous search is cancelled and thread joined to prevent resource leaks
+    fn trigger_search(&mut self) {
+        // Cancel any existing search
+        if let Some(cancel_flag) = self.current_matcher.take() {
+            cancel_flag.store(true, Ordering::SeqCst);
+        }
+        
+        // Join previous search thread to prevent resource leak
+        if let Some(search_handle) = self.search_thread.take() {
+            let _ = search_handle.join();
+        }
+        
+        self.state.matching = true;
+        self.state.search_processed = 0;
+        self.state.search_total = self.state.searchable_items.len();
+        
+        let query = self.state.query.clone();
+        let searchable_items = self.state.searchable_items.clone();
+        let tx = self.normal_tx.clone();
+        
+        // Clone options we need for search
+        let case = self.options.case;
+        let exact = self.options.exact;
+        let regex = self.options.regex;
+        let algorithm = self.options.algorithm;
+        let tiebreak = self.options.tiebreak.clone();
+        
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        self.current_matcher = Some(cancel_flag.clone());
+        
+        // Spawn search thread with timeout and progress reporting
+        let search_handle = thread::spawn(move || {
+            // Create temporary pool for this search
+            let temp_pool = Arc::new(DeferDrop::new(ItemPool::new()));
+            temp_pool.append((*searchable_items).clone());
+            temp_pool.reset();
+            
+            let total_items = temp_pool.len();
+            let results = Arc::new(Mutex::new(Vec::new()));
+            let results_clone = results.clone();
+            
+            // Configure matcher based on options
+            let rank_builder = Arc::new(crate::item::RankBuilder::new(tiebreak));
+            let engine_factory: std::rc::Rc<dyn crate::MatchEngineFactory> = {
+                let fuzzy_engine = crate::engine::factory::ExactOrFuzzyEngineFactory::builder()
+                    .exact_mode(exact)
+                    .fuzzy_algorithm(algorithm)
+                    .rank_builder(rank_builder.clone())
+                    .build();
+                if regex {
+                    std::rc::Rc::new(crate::engine::factory::RegexEngineFactory::builder()
+                        .rank_builder(rank_builder.clone())
+                        .build())
+                } else {
+                    std::rc::Rc::new(crate::engine::factory::AndOrEngineFactory::new(fuzzy_engine))
+                }
+            };
+            
+            let matcher = crate::matcher::Matcher::builder(engine_factory)
+                .case(case)
+                .build();
+            
+            // Run search with callback to collect results
+            let control = matcher.run(&query, temp_pool.clone(), move |items| {
+                if let Ok(mut results) = results_clone.lock() {
+                    results.clear();
+                    let new_items = items.lock();
+                    results.extend(new_items.iter().cloned());
+                }
+            });
+            
+            // Poll for completion with progress updates
+            let start = Instant::now();
+            let mut last_progress = Instant::now();
+            
+            while !control.stopped() && start.elapsed() < Duration::from_secs(10) {
+                if cancel_flag.load(Ordering::SeqCst) {
+                    control.kill();
+                    return;
+                }
+                
+                // Send progress updates every 100ms
+                if last_progress.elapsed() >= Duration::from_millis(100) {
+                    let processed = control.get_num_processed();
+                    let _ = tx.try_send(UIEvent::SearchProgress(processed, total_items));
+                    last_progress = Instant::now();
+                }
+                
+                thread::sleep(Duration::from_millis(20));
+            }
+            
+            // Ensure search completes
+            if !control.stopped() {
+                control.kill();
+            }
+            
+            // Send final results
+            if let Ok(final_results) = results.lock() {
+                let _ = tx.try_send(UIEvent::MatchResults(final_results.clone()));
+            }
+        });
+        
+        self.search_thread = Some(search_handle);
+    }
+    
+    /// Spawn high-priority input thread that never blocks UI
+    /// Uses separate thread to prevent input lag during heavy operations
+    fn spawn_input_thread(&mut self) {
+        let input_tx = self.high_priority_tx.clone();
+        let shutdown = self.coordination.shutdown.clone();
+        self.input_thread = Some(thread::spawn(move || {
+            while !shutdown.load(Ordering::SeqCst) {
+                if event::poll(Duration::from_millis(INPUT_POLL_MS)).unwrap_or(false) {
+                    if let Ok(event::Event::Key(key)) = event::read() {
+                        if input_tx.try_send(UIEvent::KeyPress(key)).is_err() {
+                            break; // Channel closed or full
+                        }
+                    }
+                }
+            }
+        }));
+    }
+    
+    /// Spawn reader thread to monitor input stream
+    /// Batches items and notifies UI when ready for search
+    fn spawn_reader_thread(&mut self) {
+        let normal_tx = self.normal_tx.clone();
+        let pool = self.item_pool.clone();
+        let reader_control = self.reader.run(self.options.cmd.as_deref().unwrap_or(""));
+        let shutdown = self.coordination.shutdown.clone();
+        let pending_items = self.coordination.pending_items.clone();
+        let item_count = self.coordination.item_count.clone();
+        
+        self.reader_thread = Some(thread::spawn(move || {
+            while !shutdown.load(Ordering::SeqCst) {
+                let items = reader_control.take();
+                if !items.is_empty() {
+                    pool.append(items);
+                    item_count.store(pool.len(), Ordering::SeqCst);
+                    // Prevent event flooding - only send if not already pending
+                    if !pending_items.swap(true, Ordering::SeqCst) {
+                        let _ = normal_tx.try_send(UIEvent::ItemsAvailable);
+                    }
+                }
+                if reader_control.is_done() {
+                    let _ = normal_tx.try_send(UIEvent::ReaderDone);
+                    break;
+                }
+                thread::sleep(Duration::from_millis(READER_POLL_MS));
+            }
+        }));
+    }
+    
+    fn draw(&mut self) -> io::Result<()> {
         self.terminal.draw(|f| {
+            // New 3-chunk layout: items, status line, query line
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .margin(1)
                 .constraints([
-                    Constraint::Length(3), // Query
-                    Constraint::Min(1),    // Items
-                    Constraint::Length(1), // Status
+                    Constraint::Min(1),      // Items take remaining space
+                    Constraint::Length(1),   // Status line
+                    Constraint::Length(1),   // Query line
                 ])
                 .split(f.area());
             
-            // Query input - shows immediately typed characters
-            let query_block = Block::default()
-                .borders(Borders::ALL)
-                .title("Query");
-            let query = Paragraph::new(self.state.display_query.as_str())
-                .block(query_block);
-            f.render_widget(query, chunks[0]);
+            // Draw items in bottom-up fashion
+            let items_area = chunks[0];
+            let viewport_height = items_area.height as usize;
+            let total_items = self.state.items.len();
             
-            // Items list with virtual scrolling for performance
-            let items_area = chunks[1];
-            let visible_height = items_area.height.saturating_sub(2) as usize; // Subtract borders
-            
-            // Calculate visible range around selected index
-            let total_items = self.state.matched_items.len();
-            let start_index = if total_items <= visible_height {
-                0
-            } else if self.state.selected_index < visible_height / 2 {
-                0
-            } else if self.state.selected_index + visible_height / 2 >= total_items {
-                total_items.saturating_sub(visible_height)
-            } else {
-                self.state.selected_index.saturating_sub(visible_height / 2)
-            };
-            
-            let end_index = (start_index + visible_height).min(total_items);
-            
-            // Only create ListItems for visible items (major performance improvement)
-            let items: Vec<ListItem> = self.state.matched_items[start_index..end_index]
-                .iter()
-                .enumerate()
-                .map(|(i, item)| {
-                    let global_index = start_index + i;
-                    // Avoid string allocation by using text() directly
-                    let content = item.item.text();
-                    let style = if global_index == self.state.selected_index {
+            // Calculate visible items for bottom-up display
+            let visible_items: Vec<ListItem> = if total_items == 0 {
+                // Empty state - fill with empty lines
+                (0..viewport_height).map(|_| ListItem::new("")).collect()
+            } else if total_items <= viewport_height {
+                // All items fit - display from bottom with empty lines at top
+                let mut items = Vec::with_capacity(viewport_height);
+                
+                // Add empty lines at top
+                for _ in 0..(viewport_height - total_items) {
+                    items.push(ListItem::new(""));
+                }
+                
+                // Add actual items in order (worst matches at top, best at bottom)
+                for idx in 0..total_items {
+                    let item = &self.state.items[idx];
+                    let highlighted_text = Self::create_highlighted_text(item, self.options.ansi);
+                    
+                    // Add cursor indicator for selected item
+                    let mut spans = vec![];
+                    if idx == self.state.viewport.selected() {
+                        spans.push(Span::raw("> "));  // Cursor indicator
+                    } else {
+                        spans.push(Span::raw("  "));  // Empty space for alignment
+                    }
+                    
+                    // Add multi-select marker if needed
+                    if self.options.multi && self.state.selected_items.contains(&idx) {
+                        spans.push(Span::raw("* "));  // Mark for multi-selected items
+                    }
+                    
+                    spans.extend(highlighted_text.spans);
+                    let display_line = Line::from(spans);
+                    
+                    let style = if idx == self.state.viewport.selected() {
                         Style::default().bg(Color::DarkGray)
                     } else {
                         Style::default()
                     };
-                    ListItem::new(content).style(style)
-                })
-                .collect();
+                    items.push(ListItem::new(display_line).style(style));
+                }
+                items
+            } else {
+                // Need scrolling - implement viewport logic for bottom-up
+                let selected = self.state.viewport.selected();
+                let offset = self.state.viewport.offset();
+                
+                let mut items = Vec::with_capacity(viewport_height);
+                
+                // Fill viewport - with correct scrolling
+                for i in 0..viewport_height {
+                    let item_idx = offset + i;
+                    if item_idx < total_items {
+                        let item = &self.state.items[item_idx];
+                        let highlighted_text = Self::create_highlighted_text(item, self.options.ansi);
+                        
+                        // Add cursor indicator for selected item
+                        let mut spans = vec![];
+                        if item_idx == selected {
+                            spans.push(Span::raw("> "));  // Cursor indicator
+                        } else {
+                            spans.push(Span::raw("  "));  // Empty space for alignment
+                        }
+                        
+                        // Add multi-select marker if needed
+                        if self.options.multi && self.state.selected_items.contains(&item_idx) {
+                            spans.push(Span::raw("* "));  // Mark for multi-selected items
+                        }
+                        
+                        spans.extend(highlighted_text.spans);
+                        let display_line = Line::from(spans);
+                        
+                        let style = if item_idx == selected {
+                            Style::default().bg(Color::DarkGray)
+                        } else {
+                            Style::default()
+                        };
+                        items.push(ListItem::new(display_line).style(style));
+                    } else {
+                        items.push(ListItem::new(""));
+                    }
+                }
+                items
+            };
             
-            let items_block = Block::default()
-                .borders(Borders::ALL)
-                .title("Items");
-            let items_list = List::new(items).block(items_block);
-            f.render_widget(items_list, chunks[1]);
+            // Render items without borders
+            let items_widget = List::new(visible_items);
+            f.render_widget(items_widget, items_area);
             
-            // Status line with loading indicator (like legacy skim)
-            let status_widget = Paragraph::new(status_line.clone());
-            f.render_widget(status_widget, chunks[2]);
+            // Status line with progress percentage
+            let total_count = self.coordination.item_count.load(Ordering::SeqCst);
+            let status = if self.state.matching && self.state.search_total > 0 {
+                let progress = (self.state.search_processed as f64 / self.state.search_total as f64 * 100.0) as u16;
+                format!("  {}/{} ({}%)", self.state.items.len(), total_count, progress)
+            } else {
+                format!("  {}/{}", self.state.items.len(), total_count)
+            };
+            
+            let status_widget = Paragraph::new(status);
+            f.render_widget(status_widget, chunks[1]);
+            
+            // Query line with prompt
+            let prompt = &self.options.prompt;
+            let query_content = format!("{}{}", prompt, self.state.query);
+            let query_widget = Paragraph::new(query_content.as_str());
+            f.render_widget(query_widget, chunks[2]);
+            
+            // Set cursor position
+            f.set_cursor_position((
+                chunks[2].x + prompt.len() as u16 + self.state.query.len() as u16,
+                chunks[2].y
+            ));
         })?;
         
         Ok(())
     }
     
-    fn format_status_line(&self) -> String {
-        let mut status = String::new();
+}
+
+impl<'a> Drop for UICoordinator<'a> {
+    fn drop(&mut self) {
+        self.coordination.shutdown.store(true, Ordering::SeqCst);
         
-        // 1. Spinner during reading or matching (like legacy)
-        let reading_for_a_while = self.should_show_loading_indicator(self.state.read_start_time);
-        let matching_for_a_while = self.should_show_loading_indicator(self.state.match_start_time);
-        
-        if (self.state.is_reading && reading_for_a_while) || 
-           (self.state.matcher_running && matching_for_a_while) {
-            // Animated spinner
-            let time_since_match = Instant::now().duration_since(self.state.match_start_time);
-            let mills = time_since_match.as_millis() as u64;
-            let index = (mills / SPINNER_DURATION_MS) % (SPINNERS.len() as u64);
-            let spinner = SPINNERS[index as usize];
-            status.push(spinner);
-        } else {
-            status.push(' ');
+        if let Some(cancel_flag) = self.current_matcher.take() {
+            cancel_flag.store(true, Ordering::SeqCst);
         }
         
-        // 2. Matched/total counts (like legacy: " 123/456")
-        status.push_str(&format!(" {}/{}", self.state.matched_items.len(), self.state.total_items));
+        let _ = self.high_priority_tx.try_send(UIEvent::Shutdown);
+        let _ = self.normal_tx.try_send(UIEvent::Shutdown);
         
-        // 3. Processing percentage during long matching operations (like legacy)
-        if self.state.matcher_running && matching_for_a_while && self.state.total_items > 0 {
-            let percentage = (self.state.processed_items * 100) / self.state.total_items;
-            status.push_str(&format!(" ({}%)", percentage));
-        }
-        
-        // 4. Current item index/horizontal scroll offset (like legacy: " 1/0")
-        if !self.state.matched_items.is_empty() {
-            // In legacy: current_item_idx/hscroll_offset  
-            // For now, we don't have horizontal scrolling, so use 0
-            status.push_str(&format!(" {}/0", self.state.selected_index + 1));
-        }
-        
-        // 5. Matcher running indicator (dot after cursor like legacy)
-        if self.state.matcher_running {
-            status.push('.');
-        }
-        
-        status
-    }
-    
-    /// Check if enough time has passed to show loading indicators
-    fn should_show_loading_indicator(&self, start_time: Instant) -> bool {
-        start_time.elapsed().as_millis() > LOADING_INDICATOR_DELAY_MS as u128
-    }
-    
-    /// Get appropriate debounce delay based on current state
-    fn get_query_debounce_delay(&self) -> Duration {
-        if self.state.is_reading {
-            Duration::from_millis(QUERY_DEBOUNCE_READING_MS)
-        } else {
-            Duration::from_millis(QUERY_DEBOUNCE_IDLE_MS)
-        }
-    }
-    
-    /// Get appropriate matcher restart interval based on current state
-    fn get_matcher_restart_interval(&self) -> Duration {
-        if self.state.is_reading {
-            Duration::from_millis(MATCHER_RESTART_READING_MS)
-        } else {
-            Duration::from_millis(MATCHER_RESTART_IDLE_MS)
-        }
-    }
-    
-    fn restart_matcher(&mut self) {
-        
-        // Kill existing matcher if any
-        if let Some(ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
-        
-        // Always try to move new items from reader to item pool
-        if let Some(ref reader_control) = self.reader_control {
-            let new_items = reader_control.take();
-            if !new_items.is_empty() {
-                let _ = self.item_pool.append(new_items);
-            }
-        }
-        
-        // DON'T clear matched items here - let them persist until matcher callback runs
-        // This prevents the UI from showing empty results during matcher processing
-        
-        // Reset the item pool's taken counter so matcher can access all items
-        self.item_pool.reset();
-        
-        // Choose the right matcher
-        let matcher = if self.use_regex {
-            &self.regex_matcher
-        } else {
-            &self.matcher
-        };
-        
-        // Run the matcher with current query
-        let matched_items = self.matched_items.clone();
-        let matcher_generation = self.matcher_generation.clone();
-        
-        // Increment generation to invalidate old callbacks
-        let current_generation = {
-            let mut generation = matcher_generation.lock();
-            *generation += 1;
-            *generation
-        };
-        
-        let control = matcher.run(
-            &self.state.display_query,
-            self.item_pool.clone(),
-            move |items| {
-                // Only update if this is still the current generation
-                let current_gen = *matcher_generation.lock();
-                if current_gen == current_generation {
-                    let mut matched = matched_items.lock();
-                    matched.clear();
-                    let new_items = items.lock();
-                    matched.extend(new_items.iter().cloned());
-                }
-            }
-        );
-        
-        self.matcher_control = Some(control);
-        
-        // Update matcher timing for loading indicator
-        self.state.match_start_time = Instant::now();
-        self.state.matcher_running = true;
-    }
-    
-    fn fast_kill_matcher(&self, ctrl: MatcherControl) {
-        // Signal the matcher to stop but don't wait for it
-        // We can't access the private stopped field, so we'll use a different approach
-        
-        // First, check if it's already stopped
-        if ctrl.stopped() {
-            return;
-        }
-        
-        // For fast exit, just forget about the controller entirely
-        // This prevents the Drop trait from calling the blocking kill() method
-        // The matcher thread will eventually detect that no one is listening and exit
-        std::mem::forget(ctrl);
-    }
-    
-    fn cleanup(&mut self) -> io::Result<()> {
-        // Fast cleanup - don't wait for components to finish gracefully
-        // Just kill them and restore terminal immediately
-        
-        // Kill components without waiting (already done in quit handler)
-        if let Some(ctrl) = self.matcher_control.take() {
-            ctrl.kill();
-        }
-        if let Some(reader_control) = self.reader_control.take() {
-            reader_control.kill();
-        }
-        
-        // Restore terminal as quickly as possible
-        let _ = disable_raw_mode(); // Ignore errors for speed
+        let _ = disable_raw_mode();
         let _ = execute!(
-            self.terminal.backend_mut(),
+            io::stdout(),
             LeaveAlternateScreen,
             DisableMouseCapture
-        ); // Ignore errors for speed
-        let _ = self.terminal.show_cursor(); // Ignore errors for speed
+        );
         
+        if let Some(handle) = self.input_thread.take() {
+            let _ = handle.join();
+        }
+        if let Some(handle) = self.reader_thread.take() {
+            let _ = handle.join();
+        }
+        if let Some(handle) = self.search_thread.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl<'a> UICoordinator<'a> {
+    /// Main event processing loop with priority-based handling
+    fn run_event_loop(&mut self) -> io::Result<()> {
+        let mut last_frame = Instant::now();
+        loop {
+            // Process high priority events (user input)
+            let processed_input = self.process_high_priority_events()?;
+            
+            if self.state.should_exit {
+                break;
+            }
+            
+            if processed_input {
+                self.state.needs_redraw = true;
+            }
+            
+            // Handle debounced search triggering
+            self.process_pending_search();
+            
+            // Process background events (lower priority)
+            self.process_background_events()?;
+            
+            // Rate-limited drawing for smooth 60fps
+            self.update_display(&mut last_frame)?;
+        }
+        Ok(())
+    }
+    
+    /// Process user input events (highest priority)
+    fn process_high_priority_events(&mut self) -> io::Result<bool> {
+        let mut processed_input = false;
+        while let Ok(event) = self.high_priority_rx.try_recv() {
+            processed_input = true;
+            if self.handle_event(event)? {
+                self.state.should_exit = true;
+            }
+        }
+        Ok(processed_input)
+    }
+    
+    /// Trigger search if debounce time has elapsed
+    fn process_pending_search(&mut self) {
+        if self.state.pending_search && 
+           self.state.last_query_change.elapsed() >= Duration::from_millis(50) { // Debounce search
+            self.state.pending_search = false;
+            self.trigger_search();
+        }
+    }
+    
+    /// Process background events (items available, search results, etc.)
+    fn process_background_events(&mut self) -> io::Result<()> {
+        match self.normal_rx.recv_timeout(Duration::from_millis(10)) {
+            Ok(event) => {
+                self.handle_event(event)?;
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                self.state.should_exit = true; // All senders dropped
+            }
+        }
+        Ok(())
+    }
+    
+    /// Update display at controlled frame rate
+    fn update_display(&mut self, last_frame: &mut Instant) -> io::Result<()> {
+        let now = Instant::now();
+        if self.state.needs_redraw && now.duration_since(*last_frame) >= Duration::from_millis(16) { // ~60fps
+            self.draw()?;
+            self.state.needs_redraw = false;
+            *last_frame = now;
+        }
         Ok(())
     }
 }

@@ -435,22 +435,7 @@ impl Skim {
 
         // Run the ratatui event loop
         match ui_coordinator.run() {
-            Ok((selected_items, query)) => {
-                // Convert matched items to SkimItems
-                let selected_items: Vec<Arc<dyn SkimItem>> = selected_items
-                    .into_iter()
-                    .map(|matched_item| matched_item.item)
-                    .collect();
-                
-                Some(SkimOutput {
-                    is_abort: selected_items.is_empty(),
-                    query,
-                    cmd: String::new(),
-                    selected_items,
-                    final_key: Key::Null,
-                    final_event: crate::event::Event::EvActAccept(None),
-                })
-            }
+            Ok(output) => Some(output),
             Err(e) => {
                 eprintln!("Ratatui UI coordinator failed: {}", e);
                 None
