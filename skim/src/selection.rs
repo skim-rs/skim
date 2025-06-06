@@ -54,6 +54,7 @@ pub struct Selection {
     reverse: bool,
     no_hscroll: bool,
     theme: Arc<ColorTheme>,
+    cycle: bool,
 
     // Pre-selection will be performed the first time an item was seen by Selection.
     // To avoid remember all items, we'll track the latest run_num and index.
@@ -78,6 +79,7 @@ impl Selection {
             reverse: false,
             no_hscroll: false,
             theme: Arc::new(*DEFAULT_THEME),
+            cycle: false,
             latest_select_run_num: 0,
             pre_selected_watermark: 0,
             selector: None,
@@ -111,6 +113,10 @@ impl Selection {
 
         if options.no_sort {
             self.items.nosort(true);
+        }
+
+        if options.cycle {
+            self.cycle = true;
         }
 
         if let Some(skip_to_pattern) = options.skip_to_pattern.clone() {
@@ -218,14 +224,29 @@ impl Selection {
 
         let height = self.height.load(Ordering::Relaxed) as i32;
 
+        let can_cycle_down = self.cycle && line_cursor <= 0;
+        let can_cycle_up = self.cycle && line_cursor >= min(height, item_len) - 1;
+
         line_cursor += diff;
         if line_cursor >= height {
-            item_cursor += line_cursor - height + 1;
-            item_cursor = max(0, min(item_cursor, item_len - height));
-            line_cursor = min(height - 1, item_len - item_cursor - 1);
+            if can_cycle_up && item_cursor >= item_len - height {
+                line_cursor = 0;
+                item_cursor = 0;
+            } else {
+                item_cursor += line_cursor - height + 1;
+                item_cursor = max(0, min(item_cursor, item_len - height));
+                line_cursor = min(height - 1, item_len - item_cursor - 1);
+            }
         } else if line_cursor < 0 {
-            item_cursor += line_cursor;
-            item_cursor = max(item_cursor, 0);
+            if can_cycle_down && item_cursor <= 0 {
+                item_cursor = max(item_len - height, 0);
+                line_cursor = min(height - 1, item_len - item_cursor - 1);
+            } else {
+                item_cursor += line_cursor;
+                item_cursor = max(item_cursor, 0);
+                line_cursor = 0;
+            }
+        } else if can_cycle_up && line_cursor >= item_len {
             line_cursor = 0;
         } else {
             line_cursor = min(line_cursor, item_len - 1 - item_cursor);

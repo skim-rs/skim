@@ -97,7 +97,7 @@ _sk() {
 '-x[Reserved for later use]' \
 '--extended[Reserved for later use]' \
 '--literal[Reserved for later use]' \
-'--cycle[Reserved for later use]' \
+'--cycle[Enable cyclic scroll]' \
 '--filepath-word[Reserved for later use]' \
 '--border[Reserved for later use]' \
 '--no-bold[Reserved for later use]' \
