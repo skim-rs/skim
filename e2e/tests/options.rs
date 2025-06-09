@@ -608,7 +608,6 @@ fn opt_reserved_options() -> Result<()> {
         "--extended",
         "--literal",
         "--no-mouse",
-        "--cycle",
         "--hscroll-off=10",
         "--filepath-word",
         "--jump-labels=CHARS",
@@ -851,5 +850,15 @@ fn opt_accept_arg() -> Result<()> {
     let output = tmux.output(&outfile)?;
     assert_eq!(output[0], "a");
     assert_eq!(output[1], "hello");
+    Ok(())
+}
+
+#[test]
+fn opt_cycle() -> Result<()> {
+    let (tmux, _) = setup("1\\n2\\n3\\n4\\n5", &["--cycle"])?;
+    tmux.send_keys(&[Ctrl(&Key('j'))])?;
+    tmux.until(|l| l[l.len() - 1].starts_with(">"))?;
+    tmux.send_keys(&[Ctrl(&Key('k'))])?;
+    tmux.until(|l| l[0].starts_with(">"))?;
     Ok(())
 }

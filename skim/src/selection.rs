@@ -8,7 +8,9 @@ use skim_tuikit::prelude::{Event as TermEvent, *};
 
 use crate::event::{Event, EventHandler, UpdateScreen};
 use crate::global::current_run_num;
+
 use crate::item::MatchedItem;
+
 use crate::orderedvec::OrderedVec;
 use crate::prelude::DefaultSkimSelector;
 use crate::theme::{ColorTheme, DEFAULT_THEME};
@@ -634,5 +636,511 @@ impl Widget<Event> for Selection {
             _ => {}
         }
         ret
+    }
+}
+
+#[cfg(test)]
+mod cycle_tests {
+    use crate::{helper::item::DefaultSkimItem, item::RankBuilder};
+
+    use super::*;
+    const CYCLE: bool = true;
+
+    /// Creates a vec of `MatchedItem`s, `$num` long
+    macro_rules! build_sorted_items {
+        ($num:expr) => {{
+            let rank_builder = RankBuilder::default();
+            (0..$num)
+                .map(|i| {
+                    let item = DefaultSkimItem::new(
+                        format!("item{}", i),
+                        true,
+                        &[],
+                        &[],
+                        &Regex::new("").expect("Invalid Regex"),
+                        i,
+                    );
+
+                    MatchedItem {
+                        item: Arc::new(item),
+                        rank: rank_builder.build_rank(0, 0, 0, $num, i),
+                        matched_range: None,
+                        item_idx: i as u32,
+                    }
+                })
+                .collect()
+        }};
+    }
+
+    ///Tests the cycle on an empty input
+    #[test]
+    fn cycle_empty() {
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(14),
+            ..Selection::new()
+        };
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests the cycle when there are fewer items than the height of the window
+    #[test]
+    fn cycle_small_one() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests the cycle when the number of items is greater than the height
+    #[test]
+    fn cycle_large_one() {
+        let number_of_items = 24;
+        let height = number_of_items / 2 - 1;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, number_of_items - height);
+        assert_eq!(sel.line_cursor, height - 1);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests reveresed cycling on empty list
+    #[test]
+    fn cycle_empty_rev_one() {
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(14),
+            reverse: true,
+            ..Selection::new()
+        };
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests reveresed cycling when there are fewer items than the height of the window
+    #[test]
+    fn cycle_small_rev_one() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            reverse: true,
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    ///tests reveresed cycling when the number of items is greater than the height
+    #[test]
+    fn cycle_large_rev_one() {
+        let number_of_items = 24;
+        let height = number_of_items / 2 - 1;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, number_of_items - height);
+        assert_eq!(sel.line_cursor, height - 1);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests cycle on empty list when moving more than one item
+    #[test]
+    fn cycle_empty_page() {
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(14),
+            ..Selection::new()
+        };
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests cycle when there are fewer items than the height of the window, and moving more than 1 unit
+    #[test]
+    fn cycle_small_page() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+    /// Tests cycle when the number of items is greater than the height, and moving more than 1 unit
+    #[test]
+    fn cycle_large_page() {
+        let number_of_items = 24;
+        let height = number_of_items / 2 - 1;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, number_of_items - height);
+        assert_eq!(sel.line_cursor, height - 1);
+
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    // Tests reverese cycle on empty list when moving more than 1 unit
+    #[test]
+    fn cycle_empty_rev_page() {
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(14),
+            ..Selection::new()
+        };
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests reverse cycle when there are fewer items than the height of the window, and moving more than 1 unit
+    #[test]
+    fn cycle_small_rev_page() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests reverse cycle when the number of items is greater than the height, and moving more than 1 unit
+    #[test]
+    fn cycle_large_rev_page() {
+        let number_of_items = 24;
+        let height = number_of_items / 2 - 1;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, number_of_items - height);
+        assert_eq!(sel.line_cursor, height - 1);
+
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+    }
+
+    /// Tests that cycle will stop on items at the ends of the list before cycling, when there are fewer items than the height of the window
+    #[test]
+    fn cycle_small_page_stop() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+
+        sel.act_move_line_cursor(-1);
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+    }
+
+    /// Tests that cycle will stop on items at the ends of the list before cycling, when the number of items is greater than the height
+    #[test]
+    fn cycle_large_page_stop() {
+        let number_of_items = 24;
+        let height = number_of_items / 2 - 1;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+
+        sel.act_move_line_cursor(-1);
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, number_of_items - height);
+        assert_eq!(sel.line_cursor, height - 1);
+    }
+
+    /// Tests that reverse cycle will stop on items at the ends of the list before cycling, when there are fewer items than the height of the window
+    #[test]
+    fn cycle_small_rev_page_stop() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+
+        sel.act_move_line_cursor(1);
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+    }
+
+    /// Tests that reverse cycle will stop on items at the ends of the list before cycling, when the number of items is greater than the height
+    #[test]
+    fn cycle_large_rev_page_stop() {
+        let number_of_items = 24;
+        let height = number_of_items / 2 - 1;
+        let amount_to_move = 14;
+        let mut sel = Selection {
+            cycle: CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        sel.act_move_line_cursor(amount_to_move);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+
+        sel.act_move_line_cursor(1);
+        sel.act_move_line_cursor(-amount_to_move);
+        assert_eq!(sel.item_cursor, number_of_items - height);
+        assert_eq!(sel.line_cursor, height - 1);
+    }
+
+    /// Tests that cycling does not happen when cycle is false
+    #[test]
+    fn cycle_not_when_false() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let mut sel = Selection {
+            cycle: !CYCLE,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(number_of_items as i32);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
+    }
+
+    /// Tests that reverse cycling does not happen when cycle is false
+    #[test]
+    fn cycle_not_when_false_rev() {
+        let number_of_items = 6;
+        let height = number_of_items * 2;
+        let mut sel = Selection {
+            cycle: !CYCLE,
+            reverse: true,
+            height: AtomicUsize::new(height),
+            ..Selection::new()
+        };
+
+        sel.append_sorted_items(build_sorted_items!(number_of_items));
+
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, 0);
+
+        sel.act_move_line_cursor(-(number_of_items as i32));
+
+        sel.act_move_line_cursor(-1);
+        assert_eq!(sel.item_cursor, 0);
+        assert_eq!(sel.line_cursor, number_of_items - 1);
     }
 }
