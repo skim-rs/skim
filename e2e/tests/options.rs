@@ -862,3 +862,12 @@ fn opt_cycle() -> Result<()> {
     tmux.until(|l| l[0].starts_with(">"))?;
     Ok(())
 }
+#[test]
+fn opt_cycle_reverse() -> Result<()> {
+    let (tmux, _) = setup("1\\n2\\n3\\n4\\n5", &["--cycle", "--reverse"])?;
+    tmux.send_keys(&[Ctrl(&Key('k'))])?;
+    tmux.until(|l| l[l.len() - 1].starts_with(">"))?;
+    tmux.send_keys(&[Ctrl(&Key('j'))])?;
+    tmux.until(|l| l[0].starts_with(">"))?;
+    Ok(())
+}
