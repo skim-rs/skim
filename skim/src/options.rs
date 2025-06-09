@@ -870,8 +870,8 @@ pub struct SkimOptions {
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
     pub literal: bool,
 
-    /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    /// Enable cyclic scroll
+    #[arg(long, default_value = "false", help_heading = "Enable cyclic scroll")]
     pub cycle: bool,
 
     /// Reserved for later use
