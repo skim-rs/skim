@@ -1,5 +1,5 @@
 //! Handle the color theme
-use std::sync::LazyLock;
+use std::{env, sync::LazyLock};
 
 use crate::options::SkimOptions;
 use skim_tuikit::prelude::*;
@@ -52,7 +52,10 @@ impl ColorTheme {
         if let Some(color) = options.color.clone() {
             ColorTheme::from_options(&color)
         } else {
-            ColorTheme::dark256()
+            match env::var_os("NO_COLOR") {
+                Some(no_color) if !no_color.is_empty() => ColorTheme::empty(),
+                _ => ColorTheme::dark256(),
+            }
         }
     }
 
