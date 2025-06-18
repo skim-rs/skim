@@ -19,6 +19,10 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 ///
 /// # ENVIRONMENT VARIABLES
 ///
+/// ## NO_COLOR
+///
+/// If set and not empty, sk will not use any colors in the output.
+///
 /// ## SKIM_DEFAULT_COMMAND
 ///
 /// Default command to use when input is tty. On *nix systems, sk runs the command with sh -c, so make  sure  that
@@ -468,6 +472,7 @@ pub struct SkimOptions {
     /// - **light**: 256-color light theme
     /// - **16**: Basic 16-color theme
     /// - **bw**: Minimal black & white theme (no colors, just styles)
+    /// - **empty**: Minimal black & white theme (no colors, no styles). Default when NO_COLOR is set
     /// - **molokai**: Molokai-inspired 256-color theme
     ///
     /// ### Color Customization
