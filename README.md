@@ -319,6 +319,8 @@ limited to the default appearance - Skim supports comprehensive customization of
 --color=[BASE_SCHEME][,COLOR:ANSI]
 ```
 
+Skim also respects the `NO_COLOR` environment variable.
+
 ### Available Base Color Schemes
 
 Skim comes with several built-in color schemes that you can use as a starting point:
