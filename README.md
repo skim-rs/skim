@@ -319,6 +319,8 @@ limited to the default appearance - Skim supports comprehensive customization of
 --color=[BASE_SCHEME][,COLOR:ANSI]
 ```
 
+Skim also respects the `NO_COLOR` environment variable.
+
 ### Available Base Color Schemes
 
 Skim comes with several built-in color schemes that you can use as a starting point:
@@ -328,6 +330,7 @@ sk --color=dark      # Default dark theme (256 colors)
 sk --color=light     # Light theme (256 colors)
 sk --color=16        # Simple 16-color theme
 sk --color=bw        # Minimal black & white theme (no colors, just styles)
+sk --color=empty     # Minimal black & white theme (no colors, no styles)
 sk --color=molokai   # Molokai-inspired theme (256 colors)
 ```
 
