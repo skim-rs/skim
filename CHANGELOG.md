@@ -1,6 +1,21 @@
 # Changelog
 
 ## [Unreleased]
+## [0.19.0](https://github.com/skim-rs/skim/compare/v0.18.0...v0.19.0)
+
+### ⛰️ Features
+
+
+- Add min query length option ([#806](https://github.com/skim-rs/skim/pull/806)) - ([71b82d0](https://github.com/skim-rs/skim/commit/71b82d0f58f96788e509b5af5b92e292dadf4dd3)) (by @LoricAndre)
+
+### ⚙️ Miscellaneous Tasks
+
+
+- Update Cargo.toml dependencies - ([0000000](https://github.com/skim-rs/skim/commit/0000000))
+
+### Contributors
+
+* @LoricAndre
 ## [0.18.0](https://github.com/skim-rs/skim/compare/v0.17.3...v0.18.0)
 
 ### 🚀 Features
