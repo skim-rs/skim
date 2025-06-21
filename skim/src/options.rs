@@ -472,7 +472,7 @@ pub struct SkimOptions {
     /// - **light**: 256-color light theme
     /// - **16**: Basic 16-color theme
     /// - **bw**: Minimal black & white theme (no colors, just styles)
-    /// - **empty**: Minimal black & white theme (no colors, no styles). Default when NO_COLOR is set
+    /// - **none**: Minimal black & white theme (no colors, no styles). Default when NO_COLOR is set
     /// - **molokai**: Molokai-inspired 256-color theme
     ///
     /// ### Color Customization
