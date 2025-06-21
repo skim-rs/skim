@@ -15,6 +15,7 @@ _sk() {
 
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
+'--min-query-length=[Minimum query length to start showing results]:MIN_QUERY_LENGTH:_default' \
 '*-t+[Comma-separated list of sort criteria to apply when the scores are tied]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
 '*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
 '*-n+[Fields to be matched]:NTH:_default' \
