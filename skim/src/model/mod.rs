@@ -294,9 +294,14 @@ impl Model {
     fn act_heart_beat(&mut self, env: &mut ModelEnv) {
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.min_query_length {
-            if env.query.chars().count() < min_length {
+            // In normal mode, check query length
+            // In interactive mode, check cmd_query length
+            let query_to_check = if env.in_query_mode { &env.query } else { &env.cmd_query };
+            
+            if query_to_check.chars().count() < min_length {
                 // Clear selection if query is too short
                 self.selection.clear();
+                // Exit early to prevent showing any results
                 return;
             }
         }
@@ -410,6 +415,18 @@ impl Model {
 
         // restart reader
         self.reader_control.replace(self.reader.run(&env.cmd));
+        
+        // Check if query meets minimum length requirement before restarting matcher
+        // In interactive mode, the command query is used as the search query
+        if let Some(min_length) = self.min_query_length {
+            if env.cmd_query.chars().count() < min_length {
+                // Clear selection if query is too short
+                self.selection.clear();
+                // Don't restart matcher if query is too short
+                return;
+            }
+        }
+        
         self.restart_matcher();
         self.reader_timer = Instant::now();
     }
@@ -420,21 +437,21 @@ impl Model {
             ctrl.kill();
         }
 
+        // Always clear selection when query changes
+        env.clear_selection = ClearStrategy::Clear;
+        self.item_pool.reset();
+        self.num_options = 0;
+
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.min_query_length {
             if env.query.chars().count() < min_length {
                 // Clear selection if query is too short
                 self.selection.clear();
                 // Don't restart matcher if query is too short
-                self.item_pool.reset();
-                self.num_options = 0;
                 return;
             }
         }
 
-        env.clear_selection = ClearStrategy::Clear;
-        self.item_pool.reset();
-        self.num_options = 0;
         self.restart_matcher();
     }
 
@@ -746,6 +763,23 @@ impl Model {
     fn restart_matcher(&mut self) {
         self.matcher_timer = Instant::now();
         let query = self.query.get_fz_query();
+        let cmd_query = self.query.get_cmd_query();
+        let in_query_mode = self.query.in_query_mode();
+
+        // Check if query meets minimum length requirement before doing anything
+        if let Some(min_length) = self.min_query_length {
+            // Check the appropriate query based on mode
+            let query_to_check = if in_query_mode { &query } else { &cmd_query };
+            
+            if query_to_check.chars().count() < min_length {
+                // Don't run matcher if query is too short
+                // Also kill any existing matcher
+                if let Some(ctrl) = self.matcher_control.take() {
+                    ctrl.kill();
+                }
+                return;
+            }
+        }
 
         // kill existing matcher if exits
         if let Some(ctrl) = self.matcher_control.take() {
@@ -762,14 +796,6 @@ impl Model {
 
         // send heart beat (so that heartbeat/refresh is triggered)
         let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
-
-        // Check if query meets minimum length requirement
-        if let Some(min_length) = self.min_query_length {
-            if query.chars().count() < min_length {
-                // Don't run matcher if query is too short
-                return;
-            }
-        }
 
         let matcher = if self.use_regex {
             &self.regex_matcher
