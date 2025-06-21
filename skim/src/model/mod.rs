@@ -93,7 +93,7 @@ pub struct Model {
     info: InfoDisplay,
     no_clear_if_empty: bool,
     theme: Arc<ColorTheme>,
-    
+
     // Minimum query length to show results
     min_query_length: Option<usize>,
 
@@ -419,7 +419,7 @@ impl Model {
         if let Some(ctrl) = self.matcher_control.take() {
             ctrl.kill();
         }
-        
+
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.min_query_length {
             if env.query.chars().count() < min_length {
@@ -431,7 +431,7 @@ impl Model {
                 return;
             }
         }
-        
+
         env.clear_selection = ClearStrategy::Clear;
         self.item_pool.reset();
         self.num_options = 0;

@@ -87,7 +87,7 @@ pub struct SkimOptions {
     /// *Often used in combination with `--no-sort`*
     #[arg(long, help_heading = "Search")]
     pub tac: bool,
-    
+
     /// Minimum query length to start showing results
     ///
     /// Only show results when the query is at least this many characters long
