@@ -12,7 +12,7 @@ fn setup_tmux_mock(tmux: &TmuxController) -> Result<String> {
     let dir = &tmux.tempdir;
     let path = dir.path().join("tmux");
     let mock_bin = Path::new(&path);
-    let mut writer = File::create_new(mock_bin)?;
+    let mut writer = File::create(mock_bin)?;
     let outfile = dir.path().join("tmux-mock-cmd");
     writer.write_fmt(format_args!(
         "#!/bin/sh
