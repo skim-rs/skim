@@ -76,39 +76,43 @@ fn opt_min_query_length() -> Result<()> {
 fn opt_min_query_length_interactive() -> Result<()> {
     // This test validates the fix for min-query-length in interactive mode
     // focusing on the regular (non-command) mode which is working correctly
-    
+
     // Part 1: Test with query length BELOW min-query-length
     let tmux = TmuxController::new()?;
     let _ = tmux.start_sk(
-        Some("echo -e 'aaa\nbbb\nccc'"), 
-        &["-i", "--min-query-length", "2", "--cmd-query", "a"]
+        Some("echo -e 'aaa\nbbb\nccc'"),
+        &["-i", "--min-query-length", "2", "--cmd-query", "a"],
     )?;
-    
+
     // Wait for the UI to initialize
     tmux.until(|l| l[0].starts_with("c> a"))?;
     std::thread::sleep(std::time::Duration::from_millis(300));
-    
+
     // Verify that with insufficient query length, no results are shown
     let lines = tmux.capture()?;
-    assert!(!lines.iter().any(|s| s.contains("aaa")), 
-        "No items should be displayed when query length is below min-query-length");
-    
+    assert!(
+        !lines.iter().any(|s| s.contains("aaa")),
+        "No items should be displayed when query length is below min-query-length"
+    );
+
     // Part 2: Test with query length MEETING min-query-length
     let tmux = TmuxController::new()?;
     let _ = tmux.start_sk(
-        Some("echo -e 'aaa\nbbb\nccc'"), 
-        &["-i", "--min-query-length", "2", "--cmd-query", "aa"]
+        Some("echo -e 'aaa\nbbb\nccc'"),
+        &["-i", "--min-query-length", "2", "--cmd-query", "aa"],
     )?;
-    
+
     // Wait for the UI to initialize
     tmux.until(|l| l[0].starts_with("c> aa"))?;
     std::thread::sleep(std::time::Duration::from_millis(300));
-    
+
     // Verify that with sufficient query length, results are shown
     let lines = tmux.capture()?;
-    assert!(lines.iter().any(|s| s.contains("aaa")), 
-        "Items should be displayed when query length meets min-query-length");
-    
+    assert!(
+        lines.iter().any(|s| s.contains("aaa")),
+        "Items should be displayed when query length meets min-query-length"
+    );
+
     Ok(())
 }
 
@@ -116,23 +120,25 @@ fn opt_min_query_length_interactive() -> Result<()> {
 fn opt_min_query_length_interactive_cmd_mode() -> Result<()> {
     // This test specifically validates the command mode part of the fix
     // Command mode is when query starts with ":"
-    
+
     // Test command mode with query length MEETING min-query-length
     let tmux = TmuxController::new()?;
     let _ = tmux.start_sk(
-        Some("echo -e 'aaa\nbbb\nccc'"), 
-        &["-i", "--min-query-length", "2", "--cmd-query", ":bb"]
+        Some("echo -e 'aaa\nbbb\nccc'"),
+        &["-i", "--min-query-length", "2", "--cmd-query", ":bb"],
     )?;
-    
+
     // Wait for the UI to initialize in command mode
     tmux.until(|l| l[0].starts_with("c> :bb"))?;
     std::thread::sleep(std::time::Duration::from_millis(300));
-    
+
     // Verify that with sufficient command query length, results are shown
     let lines = tmux.capture()?;
-    assert!(lines.iter().any(|s| s.contains("bbb")), 
-        "Items should be displayed when command mode query meets min-query-length");
-    
+    assert!(
+        lines.iter().any(|s| s.contains("bbb")),
+        "Items should be displayed when command mode query meets min-query-length"
+    );
+
     Ok(())
 }
 
