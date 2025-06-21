@@ -94,6 +94,9 @@ pub struct Model {
     no_clear_if_empty: bool,
     theme: Arc<ColorTheme>,
 
+    // Minimum query length to show results
+    min_query_length: Option<usize>,
+
     // timer thread for scheduled events
     timer: Timer,
     hb_timer_guard: Option<TimerGuard>,
@@ -177,6 +180,7 @@ impl Model {
             info: InfoDisplay::Default,
             no_clear_if_empty: false,
             theme,
+            min_query_length: options.min_query_length,
             timer: Timer::new(),
             hb_timer_guard: None,
 
@@ -288,6 +292,15 @@ impl Model {
     }
 
     fn act_heart_beat(&mut self, env: &mut ModelEnv) {
+        // Check if query meets minimum length requirement
+        if let Some(min_length) = self.min_query_length {
+            if env.query.chars().count() < min_length {
+                // Clear selection if query is too short
+                self.selection.clear();
+                return;
+            }
+        }
+
         // save the processed items
         let matcher_stopped = self
             .matcher_control
@@ -406,6 +419,19 @@ impl Model {
         if let Some(ctrl) = self.matcher_control.take() {
             ctrl.kill();
         }
+
+        // Check if query meets minimum length requirement
+        if let Some(min_length) = self.min_query_length {
+            if env.query.chars().count() < min_length {
+                // Clear selection if query is too short
+                self.selection.clear();
+                // Don't restart matcher if query is too short
+                self.item_pool.reset();
+                self.num_options = 0;
+                return;
+            }
+        }
+
         env.clear_selection = ClearStrategy::Clear;
         self.item_pool.reset();
         self.num_options = 0;
@@ -736,6 +762,14 @@ impl Model {
 
         // send heart beat (so that heartbeat/refresh is triggered)
         let _ = self.tx.send((Key::Null, Event::EvHeartBeat));
+
+        // Check if query meets minimum length requirement
+        if let Some(min_length) = self.min_query_length {
+            if query.chars().count() < min_length {
+                // Don't run matcher if query is too short
+                return;
+            }
+        }
 
         let matcher = if self.use_regex {
             &self.regex_matcher

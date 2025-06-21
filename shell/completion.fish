@@ -1,3 +1,4 @@
+complete -c sk -l min-query-length -d 'Minimum query length to start showing results' -r
 complete -c sk -s t -l tiebreak -d 'Comma-separated list of sort criteria to apply when the scores are tied' -r -f -a "score\t''
 -score\t''
 begin\t''
