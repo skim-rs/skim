@@ -1,6 +1,16 @@
 # Changelog
 
 ## [Unreleased]
+## [0.20.1](https://github.com/skim-rs/skim/compare/v0.20.0...v0.20.1)
+
+### 🐛 Bug Fixes
+
+
+- Min-query-length in interactive mode ([#814](https://github.com/skim-rs/skim/pull/814)) - ([727be81](https://github.com/skim-rs/skim/commit/727be819291588150f362b7c55b671af0b818688)) (by @LoricAndre)
+
+### Contributors
+
+* @LoricAndre
 ## [0.20.0](https://github.com/skim-rs/skim/compare/v0.19.0...v0.20.0)
 
 ### ⛰️ Features
