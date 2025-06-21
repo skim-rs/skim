@@ -319,7 +319,7 @@ limited to the default appearance - Skim supports comprehensive customization of
 --color=[BASE_SCHEME][,COLOR:ANSI]
 ```
 
-Skim also respects the `NO_COLOR` environment variable.
+Skim also respects the `NO_COLOR` environment variable. Set it to anything and `sk` (and many other terminal apps) will disable all colored output. See [no-color.org](https://no-color.org/) for more details.
 
 ### Available Base Color Schemes
 
