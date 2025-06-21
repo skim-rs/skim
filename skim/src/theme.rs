@@ -1,5 +1,5 @@
 //! Handle the color theme
-use std::sync::LazyLock;
+use std::{env, sync::LazyLock};
 
 use crate::options::SkimOptions;
 use skim_tuikit::prelude::*;
@@ -52,11 +52,14 @@ impl ColorTheme {
         if let Some(color) = options.color.clone() {
             ColorTheme::from_options(&color)
         } else {
-            ColorTheme::dark256()
+            match env::var_os("NO_COLOR") {
+                Some(no_color) if !no_color.is_empty() => ColorTheme::none(),
+                _ => ColorTheme::dark256(),
+            }
         }
     }
 
-    fn empty() -> Self {
+    fn none() -> Self {
         ColorTheme {
             fg:                   Color::Default,
             bg:                   Color::Default,
@@ -88,7 +91,7 @@ impl ColorTheme {
             matched_effect:       Effect::UNDERLINE,
             current_effect:       Effect::REVERSE,
             current_match_effect: Effect::UNDERLINE | Effect::REVERSE,
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -107,7 +110,7 @@ impl ColorTheme {
             selected:         Color::MAGENTA,
             header:           Color::CYAN,
             border:           Color::LIGHT_BLACK,
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -126,7 +129,7 @@ impl ColorTheme {
             selected:         Color::AnsiValue(168),
             header:           Color::AnsiValue(109),
             border:           Color::AnsiValue(59),
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -145,7 +148,7 @@ impl ColorTheme {
             selected:         Color::AnsiValue(168),
             header:           Color::AnsiValue(109),
             border:           Color::AnsiValue(59),
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -164,7 +167,7 @@ impl ColorTheme {
             selected:         Color::AnsiValue(168),
             header:           Color::AnsiValue(31),
             border:           Color::AnsiValue(145),
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -179,7 +182,7 @@ impl ColorTheme {
                     "light"    => ColorTheme::light256(),
                     "16"       => ColorTheme::default16(),
                     "bw"       => ColorTheme::bw(),
-                    "empty"    => ColorTheme::empty(),
+                    "none" | "empty"    => ColorTheme::none(),
                     "dark" | "default" | _ => ColorTheme::dark256(),
                 };
                 continue;

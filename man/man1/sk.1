@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 0.19.0" 
+.TH sk 1  "sk 0.20.0" 
 .SH NAME
 sk \- sk \- fuzzy finder in Rust
 .SH SYNOPSIS
@@ -11,6 +11,10 @@ sk \- fuzzy finder in Rust
 sk is a general purpose command\-line fuzzy finder.
 .PP
 ENVIRONMENT VARIABLES
+.PP
+NO_COLOR
+.PP
+If set and not empty, sk will not use any colors in the output.
 .PP
 SKIM_DEFAULT_COMMAND
 .PP
@@ -426,6 +430,7 @@ Base Color Schemes
 \- light: 256\-color light theme
 \- 16: Basic 16\-color theme
 \- bw: Minimal black & white theme (no colors, just styles)
+\- none: Minimal black & white theme (no colors, no styles). Default when NO_COLOR is set
 \- molokai: Molokai\-inspired 256\-color theme
 
 Color Customization
@@ -748,4 +753,4 @@ Note: While PowerShell completions are supported, Windows is not supported for n
 .br
 [\fIpossible values: \fRbash, elvish, fish, powershell, zsh]
 .SH VERSION
-v0.19.0
+v0.20.0

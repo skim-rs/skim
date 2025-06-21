@@ -1,6 +1,16 @@
 # Changelog
 
 ## [Unreleased]
+## [0.20.0](https://github.com/skim-rs/skim/compare/v0.19.0...v0.20.0)
+
+### ⛰️ Features
+
+
+- **ui:** Respect NO_COLOR environment variable ([#804](https://github.com/skim-rs/skim/pull/804)) - ([0f4b13e](https://github.com/skim-rs/skim/commit/0f4b13e8c44a17142aa264bc4f8beb38e6f7eb3e)) (by @saidelmark)
+
+### Contributors
+
+* @saidelmark
 ## [0.19.0](https://github.com/skim-rs/skim/compare/v0.18.0...v0.19.0)
 
 ### ⛰️ Features
