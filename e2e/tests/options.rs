@@ -50,6 +50,29 @@ fn opt_with_nth_preview() -> Result<()> {
 }
 
 #[test]
+fn opt_min_query_length() -> Result<()> {
+    let (tmux, _) = setup("line1\nline2\nline3", &["--min-query-length", "3"])?;
+
+    // With empty query, no results should be shown
+    let lines = tmux.capture()?;
+    assert!(!lines.iter().any(|s| s.contains("line")));
+
+    // Type 'li' (2 chars), still no results should be shown
+    tmux.send_keys(&[Key('l'), Key('i')])?;
+    tmux.until(|l| l[0].starts_with("> li"))?;
+    let lines = tmux.capture()?;
+    assert!(!lines.iter().any(|s| s.contains("line")));
+
+    // Type 'n' (3rd char), now results should appear
+    tmux.send_keys(&[Key('n')])?;
+    tmux.until(|l| l[0].starts_with("> lin"))?;
+    let lines = tmux.capture()?;
+    assert!(lines.iter().any(|s| s.contains("line")));
+
+    Ok(())
+}
+
+#[test]
 fn opt_with_nth_1() -> Result<()> {
     let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "1"])?;
 
