@@ -2,17 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [Unreleased]
+## [0.19.0](https://github.com/skim-rs/skim/compare/v0.18.0...v0.19.0)
 
 ### 🚀 Features
 
 - Add min query length option (#806)
-
-### ⚙️ Miscellaneous Tasks
-
-- *(release)* Release
-- Generate completions & manpage
-- Trigger ci
 
 ## [0.18.0](https://github.com/skim-rs/skim/compare/v0.17.3...v0.18.0)
 
