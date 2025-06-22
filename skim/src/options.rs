@@ -16,6 +16,22 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 ///
 /// sk is a general purpose command-line fuzzy finder.
 ///
+/// # MODES
+///
+/// ## Normal mode
+///
+/// In normal mode, sk reads the input from stdin and displays the results interactively, and the
+/// query is then used to fuzzily filter among the input lines.
+///
+/// ## Interactive mode
+///
+/// Interactive mode is a special mode that allows you to run a command interactively and display
+/// the results. It is enabled by the `--interactive` (or `-i`) option or by binding the
+/// `toggle-interactive` action (default: <ctrl-q>).
+/// The command is specified with the `--cmd` option.
+///
+/// Example: `sk --cmd "rg {} --color=always" --interactive` will use `rg` to search for the query
+/// in the current directory and display the results interactively.
 ///
 /// # ENVIRONMENT VARIABLES
 ///
@@ -449,10 +465,6 @@ pub struct SkimOptions {
     /// Command to invoke dynamically in interactive mode
     ///
     /// Will be invoked using `sh -c`
-    ///
-    /// See the `interactive` option for more details.
-    ///
-    /// Note: if `--cmd` is not specified, interactive mode will not do any filtering.
     #[arg(short, long, help_heading = "Interface")]
     pub cmd: Option<String>,
 
@@ -460,11 +472,6 @@ pub struct SkimOptions {
     ///
     /// In interactive mode, sk will run the command specified by `--cmd` option and display the
     /// results.
-    ///
-    /// Example: `sk --cmd "rg {} --color=always" --interactive`
-    ///
-    /// Note: If interactive mode is not enabled at startup, it can be toggled using the
-    /// `toggle-interactive` action (default: <ctrl-q>).
     #[arg(short, long, help_heading = "Interface")]
     pub interactive: bool,
 
