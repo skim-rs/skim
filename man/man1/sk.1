@@ -409,10 +409,14 @@ Disable mouse
 \fB\-c\fR, \fB\-\-cmd\fR=\fICMD\fR
 Command to invoke dynamically in interactive mode
 
-Will be invoked using sh \-c
+Will be invoked using sh \-c See the interactive option for more details.
 .TP
 \fB\-i\fR, \fB\-\-interactive\fR
-Run in interactive mode
+Start skim in interactive mode
+
+In interactive mode, sk will run the command specified by \-\-cmd option and display the results.
+
+Exemple: sk \-\-cmd "rg {} \-\-color=always" \-\-interactive
 .TP
 \fB\-I\fR=\fIREPLSTR\fR [default: {}]
 Replace replstr with the selected item in commands

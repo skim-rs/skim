@@ -449,10 +449,16 @@ pub struct SkimOptions {
     /// Command to invoke dynamically in interactive mode
     ///
     /// Will be invoked using `sh -c`
+    /// See the `interactive` option for more details.
     #[arg(short, long, help_heading = "Interface")]
     pub cmd: Option<String>,
 
-    /// Run in interactive mode
+    /// Start skim in interactive mode
+    ///
+    /// In interactive mode, sk will run the command specified by `--cmd` option and display the
+    /// results.
+    ///
+    /// Exemple: `sk --cmd "rg {} --color=always" --interactive`
     #[arg(short, long, help_heading = "Interface")]
     pub interactive: bool,
 
