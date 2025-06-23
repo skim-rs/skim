@@ -14,6 +14,8 @@ use which::which;
 
 pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= cargo run --package skim --release --";
 
+const TIMEOUT: usize = 30; // seconds
+
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
         "{} {} > {}.part; mv {}.part {}",
@@ -29,7 +31,7 @@ fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..2000 {
+    for _ in 1..(TIMEOUT * 20) {
         if let Ok(t) = pred() {
             return Ok(t);
         }
@@ -49,6 +51,8 @@ pub enum Keys<'a> {
     Left,
     Right,
     BSpace,
+    Up,
+    Down,
 }
 
 impl Display for Keys<'_> {
@@ -64,6 +68,8 @@ impl Display for Keys<'_> {
             BTab => write!(f, "BTab"),
             Left => write!(f, "Left"),
             Right => write!(f, "Right"),
+            Up => write!(f, "Up"),
+            Down => write!(f, "Down"),
             BSpace => write!(f, "BSpace"),
         }
     }
@@ -130,10 +136,15 @@ impl TmuxController {
     }
 
     // Returns the lines in reverted order
-    pub fn capture(&self) -> Result<Vec<String>> {
+    fn _capture(&self, capture_ansi: bool) -> Result<Vec<String>> {
         let tempfile = wait(|| {
             let tempfile = self.tempfile()?;
-            Self::run(&["capture-pane", "-b", &self.window, "-t", &format!("{}.0", self.window)])?;
+            let win_str = format!("{}.0", self.window);
+            let mut capture_cmd = vec!["capture-pane", "-b", &self.window, "-t", &win_str];
+            if capture_ansi {
+                capture_cmd.push("-e")
+            }
+            Self::run(&capture_cmd)?;
             Self::run(&["save-buffer", "-b", &self.window, &tempfile])?;
             Ok(tempfile)
         })?;
@@ -149,6 +160,13 @@ impl TmuxController {
             .into_iter()
             .rev()
             .collect())
+    }
+
+    pub fn capture(&self) -> Result<Vec<String>> {
+        self._capture(false)
+    }
+    pub fn capture_ansi(&self) -> Result<Vec<String>> {
+        self._capture(true)
     }
 
     pub fn until<F>(&self, pred: F) -> Result<()>
