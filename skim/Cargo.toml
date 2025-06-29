@@ -1,6 +1,6 @@
 [package]
 name = "skim"
-version = "0.20.1"
+version = "0.20.2"
 authors = ["Zhang Jinzhou <lotabout@gmail.com>", "Loric Andre"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
@@ -39,7 +39,7 @@ regex = { workspace = true }
 shell-quote = { workspace = true }
 shlex = { workspace = true, optional = true }
 skim-common = { path = "../skim-common/", version = "0.2.0" }
-skim-tuikit = { path = "../skim-tuikit/", version = "0.6.4" }
+skim-tuikit = { path = "../skim-tuikit/", version = "0.6.5" }
 time = { workspace = true }
 timer = { workspace = true }
 unicode-width = { workspace = true }
