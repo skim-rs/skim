@@ -72,8 +72,8 @@ _sk() {
 '--multi[Enable multiple selection]' \
 '(-m --multi)--no-multi[Disable multiple selection]' \
 '--no-mouse[Disable mouse]' \
-'-i[Run in interactive mode]' \
-'--interactive[Run in interactive mode]' \
+'-i[Start skim in interactive mode]' \
+'--interactive[Start skim in interactive mode]' \
 '--no-hscroll[Disable horizontal scroll]' \
 '--keep-right[Keep the right end of the line visible on overflow]' \
 '--no-clear-if-empty[Do not clear previous line if the command returns an empty result]' \
