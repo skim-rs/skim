@@ -75,7 +75,7 @@ Show results in reverse order
 
 Often used in combination with \-\-no\-sort
 .TP
-\fB\-\-min\-query\-length\fR=\fIMIN_QUERY_LENGTH\fR
+\fB\-\-min\-query\-length\fR \fI<MIN_QUERY_LENGTH>\fR
 Minimum query length to start showing results
 
 Only show results when the query is at least this many characters long
@@ -87,7 +87,7 @@ Often used in combination with \-\-tac
 
 Example: history | sk \-\-tac \-\-no\-sort
 .TP
-\fB\-t\fR, \fB\-\-tiebreak\fR=\fITIEBREAK\fR [default: score,begin,end]
+\fB\-t\fR, \fB\-\-tiebreak\fR \fI<TIEBREAK>\fR [default: score,begin,end]
 Comma\-separated list of sort criteria to apply when the scores are tied.
 
 \- score: Score of the fuzzy match algorithm
@@ -110,7 +110,7 @@ Notes:
 .br
 [\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length, index, \-index]
 .TP
-\fB\-n\fR, \fB\-\-nth\fR=\fINTH\fR [default: ]
+\fB\-n\fR, \fB\-\-nth\fR \fI<NTH>\fR [default: ]
 Fields to be matched
 
 A field index expression can be a non\-zero integer or a range expression ([BEGIN]..[END]). \-\-nth and \-\-with\-nth take a comma\-separated list of field index expressions.
@@ -133,12 +133,12 @@ Examples:
 
 \- ..:     All the fields
 .TP
-\fB\-\-with\-nth\fR=\fIWITH_NTH\fR [default: ]
+\fB\-\-with\-nth\fR \fI<WITH_NTH>\fR [default: ]
 Fields to be transformed
 
 See nth for the details
 .TP
-\fB\-d\fR, \fB\-\-delimiter\fR=\fIDELIMITER\fR [default: [\\t\\n ]+]
+\fB\-d\fR, \fB\-\-delimiter\fR \fI<DELIMITER>\fR [default: [\\t\\n ]+]
 Delimiter between fields
 
 In regex format, default to AWK\-style
@@ -149,7 +149,7 @@ Run in exact mode
 \fB\-\-regex\fR
 Start in regex mode instead of fuzzy\-match
 .TP
-\fB\-\-algo\fR=\fIALGORITHM\fR [default: skim_v2]
+\fB\-\-algo\fR \fI<ALGORITHM>\fR [default: skim_v2]
 Fuzzy matching algorithm
 
 \- skim_v2: Latest skim algorithm, should be better in almost any case
@@ -162,7 +162,7 @@ Fuzzy matching algorithm
 .br
 [\fIpossible values: \fRskim_v1, skim_v2, clangd]
 .TP
-\fB\-\-case\fR=\fICASE\fR [default: smart]
+\fB\-\-case\fR \fI<CASE>\fR [default: smart]
 Case sensitivity
 
 Determines whether or not to ignore case while matching
@@ -172,7 +172,7 @@ Determines whether or not to ignore case while matching
 [\fIpossible values: \fRrespect, ignore, smart]
 .SH INTERFACE
 .TP
-\fB\-b\fR, \fB\-\-bind\fR=\fIBIND\fR
+\fB\-b\fR, \fB\-\-bind\fR \fI<BIND>\fR
 Comma separated list of bindings
 
 You can customize key bindings of sk with \-\-bind option which takes a  comma\-separated  list  of key binding expressions. Each key binding expression follows the following format: <key>:<action>
@@ -406,7 +406,7 @@ Disable multiple selection
 \fB\-\-no\-mouse\fR
 Disable mouse
 .TP
-\fB\-c\fR, \fB\-\-cmd\fR=\fICMD\fR
+\fB\-c\fR, \fB\-\-cmd\fR \fI<CMD>\fR
 Command to invoke dynamically in interactive mode
 
 Will be invoked using sh \-c
@@ -414,10 +414,10 @@ Will be invoked using sh \-c
 \fB\-i\fR, \fB\-\-interactive\fR
 Run in interactive mode
 .TP
-\fB\-I\fR=\fIREPLSTR\fR [default: {}]
+\fB\-I\fR \fI<REPLSTR>\fR [default: {}]
 Replace replstr with the selected item in commands
 .TP
-\fB\-\-color\fR=\fICOLOR\fR
+\fB\-\-color\fR \fI<COLOR>\fR
 Set color theme
 
 Use \-\-color to customize the color scheme of skim. The format is:
@@ -474,7 +474,7 @@ Keep the right end of the line visible on overflow
 
 Effective only when the query string is empty
 .TP
-\fB\-\-skip\-to\-pattern\fR=\fISKIP_TO_PATTERN\fR
+\fB\-\-skip\-to\-pattern\fR \fI<SKIP_TO_PATTERN>\fR
 Show the matched pattern at the line start
 
 Line  will  start  with  the  start of the matched pattern. Effective only when the query string is empty. Was designed to skip showing starts of paths of rg/grep results.
@@ -500,7 +500,7 @@ Do not clear finder interface on exit. If skim was started in full screen mode, 
 Show error message if command fails
 .SH LAYOUT
 .TP
-\fB\-\-layout\fR=\fILAYOUT\fR [default: default]
+\fB\-\-layout\fR \fI<LAYOUT>\fR [default: default]
 Set layout
 
 *default: Display from the bottom of the screen
@@ -516,7 +516,7 @@ Set layout
 \fB\-\-reverse\fR
 Shorthand for reverse layout
 .TP
-\fB\-\-height\fR=\fIHEIGHT\fR [default: 100%]
+\fB\-\-height\fR \fI<HEIGHT>\fR [default: 100%]
 Height of skim\*(Aqs window
 
 Can either be a row count or a percentage
@@ -524,14 +524,14 @@ Can either be a row count or a percentage
 \fB\-\-no\-height\fR
 Disable height feature
 .TP
-\fB\-\-min\-height\fR=\fIMIN_HEIGHT\fR [default: 10]
+\fB\-\-min\-height\fR \fI<MIN_HEIGHT>\fR [default: 10]
 Minimum height of skim\*(Aqs window
 
 Useful when the height is set as a percentage
 
 Ignored when \-\-height is not specified
 .TP
-\fB\-\-margin\fR=\fIMARGIN\fR [default: 0]
+\fB\-\-margin\fR \fI<MARGIN>\fR [default: 0]
 Screen margin
 
 For each side, can be either a row count or a percentage of the terminal size
@@ -548,20 +548,20 @@ Format can be one of:
 
 Example: 1,10%
 .TP
-\fB\-p\fR, \fB\-\-prompt\fR=\fIPROMPT\fR [default: > ]
+\fB\-p\fR, \fB\-\-prompt\fR \fI<PROMPT>\fR [default: > ]
 Set prompt
 .TP
-\fB\-\-cmd\-prompt\fR=\fICMD_PROMPT\fR [default: c> ]
+\fB\-\-cmd\-prompt\fR \fI<CMD_PROMPT>\fR [default: c> ]
 Set prompt in command mode
 .SH DISPLAY
 .TP
 \fB\-\-ansi\fR
 Parse ANSI color codes in input strings
 .TP
-\fB\-\-tabstop\fR=\fITABSTOP\fR [default: 8]
+\fB\-\-tabstop\fR \fI<TABSTOP>\fR [default: 8]
 Number of spaces that make up a tab
 .TP
-\fB\-\-info\fR=\fIINFO\fR [default: default]
+\fB\-\-info\fR \fI<INFO>\fR [default: default]
 Set matching result count display position
 
 \- hidden: do not display info
@@ -578,17 +578,17 @@ Alias for \-\-info=hidden
 \fB\-\-inline\-info\fR
 Alias for \-\-info=inline
 .TP
-\fB\-\-header\fR=\fIHEADER\fR
+\fB\-\-header\fR \fI<HEADER>\fR
 Set header, displayed next to the info
 
 The  given  string  will  be printed as the sticky header. The lines are displayed in the given order from top to bottom regardless of \-\-layout option, and  are  not  affected  by \-\-with\-nth. ANSI color codes are processed even when \-\-ansi is not set.
 .TP
-\fB\-\-header\-lines\fR=\fIHEADER_LINES\fR [default: 0]
+\fB\-\-header\-lines\fR \fI<HEADER_LINES>\fR [default: 0]
 Number of lines of the input treated as header
 
 The  first N lines of the input are treated as the sticky header. When \-\-with\-nth is set, the lines are transformed just like the other lines that follow.
 .TP
-\fB\-\-tmux\fR=\fITMUX\fR
+\fB\-\-tmux\fR [\fI<TMUX>...\fR]
 Run in a tmux popup
 
 Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
@@ -604,28 +604,28 @@ Depending on the direction, the order and behavior of the sizes varies:
 Note: env vars are only passed to the tmux command if they are either PATH or prefixed with RUST or SKIM
 .SH HISTORY
 .TP
-\fB\-\-history\fR=\fIHISTORY_FILE\fR
+\fB\-\-history\fR \fI<HISTORY_FILE>\fR
 History file
 
 Load search history from the specified file and update the file on completion.
 
 When enabled, CTRL\-N and CTRL\-P are automatically remapped to next\-history and previous\-history.
 .TP
-\fB\-\-history\-size\fR=\fIHISTORY_SIZE\fR [default: 1000]
+\fB\-\-history\-size\fR \fI<HISTORY_SIZE>\fR [default: 1000]
 Maximum number of query history entries to keep
 .TP
-\fB\-\-cmd\-history\fR=\fICMD_HISTORY_FILE\fR
+\fB\-\-cmd\-history\fR \fI<CMD_HISTORY_FILE>\fR
 Command history file
 
 Load command query history from the specified file and update the file on completion.
 
 When enabled, CTRL\-N and CTRL\-P are automatically remapped to next\-history and previous\-history.
 .TP
-\fB\-\-cmd\-history\-size\fR=\fICMD_HISTORY_SIZE\fR [default: 1000]
+\fB\-\-cmd\-history\-size\fR \fI<CMD_HISTORY_SIZE>\fR [default: 1000]
 Maximum number of query history entries to keep
 .SH PREVIEW
 .TP
-\fB\-\-preview\fR=\fIPREVIEW\fR
+\fB\-\-preview\fR \fI<PREVIEW>\fR
 Preview command
 
 Execute the given command for the current line and display the result on the preview window. {} in the command is the placeholder that is replaced to the single\-quoted string of the current line. To transform the replace‐ ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
@@ -650,7 +650,7 @@ Also, {q}  is replaced to the current query string. {cq} is replaced to the curr
 
 Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐ pressions evaluates to a non\-empty string.
 .TP
-\fB\-\-preview\-window\fR=\fIPREVIEW_WINDOW\fR [default: right:50%]
+\fB\-\-preview\-window\fR \fI<PREVIEW_WINDOW>\fR [default: right:50%]
 Preview window layout
 
 Format: [up|down|left|right][:SIZE[%]][:hidden][:+SCROLL[\-OFFSET]]
@@ -680,13 +680,13 @@ Examples:
 
 .SH SCRIPTING
 .TP
-\fB\-q\fR, \fB\-\-query\fR=\fIQUERY\fR
+\fB\-q\fR, \fB\-\-query\fR \fI<QUERY>\fR
 Initial query
 .TP
-\fB\-\-cmd\-query\fR=\fICMD_QUERY\fR
+\fB\-\-cmd\-query\fR \fI<CMD_QUERY>\fR
 Initial query in interactive mode
 .TP
-\fB\-\-expect\fR=\fIEXPECT\fR
+\fB\-\-expect\fR \fI<EXPECT>\fR
 [Deprecated: Use \-\-bind=<key>:accept(<key>) instead] Comma separated list of keys used to complete skim
 
 Comma\-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second line  if \-\-print\-query is also used). No line will be printed if sk is completed with the default enter key. If \-\-expect option is specified multiple times, sk will expect the union of the keys. \-\-no\-expect will clear  the list.
@@ -721,26 +721,26 @@ Synchronous search for multi\-staged filtering. If specified, skim will launch n
 
 Example: sk \-\-multi | sk \-\-sync
 .TP
-\fB\-\-pre\-select\-n\fR=\fIPRE_SELECT_N\fR [default: 0]
+\fB\-\-pre\-select\-n\fR \fI<PRE_SELECT_N>\fR [default: 0]
 Pre\-select the first n items in multi\-selection mode
 .TP
-\fB\-\-pre\-select\-pat\fR=\fIPRE_SELECT_PAT\fR [default: ]
+\fB\-\-pre\-select\-pat\fR \fI<PRE_SELECT_PAT>\fR [default: ]
 Pre\-select the matched items in multi\-selection mode
 
 Check the doc for the detailed syntax: https://docs.rs/regex/1.4.1/regex/
 .TP
-\fB\-\-pre\-select\-items\fR=\fIPRE_SELECT_ITEMS\fR [default: ]
+\fB\-\-pre\-select\-items\fR \fI<PRE_SELECT_ITEMS>\fR [default: ]
 Pre\-select the items separated by newline character
 
 Example: item1\\nitem2
 .TP
-\fB\-\-pre\-select\-file\fR=\fIPRE_SELECT_FILE\fR
+\fB\-\-pre\-select\-file\fR \fI<PRE_SELECT_FILE>\fR
 Pre\-select the items read from this file
 .TP
-\fB\-f\fR, \fB\-\-filter\fR=\fIFILTER\fR
+\fB\-f\fR, \fB\-\-filter\fR \fI<FILTER>\fR
 Query for filter mode
 .TP
-\fB\-\-shell\fR=\fISHELL\fR
+\fB\-\-shell\fR \fI<SHELL>\fR
 Generate shell completion script
 
 Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use)
