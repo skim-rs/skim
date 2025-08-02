@@ -1,6 +1,16 @@
 # Changelog
 
 ## [Unreleased]
+## [0.20.4](https://github.com/skim-rs/skim/compare/v0.20.3...v0.20.4)
+
+### 🐛 Bug Fixes
+
+
+- **cli:** Allow value for border arg - ([87ac954](https://github.com/skim-rs/skim/commit/87ac95488e2c2a6ceb11cd24b909da536df5dab5)) (by @LoricAndre)
+
+### Contributors
+
+* @LoricAndre
 ## [0.20.3](https://github.com/skim-rs/skim/compare/v0.20.2...v0.20.3)
 
 ### ⚙️ Miscellaneous Tasks
