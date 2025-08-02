@@ -1,6 +1,16 @@
 # Changelog
 
 ## [Unreleased]
+## [0.20.4](https://github.com/skim-rs/skim/compare/v0.20.3...v0.20.4)
+
+### 🐛 Bug Fixes
+
+
+- **options:** Allow border to be used without args - ([8dbfd3f](https://github.com/skim-rs/skim/commit/8dbfd3ffbea73ef42a23a85d7121a0b5d1e3cb85)) (by @LoricAndre)
+
+### Contributors
+
+* @LoricAndre
 ## [0.20.3](https://github.com/skim-rs/skim/compare/v0.20.2...v0.20.3)
 
 ### ⚙️ Miscellaneous Tasks
