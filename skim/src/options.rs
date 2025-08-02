@@ -904,7 +904,7 @@ pub struct SkimOptions {
 
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
-    pub border: bool,
+    pub border: Option<String>,
 
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]
