@@ -221,6 +221,10 @@ _sk() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --border)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;

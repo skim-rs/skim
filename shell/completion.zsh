@@ -63,6 +63,7 @@ _sk() {
 '--tmux=[Run in a tmux popup]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
+'--border=[Reserved for later use]:BORDER:_default' \
 '--tac[Show results in reverse order]' \
 '--no-sort[Do not sort the results]' \
 '-e[Run in exact mode]' \
@@ -100,7 +101,6 @@ _sk() {
 '--literal[Reserved for later use]' \
 '--cycle[Reserved for later use]' \
 '--filepath-word[Reserved for later use]' \
-'--border[Reserved for later use]' \
 '--no-bold[Reserved for later use]' \
 '--pointer[Reserved for later use]' \
 '--marker[Reserved for later use]' \
