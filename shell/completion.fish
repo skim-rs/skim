@@ -59,6 +59,7 @@ zsh\t''"
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r
 complete -c sk -l jump-labels -d 'Reserved for later use' -r
+complete -c sk -l border -d 'Reserved for later use' -r
 complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
 complete -c sk -s e -l exact -d 'Run in exact mode'
@@ -90,7 +91,6 @@ complete -c sk -s x -l extended -d 'Reserved for later use'
 complete -c sk -l literal -d 'Reserved for later use'
 complete -c sk -l cycle -d 'Reserved for later use'
 complete -c sk -l filepath-word -d 'Reserved for later use'
-complete -c sk -l border -d 'Reserved for later use'
 complete -c sk -l no-bold -d 'Reserved for later use'
 complete -c sk -l pointer -d 'Reserved for later use'
 complete -c sk -l marker -d 'Reserved for later use'
