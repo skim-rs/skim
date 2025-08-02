@@ -903,7 +903,7 @@ pub struct SkimOptions {
     pub jump_labels: String,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[arg(long, hide = true, help_heading = "Reserved for later use", default_missing_value="Hi", num_args=0..=1)]
     pub border: Option<String>,
 
     /// Reserved for later use
