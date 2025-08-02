@@ -4,11 +4,11 @@
 
 The unit tests are simply run with `cargo test`.
 
-However, if you want to run the E2E tests, you need :
-- `tmux` installed
-- `zsh` installed
+The E2E tests can be ran in a docker container:
+1. Build the image: `docker build . -t skim-e2e -f e2e.dockerfile`
+2. Run the tests: `docker run --rm -it skim-e2e`
 
-Then, run :
+However, if you want to run the E2E tests on your host, you need  `tmux` & `zsh` installed, and then run:
 ```bash
 cargo build --release
 tmux new-session -d -s skim_e2e
