@@ -6,7 +6,7 @@ on:
 name: Run release-plz
 
 jobs:
-  release-pr:
+  release-plz:
     permissions:
       contents: write
       pull-requests: write
@@ -20,7 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Install correct toolchain
         uses: actions-rs/toolchain@v1
         with:
