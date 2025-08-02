@@ -1,6 +1,5 @@
 # Changelog
 
-## [Unreleased]
 ## [0.20.3](https://github.com/skim-rs/skim/compare/v0.20.2...v0.20.3)
 
 ### ⚙️ Miscellaneous Tasks
