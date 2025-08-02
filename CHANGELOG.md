@@ -1,5 +1,20 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.20.4](https://github.com/skim-rs/skim/compare/v0.20.3...v0.20.4) - 2025-08-02
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- *(options)* allow border to be used without args
+- *(cli)* allow value for border arg
+# Changelog
+
 ## [0.20.3](https://github.com/skim-rs/skim/compare/v0.20.2...v0.20.3)
 
 ### ⚙️ Miscellaneous Tasks
