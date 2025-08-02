@@ -32,6 +32,15 @@ changelog_update = true
 git_tag_enable = true
 git_release_enable = true
 git_tag_name = "v{{ version }}"
+git_release_body = """
+{{ changelog }}
+{% if remote.contributors %}
+### Contributors
+{% for contributor in remote.contributors %}
+* @{{ contributor.username }}
+{% endfor %}
+{% endif %}
+"""
 
 [[package]]
 name = "skim-common"
@@ -57,59 +66,6 @@ release = false
 publish = false
 
 [changelog]
-header = """# Changelog
-
-## [Unreleased]
-"""
-
-body = """
-
-{%- macro username(commit) -%}
-    {% if commit.remote.username %} (by @{{ commit.remote.username }}){% endif -%}
-{% endmacro -%}
-{% macro print_commit(commit) -%}
-    - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
-      {% if commit.breaking %}[**breaking**] {% endif %}\
-      {{ commit.message | upper_first }} - \
-      ([{{ commit.id | truncate(length=7, end="") }}]({{ remote.link }}/commit/{{ commit.id }}))\
-			{{ self::username(commit=commit) }}\
-{% endmacro -%}
-
-{% if version %}\
-    {% if previous.version %}\
-        ## [{{ version }}]({{ release_link }})
-    {% else %}\
-        ## [{{ version }}]
-    {% endif %}\
-{% endif %}\
-
-{% for group, commits in commits
-| filter(attribute="merge_commit", value=false)
-| unique(attribute="message")
-| group_by(attribute="group") %}
-    ### {{ group | striptags | trim | upper_first }}
-
-    {% for commit in commits
-    | filter(attribute="scope")
-    | sort(attribute="scope") %}
-        {{ self::print_commit(commit=commit) }}
-    {%- endfor -%}
-    {% raw %}\n{% endraw %}\
-    {%- for commit in commits %}
-        {%- if not commit.scope -%}
-            {{ self::print_commit(commit=commit) }}
-        {% endif -%}
-    {% endfor -%}
-{% endfor %}\n
-
-{%- if remote.contributors %}
-### Contributors
-{% for contributor in remote.contributors %}
-    * @{{ contributor.username }}
-{%- endfor %}
-{% endif -%}
-"""
-
 commit_parsers = [
   { message = "^feat", group = "<!-- 0 -->⛰️ Features" },
   { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
