@@ -87,7 +87,7 @@ type KeyActions<'a> = (&'a str, Vec<(&'a str, Option<String>)>);
 
 /// parse key action string to `(key, action, argument)` tuple
 /// key_action is comma separated: 'ctrl-j:accept,ctrl-k:kill-line'
-pub fn parse_key_action(key_action: &str) -> Vec<KeyActions> {
+pub fn parse_key_action(key_action: &str) -> Vec<KeyActions<'_>> {
     // match `key:action` or `key:action:arg` or `key:action(arg)` etc.
     static RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(

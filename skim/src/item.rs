@@ -195,13 +195,13 @@ impl ItemPool {
         pool.len()
     }
 
-    pub fn take(&self) -> ItemPoolGuard<Arc<dyn SkimItem>> {
+    pub fn take(&self) -> ItemPoolGuard<'_, Arc<dyn SkimItem>> {
         let guard = self.pool.lock();
         let taken = self.taken.swap(guard.len(), Ordering::SeqCst);
         ItemPoolGuard { guard, start: taken }
     }
 
-    pub fn reserved(&self) -> ItemPoolGuard<Arc<dyn SkimItem>> {
+    pub fn reserved(&self) -> ItemPoolGuard<'_, Arc<dyn SkimItem>> {
         let guard = self.reserved_items.lock();
         ItemPoolGuard { guard, start: 0 }
     }

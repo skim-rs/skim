@@ -211,7 +211,7 @@ impl Screen {
     /// assert_eq!(Some((0, 0, &Cell{ ch: 'a', ..Cell::default()})), iter.next());
     /// assert_eq!(None, iter.next());
     /// ```
-    pub fn iter_cell(&self) -> CellIterator {
+    pub fn iter_cell(&self) -> CellIterator<'_> {
         CellIterator {
             width: self.width,
             index: 0,

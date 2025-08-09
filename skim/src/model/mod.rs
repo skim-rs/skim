@@ -418,14 +418,13 @@ impl Model {
 
         // Check if query meets minimum length requirement before restarting matcher
         // In interactive mode, the command query is used as the search query
-        if let Some(min_length) = self.min_query_length {
-            if env.cmd_query.chars().count() < min_length {
+        if let Some(min_length) = self.min_query_length
+            && env.cmd_query.chars().count() < min_length {
                 // Clear selection if query is too short
                 self.selection.clear();
                 // Don't restart matcher if query is too short
                 return;
             }
-        }
 
         self.restart_matcher();
         self.reader_timer = Instant::now();
@@ -443,14 +442,13 @@ impl Model {
         self.num_options = 0;
 
         // Check if query meets minimum length requirement
-        if let Some(min_length) = self.min_query_length {
-            if env.query.chars().count() < min_length {
+        if let Some(min_length) = self.min_query_length
+            && env.query.chars().count() < min_length {
                 // Clear selection if query is too short
                 self.selection.clear();
                 // Don't restart matcher if query is too short
                 return;
             }
-        }
 
         self.restart_matcher();
     }

@@ -42,7 +42,7 @@ impl<T> SpinLock<T> {
 }
 
 impl<T: ?Sized> SpinLock<T> {
-    pub fn lock(&self) -> SpinLockGuard<T> {
+    pub fn lock(&self) -> SpinLockGuard<'_, T> {
         while self
             .locked
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -130,13 +130,13 @@ mod tests {
 
     #[test]
     fn test_mutex_unsized() {
-        let mutex: &SpinLock<[i32]> = &SpinLock::new([1, 2, 3]);
-        {
-            let b = &mut *mutex.lock();
-            b[0] = 4;
-            b[2] = 5;
+            let mutex = SpinLock::new([1, 2, 3]);
+            {
+                let b = &mut *mutex.lock();
+                b[0] = 4;
+                b[2] = 5;
+            }
+            let comp: &[i32] = &[4, 2, 5];
+            assert_eq!(&*mutex.lock(), comp);
         }
-        let comp: &[i32] = &[4, 2, 5];
-        assert_eq!(&*mutex.lock(), comp);
-    }
 }

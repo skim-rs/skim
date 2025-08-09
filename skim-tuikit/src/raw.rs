@@ -75,7 +75,7 @@ impl<W: Write + AsFd + AsRawFd> Write for RawTerminal<W> {
 }
 
 impl<W: Write + AsFd + AsRawFd> AsFd for RawTerminal<W> {
-    fn as_fd(&self) -> BorrowedFd {
+  fn as_fd(&self) -> BorrowedFd<'_> {
         self.output.as_fd()
     }
 }

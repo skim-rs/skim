@@ -103,7 +103,7 @@ impl<T: Any> AsAny for T {
 /// ```
 pub trait SkimItem: AsAny + Send + Sync + 'static {
     /// The string to be used for matching (without color)
-    fn text(&self) -> Cow<str>;
+    fn text(&self) -> Cow<'_, str>;
 
     /// The content to be displayed on the item list, could contain ANSI properties
     fn display<'a>(&'a self, context: DisplayContext<'a>) -> AnsiString<'a> {
@@ -120,7 +120,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     /// Note that this function is intended to be used by the caller of skim and will not be used by
     /// skim. And since skim will return the item back in `SkimOutput`, if string is not what you
     /// want, you could still use `downcast` to retain the pointer to the original struct.
-    fn output(&self) -> Cow<str> {
+    fn output(&self) -> Cow<'_, str> {
         self.text()
     }
 
@@ -146,7 +146,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
 // Implement SkimItem for raw strings
 
 impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(self.as_ref())
     }
 }
