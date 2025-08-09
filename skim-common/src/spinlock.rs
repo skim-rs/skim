@@ -130,13 +130,13 @@ mod tests {
 
     #[test]
     fn test_mutex_unsized() {
-            let mutex = SpinLock::new([1, 2, 3]);
-            {
-                let b = &mut *mutex.lock();
-                b[0] = 4;
-                b[2] = 5;
-            }
-            let comp: &[i32] = &[4, 2, 5];
-            assert_eq!(&*mutex.lock(), comp);
+        let mutex = SpinLock::new([1, 2, 3]);
+        {
+            let b = &mut *mutex.lock();
+            b[0] = 4;
+            b[2] = 5;
         }
+        let comp: &[i32] = &[4, 2, 5];
+        assert_eq!(&*mutex.lock(), comp);
+    }
 }

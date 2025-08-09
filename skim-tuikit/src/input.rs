@@ -444,7 +444,9 @@ impl KeyBoard {
         let pos_semi = self.byte_buf.iter().position(|&b| b == b';');
         let pos_r = self.byte_buf.iter().position(|&b| b == b'R');
 
-        if let Some(pos_semi) = pos_semi && let Some(pos_r) = pos_r {
+        if let Some(pos_semi) = pos_semi
+            && let Some(pos_r) = pos_r
+        {
             if pos_r > pos_semi {
                 let remain = self.byte_buf.split_off(pos_r + 1);
                 let mut col_str = self.byte_buf.split_off(pos_semi + 1);

@@ -56,9 +56,10 @@ impl Output {
 
     fn write_cap_with_params(&mut self, cap: &str, params: &[Param]) {
         if let Some(cmd) = self.terminfo.strings.get(cap)
-            && let Ok(s) = expand(cmd, params, &mut Variables::new()) {
-                self.buffer.extend(&s);
-            }
+            && let Ok(s) = expand(cmd, params, &mut Variables::new())
+        {
+            self.buffer.extend(&s);
+        }
     }
 
     /// Write text (Terminal escape sequences will be removed/escaped.)
