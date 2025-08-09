@@ -128,12 +128,12 @@ impl Query {
 
         if let Some(file) = &options.history_file {
             self.fz_query_history_before =
-                read_file_lines(file).unwrap_or_else(|_| panic!("Failed to open history file {}", file));
+                read_file_lines(file).unwrap_or_else(|_| panic!("Failed to open history file {file}"));
         }
 
         if let Some(file) = &options.cmd_history_file {
             self.cmd_history_before =
-                read_file_lines(file).unwrap_or_else(|_| panic!("Failed to open command history file {}", file));
+                read_file_lines(file).unwrap_or_else(|_| panic!("Failed to open command history file {file}"));
         }
     }
 

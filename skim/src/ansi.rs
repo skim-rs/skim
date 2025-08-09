@@ -34,16 +34,16 @@ impl Perform for ANSIParser {
             // put back \0 \r \n \t
             0x00 | 0x0d | 0x0A | 0x09 => self.partial_str.push(byte as char),
             // ignore all others
-            _ => trace!("AnsiParser:execute ignored {:?}", byte),
+            _ => trace!("AnsiParser:execute ignored {byte:?}"),
         }
     }
 
     fn hook(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, _action: char) {
-        trace!("AnsiParser:hook ignored {:?}", params);
+        trace!("AnsiParser:hook ignored {params:?}");
     }
 
     fn put(&mut self, byte: u8) {
-        trace!("AnsiParser:put ignored {:?}", byte);
+        trace!("AnsiParser:put ignored {byte:?}");
     }
 
     fn unhook(&mut self) {
@@ -51,7 +51,7 @@ impl Perform for ANSIParser {
     }
 
     fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
-        trace!("AnsiParser:osc ignored {:?}", params);
+        trace!("AnsiParser:osc ignored {params:?}");
     }
 
     fn csi_dispatch(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, action: char) {
@@ -59,7 +59,7 @@ impl Perform for ANSIParser {
         // Only care about graphic modes, ignore all others
 
         if action != 'm' {
-            trace!("ignore: params: {:?}, action : {:?}", params, action);
+            trace!("ignore: params: {params:?}, action : {action:?}");
             return;
         }
 
@@ -86,7 +86,7 @@ impl Perform for ANSIParser {
                         let (r, g, b) = match (iter.next(), iter.next(), iter.next()) {
                             (Some(r), Some(g), Some(b)) => (r[0] as u8, g[0] as u8, b[0] as u8),
                             _ => {
-                                trace!("ignore CSI {:?} m", params);
+                                trace!("ignore CSI {params:?} m");
                                 continue;
                             }
                         };
@@ -98,7 +98,7 @@ impl Perform for ANSIParser {
                         let color = match iter.next() {
                             Some(color) => color[0] as u8,
                             None => {
-                                trace!("ignore CSI {:?} m", params);
+                                trace!("ignore CSI {params:?} m");
                                 continue;
                             }
                         };
@@ -106,7 +106,7 @@ impl Perform for ANSIParser {
                         attr.fg = Color::AnsiValue(color);
                     }
                     _ => {
-                        trace!("error on parsing CSI {:?} m", params);
+                        trace!("error on parsing CSI {params:?} m");
                     }
                 },
                 39 => attr.fg = Color::Default,
@@ -117,7 +117,7 @@ impl Perform for ANSIParser {
                         let (r, g, b) = match (iter.next(), iter.next(), iter.next()) {
                             (Some(r), Some(g), Some(b)) => (r[0] as u8, g[0] as u8, b[0] as u8),
                             _ => {
-                                trace!("ignore CSI {:?} m", params);
+                                trace!("ignore CSI {params:?} m");
                                 continue;
                             }
                         };
@@ -129,7 +129,7 @@ impl Perform for ANSIParser {
                         let color = match iter.next() {
                             Some(color) => color[0] as u8,
                             None => {
-                                trace!("ignore CSI {:?} m", params);
+                                trace!("ignore CSI {params:?} m");
                                 continue;
                             }
                         };
@@ -137,14 +137,14 @@ impl Perform for ANSIParser {
                         attr.bg = Color::AnsiValue(color);
                     }
                     _ => {
-                        trace!("ignore CSI {:?} m", params);
+                        trace!("ignore CSI {params:?} m");
                     }
                 },
                 49 => attr.bg = Color::Default,
                 num @ 90..=97 => attr.fg = Color::AnsiValue((num - 82) as u8),
                 num @ 100..=107 => attr.bg = Color::AnsiValue((num - 92) as u8),
                 _ => {
-                    trace!("ignore CSI {:?} m", params);
+                    trace!("ignore CSI {params:?} m");
                 }
             }
         }

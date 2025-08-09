@@ -72,7 +72,7 @@ impl Matcher {
         C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
     {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
-        debug!("engine: {}", matcher_engine);
+        debug!("engine: {matcher_engine}");
         let stopped = Arc::new(AtomicBool::new(false));
         let stopped_clone = stopped.clone();
         let processed = Arc::new(AtomicUsize::new(0));

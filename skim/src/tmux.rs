@@ -129,7 +129,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                         debug!("Read {n} bytes from stdin");
                         stdin_writer.write_all(&buf).unwrap();
                     }
-                    Err(e) => panic!("Failed to read from stdin: {}", e),
+                    Err(e) => panic!("Failed to read from stdin: {e}"),
                 }
             }
         }))
@@ -142,7 +142,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut prev_is_tmux_flag = false;
     // We keep argv[0] to use in the popup's command
     for arg in std::env::args() {
-        debug!("Got arg {}", arg);
+        debug!("Got arg {arg}");
         if prev_is_tmux_flag {
             prev_is_tmux_flag = false;
             if !arg.starts_with("-") {
@@ -169,7 +169,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Run downstream sk in tmux
     let raw_tmux_opts = &opts.tmux.clone().unwrap();
     let tmux_opts = TmuxOptions::from(raw_tmux_opts);
-    let mut tmux_cmd = Command::new(which("tmux").unwrap_or_else(|e| panic!("Failed to find tmux in path: {}", e)));
+    let mut tmux_cmd = Command::new(which("tmux").unwrap_or_else(|e| panic!("Failed to find tmux in path: {e}")));
 
     tmux_cmd
         .arg("display-popup")
@@ -182,21 +182,21 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     for (name, value) in std::env::vars() {
         if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
-            debug!("adding {} = {} to the command's env", name, value);
-            tmux_cmd.args(["-e", &format!("{}={}", name, value)]);
+            debug!("adding {name} = {value} to the command's env");
+            tmux_cmd.args(["-e", &format!("{name}={value}")]);
         }
     }
 
     tmux_cmd.args(["sh", "-c", &tmux_shell_cmd]);
 
-    debug!("tmux command: {:?}", tmux_cmd);
+    debug!("tmux command: {tmux_cmd:?}");
 
     let status = tmux_cmd
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .stdin(Stdio::null())
         .status()
-        .unwrap_or_else(|e| panic!("Tmux invocation failed with {}", e));
+        .unwrap_or_else(|e| panic!("Tmux invocation failed with {e}"));
 
     if let Some(h) = stdin_handle {
         h.join().unwrap_or(());
@@ -222,7 +222,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     let mut output_lines: Vec<Arc<dyn SkimItem>> = vec![];
     for line in stdout {
-        debug!("Adding output line: {}", line);
+        debug!("Adding output line: {line}");
         output_lines.push(Arc::new(SkimTmuxOutput { line: line.to_string() }));
     }
 

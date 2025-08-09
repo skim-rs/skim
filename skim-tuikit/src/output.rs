@@ -89,7 +89,7 @@ impl Output {
         }
 
         let title = title.replace("\x1b", "").replace("\x07", "");
-        self.write_raw(format!("\x1b]2;{}\x07", title).as_bytes());
+        self.write_raw(format!("\x1b]2;{title}\x07").as_bytes());
     }
 
     /// Clear title again. (or restore previous title.)
@@ -164,7 +164,7 @@ impl Output {
                 self.write_cap_with_params("setaf", &[Param::Number(x as i32)]);
             }
             Color::Rgb(r, g, b) => {
-                self.write_raw(format!("\x1b[38;2;{};{};{}m", r, g, b).as_bytes());
+                self.write_raw(format!("\x1b[38;2;{r};{g};{b}m").as_bytes());
             }
         }
     }
@@ -179,7 +179,7 @@ impl Output {
                 self.write_cap_with_params("setab", &[Param::Number(x as i32)]);
             }
             Color::Rgb(r, g, b) => {
-                self.write_raw(format!("\x1b[48;2;{};{};{}m", r, g, b).as_bytes());
+                self.write_raw(format!("\x1b[48;2;{r};{g};{b}m").as_bytes());
             }
         }
     }
