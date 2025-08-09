@@ -544,9 +544,7 @@ impl KeyBoard {
                         (b'2', b'B') => Ok(ShiftDown),
                         (b'2', b'C') => Ok(ShiftRight),
                         (b'2', b'D') => Ok(ShiftLeft),
-                        _ => Err(TuikitError::UnknownSequence(format!(
-                            "ESC [ 1 ; {seq4:x?} {seq5:x?}"
-                        ))),
+                        _ => Err(TuikitError::UnknownSequence(format!("ESC [ 1 ; {seq4:x?} {seq5:x?}"))),
                     }
                 } else {
                     Err(TuikitError::UnknownSequence(format!(
