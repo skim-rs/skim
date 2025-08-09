@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-use clap::ValueEnum;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::clangd::ClangdMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -12,8 +11,9 @@ use crate::{CaseMatching, MatchEngine};
 use crate::{MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
-#[derive(ValueEnum, Debug, Copy, Clone, Default)]
-#[clap(rename_all = "snake_case")]
+#[derive(Debug, Copy, Clone, Default)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
     SkimV1,
     #[default]

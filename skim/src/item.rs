@@ -6,7 +6,9 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(feature = "cli")]
 use clap::ValueEnum;
+#[cfg(feature = "cli")]
 use clap::builder::PossibleValue;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
@@ -233,6 +235,7 @@ pub enum RankCriteria {
     NegIndex,
 }
 
+#[cfg(feature = "cli")]
 impl ValueEnum for RankCriteria {
     fn value_variants<'a>() -> &'a [Self] {
         use RankCriteria::*;

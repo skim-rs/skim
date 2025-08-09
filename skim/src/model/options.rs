@@ -1,4 +1,6 @@
+#[cfg(feature = "cli")]
 use clap::ValueEnum;
+#[cfg(feature = "cli")]
 use clap::builder::PossibleValue;
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -9,6 +11,7 @@ pub enum InfoDisplay {
     Hidden,
 }
 
+#[cfg(feature = "cli")]
 impl ValueEnum for InfoDisplay {
     fn value_variants<'a>() -> &'a [Self] {
         use InfoDisplay::*;

@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::thread;
 
-use clap::ValueEnum;
 use crossbeam::channel::{Receiver, Sender};
 use skim_tuikit::prelude::{Event as TermEvent, *};
 
@@ -234,8 +233,9 @@ pub enum ItemPreview {
 //==============================================================================
 // A match engine will execute the matching algorithm
 
-#[derive(ValueEnum, Eq, PartialEq, Debug, Copy, Clone, Default)]
-#[clap(rename_all = "snake_case")]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum CaseMatching {
     Respect,
     Ignore,
