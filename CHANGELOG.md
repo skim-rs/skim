@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.5](https://github.com/skim-rs/skim/compare/v0.20.4...v0.20.5) - 2025-08-09
+
+### <!-- 1 -->🐛 Bug Fixes
+
+- compile without the cli feature ([#834](https://github.com/skim-rs/skim/pull/834))
+
 ## [0.20.4](https://github.com/skim-rs/skim/compare/v0.20.3...v0.20.4) - 2025-08-02
 
 ### <!-- 1 -->🐛 Bug Fixes

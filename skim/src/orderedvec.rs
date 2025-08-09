@@ -131,7 +131,7 @@ impl<T: Send + Ord + 'static> OrderedVec<T> {
         }
     }
 
-    pub fn get(&self, index: usize) -> Option<Ref<T>> {
+    pub fn get(&self, index: usize) -> Option<Ref<'_, T>> {
         self.merge_till(index);
         if self.len() <= index {
             None
@@ -160,7 +160,7 @@ impl<T: Send + Ord + 'static> OrderedVec<T> {
         self.len() == 0
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Ref<T>> {
+    pub fn iter(&self) -> impl Iterator<Item = Ref<'_, T>> {
         self.merge_till(self.len());
         OrderedVecIter {
             ordered_vec: self,

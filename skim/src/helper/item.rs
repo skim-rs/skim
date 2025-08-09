@@ -93,11 +93,11 @@ impl DefaultSkimItem {
 
 impl SkimItem for DefaultSkimItem {
     #[inline]
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(self.text.stripped())
     }
 
-    fn output(&self) -> Cow<str> {
+    fn output(&self) -> Cow<'_, str> {
         if self.orig_text.is_some() {
             if self.text.has_attrs() {
                 let mut ansi_parser: ANSIParser = Default::default();

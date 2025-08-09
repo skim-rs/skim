@@ -1,6 +1,6 @@
 [package]
 name = "skim-tuikit"
-version = "0.6.5"
+version = "0.6.6"
 authors = ["Jinzhou Zhang <lotabout@gmail.com>"]
 description = "Toolkit for writing TUI applications"
 documentation = "https://docs.rs/skim-tuikit"
