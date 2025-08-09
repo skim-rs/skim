@@ -257,7 +257,7 @@ impl Selection {
         let current_item = self
             .items
             .get(cursor)
-            .unwrap_or_else(|| panic!("model:act_toggle: failed to get item {}", cursor));
+            .unwrap_or_else(|| panic!("model:act_toggle: failed to get item {cursor}"));
         trace!(
             "Toggling item {} with idx {}",
             current_item.item.text(),
@@ -330,7 +330,7 @@ impl Selection {
             let current_item = self
                 .items
                 .get(cursor)
-                .unwrap_or_else(|| panic!("model:act_output: failed to get item {}", cursor));
+                .unwrap_or_else(|| panic!("model:act_output: failed to get item {cursor}"));
             let item = current_item.item.clone();
             item_indices.push(cursor);
             selected.push(item);
@@ -587,7 +587,7 @@ impl Draw for Selection {
             let item = self
                 .items
                 .get(item_idx)
-                .unwrap_or_else(|| panic!("model:draw_items: failed to get item at {}", item_idx));
+                .unwrap_or_else(|| panic!("model:draw_items: failed to get item at {item_idx}"));
 
             let _ = self.draw_item(canvas, line_no, &item, line_cursor == self.line_cursor);
         }

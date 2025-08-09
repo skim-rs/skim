@@ -286,7 +286,7 @@ impl<UserEvent: Send + 'static> Term<UserEvent> {
             debug!("key listener start");
             loop {
                 let next_key = keyboard.next_key();
-                trace!("next key: {:?}", next_key);
+                trace!("next key: {next_key:?}");
                 match next_key {
                     Ok(key) => {
                         let event_tx = event_tx_clone.lock();

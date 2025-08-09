@@ -459,7 +459,7 @@ impl Model {
         let item = self.selection.get_current_item();
         if depends_on_items(cmd) && item.is_none() {
             debug!("act_execute: command refers to items and there is no item for now");
-            debug!("command to execute: [{}]", cmd);
+            debug!("command to execute: [{cmd}]");
             return;
         }
 
@@ -473,7 +473,7 @@ impl Model {
         let current_item = self.selection.get_current_item();
         if depends_on_items(cmd) && current_item.is_none() {
             debug!("act_execute_silent: command refers to items and there is no item for now");
-            debug!("command to execute: [{}]", cmd);
+            debug!("command to execute: [{cmd}]");
             return;
         }
 
@@ -505,7 +505,7 @@ impl Model {
             Some(s) => s,
             None => self.query.get_cmd(),
         };
-        debug!("command to execute: [{}]", cmd);
+        debug!("command to execute: [{cmd}]");
         let mut env = ModelEnv {
             cmd: cmd.to_string(),
             cmd_query: self.query.get_cmd_query(),
@@ -563,7 +563,7 @@ impl Model {
         loop {
             let (key, ev) = next_event.take().or_else(|| self.rx.recv().ok())?;
 
-            debug!("handle event: {:?}", ev);
+            debug!("handle event: {ev:?}");
 
             match ev {
                 Event::EvHeartBeat => {

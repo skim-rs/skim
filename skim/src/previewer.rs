@@ -240,7 +240,7 @@ impl Previewer {
                 (ItemPreview::Command(cmd), pos) | (ItemPreview::CommandWithPos(cmd, pos), _) => {
                     if depends_on_items(&cmd) && self.prev_item.is_none() {
                         debug!("the command for preview refers to items and currently there is no item");
-                        debug!("command to execute: [{}]", cmd);
+                        debug!("command to execute: [{cmd}]");
                         PreviewEvent::PreviewPlainText("no item matched".to_string(), Default::default())
                     } else {
                         let cmd = inject_command(&cmd, inject_context).to_string();
@@ -252,7 +252,7 @@ impl Previewer {
                     PreviewSource::Command(cmd) => {
                         if depends_on_items(cmd) && self.prev_item.is_none() {
                             debug!("the command for preview refers to items and currently there is no item");
-                            debug!("command to execute: [{}]", cmd);
+                            debug!("command to execute: [{cmd}]");
                             PreviewEvent::PreviewPlainText("no item matched".to_string(), Default::default())
                         } else {
                             let cmd = inject_command(cmd, inject_context).to_string();
@@ -511,7 +511,7 @@ where
 
                 match spawned {
                     Err(err) => {
-                        let astdout = AnsiString::parse(format!("Failed to spawn: {} / {}", cmd, err).as_str());
+                        let astdout = AnsiString::parse(format!("Failed to spawn: {cmd} / {err}").as_str());
                         callback(vec![astdout], pos);
                         preview_thread = None;
                     }

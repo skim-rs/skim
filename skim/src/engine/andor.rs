@@ -44,7 +44,7 @@ impl Display for OrEngine {
             "(Or: {})",
             self.engines
                 .iter()
-                .map(|e| format!("{}", e))
+                .map(|e| format!("{e}"))
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -118,7 +118,7 @@ impl Display for AndEngine {
             "(And: {})",
             self.engines
                 .iter()
-                .map(|e| format!("{}", e))
+                .map(|e| format!("{e}"))
                 .collect::<Vec<_>>()
                 .join(", ")
         )

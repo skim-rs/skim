@@ -6,7 +6,9 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(feature = "cli")]
 use clap::ValueEnum;
+#[cfg(feature = "cli")]
 use clap::builder::PossibleValue;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
@@ -62,7 +64,7 @@ impl RankBuilder {
             rank[priority] = value;
         }
 
-        trace!("ranks: {:?}", rank);
+        trace!("ranks: {rank:?}");
         rank
     }
 }
@@ -176,7 +178,7 @@ impl ItemPool {
     /// append the items and return the new_size of the pool
     pub fn append(&self, mut items: Vec<Arc<dyn SkimItem>>) -> usize {
         let len = items.len();
-        trace!("item pool, append {} items", len);
+        trace!("item pool, append {len} items");
         let mut pool = self.pool.lock();
         let mut header_items = self.reserved_items.lock();
 
@@ -189,7 +191,7 @@ impl ItemPool {
             pool.append(&mut items);
         }
         self.length.store(pool.len(), Ordering::SeqCst);
-        trace!("item pool, done append {} items", len);
+        trace!("item pool, done append {len} items");
         pool.len()
     }
 
@@ -233,6 +235,7 @@ pub enum RankCriteria {
     NegIndex,
 }
 
+#[cfg(feature = "cli")]
 impl ValueEnum for RankCriteria {
     fn value_variants<'a>() -> &'a [Self] {
         use RankCriteria::*;

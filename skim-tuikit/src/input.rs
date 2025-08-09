@@ -116,7 +116,7 @@ impl KeyBoard {
     }
 
     fn next_byte_timeout(&mut self, timeout: Duration) -> Result<u8> {
-        trace!("next_byte_timeout: timeout: {:?}", timeout);
+        trace!("next_byte_timeout: timeout: {timeout:?}");
         if self.byte_buf.is_empty() {
             self.fetch_bytes(timeout)?;
         }
@@ -131,7 +131,7 @@ impl KeyBoard {
     }
 
     fn next_char_timeout(&mut self, timeout: Duration) -> Result<char> {
-        trace!("next_char_timeout: timeout: {:?}", timeout);
+        trace!("next_char_timeout: timeout: {timeout:?}");
         if self.byte_buf.is_empty() {
             self.fetch_bytes(timeout)?;
         }
@@ -236,7 +236,7 @@ impl KeyBoard {
 
     /// Wait `timeout` until next key stroke
     fn next_raw_key_timeout(&mut self, timeout: Duration) -> Result<Key> {
-        trace!("next_raw_key_timeout: {:?}", timeout);
+        trace!("next_raw_key_timeout: {timeout:?}");
         let ch = self.next_char_timeout(timeout)?;
         match ch {
             '\u{00}' => Ok(Ctrl(' ')),
@@ -287,7 +287,7 @@ impl KeyBoard {
                 match self.next_byte_timeout(KEY_WAIT) {
                     Ok(b'[') => {}
                     Ok(c) => {
-                        return Err(TuikitError::UnknownSequence(format!("ESC ESC {}", c)));
+                        return Err(TuikitError::UnknownSequence(format!("ESC ESC {c}")));
                     }
                     Err(_) => return Ok(ESC),
                 }
@@ -342,7 +342,7 @@ impl KeyBoard {
 
         let seq2 = self.next_byte_timeout(KEY_WAIT)?;
         match seq2 {
-            b'0' | b'9' => Err(TuikitError::UnknownSequence(format!("ESC [ {:x?}", seq2))),
+            b'0' | b'9' => Err(TuikitError::UnknownSequence(format!("ESC [ {seq2:x?}"))),
             b'1'..=b'8' => self.extended_escape(seq2),
             b'[' => {
                 // Linux Console ESC [ [ _
@@ -353,7 +353,7 @@ impl KeyBoard {
                     b'C' => Ok(F(3)),
                     b'D' => Ok(F(4)),
                     b'E' => Ok(F(5)),
-                    _ => Err(TuikitError::UnknownSequence(format!("ESC [ [ {:x?}", seq3))),
+                    _ => Err(TuikitError::UnknownSequence(format!("ESC [ [ {seq3:x?}"))),
                 }
             }
             b'A' => Ok(Up),    // kcuu1
@@ -386,7 +386,7 @@ impl KeyBoard {
                     }
                     2 => Ok(MousePress(MouseButton::Right, cy, cx)),
                     3 => Ok(MouseRelease(cy, cx)),
-                    _ => Err(TuikitError::UnknownSequence(format!("ESC M {:?}{:?}{:?}", cb, cx, cy))),
+                    _ => Err(TuikitError::UnknownSequence(format!("ESC M {cb:?}{cx:?}{cy:?}"))),
                 }
             }
             b'<' => {
@@ -420,21 +420,21 @@ impl KeyBoard {
                             64 => MouseButton::WheelUp,
                             65 => MouseButton::WheelDown,
                             _ => {
-                                return Err(TuikitError::UnknownSequence(format!("ESC [ < {} {}", str_buf, c)));
+                                return Err(TuikitError::UnknownSequence(format!("ESC [ < {str_buf} {c}")));
                             }
                         };
 
                         match c {
                             'M' => Ok(MousePress(button, cy, cx)),
                             'm' => Ok(MouseRelease(cy, cx)),
-                            _ => Err(TuikitError::UnknownSequence(format!("ESC [ < {} {}", str_buf, c))),
+                            _ => Err(TuikitError::UnknownSequence(format!("ESC [ < {str_buf} {c}"))),
                         }
                     }
                     32 => Ok(MouseHold(cy, cx)),
-                    _ => Err(TuikitError::UnknownSequence(format!("ESC [ < {} {}", str_buf, c))),
+                    _ => Err(TuikitError::UnknownSequence(format!("ESC [ < {str_buf} {c}"))),
                 }
             }
-            _ => Err(TuikitError::UnknownSequence(format!("ESC [ {:?}", seq2))),
+            _ => Err(TuikitError::UnknownSequence(format!("ESC [ {seq2:?}"))),
         }
     }
 
@@ -465,7 +465,7 @@ impl KeyBoard {
             }
         }
 
-        return Err(TuikitError::NoCursorReportResponse);
+        Err(TuikitError::NoCursorReportResponse)
     }
 
     fn extended_escape(&mut self, seq2: u8) -> Result<Key> {
@@ -478,7 +478,7 @@ impl KeyBoard {
                 b'4' | b'8' => Ok(End), // tmux, xrvt
                 b'5' => Ok(PageUp),     // kpp
                 b'6' => Ok(PageDown),   // knp
-                _ => Err(TuikitError::UnknownSequence(format!("ESC [ {} ~", seq2))),
+                _ => Err(TuikitError::UnknownSequence(format!("ESC [ {seq2} ~"))),
             }
         } else if seq3.is_ascii_digit() {
             let mut str_buf = String::new();
@@ -508,7 +508,7 @@ impl KeyBoard {
                         35 => Ok(MouseRelease(cy, cx)),
                         64 => Ok(MouseHold(cy, cx)),
                         96 | 97 => Ok(MousePress(MouseButton::WheelUp, cy, cx)),
-                        _ => Err(TuikitError::UnknownSequence(format!("ESC [ {} M", str_buf))),
+                        _ => Err(TuikitError::UnknownSequence(format!("ESC [ {str_buf} M"))),
                     }
                 }
                 b'~' => {
@@ -519,7 +519,7 @@ impl KeyBoard {
                         v @ 23..=24 => Ok(F(v - 12)),
                         200 => Ok(BracketedPasteStart),
                         201 => Ok(BracketedPasteEnd),
-                        _ => Err(TuikitError::UnknownSequence(format!("ESC [ {} ~", str_buf))),
+                        _ => Err(TuikitError::UnknownSequence(format!("ESC [ {str_buf} ~"))),
                     }
                 }
                 _ => unreachable!(),
@@ -544,19 +544,15 @@ impl KeyBoard {
                         (b'2', b'B') => Ok(ShiftDown),
                         (b'2', b'C') => Ok(ShiftRight),
                         (b'2', b'D') => Ok(ShiftLeft),
-                        _ => Err(TuikitError::UnknownSequence(format!(
-                            "ESC [ 1 ; {:x?} {:x?}",
-                            seq4, seq5
-                        ))),
+                        _ => Err(TuikitError::UnknownSequence(format!("ESC [ 1 ; {seq4:x?} {seq5:x?}"))),
                     }
                 } else {
                     Err(TuikitError::UnknownSequence(format!(
-                        "ESC [ {:x?} ; {:x?} {:x?}",
-                        seq2, seq4, seq5
+                        "ESC [ {seq2:x?} ; {seq4:x?} {seq5:x?}"
                     )))
                 }
             } else {
-                Err(TuikitError::UnknownSequence(format!("ESC [ {:x?} ; {:x?}", seq2, seq4)))
+                Err(TuikitError::UnknownSequence(format!("ESC [ {seq2:x?} ; {seq4:x?}")))
             }
         } else {
             match (seq2, seq3) {
@@ -564,7 +560,7 @@ impl KeyBoard {
                 (b'5', b'B') => Ok(CtrlDown),
                 (b'5', b'C') => Ok(CtrlRight),
                 (b'5', b'D') => Ok(CtrlLeft),
-                _ => Err(TuikitError::UnknownSequence(format!("ESC [ {:x?} {:x?}", seq2, seq3))),
+                _ => Err(TuikitError::UnknownSequence(format!("ESC [ {seq2:x?} {seq3:x?}"))),
             }
         }
     }
@@ -587,7 +583,7 @@ impl KeyBoard {
             b'b' => Ok(CtrlDown),
             b'c' => Ok(CtrlRight), // rxvt
             b'd' => Ok(CtrlLeft),  // rxvt
-            _ => Err(TuikitError::UnknownSequence(format!("ESC O {:x?}", seq2))),
+            _ => Err(TuikitError::UnknownSequence(format!("ESC O {seq2:x?}"))),
         }
     }
 }

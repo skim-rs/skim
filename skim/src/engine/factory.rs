@@ -234,39 +234,39 @@ mod test {
         use super::*;
         let exact_or_fuzzy = ExactOrFuzzyEngineFactory::builder().build();
         let x = exact_or_fuzzy.create_engine("'abc");
-        assert_eq!(format!("{}", x), "(Exact|(?i)abc)");
+        assert_eq!(format!("{x}"), "(Exact|(?i)abc)");
 
         let x = exact_or_fuzzy.create_engine("^abc");
-        assert_eq!(format!("{}", x), "(Exact|(?i)^abc)");
+        assert_eq!(format!("{x}"), "(Exact|(?i)^abc)");
 
         let x = exact_or_fuzzy.create_engine("abc$");
-        assert_eq!(format!("{}", x), "(Exact|(?i)abc$)");
+        assert_eq!(format!("{x}"), "(Exact|(?i)abc$)");
 
         let x = exact_or_fuzzy.create_engine("^abc$");
-        assert_eq!(format!("{}", x), "(Exact|(?i)^abc$)");
+        assert_eq!(format!("{x}"), "(Exact|(?i)^abc$)");
 
         let x = exact_or_fuzzy.create_engine("!abc");
-        assert_eq!(format!("{}", x), "(Exact|!(?i)abc)");
+        assert_eq!(format!("{x}"), "(Exact|!(?i)abc)");
 
         let x = exact_or_fuzzy.create_engine("!^abc");
-        assert_eq!(format!("{}", x), "(Exact|!(?i)^abc)");
+        assert_eq!(format!("{x}"), "(Exact|!(?i)^abc)");
 
         let x = exact_or_fuzzy.create_engine("!abc$");
-        assert_eq!(format!("{}", x), "(Exact|!(?i)abc$)");
+        assert_eq!(format!("{x}"), "(Exact|!(?i)abc$)");
 
         let x = exact_or_fuzzy.create_engine("!^abc$");
-        assert_eq!(format!("{}", x), "(Exact|!(?i)^abc$)");
+        assert_eq!(format!("{x}"), "(Exact|!(?i)^abc$)");
 
         let regex_factory = RegexEngineFactory::builder();
         let and_or_factory = AndOrEngineFactory::new(exact_or_fuzzy);
 
         let x = and_or_factory.create_engine("'abc | def ^gh ij | kl mn");
         assert_eq!(
-            format!("{}", x),
+            format!("{x}"),
             "(Or: (And: (Exact|(?i)abc)), (And: (Fuzzy: def), (Exact|(?i)^gh), (Fuzzy: ij)), (And: (Fuzzy: kl), (Fuzzy: mn)))"
         );
 
         let x = regex_factory.create_engine("'abc | def ^gh ij | kl mn");
-        assert_eq!(format!("{}", x), "(Regex: 'abc | def ^gh ij | kl mn)");
+        assert_eq!(format!("{x}"), "(Regex: 'abc | def ^gh ij | kl mn)");
     }
 }

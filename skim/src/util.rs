@@ -370,7 +370,7 @@ pub fn inject_command<'a>(cmd: &'a str, context: InjectContext<'a>) -> Cow<'a, s
                 .zip(indices.iter())
                 .map(|(&s, &i)| {
                     let rest = &range[1..];
-                    let index_str = format!("{}", i);
+                    let index_str = format!("{i}");
                     let replacement = match rest {
                         "" => s,
                         "n" => &index_str,
@@ -407,7 +407,7 @@ pub fn atoi<T: FromStr>(string: &str) -> Option<T> {
 pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
     let file = File::open(filename)?;
     let ret = BufReader::new(file).lines().collect();
-    debug!("file content: {:?}", ret);
+    debug!("file content: {ret:?}");
     ret
 }
 

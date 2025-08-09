@@ -62,9 +62,9 @@ impl Input {
 
     // key_action is comma separated: 'ctrl-j:accept,ctrl-k:kill-line'
     pub fn parse_keymap(&mut self, key_action: &str) {
-        debug!("got key_action: {:?}", key_action);
+        debug!("got key_action: {key_action:?}");
         for (key, action_chain) in parse_key_action(key_action).into_iter() {
-            debug!("parsed key_action: {:?}: {:?}", key, action_chain);
+            debug!("parsed key_action: {key:?}: {action_chain:?}");
             let action_chain = action_chain
                 .into_iter()
                 .filter_map(|(action, arg)| parse_event(action, arg))
@@ -102,12 +102,12 @@ pub fn parse_key_action(key_action: &str) -> Vec<KeyActions> {
 
     RE.captures_iter(key_action)
         .map(|caps| {
-            debug!("RE: caps: {:?}", caps);
+            debug!("RE: caps: {caps:?}");
             let key = caps.get(1).unwrap().as_str();
             let actions = RE_BIND
                 .captures_iter(caps.get(2).unwrap().as_str())
                 .map(|caps| {
-                    debug!("RE_BIND: caps: {:?}", caps);
+                    debug!("RE_BIND: caps: {caps:?}");
                     (
                         caps.get(1).unwrap().as_str(),
                         caps.get(2).map(|s| {
@@ -130,7 +130,7 @@ pub fn parse_key_action(key_action: &str) -> Vec<KeyActions> {
 /// e.g. execute(...) => Some(Event::EvActExecute, Box::new(Option("...")))
 pub fn parse_action_arg(action_arg: &str) -> Option<Event> {
     // construct a fake key_action: `fake_key:action(arg)`
-    let fake_key_action = format!("fake_key:{}", action_arg);
+    let fake_key_action = format!("fake_key:{action_arg}");
     // get keys: [(key, [(action, arg), (action, arg)]), ...]
     let keys = parse_key_action(&fake_key_action);
     // only get the first key(since it is faked), and get the first action
@@ -207,7 +207,7 @@ mod test {
         {}
         FZF-EOF";
 
-        let key_action_str = format!("ctrl-s:toggle-sort,ctrl-m:execute:{},ctrl-t:toggle", cmd);
+        let key_action_str = format!("ctrl-s:toggle-sort,ctrl-m:execute:{cmd},ctrl-t:toggle");
 
         let key_action = parse_key_action(&key_action_str);
         assert_eq!(("ctrl-s", vec![("toggle-sort", None)]), key_action[0]);
