@@ -13,7 +13,7 @@ edition = "2024"
 
 [dependencies]
 bitflags = { workspace = true }
-skim-common = { path = "../skim-common/", version = "0.2.0" }
+skim-common = { path = "../skim-common/", version = "0.2.1" }
 lazy_static = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true, default-features = false, features = ["fs", "poll", "signal", "term"] }
