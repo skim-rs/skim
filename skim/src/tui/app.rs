@@ -16,6 +16,7 @@ use super::options::TuiOptions;
 use super::statusline::StatusLine;
 use super::Event;
 use color_eyre::eyre::{bail, Result};
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use crossterm::event::{KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
 use input::Input;
@@ -24,7 +25,6 @@ use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::widgets::Widget;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use super::{input, preview, tui};
 
@@ -37,8 +37,8 @@ pub struct App<'a> {
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
     pub yank_register: Cow<'a, str>,
-    pub item_rx: UnboundedReceiver<Arc<dyn SkimItem>>,
-    pub item_tx: UnboundedSender<Arc<dyn SkimItem>>,
+    pub item_rx: Receiver<Arc<dyn SkimItem>>,
+    pub item_tx: Sender<Arc<dyn SkimItem>>,
 
     pub input: Input,
     pub preview: Preview<'a>,
@@ -71,7 +71,7 @@ impl Widget for &mut App<'_> {
 
 impl Default for App<'_> {
     fn default() -> Self {
-        let (item_tx, item_rx) = unbounded_channel();
+        let (item_tx, item_rx) = unbounded();
         Self {
             input: Input::default(),
             preview: Preview::default(),

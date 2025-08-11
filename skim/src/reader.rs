@@ -77,7 +77,7 @@ impl Reader {
         self
     }
 
-    pub fn run(&mut self, app_tx: UnboundedSender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
+    pub fn run(&mut self, app_tx: Sender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
         mark_new_run(cmd);
 
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -104,7 +104,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     rx_item: SkimItemReceiver,
-    app_tx: UnboundedSender<Arc<dyn SkimItem>>,
+    app_tx: Sender<Arc<dyn SkimItem>>,
 ) -> Sender<i32> {
     let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
 
