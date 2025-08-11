@@ -25,7 +25,7 @@ impl Default for Preview<'_> {
             cmd: String::default(),
             rows: 0,
             cols: 0,
-            thread_handle: tokio::spawn(async { }),
+            thread_handle: tokio::spawn(async {}),
         }
     }
 }
@@ -58,13 +58,13 @@ impl Preview<'_> {
             let out = try_out.unwrap();
 
             if out.status.success() {
-              let _ = _event_tx
-                  .send(Event::PreviewReady(out.stdout))
-                  .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
+                _event_tx
+                    .send(Event::PreviewReady(out.stdout))
+                    .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
             } else {
-              let _ = _event_tx
-                  .send(Event::PreviewReady(out.stderr))
-                  .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
+                _event_tx
+                    .send(Event::PreviewReady(out.stderr))
+                    .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
             }
         });
     }

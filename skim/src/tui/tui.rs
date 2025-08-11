@@ -91,13 +91,10 @@ impl Tui {
                     maybe_event = crossterm_event => {
                       match maybe_event {
                         Some(Ok(evt)) => {
-                          match evt {
-                            crossterm::event::Event::Key(key) => {
-                              if key.kind == KeyEventKind::Press {
-                                _event_tx.send(Event::Key(key)).unwrap();
-                              }
-                            },
-                              _ => ()
+                          if let crossterm::event::Event::Key(key) = evt {
+                            if key.kind == KeyEventKind::Press {
+                              _event_tx.send(Event::Key(key)).unwrap();
+                            }
                           }
                         }
                         Some(Err(e)) => {
@@ -146,7 +143,7 @@ impl Drop for Tui {
 fn set_panic_hook() {
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = ratatui::restore(); // ignore any errors as we are already failing
+        ratatui::restore(); // ignore any errors as we are already failing
         hook(panic_info);
     }));
 }

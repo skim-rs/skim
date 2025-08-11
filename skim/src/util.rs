@@ -34,8 +34,14 @@ pub fn depends_on_items(cmd: &str) -> bool {
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
 ///
-pub fn printf<'a>(pattern: String, delimiter: &Regex, items: impl Iterator<Item = Arc<dyn SkimItem>>, selected: Option<Arc<dyn SkimItem>>, query: &str, command_query: &str) -> String {
-    
+pub fn printf<'a>(
+    pattern: String,
+    delimiter: &Regex,
+    items: impl Iterator<Item = Arc<dyn SkimItem>>,
+    selected: Option<Arc<dyn SkimItem>>,
+    query: &str,
+    command_query: &str,
+) -> String {
     let item_text = match selected {
         Some(s) => s.text().into_owned(),
         None => String::default(),
@@ -43,9 +49,12 @@ pub fn printf<'a>(pattern: String, delimiter: &Regex, items: impl Iterator<Item 
     // Replace static fields first
     let mut res = pattern.replace("{}", &item_text);
 
-    res = res.replace("{+}", &items.map(|i| i.text().into_owned()).collect::<Vec<_>>().join(" "));
-    res = res.replace("{q}", &query);
-    res = res.replace("{cq}", &command_query);
+    res = res.replace(
+        "{+}",
+        &items.map(|i| i.text().into_owned()).collect::<Vec<_>>().join(" "),
+    );
+    res = res.replace("{q}", query);
+    res = res.replace("{cq}", command_query);
 
     let mut inside = false;
     let mut pattern = String::new();
@@ -62,18 +71,15 @@ pub fn printf<'a>(pattern: String, delimiter: &Regex, items: impl Iterator<Item 
             } else {
                 pattern.push(c);
             }
+        } else if c == '{' {
+            inside = true;
         } else {
-            if c == '{' {
-                inside = true;
-            } else {
-                replaced.push(c);
-            }
+            replaced.push(c);
         }
     }
 
-    return replaced;
+    replaced
 }
-
 
 #[cfg(test)]
 mod test {
@@ -83,8 +89,23 @@ mod test {
     #[test]
     fn test_printf() {
         let pattern = String::from("[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq}");
-        let items: Vec<Arc<dyn SkimItem>> = vec![Arc::new("item 1"), Arc::new("item 2"), Arc::new("item 3"), Arc::new("item 4")];
+        let items: Vec<Arc<dyn SkimItem>> = vec![
+            Arc::new("item 1"),
+            Arc::new("item 2"),
+            Arc::new("item 3"),
+            Arc::new("item 4"),
+        ];
         let delimiter = Regex::new(" ").unwrap();
-        assert_eq!(printf(pattern, &delimiter, items.iter().map(|x| x.clone()), Some(Arc::new("item 2")), "query", "cmd query"), String::from("[1] item 2 [2] item 2 [3] 2 [4] item 1\nitem 2\nitem 3\nitem 4 [5] query [6] cmd query"));
+        assert_eq!(
+            printf(
+                pattern,
+                &delimiter,
+                items.iter().map(|x| x.clone()),
+                Some(Arc::new("item 2")),
+                "query",
+                "cmd query"
+            ),
+            String::from("[1] item 2 [2] item 2 [3] 2 [4] item 1\nitem 2\nitem 3\nitem 4 [5] query [6] cmd query")
+        );
     }
 }

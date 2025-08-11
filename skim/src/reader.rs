@@ -4,7 +4,6 @@
 use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
-use crate::tui::Event;
 use crate::{SkimItem, SkimItemReceiver};
 use crossbeam::channel::{bounded, select, Sender};
 use std::cell::RefCell;
@@ -12,7 +11,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
-use tokio::sync::mpsc::UnboundedSender;
 
 const CHANNEL_SIZE: usize = 1024;
 

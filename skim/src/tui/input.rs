@@ -38,7 +38,7 @@ impl Input {
         }
         let clamped = usize::clamp(pos as usize, 0, max(self.value.len(), 1) - 1);
         self.move_cursor(-1);
-        return Some(self.value.remove(clamped));
+        Some(self.value.remove(clamped))
     }
     pub fn move_cursor(&mut self, offset: i32) {
         self.move_cursor_to((self.cursor_pos as i32 + offset) as u16)

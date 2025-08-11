@@ -30,7 +30,7 @@ impl MatcherControl {
 
     pub fn kill(&self) {
         self.stopped.store(true, Ordering::Relaxed);
-        let _ = self.thread_matcher.abort();
+        self.thread_matcher.abort();
     }
 
     pub fn stopped(&self) -> bool {

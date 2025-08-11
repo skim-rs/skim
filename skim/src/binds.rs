@@ -70,7 +70,7 @@ pub fn get_default_key_map() -> KeyMap {
 
 /// Parses a key str into a crossterm KeyEvent
 pub fn parse_key(key: &str) -> Result<KeyEvent> {
-    if key.len() == 0 {
+    if key.is_empty() {
         return Err(eyre!("Cannot parse empty key"));
     }
     let parts = key.split('-').collect::<Vec<&str>>();

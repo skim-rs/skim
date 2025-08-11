@@ -8,11 +8,11 @@ mod app;
 pub mod event;
 pub mod header;
 mod input;
+pub mod item_list;
+pub mod options;
 mod preview;
 mod statusline;
 mod tui;
-pub mod item_list;
-pub mod options;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
@@ -37,14 +37,16 @@ impl TryFrom<&str> for Size {
                 .strip_suffix("%")
                 .unwrap_or_default()
                 .parse::<u16>()
-                .or_else(|e| return Err(SizeParseError::ParseError(value.to_string(), e)))?;
+                .map_err(|e| SizeParseError::ParseError(value.to_string(), e))?;
             if percent > 100 {
                 return Err(SizeParseError::InvalidPercent(percent));
             }
             Ok(Self::Percent(percent))
         } else {
             Ok(Self::Fixed(
-                value.parse::<u16>().or_else(|e| return Err(SizeParseError::ParseError(value.to_string(), e)))?
+                value
+                    .parse::<u16>()
+                    .map_err(|e| SizeParseError::ParseError(value.to_string(), e))?,
             ))
         }
     }

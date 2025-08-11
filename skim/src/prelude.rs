@@ -1,9 +1,9 @@
 pub use crate::engine::{factory::*, fuzzy::FuzzyAlgorithm};
-pub use crate::tui::Event;
 pub use crate::helper::item_reader::{SkimItemReader, SkimItemReaderOption};
 pub use crate::helper::selector::DefaultSkimSelector;
 pub use crate::options::{SkimOptions, SkimOptionsBuilder};
 pub use crate::output::SkimOutput;
+pub use crate::tui::Event;
 pub use crate::*;
 pub use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 pub use std::borrow::Cow;

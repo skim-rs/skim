@@ -1,8 +1,8 @@
 //! Input will listens to user input, modify the query string, send special
 //! keystrokes(such as Enter, Ctrl-p, Ctrl-n, etc) to the controller.
 use crate::tui::Event;
-use std::collections::HashMap;
 use crossterm::event::KeyCode;
+use std::collections::HashMap;
 
 pub type ActionChain = Vec<Event>;
 

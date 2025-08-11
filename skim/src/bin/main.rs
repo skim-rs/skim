@@ -41,7 +41,6 @@ fn parse_args() -> Result<SkimOptions, Error> {
 //------------------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<()> {
-
     color_eyre::install()?;
     env_logger::builder().format_timestamp_nanos().init();
     sk_main().await?;

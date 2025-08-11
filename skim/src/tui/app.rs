@@ -168,21 +168,24 @@ impl<'a> App<'a> {
             return act.unwrap().iter().map(|a| Event::Action(a.clone())).collect();
         }
         match key.modifiers {
-            KeyModifiers::CONTROL => match key.code {
-                Char('c') => return vec![Event::Quit],
-                _ => (),
-            },
-            KeyModifiers::NONE => match key.code {
-                Char(c) => return vec![Event::Action(Action::AddChar(c))],
-                _ => (),
-            },
-            KeyModifiers::SHIFT => match key.code {
-                Char(c) => return vec![Event::Action(Action::AddChar(c.to_uppercase().next().unwrap()))],
-                _ => (),
-            },
+            KeyModifiers::CONTROL => {
+                if let Char('c') = key.code {
+                    return vec![Event::Quit];
+                }
+            }
+            KeyModifiers::NONE => {
+                if let Char(c) = key.code {
+                    return vec![Event::Action(Action::AddChar(c))];
+                }
+            }
+            KeyModifiers::SHIFT => {
+                if let Char(c) = key.code {
+                    return vec![Event::Action(Action::AddChar(c.to_uppercase().next().unwrap()))];
+                }
+            }
             _ => (),
         };
-        return vec![];
+        vec![]
     }
 
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
@@ -262,12 +265,12 @@ impl<'a> App<'a> {
             }
             Execute(cmd) => {
                 let mut command = Command::new("sh");
-                command.args(&["-c", cmd]);
+                command.args(["-c", cmd]);
                 let _ = command.spawn();
             }
             ExecuteSilent(cmd) => {
                 let mut command = Command::new("sh");
-                command.args(&["-c", cmd]);
+                command.args(["-c", cmd]);
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
                 let _ = command.spawn();
@@ -393,7 +396,7 @@ impl<'a> App<'a> {
                 self.yank(contents);
             }
         }
-        return Ok(Vec::default());
+        Ok(Vec::default())
     }
 
     pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {

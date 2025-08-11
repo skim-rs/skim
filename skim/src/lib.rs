@@ -20,7 +20,6 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 use reader::Reader;
 use tokio::select;
-use tokio::time::sleep;
 use tui::options::TuiOptions;
 use tui::App;
 use tui::Event;
@@ -200,14 +199,20 @@ impl DisplayContext {
             Matches::CharRange(start, end) => {
                 let mut chars = text.chars();
                 let mut res = Line::raw(chars.by_ref().take(*start).collect::<String>());
-                res.push_span(Span::styled(chars.by_ref().take(*end - *start).collect::<String>(), self.style));
+                res.push_span(Span::styled(
+                    chars.by_ref().take(*end - *start).collect::<String>(),
+                    self.style,
+                ));
                 res.push_span(Span::raw(chars.collect::<String>()));
                 res
             }
             Matches::ByteRange(start, end) => {
                 let mut bytes = text.bytes();
                 let mut res = Line::raw(String::from_utf8(bytes.by_ref().take(*start).collect()).unwrap());
-                res.push_span(Span::styled(String::from_utf8(bytes.by_ref().take(*end-*start).collect()).unwrap(), self.style));
+                res.push_span(Span::styled(
+                    String::from_utf8(bytes.by_ref().take(*end - *start).collect()).unwrap(),
+                    self.style,
+                ));
                 res.push_span(Span::raw(String::from_utf8(bytes.collect()).unwrap()));
                 res
             }

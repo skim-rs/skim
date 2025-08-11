@@ -105,10 +105,7 @@ pub trait EventHandler {
 pub fn parse_action(raw_action: &str) -> Option<Action> {
   let mut parts = raw_action.split(&[':', '(', ')']);
   let action = parts.next().unwrap();
-  let arg = match parts.next() {
-    None => None,
-    Some(s) => Some(s.to_string())
-  };
+  let arg = parts.next().map(|s| s.to_string());
 
   match action {
         "abort"                =>   Some(Action::Abort),
