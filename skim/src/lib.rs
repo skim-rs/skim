@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::env;
 use std::fmt::Display;
 use std::sync::Arc;
+use std::time::Duration;
 
 use clap::ValueEnum;
 use color_eyre::eyre::OptionExt;
@@ -19,6 +20,7 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 use reader::Reader;
 use tokio::select;
+use tokio::time::sleep;
 use tui::options::TuiOptions;
 use tui::App;
 use tui::Event;
@@ -182,29 +184,31 @@ impl DisplayContext {
         match &self.matches {
             Matches::CharIndices(indices) => {
                 let mut res = Line::default();
-                let mut prev_end = 0;
-                for index in indices {
-                    res.push_span(Span::raw(text[prev_end..*index].to_string()));
-                    res.push_span(Span::styled(text[*index..*index + 1].to_string(), self.style));
-                    prev_end = index + 1;
+                let mut chars = text.chars();
+                let mut prev_index = 0;
+                for &index in indices {
+                    let span_content = chars.by_ref().take(index - prev_index);
+                    res.push_span(Span::raw(span_content.collect::<String>()));
+                    res.push_span(Span::styled(chars.next().unwrap_or_default().to_string(), self.style));
+                    prev_index = index + 1;
                 }
-                res.push_span(Span::raw(text[prev_end..].to_string()));
+                res.push_span(Span::raw(chars.collect::<String>()));
                 res
             }
             // AnsiString::from((context.text, indices, context.highlight_attr)),
             #[allow(clippy::cast_possible_truncation)]
             Matches::CharRange(start, end) => {
-                let mut res = Line::raw(text[..*start].to_string());
-                res.push_span(Span::styled(text[*start..*end].to_string(), self.style));
-                res.push_span(Span::raw(text[*end..].to_string()));
+                let mut chars = text.chars();
+                let mut res = Line::raw(chars.by_ref().take(*start).collect::<String>());
+                res.push_span(Span::styled(chars.by_ref().take(*end - *start).collect::<String>(), self.style));
+                res.push_span(Span::raw(chars.collect::<String>()));
                 res
             }
             Matches::ByteRange(start, end) => {
-                let ch_start = text[..*start].chars().count();
-                let ch_end = ch_start + text[*start..*end].chars().count();
-                let mut res = Line::raw(text[..ch_start].to_string());
-                res.push_span(Span::styled(text[ch_start..ch_end].to_string(), self.style));
-                res.push_span(Span::raw(text[ch_end..].to_string()));
+                let mut bytes = text.bytes();
+                let mut res = Line::raw(String::from_utf8(bytes.by_ref().take(*start).collect()).unwrap());
+                res.push_span(Span::styled(String::from_utf8(bytes.by_ref().take(*end-*start).collect()).unwrap(), self.style));
+                res.push_span(Span::raw(String::from_utf8(bytes.collect()).unwrap()));
                 res
             }
             Matches::None => Line::raw(text),
@@ -363,9 +367,10 @@ impl Skim {
         // let _ = input_thread.join();
 
         let mut reader_done = false;
+        let mut item_receiver_interval = tokio::time::interval(Duration::from_millis(500));
+
+        const BUF_CAPACITY: usize = 1 << 16;
         loop {
-            const BUF_CAPACITY: usize = 1 << 16;
-            let mut items = Vec::with_capacity(BUF_CAPACITY);
             select! {
                 event = tui.next() => {
                     if reader_control.is_done() && ! reader_done {
@@ -374,9 +379,12 @@ impl Skim {
                     }
                     app.handle_event(&mut tui, &event.ok_or_eyre("Could not acquire next event")?)?;
                 }
-
-                _ = app.item_rx.recv_many(&mut items, BUF_CAPACITY) => {
+                _ = item_receiver_interval.tick() => {
+                  while let Ok(item) = app.item_rx.try_recv() {
+                    let mut items = Vec::with_capacity(BUF_CAPACITY);
+                    items.push(item);
                     app.handle_items(items);
+                  }
                 }
             }
 

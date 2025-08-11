@@ -12,7 +12,7 @@ use ratatui::{
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    item::{MatchedItem, RankBuilder},
+    item::{self, MatchedItem, RankBuilder},
     DisplayContext, MatchRange, SkimItem,
 };
 
@@ -22,8 +22,9 @@ pub(crate) struct ItemList {
     pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
     rank_builder: RankBuilder,
     rx: UnboundedReceiver<Vec<MatchedItem>>,
-    pub(crate) state: ListState,
     pub(crate) direction: ListDirection,
+    pub(crate) offset: usize,
+    pub(crate) current: usize,
 }
 
 impl Default for ItemList {
@@ -35,15 +36,16 @@ impl Default for ItemList {
             rank_builder: RankBuilder::default(),
             tx,
             rx,
-            state: ListState::default().with_selected(Some(0)),
             direction: ListDirection::BottomToTop,
+            offset: 0,
+            current: 0,
         }
     }
 }
 
 impl ItemList {
     fn cursor(&self) -> usize {
-        self.state.selected().unwrap_or(0)
+        self.current
     }
     pub fn selected(&self) -> Option<Arc<dyn SkimItem>> {
         if self.items.is_empty() {
@@ -90,6 +92,20 @@ impl ItemList {
             self.selection.insert(item.clone());
         }
     }
+    pub fn scroll_up_by(&mut self, offset: u16) {
+      // self.offset = self.offset.saturating_sub(offset as usize);
+      self.current = self.current.saturating_sub(offset as usize);
+    }
+    pub fn scroll_down_by(&mut self, offset: u16) {
+      // self.offset = self.offset.saturating_add(offset as usize);
+      self.current = self.current.saturating_add(offset as usize);
+    }
+    pub fn select_previous(&mut self) {
+      self.current = self.current.saturating_sub(1);
+    }
+    pub fn select_next(&mut self) {
+      self.current = self.current.saturating_add(1);
+    }
 }
 
 impl Widget for &mut ItemList {
@@ -97,7 +113,12 @@ impl Widget for &mut ItemList {
     where
         Self: Sized,
     {
-        if let Ok(items) = self.rx.try_recv() {
+      if self.current < self.offset {
+        self.offset = self.current;
+      } else if self.offset + area.height as usize <= self.current {
+        self.offset = self.current - area.height as usize + 1;
+      }
+      if let Ok(items) = self.rx.try_recv() {
             debug!("Got {} items to put in list", items.len());
             self.items = items;
             //self.items.sort_by_key(|item| std::cmp::Reverse(item.rank));
@@ -110,6 +131,8 @@ impl Widget for &mut ItemList {
         let list = List::new(
             self.items
                 .iter()
+                .skip(self.offset)
+                .take(area.height as usize)
                 .map(|item| {
                     let selector = if self.selection.contains(&item) {
                         Span::styled(">", Style::new().fg(Color::Blue).add_modifier(Modifier::BOLD))
@@ -132,6 +155,10 @@ impl Widget for &mut ItemList {
                         .spans;
                     spans.insert(0, selector);
                     spans.insert(0, idx);
+                    let offset = Span::raw(format!(":{}:", self.offset));
+                    let current = Span::raw(format!("{}", self.current.saturating_sub(self.offset)));
+                    spans.insert(0, offset);
+                    spans.insert(0, current);
                     Line::from(spans)
                 })
                 .collect::<Vec<Line>>(),
@@ -140,6 +167,6 @@ impl Widget for &mut ItemList {
         .highlight_style(Style::new().reversed())
         .direction(self.direction);
 
-        StatefulWidget::render(list, area, buf, &mut self.state)
+        StatefulWidget::render(list, area, buf, &mut ListState::default().with_selected(Some(self.current.saturating_sub(self.offset))));
     }
 }

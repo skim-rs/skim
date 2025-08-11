@@ -252,8 +252,8 @@ impl<'a> App<'a> {
             Down(n) => {
                 use ratatui::widgets::ListDirection::*;
                 match self.item_list.direction {
-                    TopToBottom => self.item_list.state.scroll_down_by(*n),
-                    BottomToTop => self.item_list.state.scroll_up_by(*n),
+                    TopToBottom => self.item_list.scroll_down_by(*n),
+                    BottomToTop => self.item_list.scroll_up_by(*n),
                 }
                 return Ok(vec![Event::RunPreview]);
             }
@@ -357,8 +357,8 @@ impl<'a> App<'a> {
                 self.item_list.toggle();
                 use ratatui::widgets::ListDirection::*;
                 match self.item_list.direction {
-                    TopToBottom => self.item_list.state.select_next(),
-                    BottomToTop => self.item_list.state.select_previous(),
+                    TopToBottom => self.item_list.select_next(),
+                    BottomToTop => self.item_list.select_previous(),
                 }
                 return Ok(vec![Event::RunPreview]);
             }
@@ -367,8 +367,8 @@ impl<'a> App<'a> {
                 self.item_list.toggle();
                 use ratatui::widgets::ListDirection::*;
                 match self.item_list.direction {
-                    TopToBottom => self.item_list.state.select_previous(),
-                    BottomToTop => self.item_list.state.select_next(),
+                    TopToBottom => self.item_list.select_previous(),
+                    BottomToTop => self.item_list.select_next(),
                 }
                 return Ok(vec![Event::RunPreview]);
             }
@@ -383,8 +383,8 @@ impl<'a> App<'a> {
             Up(n) => {
                 use ratatui::widgets::ListDirection::*;
                 match self.item_list.direction {
-                    TopToBottom => self.item_list.state.scroll_up_by(*n),
-                    BottomToTop => self.item_list.state.scroll_down_by(*n),
+                    TopToBottom => self.item_list.scroll_up_by(*n),
+                    BottomToTop => self.item_list.scroll_down_by(*n),
                 }
                 return Ok(vec![Event::RunPreview]);
             }
