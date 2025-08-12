@@ -15,6 +15,7 @@ use color_eyre::eyre::OptionExt;
 use color_eyre::eyre::Result;
 use crossbeam::channel::{Receiver, Sender};
 use crossterm::event::KeyCode;
+use ratatui::prelude::CrosstermBackend;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -348,7 +349,8 @@ impl Skim {
         // let min_height = Skim::parse_height_string(&options.min_height);
 
         let height = Size::try_from(options.height.as_str())?;
-        let mut tui = tui::Tui::new_with_height(height)?;
+        let backend = CrosstermBackend::new(std::io::stderr());
+        let mut tui = tui::Tui::new_with_height(backend, height)?;
         tui.enter()?;
 
         // application state

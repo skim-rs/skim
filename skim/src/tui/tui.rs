@@ -6,7 +6,7 @@ use crossterm::cursor;
 use crossterm::event::KeyEventKind;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use futures::{FutureExt as _, StreamExt as _};
-use ratatui::backend::CrosstermBackend as Backend;
+use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
 use tokio;
 use tokio::sync::mpsc::unbounded_channel;
@@ -18,8 +18,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Event, Size};
 
-pub struct Tui {
-    pub terminal: ratatui::Terminal<Backend<std::io::Stderr>>,
+pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>> {
+    pub terminal: ratatui::Terminal<B>,
     pub task: JoinHandle<()>,
     pub event_rx: UnboundedReceiver<Event>,
     pub event_tx: UnboundedSender<Event>,
@@ -29,9 +29,8 @@ pub struct Tui {
     pub is_fullscreen: bool,
 }
 
-impl Tui {
-    pub fn new_with_height(height: Size) -> Result<Self> {
-        let backend = Backend::new(stderr());
+impl<B: Backend> Tui<B> {
+    pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
         let (is_fullscreen, viewport) = match height {
             Size::Percent(100) => (true, Viewport::Fullscreen),
@@ -79,7 +78,7 @@ impl Tui {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);
         let _event_tx = self.event_tx.clone();
-        let spawn = tokio::spawn(async move {
+        self.task = tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);
             let mut render_interval = tokio::time::interval(render_delay);
@@ -112,7 +111,6 @@ impl Tui {
                 }
             }
         });
-        self.task = spawn;
     }
 
     pub async fn next(&mut self) -> Option<Event> {
@@ -120,21 +118,21 @@ impl Tui {
     }
 }
 
-impl Deref for Tui {
-    type Target = ratatui::Terminal<Backend<std::io::Stderr>>;
+impl<B: Backend> Deref for Tui<B> {
+    type Target = ratatui::Terminal<B>;
 
     fn deref(&self) -> &Self::Target {
         &self.terminal
     }
 }
 
-impl DerefMut for Tui {
+impl<B: Backend> DerefMut for Tui<B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.terminal
     }
 }
 
-impl Drop for Tui {
+impl<B: Backend> Drop for Tui<B> {
     fn drop(&mut self) {
         self.exit(0).unwrap();
     }

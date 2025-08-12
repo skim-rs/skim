@@ -28,7 +28,8 @@ impl SkimItem for Item {
     }
 }
 
-pub fn main() {
+#[tokio::main]
+pub async fn main() {
     let options = SkimOptionsBuilder::default()
         .height(String::from("50%"))
         .multi(true)
@@ -57,6 +58,7 @@ pub fn main() {
     drop(tx);
 
     let selected_items = Skim::run_with(&options, Some(rx))
+        .await
         .map(|out| out.selected_items)
         .unwrap_or_default()
         .iter()
