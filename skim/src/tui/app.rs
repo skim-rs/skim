@@ -7,24 +7,26 @@ use crate::item::ItemPool;
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::util::printf;
-use crate::SkimItem;
+use crate::{ItemPreview, PreviewContext, SkimItem};
 
+use super::Event;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::options::TuiOptions;
 use super::statusline::StatusLine;
-use super::Event;
-use color_eyre::eyre::{bail, Result};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use color_eyre::eyre::{Result, bail};
+use color_eyre::owo_colors::OwoColorize;
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use crossterm::event::{KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Rect, Size};
 use ratatui::widgets::Widget;
+use rayon::str::ParallelString;
 
 use super::{input, preview, tui};
 
@@ -58,13 +60,35 @@ impl Widget for &mut App<'_> {
             Constraint::Length(1),
             Constraint::Length(1),
         ]);
-        let [top, header, status, bottom] = layout.areas(area);
-        let [top_left, top_right] = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).areas(top);
+        let [mut list_area, header, status, bottom] = layout.areas(area);
         self.input.render(bottom, buf);
         self.header.render(header, buf);
         self.status.render(status, buf);
-        self.preview.render(top_right, buf);
-        self.item_list.render(top_left, buf);
+        if self.options.preview.is_some() && !self.options.preview_window.hidden {
+            let direction = match self.options.preview_window.direction {
+                super::Direction::Up | super::Direction::Down => Direction::Vertical,
+                super::Direction::Left | super::Direction::Right => Direction::Horizontal,
+            };
+            let size = match self.options.preview_window.size {
+                super::Size::Fixed(n) => Constraint::Length(n),
+                super::Size::Percent(n) => Constraint::Percentage(n),
+            };
+            let preview_area = match self.options.preview_window.direction {
+                super::Direction::Down | super::Direction::Left => {
+                    let areas: [_; 2] = Layout::new(direction, [size, Constraint::Fill(1)]).areas(list_area);
+                    list_area = areas[1];
+                    areas[0]
+                }
+                super::Direction::Up | super::Direction::Right => {
+                    let areas: [_; 2] = Layout::new(direction, [Constraint::Fill(1), size]).areas(list_area);
+                    list_area = areas[0];
+                    areas[1]
+                }
+            };
+            self.preview.render(preview_area, buf);
+        }
+        self.item_list.render(list_area, buf);
+
         self.cursor_pos = (bottom.x + self.input.cursor_pos(), bottom.y)
     }
 }
@@ -94,6 +118,7 @@ impl Default for App<'_> {
 
 impl<'a> App<'a> {
     pub fn handle_event(&mut self, tui: &mut tui::Tui, event: &Event) -> Result<()> {
+        let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
                 tui.get_frame();
@@ -106,18 +131,68 @@ impl<'a> App<'a> {
                 self.should_trigger_matcher = true;
             }
             Event::RunPreview => {
-                if self.options.preview.is_some() {
-                    self.preview.run(
-                        tui,
-                        &printf(
-                            self.options.preview.clone().unwrap(),
-                            &self.options.delimiter,
-                            self.item_list.selection.iter().map(|m| m.item.clone()),
-                            self.item_list.selected(),
-                            &self.input,
-                            &self.input,
-                        ),
-                    );
+                if let Some(preview_opt) = &self.options.preview {
+                    if let Some(item) = self.item_list.selected() {
+                        let selection: Vec<_> =
+                            self.item_list.selection.iter().map(|i| i.text().into_owned()).collect();
+                        let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
+                        let ctx = PreviewContext {
+                            query: &self.input.value,
+                            cmd_query: &self.input.value, // TODO handle mode
+                            width: self.preview.cols as usize,
+                            height: self.preview.rows as usize,
+                            current_index: self
+                                .item_list
+                                .selected()
+                                .and_then(|i| Some(i.get_index()))
+                                .unwrap_or_default(),
+                            current_selection: &self
+                                .item_list
+                                .selected()
+                                .and_then(|i| Some(i.text().into_owned()))
+                                .unwrap_or_default(),
+                            selected_indices: &self
+                                .item_list
+                                .selection
+                                .iter()
+                                .map(|v| v.get_index())
+                                .collect::<Vec<_>>(),
+                            selections: &selection_str,
+                        };
+                        let preview = item.preview(ctx);
+                        match preview {
+                            ItemPreview::Command(cmd) => self.preview.run(
+                                tui,
+                                &printf(
+                                    cmd,
+                                    &self.options.delimiter,
+                                    self.item_list.selection.iter().map(|m| m.item.clone()),
+                                    self.item_list.selected(),
+                                    &self.input,
+                                    &self.input,
+                                ),
+                            ),
+                            ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
+                                self.preview.content(&t.bytes().collect())?
+                            }
+                            ItemPreview::CommandWithPos(_, preview_position) => todo!(),
+                            ItemPreview::TextWithPos(_, preview_position) => todo!(),
+                            ItemPreview::AnsiWithPos(_, preview_position) => todo!(),
+                            ItemPreview::Global => {
+                                self.preview.run(
+                                    tui,
+                                    &printf(
+                                      preview_opt.to_string(),
+                                        &self.options.delimiter,
+                                        self.item_list.selection.iter().map(|m| m.item.clone()),
+                                        self.item_list.selected(),
+                                        &self.input,
+                                        &self.input,
+                                    ),
+                                );
+                            }
+                        };
+                    }
                 }
             }
             Event::Clear => {
@@ -155,12 +230,27 @@ impl<'a> App<'a> {
             }
             _ => (),
         };
+        let new_item = self.item_list.selected();
+        if let Some(new) = new_item {
+          if let Some(prev) = prev_item {
+            if prev.text() != new.text() {
+              self.on_item_changed(tui)?;
+            }
+          } else {
+            self.on_item_changed(tui)?;
+          }
+        }
         Ok(())
     }
     pub fn handle_items(&mut self, items: Vec<Arc<dyn SkimItem>>) {
         self.item_pool.append(items);
-        // self.restart_matcher(false);
+        self.restart_matcher(false);
         trace!("Got new items, len {}", self.item_pool.len());
+    }
+    pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()>{
+      tui.event_tx.send(Event::RunPreview)?;
+
+      Ok(())
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         let act = self.options.keymap.get(key);
@@ -233,7 +323,10 @@ impl<'a> App<'a> {
             }
             Cancel => {
                 self.matcher_control.kill();
-                self.preview.thread_handle.abort();
+
+                if let Some(th) = &self.preview.thread_handle {
+                  th.abort();
+                }
             }
             ClearScreen => {
                 return Ok(vec![Event::Clear]);

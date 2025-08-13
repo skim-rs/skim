@@ -38,32 +38,6 @@ fn parse_args() -> Result<SkimOptions, Error> {
     Ok(SkimOptions::try_parse_from(args)?.build())
 }
 
-//------------------------------------------------------------------------------
-#[tokio::main]
-async fn main() -> Result<()> {
-    color_eyre::install()?;
-    env_logger::builder().format_timestamp_nanos().init();
-    sk_main().await?;
-    Ok(())
-    // match sk_main().await {
-    //     Ok(exit_code) => std::process::exit(exit_code),
-    //     Err(err) => {
-    //         // if downstream pipe is closed, exit silently, see PR#279
-    //         match err.downcast_ref::<SkMainError>() {
-    //             Some(IoError(e)) => {
-    //                 if e.kind() == std::io::ErrorKind::BrokenPipe {
-    //                     std::process::exit(0)
-    //                 } else {
-    //                     std::process::exit(2)
-    //                 }
-    //             }
-    //             Some(ArgError(e)) => e.exit(),
-    //             None => std::process::exit(1),
-    //         }
-    //     }
-    // }
-}
-
 #[derive(Error, Debug)]
 enum SkMainError {
     #[error("I/O error {0:?}")]
@@ -84,7 +58,31 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
-async fn sk_main() -> Result<i32> {
+
+//------------------------------------------------------------------------------
+fn main() -> Result<()> {
+    color_eyre::install()?;
+    env_logger::builder().format_timestamp_nanos().init();
+    match sk_main() {
+        Ok(exit_code) => std::process::exit(exit_code),
+        Err(err) => {
+            // if downstream pipe is closed, exit silently, see PR#279
+            match err.downcast_ref::<SkMainError>() {
+                Some(SkMainError::IoError(e)) => {
+                    if e.kind() == std::io::ErrorKind::BrokenPipe {
+                        std::process::exit(0)
+                    } else {
+                        std::process::exit(2)
+                    }
+                }
+                Some(SkMainError::ArgError(e)) => e.exit(),
+                None => std::process::exit(1),
+            }
+        }
+    }
+}
+
+fn sk_main() -> Result<i32> {
     let mut opts = parse_args()?;
 
     let reader_opts = SkimItemReaderOption::default()
@@ -121,7 +119,7 @@ async fn sk_main() -> Result<i32> {
         if opts.filter.is_some() {
             return Ok(filter(&bin_options, &opts, rx_item));
         }
-        Some(Skim::run_with(&opts, rx_item).await?)
+        Some(Skim::run_with(&opts, rx_item)?)
     }) else {
         return Ok(135);
     };

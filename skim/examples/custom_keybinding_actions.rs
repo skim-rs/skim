@@ -13,8 +13,7 @@ fn fake_create_item(item: &str) {
     println!("Creating a new item `{}`...", item);
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     // Note: `accept` is a keyword used define custom actions.
     // For full list of accepted keywords see `parse_event` in `src/event.rs`.
     // `delete` and `create` are arbitrary keywords used for this example.
@@ -24,7 +23,7 @@ async fn main() {
         .build()
         .unwrap();
 
-    if let Ok(out) = Skim::run_with(&options, None).await {
+    if let Ok(out) = Skim::run_with(&options, None) {
         match out.final_key {
             // Delete each selected item
             KeyCode::Backspace => out.selected_items.iter().for_each(|i| fake_delete_item(&i.text())),

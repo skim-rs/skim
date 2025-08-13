@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use clap::ValueEnum;
+use color_eyre::eyre;
 use color_eyre::eyre::OptionExt;
 use color_eyre::eyre::Result;
 use crossbeam::channel::{Receiver, Sender};
@@ -21,10 +22,10 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 use reader::Reader;
 use tokio::select;
-use tui::options::TuiOptions;
 use tui::App;
 use tui::Event;
 use tui::Size;
+use tui::options::TuiOptions;
 
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
@@ -345,20 +346,16 @@ impl Skim {
     ///
     /// Panics if the tui fails to initilize
     #[must_use]
-    pub async fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+    pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         // let min_height = Skim::parse_height_string(&options.min_height);
 
         let height = Size::try_from(options.height.as_str())?;
         let backend = CrosstermBackend::new(std::io::stderr());
         let mut tui = tui::Tui::new_with_height(backend, height)?;
-        tui.enter()?;
 
         // application state
         let mut app = App::default();
         app.options = TuiOptions::try_from(options)?;
-
-        //------------------------------------------------------------------------------
-        // reader
 
         let mut reader = Reader::with_options(options).source(source);
         const SKIM_DEFAULT_COMMAND: &str = "find .";
@@ -366,41 +363,55 @@ impl Skim {
             Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
             Ok(v) => v,
         });
-        let reader_control = reader.run(app.item_tx.clone(), &options.cmd.clone().unwrap_or(default_command));
 
-        //------------------------------------------------------------------------------
-        // model + previewer
-        // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
-        // let _ = input_thread.join();
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async {
+            tui.enter()?;
 
-        let mut reader_done = false;
-        let mut item_receiver_interval = tokio::time::interval(Duration::from_millis(500));
+            //------------------------------------------------------------------------------
+            // reader
+            let reader_control = reader.run(app.item_tx.clone(), &options.cmd.clone().unwrap_or(default_command));
 
-        const BUF_CAPACITY: usize = 1 << 16;
-        loop {
-            select! {
-                event = tui.next() => {
-                    if reader_control.is_done() && ! reader_done {
-                        app.restart_matcher(true);
-                        reader_done = true;
+            //------------------------------------------------------------------------------
+            // model + previewer
+            // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
+            // let _ = input_thread.join();
+
+            let mut reader_done = false;
+            let mut got_items = false;
+            let mut item_receiver_interval = tokio::time::interval(Duration::from_millis(500));
+            let mut matcher_interval = tokio::time::interval(Duration::from_millis(500));
+
+            const BUF_CAPACITY: usize = 1 << 16;
+            loop {
+                select! {
+                    event = tui.next() => {
+                        if reader_control.is_done() && ! reader_done {
+                            app.restart_matcher(true);
+                            reader_done = true;
+                        }
+                        app.handle_event(&mut tui, &event.ok_or_eyre("Could not acquire next event")?)?;
                     }
-                    app.handle_event(&mut tui, &event.ok_or_eyre("Could not acquire next event")?)?;
+                    _ = item_receiver_interval.tick() => {
+                      while let Ok(item) = app.item_rx.try_recv() {
+                        let mut items = Vec::with_capacity(BUF_CAPACITY);
+                        items.push(item);
+                        app.handle_items(items);
+                      }
+                    }
+                    _ = matcher_interval.tick() => {
+                      app.restart_matcher(true);
+                    }
                 }
-                _ = item_receiver_interval.tick() => {
-                  while let Ok(item) = app.item_rx.try_recv() {
-                    let mut items = Vec::with_capacity(BUF_CAPACITY);
-                    items.push(item);
-                    app.handle_items(items);
-                  }
+
+                if app.should_quit {
+                    break;
                 }
             }
+            reader_control.kill();
+            eyre::Ok(())
+        })?;
 
-            if app.should_quit {
-                break;
-            }
-        }
-
-        reader_control.kill();
 
         Ok(SkimOutput {
             cmd: options.cmd.clone().unwrap_or_default(),

@@ -29,8 +29,7 @@ impl CommandCollector for BasicCmdCollector {
     }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let cmd_collector = BasicCmdCollector {
         items: vec![String::from("foo"), String::from("bar"), String::from("baz")],
     };
@@ -40,7 +39,6 @@ async fn main() {
         .unwrap();
 
     let selected_items = Skim::run_with(&options, None)
-        .await
         .map(|out| out.selected_items)
         .unwrap_or_default();
 

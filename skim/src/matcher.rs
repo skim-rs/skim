@@ -16,7 +16,7 @@ pub struct MatcherControl {
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-    thread_matcher: JoinHandle<()>,
+    thread_matcher: Option<JoinHandle<()>>,
 }
 
 impl MatcherControl {
@@ -30,7 +30,9 @@ impl MatcherControl {
 
     pub fn kill(&self) {
         self.stopped.store(true, Ordering::Relaxed);
-        self.thread_matcher.abort();
+        if let Some(th) = &self.thread_matcher {
+          th.abort();
+        }
     }
 
     pub fn stopped(&self) -> bool {
@@ -50,7 +52,7 @@ impl Default for MatcherControl {
             processed: Default::default(),
             matched: Default::default(),
             items: Default::default(),
-            thread_matcher: task::spawn(async {}),
+            thread_matcher: None,
         }
     }
 }
@@ -137,7 +139,7 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items_clone,
-            thread_matcher,
+            thread_matcher: Some(thread_matcher),
         }
     }
 }

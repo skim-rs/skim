@@ -11,8 +11,7 @@ impl Selector for BasicSelector {
     }
 }
 
-#[tokio::main]
-pub async fn main() {
+pub fn main() {
     let selector = BasicSelector {
         pat: String::from("examples"),
     };
@@ -24,7 +23,6 @@ pub async fn main() {
         .unwrap();
 
     let selected_items = Skim::run_with(&options, None)
-        .await
         .map(|out| out.selected_items)
         .unwrap_or_default();
 

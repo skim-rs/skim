@@ -15,7 +15,7 @@ pub struct Preview<'a> {
     pub cmd: String,
     pub rows: u16,
     pub cols: u16,
-    pub thread_handle: JoinHandle<()>,
+    pub thread_handle: Option<JoinHandle<()>>,
 }
 
 impl Default for Preview<'_> {
@@ -25,7 +25,7 @@ impl Default for Preview<'_> {
             cmd: String::default(),
             rows: 0,
             cols: 0,
-            thread_handle: tokio::spawn(async {}),
+            thread_handle: None,
         }
     }
 }
@@ -47,8 +47,10 @@ impl Preview<'_> {
             .env("PAGER", "")
             .arg("-c")
             .arg(cmd);
-        self.thread_handle.abort();
-        self.thread_handle = tokio::spawn(async move {
+        if let Some(th) = &self.thread_handle {
+          th.abort();
+        }
+        self.thread_handle = Some(tokio::spawn(async move {
             let try_out = shell_cmd.output();
             if try_out.is_err() {
                 let _ = _event_tx.send(Event::Error(try_out.unwrap_err().to_string()));
@@ -66,7 +68,7 @@ impl Preview<'_> {
                     .send(Event::PreviewReady(out.stderr))
                     .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
             }
-        });
+        }));
     }
 }
 

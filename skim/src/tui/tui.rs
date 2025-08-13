@@ -1,7 +1,7 @@
 use std::io::stderr;
 use std::ops::{Deref, DerefMut};
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Context, Result};
 use crossterm::cursor;
 use crossterm::event::KeyEventKind;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
@@ -20,7 +20,7 @@ use super::{Event, Size};
 
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>> {
     pub terminal: ratatui::Terminal<B>,
-    pub task: JoinHandle<()>,
+    pub task: Option<JoinHandle<()>>,
     pub event_rx: UnboundedReceiver<Event>,
     pub event_tx: UnboundedSender<Event>,
     pub frame_rate: f64,
@@ -35,12 +35,15 @@ impl<B: Backend> Tui<B> {
         let (is_fullscreen, viewport) = match height {
             Size::Percent(100) => (true, Viewport::Fullscreen),
             Size::Fixed(lines) => (false, Viewport::Inline(lines)),
-            Size::Percent(p) => todo!(),
+            Size::Percent(p) => {
+                let term_height = backend.size().context("Failed to get terminal size")?.height;
+                (false, Viewport::Inline(term_height * p / 100))
+            }
         };
         set_panic_hook();
         Ok(Self {
             terminal: ratatui::Terminal::with_options(backend, TerminalOptions { viewport })?,
-            task: tokio::spawn(async {}),
+            task: None,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
             frame_rate: 30.0,
@@ -78,7 +81,7 @@ impl<B: Backend> Tui<B> {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);
         let _event_tx = self.event_tx.clone();
-        self.task = tokio::spawn(async move {
+        self.task = Some(tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);
             let mut render_interval = tokio::time::interval(render_delay);
@@ -110,7 +113,7 @@ impl<B: Backend> Tui<B> {
                     },
                 }
             }
-        });
+        }));
     }
 
     pub async fn next(&mut self) -> Option<Event> {

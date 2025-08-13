@@ -20,6 +20,27 @@ pub enum Size {
     Fixed(u16),
 }
 
+#[derive(PartialEq, Eq, Clone, Debug, Copy)]
+pub(crate) enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl From<&str> for Direction {
+    fn from(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+          "up" => Self::Up,
+          "down" => Self::Down,
+          "left" => Self::Left,
+          "right" => Self::Right,
+          _ => panic!("Unknown direction {value}")
+        }
+    }
+}
+
+
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum SizeParseError {
     #[error("Error parsing {0}: {1:?}")]
