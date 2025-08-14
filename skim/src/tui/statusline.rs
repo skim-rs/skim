@@ -115,14 +115,6 @@ impl Widget for &StatusLine {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
-pub(crate) enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub(crate) enum ClearStrategy {
     DontClear,
     Clear,

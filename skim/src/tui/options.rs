@@ -1,7 +1,7 @@
 use crate::{
     binds::{parse_keymaps, KeyMap}, tui::{Direction, Size}, SkimOptions
 };
-use color_eyre::{eyre::Context, owo_colors::OwoColorize, Result};
+use color_eyre::Result;
 use regex::Regex;
 
 pub struct PreviewLayout {
@@ -24,7 +24,7 @@ impl From<&str> for PreviewLayout {
           let mut size = remainder;
           if let Some((size_p, remainder)) = remainder.split_once(':') {
             if let Some((hidden, _)) = remainder.split_once(':') {
-              res.hidden = (hidden == "hidden");
+              res.hidden = hidden == "hidden";
             }
             size = size_p;
           }
@@ -41,6 +41,7 @@ pub struct TuiOptions {
     pub delimiter: Regex,
     pub min_query_length: Option<usize>,
     pub(crate) use_regex: bool,
+    pub(crate) interactive: bool,
 }
 
 impl Default for TuiOptions {
@@ -52,6 +53,7 @@ impl Default for TuiOptions {
             delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             min_query_length: None,
             use_regex: false,
+            interactive: false,
         }
     }
 }
@@ -66,6 +68,7 @@ impl TryFrom<&SkimOptions> for TuiOptions {
             delimiter: Regex::new(&value.delimiter)?,
             min_query_length: None, // TODO
             use_regex: value.regex,
+            interactive: value.interactive
         })
     }
 }

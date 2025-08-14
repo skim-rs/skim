@@ -43,7 +43,7 @@ impl<T> SpinLock<T> {
 }
 
 impl<T: ?Sized> SpinLock<T> {
-    pub fn lock(&self) -> SpinLockGuard<T> {
+    pub fn lock(&self) -> SpinLockGuard<'_, T> {
         while self
             .locked
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)

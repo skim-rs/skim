@@ -25,20 +25,17 @@ pub(crate) struct ItemList {
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     pub(crate) current: usize,
+    pub(crate) height: u16,
 }
 
 impl Default for ItemList {
     fn default() -> Self {
         let (tx, rx) = unbounded_channel();
         Self {
-            items: Vec::default(),
-            selection: HashSet::default(),
-            rank_builder: RankBuilder::default(),
             tx,
             rx,
             direction: ListDirection::BottomToTop,
-            offset: 0,
-            current: 0,
+            ..Default::default()
         }
     }
 }
@@ -92,12 +89,17 @@ impl ItemList {
             self.selection.insert(item.clone());
         }
     }
+    pub fn scroll_by(&mut self, offset: i32) {
+      if offset > 0 {
+        self.scroll_down_by(offset.unsigned_abs() as u16);
+      } else {
+        self.scroll_up_by(offset.unsigned_abs() as u16);
+      }
+    }
     pub fn scroll_up_by(&mut self, offset: u16) {
-        // self.offset = self.offset.saturating_sub(offset as usize);
         self.current = self.current.saturating_sub(offset as usize);
     }
     pub fn scroll_down_by(&mut self, offset: u16) {
-        // self.offset = self.offset.saturating_add(offset as usize);
         self.current = self.current.saturating_add(offset as usize);
     }
     pub fn select_previous(&mut self) {
@@ -113,6 +115,7 @@ impl Widget for &mut ItemList {
     where
         Self: Sized,
     {
+      self.height = area.height;
         if self.current < self.offset {
             self.offset = self.current;
         } else if self.offset + area.height as usize <= self.current {

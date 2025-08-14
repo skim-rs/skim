@@ -77,11 +77,11 @@ impl DefaultSkimItem {
 
 impl SkimItem for DefaultSkimItem {
     #[inline]
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.result)
     }
 
-    fn output(&self) -> Cow<str> {
+    fn output(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.result)
     }
 

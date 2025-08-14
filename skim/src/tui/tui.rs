@@ -1,4 +1,3 @@
-use std::io::stderr;
 use std::ops::{Deref, DerefMut};
 
 use color_eyre::eyre::{Context, Result};

@@ -16,7 +16,6 @@ use super::item_list::ItemList;
 use super::options::TuiOptions;
 use super::statusline::StatusLine;
 use color_eyre::eyre::{Result, bail};
-use color_eyre::owo_colors::OwoColorize;
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use crossterm::event::{KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
@@ -24,9 +23,8 @@ use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
-use ratatui::layout::{Constraint, Direction, Layout, Rect, Size};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::Widget;
-use rayon::str::ParallelString;
 
 use super::{input, preview, tui};
 
@@ -182,7 +180,7 @@ impl<'a> App<'a> {
                                 self.preview.run(
                                     tui,
                                     &printf(
-                                      preview_opt.to_string(),
+                                        preview_opt.to_string(),
                                         &self.options.delimiter,
                                         self.item_list.selection.iter().map(|m| m.item.clone()),
                                         self.item_list.selected(),
@@ -232,13 +230,13 @@ impl<'a> App<'a> {
         };
         let new_item = self.item_list.selected();
         if let Some(new) = new_item {
-          if let Some(prev) = prev_item {
-            if prev.text() != new.text() {
-              self.on_item_changed(tui)?;
+            if let Some(prev) = prev_item {
+                if prev.text() != new.text() {
+                    self.on_item_changed(tui)?;
+                }
+            } else {
+                self.on_item_changed(tui)?;
             }
-          } else {
-            self.on_item_changed(tui)?;
-          }
         }
         Ok(())
     }
@@ -247,10 +245,10 @@ impl<'a> App<'a> {
         self.restart_matcher(false);
         trace!("Got new items, len {}", self.item_pool.len());
     }
-    pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()>{
-      tui.event_tx.send(Event::RunPreview)?;
+    pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()> {
+        tui.event_tx.send(Event::RunPreview)?;
 
-      Ok(())
+        Ok(())
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         let act = self.options.keymap.get(key);
@@ -325,7 +323,7 @@ impl<'a> App<'a> {
                 self.matcher_control.kill();
 
                 if let Some(th) = &self.preview.thread_handle {
-                  th.abort();
+                    th.abort();
                 }
             }
             ClearScreen => {
@@ -406,23 +404,23 @@ impl<'a> App<'a> {
             }
             NextHistory => todo!(),
             HalfPageDown(n) => {
-                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                //self.item_list.move_cursor_by(offset * n / 2);
+                let offset = self.item_list.height as i32 / 2;
+                self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
             HalfPageUp(n) => {
-                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                //self.item_list.move_cursor_by(-offset * n / 2);
+                let offset = self.item_list.height as i32 / 2;
+                self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
             PageDown(n) => {
-                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                //self.item_list.move_cursor_by(offset * n);
+                let offset = self.item_list.height as i32;
+                self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
             PageUp(n) => {
-                //let offset = self.item_list.view_range.1.abs_diff(self.item_list.view_range.0) as i32;
-                //self.item_list.move_cursor_by(-offset * n);
+                let offset = self.item_list.height as i32;
+                self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
             PreviewUp(n) => todo!(),
@@ -458,7 +456,7 @@ impl<'a> App<'a> {
                 }
                 return Ok(vec![Event::RunPreview]);
             }
-            ToggleInteractive => todo!(),
+            ToggleInteractive => self.options.interactive = !self.options.interactive,
             ToggleOut => {
                 self.item_list.toggle();
                 use ratatui::widgets::ListDirection::*;
@@ -468,7 +466,9 @@ impl<'a> App<'a> {
                 }
                 return Ok(vec![Event::RunPreview]);
             }
-            TogglePreview => todo!(),
+            TogglePreview => {
+                self.options.preview_window.hidden = !self.options.preview_window.hidden;
+            }
             TogglePreviewWrap => todo!(),
             ToggleSort => todo!(),
             UnixLineDiscard => todo!(),
