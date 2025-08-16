@@ -549,7 +549,7 @@ Check out more examples under the [examples/](https://github.com/skim-rs/skim/tr
 
 `tuikit` is the TUI framework used in `skim`. It is available from the library as `skim::tuikit`.
 
-Check [the README](./tuikit/README.md) for more details.
+Check [the README](./skim-tuikit/README.md) for more details.
 
 # FAQ
 
