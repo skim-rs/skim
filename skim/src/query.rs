@@ -376,8 +376,13 @@ impl Query {
 
     pub fn act_kill_line(&mut self) {
         let (_, after) = self.get_query_ref();
-        let after = std::mem::take(after);
-        self.save_yank(after, false);
+        let mut yank = Vec::new();
+        while !after.is_empty() {
+            if let Some(ch) = after.pop() {
+                yank.push(ch);
+            }
+        }
+        self.save_yank(yank, false);
     }
 
     pub fn act_line_discard(&mut self) {
