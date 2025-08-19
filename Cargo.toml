@@ -31,7 +31,7 @@ lazy_static = "1.2.0"
 log = "0.4.27"
 nix = { version = "0.29.0", default-features = false, features = ["fs"]}
 rand = "0.9.0"
-rayon = "1.5.3"
+rayon = "1.11.0"
 regex = "1.6.0"
 shell-quote = "0.7.2"
 shlex = "1.1.0"
