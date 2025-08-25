@@ -133,7 +133,7 @@ bindkey '\ec' skim-cd-widget
 skim-history-widget() {
   local selected num
   setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases 2> /dev/null
-  local awk_filter='{ cmd=$0; sub(/^\s*[0-9]+\**\s+/, "", cmd); if (!seen[cmd]++) print $0 }'  # filter out duplicates
+  local awk_filter='{ cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) print $0 }'  # filter out duplicates
   local n=2 fc_opts=''
   if [[ -o extended_history ]]; then
     local today=$(date +%Y-%m-%d)
