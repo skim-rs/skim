@@ -53,6 +53,9 @@ pub struct App<'a> {
     // spinner visibility state for debounce/hysteresis
     pub spinner_visible: bool,
     pub spinner_last_change: std::time::Instant,
+    
+    // track when items were just updated to avoid unnecessary status updates
+    pub items_just_updated: bool,
 
     pub options: TuiOptions,
     pub input_border: bool,
@@ -128,7 +131,7 @@ impl Widget for &mut App<'_> {
             };
             self.preview.render(preview_area, buf);
         }
-        self.item_list.render_with_theme(list_area, buf);
+        self.items_just_updated = self.item_list.render_with_theme(list_area, buf);
 
         self.cursor_pos = (bottom.x + self.input.cursor_pos(), bottom.y)
     }
@@ -179,6 +182,7 @@ impl Default for App<'_> {
             // spinner initial state
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
+            items_just_updated: false,
             options: TuiOptions::default(),
             input_border: false,
         }
@@ -228,6 +232,7 @@ impl<'a> App<'a> {
             // spinner initial state
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
+            items_just_updated: false,
             options,
             input_border: false,
         }
@@ -278,6 +283,12 @@ impl<'a> App<'a> {
                     self.render(f.area(), f.buffer_mut());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
+                // Update status only if item list actually received new items
+                if self.items_just_updated {
+                    self.on_items_updated();
+                    self.on_selection_changed();
+                    self.items_just_updated = false;
+                }
             }
             Event::Heartbeat => {
                 self.should_trigger_matcher = true;

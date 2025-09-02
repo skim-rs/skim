@@ -60,20 +60,23 @@ impl ItemList {
     }
 
     /// Render the item list using the theme colors.
-    pub fn render_with_theme(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
+    pub fn render_with_theme(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> bool {
         self.height = area.height;
         if self.current < self.offset {
             self.offset = self.current;
         } else if self.offset + area.height as usize <= self.current {
             self.offset = self.current - area.height as usize + 1;
         }
-        if let Ok(items) = self.rx.try_recv() {
+        let items_updated = if let Ok(items) = self.rx.try_recv() {
             debug!("Got {} items to put in list", items.len());
             self.items = items;
-        }
+            true
+        } else {
+            false
+        };
 
         if self.items.is_empty() {
-            return;
+            return items_updated;
         }
 
         let theme = &self.theme;
@@ -117,6 +120,8 @@ impl ItemList {
             buf,
             &mut ListState::default().with_selected(Some(self.current.saturating_sub(self.offset))),
         );
+        
+        items_updated
     }
     pub fn toggle_item(&mut self, item: &MatchedItem) {
         if self.selection.contains(item) {
