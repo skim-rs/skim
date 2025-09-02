@@ -40,8 +40,11 @@ pub struct TuiOptions {
     pub preview_window: PreviewLayout,
     pub delimiter: Regex,
     pub min_query_length: Option<usize>,
+    pub multi: bool,
     pub(crate) use_regex: bool,
     pub(crate) interactive: bool,
+    pub border: bool,
+    pub prompt: String,
 }
 
 impl Default for TuiOptions {
@@ -52,8 +55,11 @@ impl Default for TuiOptions {
             preview_window: PreviewLayout::default(),
             delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             min_query_length: None,
+            multi: false,
             use_regex: false,
             interactive: false,
+            border: false,
+            prompt: String::from("> "),
         }
     }
 }
@@ -67,8 +73,11 @@ impl TryFrom<&SkimOptions> for TuiOptions {
             preview_window: value.preview_window.as_str().into(),
             delimiter: Regex::new(&value.delimiter)?,
             min_query_length: None, // TODO
+            multi: value.multi,
             use_regex: value.regex,
-            interactive: value.interactive
+            interactive: value.interactive,
+            border: value.border,
+            prompt: value.prompt.clone(),
         })
     }
 }

@@ -8,10 +8,15 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
+use std::sync::Arc;
+use crate::theme::ColorTheme;
+
 pub struct Input {
     pub prompt: String,
     pub value: String,
     pub cursor_pos: u16,
+    pub theme: Arc<ColorTheme>,
+    pub border: bool,
 }
 
 impl Default for Input {
@@ -20,6 +25,8 @@ impl Default for Input {
             prompt: String::from(">"),
             value: String::default(),
             cursor_pos: 0,
+            theme: Arc::new(ColorTheme::default()),
+            border: false,
         }
     }
 }
@@ -81,8 +88,20 @@ impl Widget for &Input {
     where
         Self: Sized,
     {
-        Paragraph::new(format!("{} {}", &self.prompt, &self.value))
-            .block(Block::default())
+        use ratatui::text::{Span, Line};
+        use ratatui::widgets::Paragraph;
+
+        let prompt_span = Span::styled(&self.prompt, self.theme.prompt());
+        let value_span = Span::styled(&self.value, self.theme.query());
+        let line = Line::from(vec![prompt_span, Span::raw(" "), value_span]);
+        use ratatui::widgets::{Block, Borders};
+        let block = if self.border {
+            Block::default().borders(Borders::ALL).border_style(self.theme.border())
+        } else {
+            Block::default()
+        };
+        Paragraph::new(line)
+            .block(block)
             .render(area, buf);
     }
 }

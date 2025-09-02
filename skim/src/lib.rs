@@ -354,8 +354,17 @@ impl Skim {
         let mut tui = tui::Tui::new_with_height(backend, height)?;
 
         // application state
-        let mut app = App::default();
-        app.options = TuiOptions::try_from(options)?;
+        // Initialize theme from options
+        let theme = Arc::new(crate::theme::ColorTheme::init_from_options(options));
+
+        let tui_options = TuiOptions::try_from(options)?;
+        let mut app = App::from_options(tui_options, theme.clone());
+        app.item_list.theme = theme.clone();
+        app.header = app.header.theme(theme.clone());
+        app.status.theme = theme.clone();
+        app.input.theme = theme.clone();
+        app.preview.theme = theme.clone();
+        app.input_border = options.border;
 
         let mut reader = Reader::with_options(options).source(source);
         const SKIM_DEFAULT_COMMAND: &str = "find .";

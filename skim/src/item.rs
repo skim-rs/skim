@@ -78,7 +78,8 @@ pub struct MatchedItem {
 
 impl Hash for MatchedItem {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.get_index())
+        state.write_usize(self.get_index());
+        self.text().hash(state);
     }
 }
 
@@ -96,7 +97,7 @@ use std::cmp::Ordering as CmpOrd;
 
 impl PartialEq for MatchedItem {
     fn eq(&self, other: &Self) -> bool {
-        self.rank.eq(&other.rank)
+        self.text().eq(&other.text()) && self.get_index().eq(&other.get_index())
     }
 }
 

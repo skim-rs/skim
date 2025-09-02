@@ -10,12 +10,16 @@ use tokio::task::JoinHandle;
 use super::tui::Tui;
 use super::Event;
 
+use std::sync::Arc;
+use crate::theme::ColorTheme;
+
 pub struct Preview<'a> {
     pub content: Text<'a>,
     pub cmd: String,
     pub rows: u16,
     pub cols: u16,
     pub thread_handle: Option<JoinHandle<()>>,
+    pub theme: Arc<ColorTheme>,
 }
 
 impl Default for Preview<'_> {
@@ -26,6 +30,7 @@ impl Default for Preview<'_> {
             rows: 0,
             cols: 0,
             thread_handle: None,
+            theme: Arc::new(ColorTheme::default()),
         }
     }
 }
@@ -81,7 +86,9 @@ impl Widget for &mut Preview<'_> {
             self.rows = area.height;
             self.cols = area.width;
         }
-        let block = Block::bordered();
+        let block = Block::bordered()
+            .border_style(self.theme.border())
+            .style(self.theme.normal());
         Clear.render(area, buf);
         Paragraph::new(self.content.clone()).block(block).render(area, buf);
     }

@@ -1,9 +1,9 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Modifier, Styled};
-use ratatui::text::ToText;
+use ratatui::text::{Line, Span, Text, ToText};
 use ratatui::widgets::{Paragraph, Widget};
 use regex::Regex;
 
@@ -21,7 +21,7 @@ lazy_static! {
     static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct StatusLine {
     pub(crate) total: usize,
     pub(crate) matched: usize,
@@ -37,7 +37,36 @@ pub(crate) struct StatusLine {
     pub(crate) matcher_mode: String,
     pub(crate) theme: Arc<ColorTheme>,
     pub(crate) info: InfoDisplay,
+    pub(crate) start: Instant,
+    // show spinner flag controlled by App (debounced there)
+    pub(crate) show_spinner: bool,
 }
+
+impl Default for StatusLine {
+    fn default() -> Self {
+        let now = Instant::now();
+        Self {
+            total: 0,
+            matched: 0,
+            processed: 0,
+            matcher_running: false,
+            multi_selection: false,
+            selected: 0,
+            current_item_idx: 0,
+            hscroll_offset: 0,
+            reading: false,
+            time_since_read: Duration::from_millis(0),
+            time_since_match: Duration::from_millis(0),
+            matcher_mode: String::new(),
+            theme: Arc::new(ColorTheme::default()),
+            info: InfoDisplay::Default,
+            start: now,
+            show_spinner: false,
+        }
+    }
+}
+
+impl StatusLine {}
 
 impl Widget for &StatusLine {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
@@ -51,6 +80,7 @@ impl Widget for &StatusLine {
         let info_attr_bold = self.theme.info().add_modifier(Modifier::BOLD);
 
         let a_while_since_read = self.time_since_read > Duration::from_millis(50);
+        // treat recent matcher activity as "a while" for percentage display
         let a_while_since_match = self.time_since_match > Duration::from_millis(50);
 
         let spinner_set: &[char] = match self.info {
@@ -67,43 +97,33 @@ impl Widget for &StatusLine {
         ]);
         let [spinner_a, matched_a, _spacer, cursor_a] = layout.areas(area);
 
-        // draw the spinner
+        // draw the spinner if app requested it (debounced in App) or reader is recently active
         if self.reading && a_while_since_read {
-            let mills = (self.time_since_read.as_secs() * 1000) as u32 + self.time_since_read.subsec_millis();
-            let index = (mills / SPINNER_DURATION) % (spinner_set.len() as u32);
-            let ch = spinner_set[index as usize];
-            Paragraph::new(String::from_utf8(vec![ch as u8]).unwrap()).render(spinner_a, buf);
+            // use monotonic start elapsed for stable animation
+            let mills = self.start.elapsed().as_millis();
+            let index = ((mills / (SPINNER_DURATION as u128)) % (spinner_set.len() as u128)) as usize;
+            let ch = spinner_set[index];
+            Paragraph::new(ch.to_string()).render(spinner_a, buf);
         }
 
-        // display matched/total number
-        Paragraph::new(
-            format!(" {}/{}", self.matched, self.total)
-                .to_text()
-                .set_style(info_attr),
-        )
-        .render(matched_a, buf);
+        // build matched/total and extra info (mode, percentage, selection)
+        let mut parts: Vec<Span> = Vec::new();
+        parts.push(Span::styled(format!(" {}/{}", self.matched, self.total), info_attr));
+        if !self.matcher_mode.is_empty() {
+            parts.push(Span::styled(format!("/{}", &self.matcher_mode), info_attr));
+        }
+        if self.matcher_running && self.total > 0 {
+            let pct = self.processed.saturating_mul(100) / self.total;
+            parts.push(Span::styled(format!(" ({}%)", pct), info_attr));
+        }
+        if self.multi_selection && self.selected > 0 {
+            parts.push(Span::styled(format!(" [{}]", self.selected), info_attr_bold));
+        }
+        // create a Line from spans and convert to Text for Paragraph
+        let line = Line::from(parts);
+        Paragraph::new(Text::from(vec![line])).render(matched_a, buf);
 
-        // // display the matcher mode TODO
-        // if !self.matcher_mode.is_empty() {
-        //     col += canvas.print_with_attr(0, col, format!("/{}", &self.matcher_mode).as_ref(), info_attr)?;
-        // }
-
-        // // display the percentage of the number of processed items TODO
-        // if self.matcher_running && a_while_since_match {
-        //     col += canvas.print_with_attr(
-        //         0,
-        //         col,
-        //         format!(" ({}%) ", self.processed * 100 / self.total).as_ref(),
-        //         info_attr,
-        //     )?;
-        // }
-
-        // // selected number TODO
-        // if self.multi_selection && self.selected > 0 {
-        //     col += canvas.print_with_attr(0, col, format!(" [{}]", self.selected).as_ref(), info_attr_bold)?;
-        // }
-
-        // item cursor
+        // item cursor (current index / hscroll, show '.' when matcher running)
         let line_num_str = format!(
             " {}/{}{}",
             self.current_item_idx,
@@ -112,11 +132,4 @@ impl Widget for &StatusLine {
         );
         Paragraph::new(line_num_str.to_text().set_style(info_attr_bold)).render(cursor_a, buf);
     }
-}
-
-#[derive(PartialEq, Eq, Clone, Debug, Copy)]
-pub(crate) enum ClearStrategy {
-    DontClear,
-    Clear,
-    ClearIfNotNull,
 }

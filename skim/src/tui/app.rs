@@ -45,8 +45,17 @@ pub struct App<'a> {
     pub header: Header,
     pub status: StatusLine,
     pub item_list: ItemList,
+    pub theme: Arc<crate::theme::ColorTheme>,
+
+    pub reader_timer: std::time::Instant,
+    pub matcher_timer: std::time::Instant,
+
+    // spinner visibility state for debounce/hysteresis
+    pub spinner_visible: bool,
+    pub spinner_last_change: std::time::Instant,
 
     pub options: TuiOptions,
+    pub input_border: bool,
 }
 
 // App ui render function
@@ -59,8 +68,42 @@ impl Widget for &mut App<'_> {
             Constraint::Length(1),
         ]);
         let [mut list_area, header, status, bottom] = layout.areas(area);
+        self.input.border = self.input_border;
         self.input.render(bottom, buf);
         self.header.render(header, buf);
+
+        // compute spinner debounce/hysteresis and set status.show_spinner before rendering it
+        {
+            // matcher debounce (ms) and hide grace (ms) — keep in sync with statusline settings
+            // Increased values to reduce blinking when matcher toggles frequently.
+            const MATCHER_DEBOUNCE_MS: u128 = 300;
+            const HIDE_GRACE_MS: u128 = 600;
+            let matcher_running = !self.matcher_control.stopped();
+            let time_since_match = self.matcher_timer.elapsed();
+            let time_since_read = self.reader_timer.elapsed();
+
+            let matcher_ready = matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS;
+            let reader_ready = self.item_pool.num_not_taken() != 0 && time_since_read.as_millis() > 50;
+
+            let desired = matcher_ready || reader_ready;
+            let now = std::time::Instant::now();
+
+            if desired && !self.spinner_visible {
+                // turn on immediately
+                self.spinner_visible = true;
+                self.spinner_last_change = now;
+            } else if !desired && self.spinner_visible {
+                // only hide after grace period
+                if now.duration_since(self.spinner_last_change).as_millis() >= HIDE_GRACE_MS {
+                    self.spinner_visible = false;
+                    self.spinner_last_change = now;
+                }
+            }
+
+            // propagate to status for rendering
+            self.status.show_spinner = self.spinner_visible;
+        }
+
         self.status.render(status, buf);
         if self.options.preview.is_some() && !self.options.preview_window.hidden {
             let direction = match self.options.preview_window.direction {
@@ -85,7 +128,7 @@ impl Widget for &mut App<'_> {
             };
             self.preview.render(preview_area, buf);
         }
-        self.item_list.render(list_area, buf);
+        self.item_list.render_with_theme(list_area, buf);
 
         self.cursor_pos = (bottom.x + self.input.cursor_pos(), bottom.y)
     }
@@ -94,13 +137,35 @@ impl Widget for &mut App<'_> {
 impl Default for App<'_> {
     fn default() -> Self {
         let (item_tx, item_rx) = unbounded();
+        let theme = Arc::new(crate::theme::ColorTheme::default());
         Self {
-            input: Input::default(),
-            preview: Preview::default(),
-            header: Header::default(),
-            status: StatusLine::default(),
+            input: {
+                let mut input = Input::default();
+                input.theme = theme.clone();
+                input.border = false;
+                // Set prompt from options
+                input.prompt = TuiOptions::default().prompt.clone();
+                input
+            },
+            preview: {
+                let mut preview = Preview::default();
+                preview.theme = theme.clone();
+                preview
+            },
+            header: Header::default().theme(theme.clone()),
+            status: {
+                let mut s = StatusLine::default();
+                s.theme = theme.clone();
+                s.multi_selection = TuiOptions::default().multi;
+                s
+            },
             item_pool: Arc::default(),
-            item_list: ItemList::default(),
+            item_list: {
+                let mut il = ItemList::default();
+                il.theme = theme.clone();
+                il
+            },
+            theme,
             item_rx,
             item_tx,
             should_quit: false,
@@ -109,16 +174,105 @@ impl Default for App<'_> {
             yank_register: Cow::default(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
+            reader_timer: std::time::Instant::now(),
+            matcher_timer: std::time::Instant::now(),
+            // spinner initial state
+            spinner_visible: false,
+            spinner_last_change: std::time::Instant::now(),
             options: TuiOptions::default(),
+            input_border: false,
         }
     }
 }
 
 impl<'a> App<'a> {
+    pub fn from_options(options: TuiOptions, theme: Arc<crate::theme::ColorTheme>) -> Self {
+        let (item_tx, item_rx) = unbounded();
+        Self {
+            input: {
+                let mut input = Input::default();
+                input.theme = theme.clone();
+                input.border = false;
+                input.prompt = options.prompt.clone();
+                input
+            },
+            preview: {
+                let mut preview = Preview::default();
+                preview.theme = theme.clone();
+                preview
+            },
+            header: Header::default().theme(theme.clone()),
+            status: {
+                let mut s = StatusLine::default();
+                s.theme = theme.clone();
+                s.multi_selection = options.multi;
+                s
+            },
+            item_pool: Arc::default(),
+            item_list: {
+                let mut il = ItemList::default();
+                il.theme = theme.clone();
+                il
+            },
+            theme,
+            item_rx,
+            item_tx,
+            should_quit: false,
+            cursor_pos: (0, 0),
+            matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
+            yank_register: Cow::default(),
+            should_trigger_matcher: false,
+            matcher_control: MatcherControl::default(),
+            reader_timer: std::time::Instant::now(),
+            matcher_timer: std::time::Instant::now(),
+            // spinner initial state
+            spinner_visible: false,
+            spinner_last_change: std::time::Instant::now(),
+            options,
+            input_border: false,
+        }
+    }
+
+    /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
+    fn on_items_updated(&mut self) {
+        self.status.total = self.item_pool.len();
+        self.status.matched = self.item_list.items.len();
+        self.status.processed = self.matcher_control.get_num_processed();
+        // keep multi-selection flag synced with options
+        self.status.multi_selection = self.options.multi;
+        // reading/time updates should be performed by whoever owns reader timers
+    }
+
+    /// Call after selection changes (e.g., selection actions, Event::Key)
+    fn on_selection_changed(&mut self) {
+        self.status.selected = self.item_list.selection.len();
+        self.status.current_item_idx = self.item_list.current;
+        // ensure multi-selection display reflects current options
+        self.status.multi_selection = self.options.multi;
+    }
+
+    /// Call when matcher state changes (start/stop)
+    fn on_matcher_state_changed(&mut self) {
+        self.status.matcher_running = !self.matcher_control.stopped();
+        // set matcher mode string based on current options (e.g., regex mode)
+        self.status.matcher_mode = if self.options.use_regex {
+            "RE".to_string()
+        } else {
+            String::new()
+        };
+    }
+
     pub fn handle_event(&mut self, tui: &mut tui::Tui, event: &Event) -> Result<()> {
         let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
+                // update status timing fields before rendering so spinner/indicators are current
+                self.status.time_since_read = self.reader_timer.elapsed();
+                self.status.time_since_match = self.matcher_timer.elapsed();
+                // reading state: true if there are items not yet taken by matcher
+                self.status.reading = self.item_pool.num_not_taken() != 0;
+                // matcher_running from control
+                self.status.matcher_running = !self.matcher_control.stopped();
                 tui.get_frame();
                 tui.draw(|f| {
                     self.render(f.area(), f.buffer_mut());
@@ -127,6 +281,7 @@ impl<'a> App<'a> {
             }
             Event::Heartbeat => {
                 self.should_trigger_matcher = true;
+                self.on_matcher_state_changed();
             }
             Event::RunPreview => {
                 if let Some(preview_opt) = &self.options.preview {
@@ -190,6 +345,8 @@ impl<'a> App<'a> {
                                 );
                             }
                         };
+                        self.on_items_updated();
+                        self.on_selection_changed();
                     }
                 }
             }
@@ -215,16 +372,22 @@ impl<'a> App<'a> {
                 for evt in self.handle_action(act)? {
                     tui.event_tx.send(evt)?;
                 }
+                self.on_selection_changed();
+                self.on_matcher_state_changed();
             }
             Event::NewItem(item) => {
                 self.item_pool.append(vec![item.clone()]);
                 self.restart_matcher(false);
+                self.on_items_updated();
+                self.on_selection_changed();
+                self.on_matcher_state_changed();
                 trace!("Got new item, len {}", self.item_pool.len());
             }
             Event::Key(key) => {
                 for evt in self.handle_key(key) {
                     tui.event_tx.send(evt)?;
                 }
+                self.on_selection_changed();
             }
             _ => (),
         };
@@ -233,9 +396,11 @@ impl<'a> App<'a> {
             if let Some(prev) = prev_item {
                 if prev.text() != new.text() {
                     self.on_item_changed(tui)?;
+                    self.on_selection_changed();
                 }
             } else {
                 self.on_item_changed(tui)?;
+                self.on_selection_changed();
             }
         }
         Ok(())
@@ -244,6 +409,13 @@ impl<'a> App<'a> {
         self.item_pool.append(items);
         self.restart_matcher(false);
         trace!("Got new items, len {}", self.item_pool.len());
+        // mark reader activity and reset reader timer
+        self.reader_timer = std::time::Instant::now();
+        self.status.reading = true;
+        // update status so the statusline reflects the new pool state immediately
+        self.on_items_updated();
+        self.on_selection_changed();
+        self.on_matcher_state_changed();
     }
     pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()> {
         tui.event_tx.send(Event::RunPreview)?;
@@ -509,9 +681,13 @@ impl<'a> App<'a> {
             self.matcher_control.kill();
             let tx = self.item_list.tx.clone();
             self.item_pool.reset();
+            // record matcher start time for statusline spinner/progress
+            self.matcher_timer = std::time::Instant::now();
+            self.status.matcher_running = true;
             self.matcher_control = self.matcher.run(&self.input, self.item_pool.clone(), move |matches| {
-                debug!("Got results from matcher, sending to item list...");
-                let _ = tx.send(matches.lock().clone());
+                let m = matches.lock();
+                debug!("Got {} results from matcher, sending to item list...", m.len());
+                let _ = tx.send(m.clone());
             });
         }
         if self.should_trigger_matcher {
