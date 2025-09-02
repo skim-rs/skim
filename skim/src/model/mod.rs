@@ -191,10 +191,10 @@ impl Model {
     }
 
     fn parse_options(&mut self, options: &SkimOptions) {
-        let Ok(delimiter) = Regex::new(&options.delimiter) else {
-            panic!("Could not parse delimiter {} as a valid regex", options.delimiter);
-        };
-        self.delimiter = delimiter;
+        self.delimiter = Regex::new(&options.delimiter).unwrap_or_else(|_| {
+            eprintln!("Warning: Invalid regex delimiter '{}', falling back to default", options.delimiter);
+            Regex::new(r"[\t\n ]+").unwrap()
+        });
 
         self.layout = options.layout.clone();
 
