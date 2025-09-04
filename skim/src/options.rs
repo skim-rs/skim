@@ -884,6 +884,21 @@ pub struct SkimOptions {
     )]
     pub shell: Option<clap_complete::Shell>,
 
+    /// Generate key binding script
+    ///
+    /// Generate key binding script for the specified shell: bash, zsh, fish, etc.
+    /// The output can be directly sourced or saved to a file for automatic loading.
+    /// Examples: `source <(sk --key-bindings bash)` (immediate use)
+    ///          `sk --key-bindings bash >> ~/.bashrc` (persistent use)
+    ///
+    /// Supported shells: bash, zsh, fish
+    #[cfg(feature = "cli")]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, value_name = "SHELL", help_heading = "Scripting", value_enum)
+    )]
+    pub key_bindings: Option<clap_complete::Shell>,
+
     /// Run in a tmux popup
     ///
     /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
@@ -1045,6 +1060,8 @@ impl Default for SkimOptions {
             filter: Default::default(),
             #[cfg(feature = "cli")]
             shell: Default::default(),
+            #[cfg(feature = "cli")]
+            key_bindings: Default::default(),
             tmux: Default::default(),
             extended: Default::default(),
             literal: Default::default(),
@@ -1097,6 +1114,7 @@ impl SkimOptions {
 
         self
     }
+
     pub fn init_histories(&mut self) {
         if let Some(histfile) = &self.history_file {
             self.query_history.extend(read_file_lines(histfile).unwrap_or_default());

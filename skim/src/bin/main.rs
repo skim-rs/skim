@@ -6,7 +6,7 @@ extern crate skim;
 extern crate time;
 
 use clap::{CommandFactory, Error, Parser};
-use clap_complete::generate;
+use clap_complete::{Shell, generate};
 
 use derive_builder::Builder;
 use std::fs::File;
@@ -80,9 +80,32 @@ fn sk_main() -> Result<i32, SkMainError> {
     let mut opts = parse_args()?;
 
     // Handle shell completion generation if requested
+    #[cfg(feature = "cli")]
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
         generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
+        return Ok(0);
+    }
+
+    // Handle key bindings generation if requested
+    #[cfg(feature = "cli")]
+    if let Some(shell) = opts.key_bindings {
+        // Generate key binding script directly to stdout
+
+        use std::{thread::sleep, time::Duration};
+        let script = match shell {
+            Shell::Bash => include_str!("../../../shell/key-bindings.bash"),
+            Shell::Fish => include_str!("../../../shell/key-bindings.fish"),
+            Shell::Zsh => include_str!("../../../shell/key-bindings.zsh"),
+            _ => unimplemented!(),
+        };
+        sleep(Duration::from_secs(10));
+        for line in script.lines()
+        /*.skip(1)*/
+        {
+            println!("{line}");
+        }
+
         return Ok(0);
     }
 
