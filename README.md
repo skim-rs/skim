@@ -206,6 +206,35 @@ sk --shell fish > ~/.config/fish/completions/sk.fish
 
 ## Key Bindings
 
+You can generate shell completions for your preferred shell using the `--key-bindings` flag with one of the supported shells: `bash`, `zsh`, `fish`:
+
+#### Option 1: Source directly in your current shell session
+
+```sh
+# For bash
+source <(sk --key-bindings bash)
+
+# For zsh
+source <(sk --key-bindings zsh)
+
+# For fish
+sk --key-bindings fish | source
+```
+
+#### Option 2: Save to a file to be loaded automatically on shell startup
+
+```sh
+# For bash, add to ~/.bashrc
+echo 'source <(sk --key-bindings bash)' >> ~/.bashrc  # Or save to ~/.bash_completion
+
+# For zsh, add to ~/.zshrc
+sk --key-bindings zsh >> ~/.zshrc
+
+# For fish, add to ~/.config/fish/conf.d/
+sk --key-bindings fish > ~/.config/fish/conf.d/skim_key_bindings.fish
+source ~/.config/fish/conf.d/skim_key_bindings.fish
+```
+
 Some commonly used key bindings:
 
 | Key               | Action                                     |
