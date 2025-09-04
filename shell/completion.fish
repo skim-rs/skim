@@ -56,6 +56,11 @@ elvish\t''
 fish\t''
 powershell\t''
 zsh\t''"
+complete -c sk -l key-bindings -d 'Generate key binding script' -r -f -a "bash\t''
+elvish\t''
+fish\t''
+powershell\t''
+zsh\t''"
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r
 complete -c sk -l jump-labels -d 'Reserved for later use' -r
