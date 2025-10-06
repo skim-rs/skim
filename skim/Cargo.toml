@@ -42,6 +42,7 @@ skim-common = { path = "../skim-common/", version = "0.2.0" }
 skim-tuikit = { path = "../skim-tuikit/", version = "0.6.6" }
 time = { workspace = true }
 timer = { workspace = true }
+tokio = { version = "1.47.1", features = ["rt", "sync", "time"] }
 unicode-width = { workspace = true }
 vte = { workspace = true }
 which = { workspace = true }
