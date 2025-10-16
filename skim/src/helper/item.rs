@@ -1,4 +1,4 @@
-use crate::field::{parse_matching_fields, parse_transform_fields, FieldRange};
+use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::{DisplayContext, SkimItem};
 use ansi_to_tui::IntoText;
 use ratatui::text::{Line, Text};

@@ -1,7 +1,9 @@
 //! header of the items
+use crate::SkimOptions;
 use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
-use crate::SkimOptions;
+use crate::tui::options::TuiLayout;
+
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
@@ -14,7 +16,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Header {
-    header: Vec<String>,
+    header: String,
     tabstop: usize,
     reverse: bool,
     theme: Arc<ColorTheme>,
@@ -23,7 +25,7 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Self {
-            header: Vec::default(),
+            header: Default::default(),
             tabstop: 8,
             reverse: false,
             theme: Arc::new(*DEFAULT_THEME),
@@ -37,29 +39,12 @@ impl Header {
         self
     }
 
-    pub fn with_options(mut self, options: &SkimOptions) -> Self {
-        self.tabstop = max(1, options.tabstop);
-
-        if options.layout.starts_with("reverse") {
-            self.reverse = true;
-        }
-
-        if let Some(header) = options.header.clone() {
-            self.header = header.split("\n").map(|s| s.to_string()).collect();
-        }
-
-        self
-    }
-
-    fn height(&self) -> u16 {
-        u16::try_from(self.header.len()).expect("Header len did not fit into a u16. Really ?")
-    }
-
-    fn adjust_row(&self, index: usize, screen_height: usize) -> usize {
-        if self.reverse {
-            index
-        } else {
-            screen_height - index - 1
+    pub fn with_options(options: &SkimOptions) -> Self {
+        Self {
+          tabstop: max(1, options.tabstop),
+          reverse: options.layout == TuiLayout::Reverse || options.layout == TuiLayout::ReverseList,
+          header: options.header.clone().unwrap_or_default(),
+          ..Default::default()
         }
     }
 }
@@ -70,11 +55,11 @@ impl Widget for &Header {
             panic!("screen width is too small to fit the header");
         }
 
-        if area.height < self.height() {
+        if area.height < 1 {
             panic!("screen height is too small to fit the header");
         }
 
-        let header_with_lines = self.header.iter().map(|l| l.to_line()).collect::<Vec<Line>>();
+        let header_with_lines = self.header.to_line();
         Paragraph::new(Text::from(header_with_lines)).render(area, buf)
     }
 }

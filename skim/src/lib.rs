@@ -25,12 +25,12 @@ use tokio::select;
 use tui::App;
 use tui::Event;
 use tui::Size;
-use tui::options::TuiOptions;
 
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
+use crate::tui::event::Action;
 
 pub mod binds;
 mod engine;
@@ -346,7 +346,7 @@ impl Skim {
     ///
     /// Panics if the tui fails to initilize
     #[must_use]
-    pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+    pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         // let min_height = Skim::parse_height_string(&options.min_height);
 
         let height = Size::try_from(options.height.as_str())?;
@@ -355,31 +355,26 @@ impl Skim {
 
         // application state
         // Initialize theme from options
-        let theme = Arc::new(crate::theme::ColorTheme::init_from_options(options));
-
-        let tui_options = TuiOptions::try_from(options)?;
-        let mut app = App::from_options(tui_options, theme.clone());
-        app.item_list.theme = theme.clone();
-        app.header = app.header.theme(theme.clone());
-        app.status.theme = theme.clone();
-        app.input.theme = theme.clone();
-        app.preview.theme = theme.clone();
-        app.input_border = options.border;
-
-        let mut reader = Reader::with_options(options).source(source);
+        let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
+        let mut reader = Reader::with_options(&options).source(source);
         const SKIM_DEFAULT_COMMAND: &str = "find .";
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
             Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
             Ok(v) => v,
         });
+        let cmd = options.cmd.clone().unwrap_or(default_command);
+
+        let mut app = App::from_options(options, theme.clone());
+
 
         let rt = tokio::runtime::Runtime::new()?;
+        let mut final_event: Event = Event::Quit;
         rt.block_on(async {
             tui.enter()?;
 
             //------------------------------------------------------------------------------
             // reader
-            let reader_control = reader.run(app.item_tx.clone(), &options.cmd.clone().unwrap_or(default_command));
+            let reader_control = reader.run(app.item_tx.clone(), &cmd);
 
             //------------------------------------------------------------------------------
             // model + previewer
@@ -387,7 +382,6 @@ impl Skim {
             // let _ = input_thread.join();
 
             let mut reader_done = false;
-            let got_items = false;
             let mut item_receiver_interval = tokio::time::interval(Duration::from_millis(500));
             let mut matcher_interval = tokio::time::interval(Duration::from_millis(500));
 
@@ -395,6 +389,9 @@ impl Skim {
             loop {
                 select! {
                     event = tui.next() => {
+                        if let Some(evt) = &event {
+                          final_event = evt.clone();
+                        }
                         if reader_control.is_done() && ! reader_done {
                             app.restart_matcher(true);
                             reader_done = true;
@@ -421,10 +418,9 @@ impl Skim {
             eyre::Ok(())
         })?;
 
-
         Ok(SkimOutput {
-            cmd: options.cmd.clone().unwrap_or_default(),
-            final_event: Event::Quit,  // TODO
+            cmd,
+            final_event,
             final_key: KeyCode::Enter, // TODO
             query: app.input.to_string(),
             is_abort: false,

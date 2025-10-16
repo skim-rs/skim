@@ -1,12 +1,36 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
-use color_eyre::eyre::eyre;
+use clap::builder::ValueParser;
 use color_eyre::Result;
+use color_eyre::eyre::eyre;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::tui::event::Action;
 
-pub type KeyMap = HashMap<KeyEvent, Vec<Action>>;
+#[derive(Clone)]
+pub struct KeyMap(HashMap<KeyEvent, Vec<Action>>);
+
+impl Deref for KeyMap {
+    type Target = HashMap<KeyEvent, Vec<Action>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl DerefMut for KeyMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<&str> for KeyMap {
+    fn from(value: &str) -> Self {
+        parse_keymaps(value.split(',')).expect("Failed to parse keymaps")
+    }
+}
 
 #[rustfmt::skip]
 pub fn get_default_key_map() -> KeyMap {
@@ -19,6 +43,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::End, KeyModifiers::NONE), vec![Action::EndOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE), vec![Action::DeleteChar]);
     ret.insert(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE), vec![Action::Toggle, Action::Down(1)]);
+    ret.insert(KeyEvent::new(KeyCode::BackTab, KeyModifiers::all()), vec![Action::Toggle, Action::Up(1)]);
     ret.insert(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), vec![Action::Abort]);
     ret.insert(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE), vec![Action::Accept(None)]);
     ret.insert(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE), vec![Action::BackwardChar]);
@@ -31,6 +56,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Up, KeyModifiers::SHIFT), vec![Action::PreviewUp(1)]);
     ret.insert(KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT), vec![Action::PreviewDown(1)]);
     ret.insert(KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT), vec![Action::Toggle, Action::Up(1)]);
+    ret.insert(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT), vec![Action::Toggle, Action::Up(1)]);
     ret.insert(KeyEvent::new(KeyCode::Home, KeyModifiers::SHIFT), vec![Action::BeginningOfLine]);
 
 
@@ -65,7 +91,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::ALT), vec![Action::ScrollLeft(1)]);
     ret.insert(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::ALT), vec![Action::ScrollRight(1)]);
 
-    ret
+    KeyMap(ret)
 }
 
 /// Parses a key str into a crossterm KeyEvent
@@ -141,8 +167,10 @@ where
 {
     let mut keymap = get_default_key_map();
     for map in maps {
+      if !map.is_empty() {
         let (key, action_chain) = parse_keymap(map)?;
         bind(&mut keymap, key, action_chain)?;
+      }
     }
     Ok(keymap)
 }

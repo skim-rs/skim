@@ -2,12 +2,17 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use clap::Parser;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
+use regex::Regex;
 
+use crate::binds::KeyMap;
 use crate::item::RankCriteria;
 use crate::model::options::InfoDisplay;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
+use crate::tui::event::Action;
+use crate::tui::options::{PreviewLayout, TuiLayout};
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 
@@ -72,7 +77,7 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
 #[derive(Parser)]
-#[command(name = "sk", args_override_self = true, verbatim_doc_comment, version)]
+#[command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about)]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
@@ -143,7 +148,7 @@ pub struct SkimOptions {
     ///
     /// In regex format, default to AWK-style
     #[arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search")]
-    pub delimiter: String,
+    pub delimiter: Regex,
 
     /// Run in exact mode
     #[arg(short, long, help_heading = "Search")]
@@ -310,8 +315,8 @@ pub struct SkimOptions {
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
     /// is equal to ‘delete-char/eof‘.
-    #[arg(short, long, help_heading = "Interface", verbatim_doc_comment, value_delimiter = ',')]
-    pub bind: Vec<String>,
+    #[arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "")]
+    pub bind: KeyMap,
 
     /// Enable multiple selection
     ///
@@ -396,19 +401,8 @@ pub struct SkimOptions {
     //  --- Layout ---
     /// Set layout
     ///
-    /// default       Display from the bottom of the screen
-    /// reverse       Display from the top of the screen
-    /// reverse-list  Display from the top of the screen, prompt at the bottom
-    #[arg(
-        long,
-        default_value = "default",
-        value_parser = clap::builder::PossibleValuesParser::new(
-            ["default", "reverse", "reverse-list"]
-        ),
-        help_heading = "Layout",
-        verbatim_doc_comment
-    )]
-    pub layout: String,
+    #[arg(long, help_heading = "Layout", verbatim_doc_comment, default_value = "default")]
+    pub layout: TuiLayout,
 
     /// Shorthand for reverse layout
     #[arg(long, help_heading = "Layout")]
@@ -576,7 +570,7 @@ pub struct SkimOptions {
     ///                   --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
     ///                   --preview-window +{2}-/2
     #[arg(long, default_value = "right:50%", help_heading = "Preview")]
-    pub preview_window: String,
+    pub preview_window: PreviewLayout,
 
     //  --- Scripting ---
     /// Initial query
@@ -741,15 +735,7 @@ impl Default for SkimOptions {
 
 impl SkimOptionsBuilder {
     pub fn build(&mut self) -> Result<SkimOptions, SkimOptionsBuilderError> {
-        if let Some(true) = self.no_height {
-            self.height = Some("100%".to_string());
-        }
-
-        if let Some(true) = self.reverse {
-            self.layout = Some("reverse".to_string());
-        }
-
-        self.final_build()
+        self.final_build().map(|opts| opts.build())
     }
 }
 
@@ -760,12 +746,21 @@ impl SkimOptions {
         }
 
         if self.reverse {
-            self.layout = String::from("reverse");
+            self.layout = TuiLayout::Reverse
         }
-        let history_binds = String::from("ctrl-p:previous-history,ctrl-n:next-history");
         if self.history_file.is_some() || self.cmd_history_file.is_some() {
             self.init_histories();
-            self.bind.push(history_binds);
+            self.bind.insert(
+                KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL),
+                vec![Action::PreviousHistory],
+            );
+            self.bind.insert(
+                KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL),
+                vec![Action::NextHistory],
+            );
+        }
+        if self.inline_info {
+            self.info = InfoDisplay::Inline;
         }
 
         self

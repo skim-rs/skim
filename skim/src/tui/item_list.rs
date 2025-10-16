@@ -1,4 +1,8 @@
-use std::{collections::HashSet, hash::{DefaultHasher, Hash, Hasher}, sync::Arc};
+use std::{
+    collections::HashSet,
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
+};
 
 use ratatui::{
     style::{Color, Stylize as _},
@@ -12,8 +16,10 @@ use ratatui::{
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::{
-    DisplayContext, MatchRange, SkimItem,
+    DisplayContext, MatchRange, SkimItem, SkimOptions,
     item::{MatchedItem, RankBuilder},
+    theme::ColorTheme,
+    tui::options::TuiLayout,
 };
 
 pub struct ItemList {
@@ -27,6 +33,7 @@ pub struct ItemList {
     pub(crate) current: usize,
     pub(crate) height: u16,
     pub(crate) theme: std::sync::Arc<crate::theme::ColorTheme>,
+    reserved: usize,
 }
 
 impl Default for ItemList {
@@ -42,21 +49,31 @@ impl Default for ItemList {
             offset: Default::default(),
             current: Default::default(),
             height: Default::default(),
-            theme: std::sync::Arc::new(crate::theme::ColorTheme::default()),
+            theme: Arc::new(ColorTheme::default()),
+            reserved: 0,
         }
     }
 }
 
 impl ItemList {
+    pub fn with_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        Self {
+            reserved: options.header_lines,
+            direction: match options.layout {
+                TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
+                TuiLayout::Reverse | TuiLayout::ReverseList => ratatui::widgets::ListDirection::TopToBottom,
+            },
+            current: options.header_lines,
+            theme,
+            ..Default::default()
+        }
+    }
     fn cursor(&self) -> usize {
+        trace!("{:?}", self.selection);
         self.current
     }
     pub fn selected(&self) -> Option<Arc<dyn SkimItem>> {
-        if self.items.is_empty() {
-            None
-        } else {
-            Some(self.items[self.cursor()].item.clone())
-        }
+        self.items.get(self.cursor()).map(|x| x.item.clone())
     }
 
     /// Render the item list using the theme colors.
@@ -81,8 +98,7 @@ impl ItemList {
 
         let theme = &self.theme;
 
-
-        let list = List::new(
+        let mut list = List::new(
             self.items
                 .iter()
                 .skip(self.offset)
@@ -93,26 +109,31 @@ impl ItemList {
                     } else {
                         Span::raw(" ")
                     }];
-                    spans.append(&mut item
-                        .item
-                        .display(DisplayContext {
-                            score: item.rank[0],
-                            matches: match &item.matched_range {
-                                Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
-                                Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
-                                None => crate::Matches::None,
-                            },
-                            container_width: area.width as usize,
-                            style: theme.normal(),
-                        })
-                        .spans);
+                    spans.append(
+                        &mut item
+                            .item
+                            .display(DisplayContext {
+                                score: item.rank[0],
+                                matches: match &item.matched_range {
+                                    Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
+                                    Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
+                                    None => crate::Matches::None,
+                                },
+                                container_width: area.width as usize,
+                                style: theme.normal(),
+                            })
+                            .spans,
+                    );
                     Line::from(spans)
                 })
                 .collect::<Vec<Line>>(),
         )
-        .highlight_symbol(">")
         .highlight_style(theme.current())
         .direction(self.direction);
+
+        if self.reserved < self.items.len() {
+          list = list.highlight_symbol(">");
+        }
 
         StatefulWidget::render(
             list,
@@ -120,7 +141,7 @@ impl ItemList {
             buf,
             &mut ListState::default().with_selected(Some(self.current.saturating_sub(self.offset))),
         );
-        
+
         items_updated
     }
     pub fn toggle_item(&mut self, item: &MatchedItem) {
@@ -161,23 +182,27 @@ impl ItemList {
         }
     }
     pub fn scroll_by(&mut self, offset: i32) {
-        if offset > 0 {
-            self.scroll_down_by(offset.unsigned_abs() as u16);
-        } else {
-            self.scroll_up_by(offset.unsigned_abs() as u16);
-        }
-    }
-    pub fn scroll_up_by(&mut self, offset: u16) {
-        self.current = self.current.saturating_sub(offset as usize);
-    }
-    pub fn scroll_down_by(&mut self, offset: u16) {
-        self.current = self.current.saturating_add(offset as usize);
+        self.current = self
+            .current
+            .saturating_add_signed(offset as isize)
+            .min(self.items.len() - 1)
+            .max(self.reserved);
+        debug!("Scrolled to {}", self.current);
+        debug!("Selection: {:?}", self.selection);
     }
     pub fn select_previous(&mut self) {
-        self.current = self.current.saturating_sub(1);
+        self.current = self
+            .current
+            .saturating_sub(1)
+            .min(self.items.len() - 1)
+            .max(self.reserved);
     }
     pub fn select_next(&mut self) {
-        self.current = self.current.saturating_add(1);
+        self.current = self
+            .current
+            .saturating_add(1)
+            .min(self.items.len() - 1)
+            .max(self.reserved);
     }
 }
 

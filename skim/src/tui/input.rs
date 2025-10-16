@@ -8,8 +8,8 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
-use std::sync::Arc;
 use crate::theme::ColorTheme;
+use std::sync::Arc;
 
 pub struct Input {
     pub prompt: String,
@@ -79,7 +79,7 @@ impl Input {
         self.delete_word_dir(1)
     }
     pub fn cursor_pos(&self) -> u16 {
-        self.cursor_pos + self.prompt.len() as u16 + 1
+        self.cursor_pos + self.prompt.chars().count() as u16
     }
 }
 
@@ -88,21 +88,19 @@ impl Widget for &Input {
     where
         Self: Sized,
     {
-        use ratatui::text::{Span, Line};
+        use ratatui::text::{Line, Span};
         use ratatui::widgets::Paragraph;
 
         let prompt_span = Span::styled(&self.prompt, self.theme.prompt());
         let value_span = Span::styled(&self.value, self.theme.query());
-        let line = Line::from(vec![prompt_span, Span::raw(" "), value_span]);
+        let line = Line::from(vec![prompt_span, value_span]);
         use ratatui::widgets::{Block, Borders};
         let block = if self.border {
             Block::default().borders(Borders::ALL).border_style(self.theme.border())
         } else {
             Block::default()
         };
-        Paragraph::new(line)
-            .block(block)
-            .render(area, buf);
+        Paragraph::new(line).block(block).render(area, buf);
     }
 }
 

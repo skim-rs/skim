@@ -1,19 +1,21 @@
 use std::borrow::Cow;
+use std::os::linux::raw::stat;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::item::ItemPool;
 use crate::matcher::{Matcher, MatcherControl};
+use crate::model::options::InfoDisplay;
 use crate::prelude::ExactOrFuzzyEngineFactory;
+use crate::tui::options::TuiLayout;
 use crate::util::printf;
-use crate::{ItemPreview, PreviewContext, SkimItem};
+use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
 use super::Event;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
-use super::options::TuiOptions;
 use super::statusline::StatusLine;
 use color_eyre::eyre::{Result, bail};
 use crossbeam::channel::{Receiver, Sender, unbounded};
@@ -53,61 +55,111 @@ pub struct App<'a> {
     // spinner visibility state for debounce/hysteresis
     pub spinner_visible: bool,
     pub spinner_last_change: std::time::Instant,
-    
+
     // track when items were just updated to avoid unnecessary status updates
     pub items_just_updated: bool,
 
-    pub options: TuiOptions,
+    pub options: SkimOptions,
     pub input_border: bool,
 }
 
 // App ui render function
 impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let layout = Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ]);
-        let [mut list_area, header, status, bottom] = layout.areas(area);
-        self.input.border = self.input_border;
-        self.input.render(bottom, buf);
-        self.header.render(header, buf);
-
-        // compute spinner debounce/hysteresis and set status.show_spinner before rendering it
-        {
-            // matcher debounce (ms) and hide grace (ms) — keep in sync with statusline settings
-            // Increased values to reduce blinking when matcher toggles frequently.
-            const MATCHER_DEBOUNCE_MS: u128 = 300;
-            const HIDE_GRACE_MS: u128 = 600;
-            let matcher_running = !self.matcher_control.stopped();
-            let time_since_match = self.matcher_timer.elapsed();
-            let time_since_read = self.reader_timer.elapsed();
-
-            let matcher_ready = matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS;
-            let reader_ready = self.item_pool.num_not_taken() != 0 && time_since_read.as_millis() > 50;
-
-            let desired = matcher_ready || reader_ready;
-            let now = std::time::Instant::now();
-
-            if desired && !self.spinner_visible {
-                // turn on immediately
-                self.spinner_visible = true;
-                self.spinner_last_change = now;
-            } else if !desired && self.spinner_visible {
-                // only hide after grace period
-                if now.duration_since(self.spinner_last_change).as_millis() >= HIDE_GRACE_MS {
-                    self.spinner_visible = false;
-                    self.spinner_last_change = now;
+        let mut status_area: Rect = Default::default();
+        let mut input_area: Rect = Default::default();
+        let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
+        let remaining_height = 1
+            + (self.options.header.as_ref().and(Some(1)).or(Some(0))).unwrap()
+            + (self.options.info == InfoDisplay::Default)
+                .then_some(1)
+                .or(Some(0))
+                .unwrap();
+        let [mut list_area, mut remaining_area] = match self.options.layout {
+            TuiLayout::Default | TuiLayout::ReverseList => {
+                Layout::vertical([Constraint::Fill(1), Constraint::Length(remaining_height)]).areas(area)
+            }
+            TuiLayout::Reverse => {
+                let mut layout =
+                    Layout::vertical([Constraint::Length(remaining_height), Constraint::Fill(1)]).areas(area);
+                layout.reverse();
+                layout
+            }
+        };
+        if self.options.header.is_some() {
+            let header_area;
+            [header_area, remaining_area] = match self.options.layout {
+                TuiLayout::Default | TuiLayout::ReverseList => {
+                    Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(remaining_area)
                 }
+                TuiLayout::Reverse => {
+                  let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(remaining_area);
+                  a.reverse();
+                  a
+                }
+            };
+            self.header.render(header_area, buf);
+        }
+        if self.options.info == InfoDisplay::Hidden {
+            input_area = remaining_area;
+        } else {
+            match self.options.info {
+                InfoDisplay::Default => {
+                    let areas: [_; 2] =
+                        Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(remaining_area);
+                    if self.options.layout == TuiLayout::Reverse {
+                        input_area = areas[0];
+                        status_area = areas[1];
+                    } else {
+                        status_area = areas[0];
+                        input_area = areas[1];
+                    }
+                }
+                InfoDisplay::Inline => {
+                    [input_area, status_area] =
+                        Layout::horizontal([Constraint::Length(input_len), Constraint::Fill(1)]).areas(remaining_area);
+                }
+                InfoDisplay::Hidden => {
+                    unreachable!()
+                }
+            };
+            // compute spinner debounce/hysteresis and set status.show_spinner before rendering it
+            {
+                // matcher debounce (ms) and hide grace (ms) — keep in sync with statusline settings
+                // Increased values to reduce blinking when matcher toggles frequently.
+                const MATCHER_DEBOUNCE_MS: u128 = 300;
+                const HIDE_GRACE_MS: u128 = 600;
+                let matcher_running = !self.matcher_control.stopped();
+                let time_since_match = self.matcher_timer.elapsed();
+                let time_since_read = self.reader_timer.elapsed();
+
+                let matcher_ready = matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS;
+                let reader_ready = self.item_pool.num_not_taken() != 0 && time_since_read.as_millis() > 50;
+
+                let desired = matcher_ready || reader_ready;
+                let now = std::time::Instant::now();
+
+                if desired && !self.spinner_visible {
+                    // turn on immediately
+                    self.spinner_visible = true;
+                    self.spinner_last_change = now;
+                } else if !desired && self.spinner_visible {
+                    // only hide after grace period
+                    if now.duration_since(self.spinner_last_change).as_millis() >= HIDE_GRACE_MS {
+                        self.spinner_visible = false;
+                        self.spinner_last_change = now;
+                    }
+                }
+
+                // propagate to status for rendering
+                self.status.show_spinner = self.spinner_visible;
             }
 
-            // propagate to status for rendering
-            self.status.show_spinner = self.spinner_visible;
+            self.status.render(status_area, buf);
         }
+        self.input.border = self.input_border;
+        self.input.render(input_area, buf);
 
-        self.status.render(status, buf);
         if self.options.preview.is_some() && !self.options.preview_window.hidden {
             let direction = match self.options.preview_window.direction {
                 super::Direction::Up | super::Direction::Down => Direction::Vertical,
@@ -133,7 +185,7 @@ impl Widget for &mut App<'_> {
         }
         self.items_just_updated = self.item_list.render_with_theme(list_area, buf);
 
-        self.cursor_pos = (bottom.x + self.input.cursor_pos(), bottom.y)
+        self.cursor_pos = (input_area.x + self.input.cursor_pos(), input_area.y);
     }
 }
 
@@ -147,7 +199,7 @@ impl Default for App<'_> {
                 input.theme = theme.clone();
                 input.border = false;
                 // Set prompt from options
-                input.prompt = TuiOptions::default().prompt.clone();
+                input.prompt = SkimOptions::default().prompt.clone();
                 input
             },
             preview: {
@@ -159,7 +211,7 @@ impl Default for App<'_> {
             status: {
                 let mut s = StatusLine::default();
                 s.theme = theme.clone();
-                s.multi_selection = TuiOptions::default().multi;
+                s.multi_selection = SkimOptions::default().multi;
                 s
             },
             item_pool: Arc::default(),
@@ -183,14 +235,14 @@ impl Default for App<'_> {
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
-            options: TuiOptions::default(),
+            options: SkimOptions::default(),
             input_border: false,
         }
     }
 }
 
 impl<'a> App<'a> {
-    pub fn from_options(options: TuiOptions, theme: Arc<crate::theme::ColorTheme>) -> Self {
+    pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>) -> Self {
         let (item_tx, item_rx) = unbounded();
         Self {
             input: {
@@ -205,19 +257,10 @@ impl<'a> App<'a> {
                 preview.theme = theme.clone();
                 preview
             },
-            header: Header::default().theme(theme.clone()),
-            status: {
-                let mut s = StatusLine::default();
-                s.theme = theme.clone();
-                s.multi_selection = options.multi;
-                s
-            },
+            header: Header::with_options(&options).theme(theme.clone()),
+            status: StatusLine::with_options(&options, theme.clone()),
             item_pool: Arc::default(),
-            item_list: {
-                let mut il = ItemList::default();
-                il.theme = theme.clone();
-                il
-            },
+            item_list: ItemList::with_options(&options, theme.clone()),
             theme,
             item_rx,
             item_tx,
@@ -260,7 +303,7 @@ impl<'a> App<'a> {
     fn on_matcher_state_changed(&mut self) {
         self.status.matcher_running = !self.matcher_control.stopped();
         // set matcher mode string based on current options (e.g., regex mode)
-        self.status.matcher_mode = if self.options.use_regex {
+        self.status.matcher_mode = if self.options.regex {
             "RE".to_string()
         } else {
             String::new()
@@ -434,8 +477,12 @@ impl<'a> App<'a> {
         Ok(())
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
-        let act = self.options.keymap.get(key);
+        debug!("key event: {:?}", key);
+        let binds = &self.options.bind;
+
+        let act = binds.get(key);
         if act.is_some() {
+            debug!("{act:?}");
             return act.unwrap().iter().map(|a| Event::Action(a.clone())).collect();
         }
         match key.modifiers {
@@ -463,10 +510,10 @@ impl<'a> App<'a> {
         use Action::*;
         match act {
             Abort => {
-                return Ok(vec![Event::Quit]);
+                self.should_quit = true;
             }
             Accept(_) => {
-                return Ok(vec![Event::Close]);
+                self.should_quit = true;
             }
             AddChar(c) => {
                 self.input.insert(*c);
@@ -529,8 +576,8 @@ impl<'a> App<'a> {
             Down(n) => {
                 use ratatui::widgets::ListDirection::*;
                 match self.item_list.direction {
-                    TopToBottom => self.item_list.scroll_down_by(*n),
-                    BottomToTop => self.item_list.scroll_up_by(*n),
+                    TopToBottom => self.item_list.scroll_by(*n as i32),
+                    BottomToTop => self.item_list.scroll_by(-(*n as i32)),
                 }
                 return Ok(vec![Event::RunPreview]);
             }
@@ -639,7 +686,9 @@ impl<'a> App<'a> {
                 }
                 return Ok(vec![Event::RunPreview]);
             }
-            ToggleInteractive => self.options.interactive = !self.options.interactive,
+            ToggleInteractive => {
+                self.options.interactive = !self.options.interactive;
+            }
             ToggleOut => {
                 self.item_list.toggle();
                 use ratatui::widgets::ListDirection::*;
@@ -662,8 +711,8 @@ impl<'a> App<'a> {
             Up(n) => {
                 use ratatui::widgets::ListDirection::*;
                 match self.item_list.direction {
-                    TopToBottom => self.item_list.scroll_up_by(*n),
-                    BottomToTop => self.item_list.scroll_down_by(*n),
+                    TopToBottom => self.item_list.scroll_by(-(*n as i32)),
+                    BottomToTop => self.item_list.scroll_by(*n as i32),
                 }
                 return Ok(vec![Event::RunPreview]);
             }
@@ -676,14 +725,22 @@ impl<'a> App<'a> {
     }
 
     pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
-        self.item_list
-            .selection
-            .iter()
-            .map(|item| {
-                debug!("res index: {}", item.get_index());
-                item.item.clone()
-            })
-            .collect()
+        if self.options.multi {
+            self.item_list
+                .selection
+                .iter()
+                .map(|item| {
+                    debug!("res index: {}", item.get_index());
+                    item.item.clone()
+                })
+                .collect()
+        } else {
+            if let Some(sel) = self.item_list.selected() {
+                vec![sel]
+            } else {
+                vec![]
+            }
+        }
     }
 
     pub(crate) fn restart_matcher(&mut self, force: bool) {

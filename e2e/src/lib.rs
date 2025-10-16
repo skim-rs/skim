@@ -12,7 +12,10 @@ use rand::distributions::{Alphanumeric, DistString as _};
 use tempfile::{tempdir, NamedTempFile, TempDir};
 use which::which;
 
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= cargo run --package skim --release --";
+#[cfg(debug_assertions)]
+pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ../target/debug/sk";
+#[cfg(not(debug_assertions))]
+pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ../target/release/sk";
 
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
@@ -76,7 +79,14 @@ pub struct TmuxController {
 
 impl TmuxController {
     pub fn run(args: &[&str]) -> Result<Vec<String>> {
-        println!("Running {:?}", args);
+        if args
+            .first()
+            .and_then(|a| ["capture-pane", "save-buffer"].iter().find(|x| *x == a))
+            .is_none()
+        {
+          // Skip debug log for `capture-pane` and `save-buffer`
+          println!("Running {:?}", args);
+        }
         let output = Command::new(which("tmux").expect("Please install tmux to $PATH"))
             .args(args)
             .output()?

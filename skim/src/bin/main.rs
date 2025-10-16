@@ -8,7 +8,9 @@ extern crate time;
 use crate::Event;
 use clap::{Error, Parser};
 use color_eyre::Result;
+use color_eyre::eyre::eyre;
 use derive_builder::Builder;
+use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
@@ -58,11 +60,11 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
-
 //------------------------------------------------------------------------------
 fn main() -> Result<()> {
     color_eyre::install()?;
     env_logger::builder().format_timestamp_nanos().init();
+
     match sk_main() {
         Ok(exit_code) => std::process::exit(exit_code),
         Err(err) => {
@@ -72,28 +74,39 @@ fn main() -> Result<()> {
                     if e.kind() == std::io::ErrorKind::BrokenPipe {
                         std::process::exit(0)
                     } else {
-                        std::process::exit(2)
+                        Err(eyre!(err))
                     }
                 }
                 Some(SkMainError::ArgError(e)) => e.exit(),
-                None => std::process::exit(1),
+                None => match err.downcast_ref::<clap::error::Error>() {
+                    Some(e) => e.exit(),
+                    None => Err(eyre!(err)),
+                },
             }
         }
     }
 }
 
 fn sk_main() -> Result<i32> {
-    let mut opts = parse_args()?;
+    let mut opts = parse_args()?.build();
 
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)
-        .delimiter(&opts.delimiter)
+        .delimiter(opts.delimiter.clone())
         .with_nth(opts.with_nth.iter().map(String::as_str))
         .nth(opts.nth.iter().map(String::as_str))
         .read0(opts.read0)
         .show_error(opts.show_cmd_error);
     let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
-    opts.cmd_collector = cmd_collector.clone();
+    opts.cmd_collector = cmd_collector.clone() as Rc<RefCell<dyn CommandCollector>>;
+
+    let cmd_history = opts.cmd_history.clone();
+    let cmd_history_size = opts.cmd_history_size;
+    let cmd_history_file = opts.cmd_history_file.clone();
+
+    let query_history = opts.query_history.clone();
+    let history_size = opts.history_size;
+    let history_file = opts.history_file.clone();
     //------------------------------------------------------------------------------
     let bin_options = BinOptions {
         filter: opts.filter.clone(),
@@ -119,7 +132,7 @@ fn sk_main() -> Result<i32> {
         if opts.filter.is_some() {
             return Ok(filter(&bin_options, &opts, rx_item));
         }
-        Some(Skim::run_with(&opts, rx_item)?)
+        Some(Skim::run_with(opts, rx_item)?)
     }) else {
         return Ok(135);
     };
@@ -149,14 +162,14 @@ fn sk_main() -> Result<i32> {
 
     //------------------------------------------------------------------------------
     // write the history with latest item
-    if let Some(file) = opts.history_file {
-        let limit = opts.history_size;
-        write_history_to_file(&opts.query_history, &result.query, limit, &file)?;
+    if let Some(file) = history_file {
+        let limit = history_size;
+        write_history_to_file(&query_history, &result.query, limit, &file)?;
     }
 
-    if let Some(file) = opts.cmd_history_file {
-        let limit = opts.cmd_history_size;
-        write_history_to_file(&opts.cmd_history, &result.cmd, limit, &file)?;
+    if let Some(file) = cmd_history_file {
+        let limit = cmd_history_size;
+        write_history_to_file(&cmd_history, &result.cmd, limit, &file)?;
     }
 
     Ok(i32::from(result.selected_items.is_empty()))

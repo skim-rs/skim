@@ -16,7 +16,7 @@ fn opt_read0() -> Result<()> {
     let (tmux, _) = setup("a\\0b\\0c", &["--read0"])?;
     let lines = tmux.capture()?;
 
-    assert!(lines[1].starts_with("  3/3"));
+    tmux.until(|l| l[1].starts_with("  3/3"))?;
     assert_eq!(lines[2].trim(), "> a");
     assert_eq!(lines[3].trim(), "b");
     assert_eq!(lines[4].trim(), "c");
@@ -557,7 +557,7 @@ fn opt_header_reverse_inline_info() -> Result<()> {
 fn opt_header_lines_1() -> Result<()> {
     let (tmux, _) = setup("a\\nb\\nc", &["--header-lines", "1"])?;
 
-    tmux.until(|l| !l[2].starts_with(">") && l[2].trim() == "a")?;
+    tmux.until(|l| l.len() > 2 && !l[2].starts_with(">") && l[2].trim() == "a")?;
     tmux.until(|l| l.len() > 3 && l[3].starts_with(">"))
 }
 #[test]
@@ -576,17 +576,17 @@ fn opt_header_lines_all() -> Result<()> {
 fn opt_header_lines_inline_info() -> Result<()> {
     let (tmux, _) = setup("a\\nb\\nc", &["--header-lines", "1", "--inline-info"])?;
 
-    tmux.until(|l| !l[1].starts_with(">") && l[1].trim() == "a")
+    tmux.until(|l| l.len() > 0 && !l[1].starts_with(">") && l[1].trim() == "a")
 }
 #[test]
 fn opt_header_lines_reverse() -> Result<()> {
     let tmux = TmuxController::new()?;
     tmux.start_sk(Some("echo -e -n 'a\\nb\\nc'"), &["--header-lines", "1", "--reverse"])?;
 
-    tmux.until(|l| l[l.len() - 1].starts_with(">"))?;
+    tmux.until(|l| l.len() > 0 && l[l.len() - 1].starts_with(">"))?;
 
-    tmux.until(|l| l[l.len() - 3].trim() == "a")?;
-    tmux.until(|l| l[l.len() - 4].trim() == "> b")
+    tmux.until(|l| l.len() > 2 && l[l.len() - 3].trim() == "a")?;
+    tmux.until(|l| l.len() > 3 && l[l.len() - 4].trim() == "> b")
 }
 #[test]
 fn opt_header_lines_reverse_inline_info() -> Result<()> {
@@ -765,6 +765,8 @@ fn opt_multiple_flags_combined_with_nth() -> Result<()> {
 fn opt_ansi_null() -> Result<()> {
     let (tmux, outfile) = setup("a\\0b", &["--ansi"])?;
 
+    tmux.until(|l| l.len() > 1 && l[1].starts_with("  1/1"))?;
+
     tmux.send_keys(&[Enter])?;
 
     let output = tmux.output(&outfile)?;
@@ -846,9 +848,12 @@ fn opt_no_clear_if_empty() -> Result<()> {
 #[test]
 fn opt_accept_arg() -> Result<()> {
     let (tmux, outfile) = setup("a\\nb", &["--bind", "ctrl-a:accept:hello"])?;
+    tmux.until(|l| l[1].starts_with("  2/2"))?;
+    println!("{:?}", tmux.capture()?);
     tmux.send_keys(&[Ctrl(&Key('a'))])?;
 
     let output = tmux.output(&outfile)?;
+    println!("{output:?}");
     assert_eq!(output[0], "a");
     assert_eq!(output[1], "hello");
     Ok(())

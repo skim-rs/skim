@@ -9,6 +9,7 @@ use regex::Regex;
 
 use crate::theme::ColorTheme;
 
+use crate::SkimOptions;
 use crate::model::options::InfoDisplay;
 
 const SPINNER_DURATION: u32 = 200;
@@ -70,23 +71,28 @@ impl Default for StatusLine {
     }
 }
 
-impl StatusLine {}
+impl StatusLine {
+    pub fn with_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        Self {
+            theme,
+            info: options.info.clone(),
+            ..Default::default()
+        }
+    }
+}
 
 impl Widget for &StatusLine {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {
-        if self.info == InfoDisplay::Hidden || self.info == InfoDisplay::Inline {
-            return;
-        }
         let info_attr = self.theme.info();
         let info_attr_bold = self.theme.info().add_modifier(Modifier::BOLD);
 
         // Show indicators during active collection phase or sustained matcher activity
         // Use reader timer to detect if we're still in active collection (within 2 seconds of last read)
-        let show_progress_indicators = self.time_since_read <= ACTIVE_COLLECTION_THRESHOLD ||
-            (self.matcher_running && self.time_since_match >= SUSTAINED_MATCHING_THRESHOLD);
+        let show_progress_indicators = self.time_since_read <= ACTIVE_COLLECTION_THRESHOLD
+            || (self.matcher_running && self.time_since_match >= SUSTAINED_MATCHING_THRESHOLD);
 
         // Compute spinner animation timing once for performance
         let spinner_elapsed_ms = self.start.elapsed().as_millis();
@@ -97,11 +103,7 @@ impl Widget for &StatusLine {
             InfoDisplay::Hidden => panic!("This should never happen"),
         };
 
-        let layout = Layout::horizontal([
-            Constraint::Max(1),
-            Constraint::Min(3),
-            Constraint::Fill(1),
-        ]);
+        let layout = Layout::horizontal([Constraint::Max(1), Constraint::Min(3), Constraint::Fill(1)]);
         let [spinner_a, matched_a, cursor_a] = layout.areas(area);
 
         // draw the spinner - use same logic as other indicators
@@ -109,7 +111,10 @@ impl Widget for &StatusLine {
             // use pre-computed elapsed time for stable animation
             let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (spinner_set.len() as u128)) as usize;
             let ch = spinner_set[index];
-            Paragraph::new(ch.to_string()).render(spinner_a, buf);
+            Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+        } else if self.info == InfoDisplay::Inline {
+          let ch = spinner_set.last().unwrap();
+          Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
         }
 
         // build matched/total and extra info (mode, percentage, selection)

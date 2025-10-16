@@ -76,6 +76,12 @@ pub struct MatchedItem {
     pub matched_range: Option<MatchRange>, // range of chars that matched the pattern
 }
 
+impl std::fmt::Debug for MatchedItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MatchedItem").field("item", &self.item.text()).field("rank", &self.rank).field("matched_range", &self.matched_range).finish()
+    }
+}
+
 impl Hash for MatchedItem {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         state.write_usize(self.get_index());

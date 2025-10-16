@@ -3,11 +3,11 @@ use std::env;
 use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 
-use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender, bounded};
 use regex::Regex;
 
 use crate::field::FieldRange;
@@ -66,10 +66,8 @@ impl SkimItemReaderOption {
         self
     }
 
-    pub fn delimiter(mut self, delimiter: &str) -> Self {
-        if !delimiter.is_empty() {
-            self.delimiter = Regex::new(delimiter).unwrap_or_else(|_| Regex::new(DELIMITER_STR).unwrap());
-        }
+    pub fn delimiter(mut self, delimiter: Regex) -> Self {
+        self.delimiter = delimiter;
         self
     }
 
