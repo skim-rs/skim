@@ -20,7 +20,7 @@ fn bind_execute_0_results() -> Result<()> {
     tmux.until(|l| l[0] != ">")?;
 
     let output = tmux.output(&outfile)?;
-    assert_eq!(output[0], "");
+    assert_eq!(output[0], "foo");
 
     Ok(())
 }

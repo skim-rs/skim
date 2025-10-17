@@ -30,7 +30,6 @@ pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
-use crate::tui::event::Action;
 
 pub mod binds;
 mod engine;

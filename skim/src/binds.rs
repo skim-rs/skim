@@ -3,12 +3,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use clap::builder::ValueParser;
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::tui::event::Action;
+use crate::tui::event::{self, Action};
 
 #[derive(Clone)]
 pub struct KeyMap(HashMap<KeyEvent, Vec<Action>>);
@@ -167,20 +166,34 @@ where
 {
     let mut keymap = get_default_key_map();
     for map in maps {
-      if !map.is_empty() {
-        let (key, action_chain) = parse_keymap(map)?;
-        bind(&mut keymap, key, action_chain)?;
-      }
+        if !map.is_empty() {
+            let (key, action_chain) = parse_keymap(map)?;
+            bind(&mut keymap, key, action_chain)?;
+        }
     }
     Ok(keymap)
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions
 pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
-    Ok(action_chain
-        .split('+')
-        .filter_map(crate::tui::event::parse_action)
-        .collect())
+    let mut actions: Vec<Action> = vec![];
+    let mut split = action_chain.split('+');
+    loop {
+        let opt_s = split.next();
+        if opt_s.is_none() {
+            break;
+        }
+        let mut s = opt_s.unwrap().to_string();
+        if s.starts_with("if-") {
+            if let Some(otherwise) = split.next() {
+                s += &(String::from("+") + otherwise);
+            }
+        }
+        if let Some(act) = event::parse_action(&s) {
+            actions.push(act);
+        }
+    }
+    Ok(actions)
 }
 
 /// Parse a single keymap and return the key and action(s)

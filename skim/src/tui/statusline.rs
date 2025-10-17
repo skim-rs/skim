@@ -27,24 +27,24 @@ lazy_static! {
 }
 
 #[derive(Clone)]
-pub(crate) struct StatusLine {
-    pub(crate) total: usize,
-    pub(crate) matched: usize,
-    pub(crate) processed: usize,
-    pub(crate) matcher_running: bool,
-    pub(crate) multi_selection: bool,
-    pub(crate) selected: usize,
-    pub(crate) current_item_idx: usize,
-    pub(crate) hscroll_offset: i64,
-    pub(crate) reading: bool,
-    pub(crate) time_since_read: Duration,
-    pub(crate) time_since_match: Duration,
-    pub(crate) matcher_mode: String,
-    pub(crate) theme: Arc<ColorTheme>,
-    pub(crate) info: InfoDisplay,
-    pub(crate) start: Instant,
+pub struct StatusLine {
+    pub total: usize,
+    pub matched: usize,
+    pub processed: usize,
+    pub matcher_running: bool,
+    pub multi_selection: bool,
+    pub selected: usize,
+    pub current_item_idx: usize,
+    pub hscroll_offset: i64,
+    pub reading: bool,
+    pub time_since_read: Duration,
+    pub time_since_match: Duration,
+    pub matcher_mode: String,
+    pub theme: Arc<ColorTheme>,
+    pub info: InfoDisplay,
+    pub start: Instant,
     // show spinner flag controlled by App (debounced there)
-    pub(crate) show_spinner: bool,
+    pub show_spinner: bool,
 }
 
 impl Default for StatusLine {

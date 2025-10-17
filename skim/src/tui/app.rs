@@ -1,15 +1,14 @@
 use std::borrow::Cow;
-use std::os::linux::raw::stat;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use crate::item::ItemPool;
+use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::model::options::InfoDisplay;
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::options::TuiLayout;
-use crate::util::printf;
+use crate::util::{self, printf};
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
 use super::Event;
@@ -66,8 +65,8 @@ pub struct App<'a> {
 // App ui render function
 impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let mut status_area: Rect = Default::default();
-        let mut input_area: Rect = Default::default();
+        let status_area;
+        let input_area;
         let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
         let remaining_height = 1
             + (self.options.header.as_ref().and(Some(1)).or(Some(0))).unwrap()
@@ -93,9 +92,9 @@ impl Widget for &mut App<'_> {
                     Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(remaining_area)
                 }
                 TuiLayout::Reverse => {
-                  let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(remaining_area);
-                  a.reverse();
-                  a
+                    let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(remaining_area);
+                    a.reverse();
+                    a
                 }
             };
             self.header.render(header_area, buf);
@@ -194,14 +193,7 @@ impl Default for App<'_> {
         let (item_tx, item_rx) = unbounded();
         let theme = Arc::new(crate::theme::ColorTheme::default());
         Self {
-            input: {
-                let mut input = Input::default();
-                input.theme = theme.clone();
-                input.border = false;
-                // Set prompt from options
-                input.prompt = SkimOptions::default().prompt.clone();
-                input
-            },
+            input: Input::default(),
             preview: {
                 let mut preview = Preview::default();
                 preview.theme = theme.clone();
@@ -245,13 +237,7 @@ impl<'a> App<'a> {
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>) -> Self {
         let (item_tx, item_rx) = unbounded();
         Self {
-            input: {
-                let mut input = Input::default();
-                input.theme = theme.clone();
-                input.border = false;
-                input.prompt = options.prompt.clone();
-                input
-            },
+            input: Input::with_options(&options, theme.clone()),
             preview: {
                 let mut preview = Preview::default();
                 preview.theme = theme.clone();
@@ -382,9 +368,9 @@ impl<'a> App<'a> {
                             ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                                 self.preview.content(&t.bytes().collect())?
                             }
-                            ItemPreview::CommandWithPos(_, preview_position) => todo!(),
-                            ItemPreview::TextWithPos(_, preview_position) => todo!(),
-                            ItemPreview::AnsiWithPos(_, preview_position) => todo!(),
+                            ItemPreview::CommandWithPos(_, _preview_position) => todo!(),
+                            ItemPreview::TextWithPos(_, _preview_position) => todo!(),
+                            ItemPreview::AnsiWithPos(_, _preview_position) => todo!(),
                             ItemPreview::Global => {
                                 self.preview.run(
                                     tui,
@@ -442,6 +428,9 @@ impl<'a> App<'a> {
                     tui.event_tx.send(evt)?;
                 }
                 self.on_selection_changed();
+            }
+            Event::Redraw => {
+                tui.clear()?;
             }
             _ => (),
         };
@@ -523,7 +512,13 @@ impl<'a> App<'a> {
             AppendAndSelect => {
                 let value = self.input.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
-                self.item_pool.append(vec![item]);
+                self.item_pool.append(vec![item.clone()]);
+                self.item_list.items.append(&mut vec![MatchedItem {
+                    item,
+                    rank: [0, 0, 0, 0],
+                    matched_range: None,
+                }]);
+                self.item_list.select();
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
@@ -586,12 +581,25 @@ impl<'a> App<'a> {
             }
             Execute(cmd) => {
                 let mut command = Command::new("sh");
-                command.args(["-c", cmd]);
-                let _ = command.spawn();
+                let expanded_cmd = self.expand_cmd(&cmd);
+                debug!("execute: {}", expanded_cmd);
+                command.args(["-c", &expanded_cmd]);
+                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled()?;
+                if in_raw_mode {
+                    crossterm::terminal::disable_raw_mode()?;
+                }
+                crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen)?;
+                let _ = command.spawn().and_then(|mut c| c.wait());
+                if in_raw_mode {
+                    crossterm::terminal::enable_raw_mode()?;
+                }
+                crossterm::execute!(std::io::stderr(), crossterm::terminal::EnterAlternateScreen)?;
+                return Ok(vec![Event::Redraw]);
             }
             ExecuteSilent(cmd) => {
                 let mut command = Command::new("sh");
-                command.args(["-c", cmd]);
+                let expanded_cmd = self.expand_cmd(&cmd);
+                command.args(["-c", &expanded_cmd]);
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
                 let _ = command.spawn();
@@ -602,22 +610,43 @@ impl<'a> App<'a> {
             ForwardWord => {
                 todo!()
             }
-            IfQueryEmpty(act) => {
-                let inner = crate::binds::parse_action_chain(act)?;
+            IfQueryEmpty(then, otherwise) => {
+                let inner = crate::binds::parse_action_chain(then)?;
                 if self.input.is_empty() {
                     return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
+                } else {
+                    if let Some(o) = otherwise {
+                        return Ok(crate::binds::parse_action_chain(&o)?
+                            .iter()
+                            .map(|e| Event::Action(e.to_owned()))
+                            .collect());
+                    }
                 }
             }
-            IfQueryNotEmpty(act) => {
-                let inner = crate::binds::parse_action_chain(act)?;
+            IfQueryNotEmpty(then, otherwise) => {
+                let inner = crate::binds::parse_action_chain(then)?;
                 if !self.input.is_empty() {
                     return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
+                } else {
+                    if let Some(o) = otherwise {
+                        return Ok(crate::binds::parse_action_chain(&o)?
+                            .iter()
+                            .map(|e| Event::Action(e.to_owned()))
+                            .collect());
+                    }
                 }
             }
-            IfNonMatched(act) => {
-                let inner = crate::binds::parse_action_chain(act)?;
+            IfNonMatched(then, otherwise) => {
+                let inner = crate::binds::parse_action_chain(then)?;
                 if self.item_list.items.is_empty() {
                     return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
+                } else {
+                    if let Some(o) = otherwise {
+                        return Ok(crate::binds::parse_action_chain(&o)?
+                            .iter()
+                            .map(|e| Event::Action(e.to_owned()))
+                            .collect());
+                    }
                 }
             }
             Ignore => (),
@@ -675,6 +704,7 @@ impl<'a> App<'a> {
             ScrollRight(n) => todo!(),
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
+            Select => self.item_list.select(),
             Toggle => self.item_list.toggle(),
             ToggleAll => self.item_list.toggle_all(),
             ToggleIn => {
@@ -765,5 +795,16 @@ impl<'a> App<'a> {
 
     fn yank(&mut self, contents: Cow<'a, str>) {
         self.yank_register = contents;
+    }
+
+    fn expand_cmd(&self, cmd: &str) -> String {
+        util::printf(
+            cmd.to_string(),
+            &self.options.delimiter,
+            self.item_list.items.iter().map(|x| x.item.clone()),
+            self.item_list.selected(),
+            &self.input.value,
+            &self.input.value,
+        )
     }
 }

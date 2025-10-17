@@ -169,9 +169,14 @@ impl ItemList {
             self.toggle_item(&item);
         }
     }
+
+    /// Add row at cursor to selection
     pub fn select(&mut self) {
+        debug!("{}", self.cursor());
         self.select_row(self.cursor())
     }
+
+    /// Add row to selection
     pub fn select_row(&mut self, index: usize) {
         let item = self.items[index].clone();
         self.selection.insert(item);
