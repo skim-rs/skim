@@ -24,14 +24,16 @@ _sk() {
 '--delimiter=[Delimiter between fields]:DELIMITER:_default' \
 '--algo=[Fuzzy matching algorithm]:ALGORITHM:(skim_v1 skim_v2 clangd)' \
 '--case=[Case sensitivity]:CASE:(respect ignore smart)' \
-'*-b+[Comma separated list of bindings]:BIND:_default' \
-'*--bind=[Comma separated list of bindings]:BIND:_default' \
+'-b+[Comma separated list of bindings]:BIND:_default' \
+'--bind=[Comma separated list of bindings]:BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '--cmd=[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
 '--color=[Set color theme]:COLOR:_default' \
 '--skip-to-pattern=[Show the matched pattern at the line start]:SKIP_TO_PATTERN:_default' \
-'--layout=[Set layout]:LAYOUT:(default reverse reverse-list)' \
+'--layout=[Set layout]:LAYOUT:((default\:"Display from the bottom of the screen"
+reverse\:"Display from the top of the screen"
+reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--height=[Height of skim'\''s window]:HEIGHT:_default' \
 '--min-height=[Minimum height of skim'\''s window]:MIN_HEIGHT:_default' \
 '--margin=[Screen margin]:MARGIN:_default' \
