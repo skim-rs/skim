@@ -75,6 +75,7 @@ impl Attr {
 
 bitflags! {
     /// `Effect` is the effect of a text
+    #[derive(Debug, Clone, Copy, PartialEq)]
     pub struct Effect: u8 {
         const BOLD = 0b00000001;
         const DIM = 0b00000010;

@@ -1,5 +1,3 @@
-use bitflags::_core::result::Result::Ok;
-
 use skim_tuikit::prelude::*;
 
 fn main() {
