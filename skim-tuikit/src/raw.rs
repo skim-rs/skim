@@ -108,7 +108,7 @@ impl<W: Write + AsFd + AsRawFd> IntoRawMode for W {
         use nix::errno::Errno::ENOTTY;
         use nix::sys::termios::OutputFlags;
 
-        let istty = isatty(self.as_raw_fd()).map_err(nix_err_to_io_err)?;
+        let istty = isatty(self.as_fd()).map_err(nix_err_to_io_err)?;
         if !istty {
             Err(nix_err_to_io_err(ENOTTY))?
         }

@@ -53,16 +53,16 @@ impl KeyBoard {
         let (rx, tx) = nix::unistd::pipe().expect("failed to set pipe");
 
         // set the signal pipe to non-blocking mode
-        let flag = fcntl(rx.as_raw_fd(), FcntlArg::F_GETFL).expect("Get fcntl failed");
+        let flag = fcntl(rx.as_fd(), FcntlArg::F_GETFL).expect("Get fcntl failed");
         let mut flag = OFlag::from_bits_truncate(flag);
         flag.insert(OFlag::O_NONBLOCK);
-        let _ = fcntl(rx.as_raw_fd(), FcntlArg::F_SETFL(flag));
+        let _ = fcntl(rx.as_fd(), FcntlArg::F_SETFL(flag));
 
         // set file to non-blocking mode
-        let flag = fcntl(file.as_raw_fd(), FcntlArg::F_GETFL).expect("Get fcntl failed");
+        let flag = fcntl(file.as_fd(), FcntlArg::F_GETFL).expect("Get fcntl failed");
         let mut flag = OFlag::from_bits_truncate(flag);
         flag.insert(OFlag::O_NONBLOCK);
-        let _ = fcntl(file.as_raw_fd(), FcntlArg::F_SETFL(flag));
+        let _ = fcntl(file.as_fd(), FcntlArg::F_SETFL(flag));
 
         KeyBoard {
             file,
