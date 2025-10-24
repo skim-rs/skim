@@ -63,30 +63,143 @@ impl Input {
     pub fn move_cursor_to(&mut self, pos: u16) {
         self.cursor_pos = u16::clamp(pos, 0, self.value.len() as u16);
     }
-    /// Delete a word. Direction is -1 for backwards, +1 for forward
-    fn delete_word_dir(&mut self, direction: i32) -> String {
-        let prev_char = self.delete(direction); // Remove first non-alphanumeric char if there is one
-        let mut res = match prev_char {
-            Some(c) => String::from(c),
-            None => String::default(),
-        };
-        while !self.value.is_empty() {
-            let prev_char = self.value.remove((self.cursor_pos as i32 + direction) as usize);
-            if prev_char.is_alphabetic() {
-                self.move_cursor(direction);
-                res.push(prev_char);
-            } else {
-                self.value.push(prev_char);
-                break;
+    
+    /// Check if a character is a word character (alphanumeric only)
+    fn is_word_char(ch: char) -> bool {
+        ch.is_alphanumeric()
+    }
+    
+    /// Find the position of the start of the next word going forward from current position
+    fn find_next_word_end(&self, start_pos: usize) -> usize {
+        let mut pos = start_pos;
+        
+        // If we're on a non-word char, skip to the next word
+        if pos < self.value.len() {
+            let ch = self.value.chars().nth(pos).unwrap();
+            if !Self::is_word_char(ch) {
+                while pos < self.value.len() {
+                    let ch = self.value.chars().nth(pos).unwrap();
+                    if Self::is_word_char(ch) {
+                        break;
+                    }
+                    pos += 1;
+                }
             }
         }
-        res
+        
+        // Now skip to the end of the word
+        while pos < self.value.len() {
+            let ch = self.value.chars().nth(pos).unwrap();
+            if !Self::is_word_char(ch) {
+                break;
+            }
+            pos += 1;
+        }
+        
+        pos
     }
+    
+    /// Find the position of the start of the previous word going backward from current position
+    fn find_prev_word_start(&self, start_pos: usize) -> usize {
+        if start_pos == 0 {
+            return 0;
+        }
+        
+        let mut pos = start_pos - 1;
+        
+        // Skip any non-word characters
+        while pos > 0 {
+            let ch = self.value.chars().nth(pos).unwrap();
+            if Self::is_word_char(ch) {
+                break;
+            }
+            if pos == 0 {
+                break;
+            }
+            pos -= 1;
+        }
+        
+        // Skip to the beginning of the word
+        while pos > 0 {
+            let ch = self.value.chars().nth(pos - 1).unwrap();
+            if !Self::is_word_char(ch) {
+                break;
+            }
+            pos -= 1;
+        }
+        
+        pos
+    }
+    
+    /// Find the position to delete backward to (stops at whitespace, not just word boundaries)
+    fn find_delete_backward_pos(&self, start_pos: usize) -> usize {
+        if start_pos == 0 {
+            return 0;
+        }
+        
+        let mut pos = start_pos;
+        
+        // Move back while we're on whitespace
+        while pos > 0 {
+            let ch = self.value.chars().nth(pos - 1).unwrap();
+            if !ch.is_whitespace() {
+                break;
+            }
+            pos -= 1;
+        }
+        
+        // Move back while we're on non-whitespace
+        while pos > 0 {
+            let ch = self.value.chars().nth(pos - 1).unwrap();
+            if ch.is_whitespace() {
+                break;
+            }
+            pos -= 1;
+        }
+        
+        pos
+    }
+    
     pub fn delete_backward_word(&mut self) -> String {
-        self.delete_word_dir(-1)
+        if self.cursor_pos == 0 {
+            return String::new();
+        }
+        let start_pos = self.find_delete_backward_pos(self.cursor_pos as usize);
+        let deleted = self.value[start_pos..self.cursor_pos as usize].to_string();
+        self.value = format!("{}{}", 
+            &self.value[..start_pos],
+            &self.value[self.cursor_pos as usize..]
+        );
+        self.cursor_pos = start_pos as u16;
+        deleted
     }
+    
     pub fn delete_forward_word(&mut self) -> String {
-        self.delete_word_dir(1)
+        if self.cursor_pos as usize >= self.value.len() {
+            return String::new();
+        }
+        let end_pos = self.find_next_word_end(self.cursor_pos as usize);
+        let deleted = self.value[self.cursor_pos as usize..end_pos].to_string();
+        self.value = format!("{}{}",
+            &self.value[..self.cursor_pos as usize],
+            &self.value[end_pos..]
+        );
+        deleted
+    }
+    pub fn move_cursor_forward_word(&mut self) {
+        let new_pos = self.find_next_word_end(self.cursor_pos as usize);
+        self.cursor_pos = new_pos as u16;
+    }
+    
+    pub fn move_cursor_backward_word(&mut self) {
+        let new_pos = self.find_prev_word_start(self.cursor_pos as usize);
+        self.cursor_pos = new_pos as u16;
+    }
+    pub fn delete_to_beginning(&mut self) -> String {
+        let deleted = self.value[..self.cursor_pos as usize].to_string();
+        self.value = self.value[self.cursor_pos as usize..].to_string();
+        self.cursor_pos = 0;
+        deleted
     }
     pub fn cursor_pos(&self) -> u16 {
         self.cursor_pos + self.prompt.chars().count() as u16

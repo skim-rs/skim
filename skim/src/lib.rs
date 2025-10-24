@@ -363,7 +363,7 @@ impl Skim {
         });
         let cmd = options.cmd.clone().unwrap_or(default_command);
 
-        let mut app = App::from_options(options, theme.clone());
+        let mut app = App::from_options(options, theme.clone(), cmd.clone());
 
 
         let rt = tokio::runtime::Runtime::new()?;
@@ -373,7 +373,7 @@ impl Skim {
 
             //------------------------------------------------------------------------------
             // reader
-            let reader_control = reader.run(app.item_tx.clone(), &cmd);
+            let mut reader_control = reader.run(app.item_tx.clone(), &cmd);
 
             //------------------------------------------------------------------------------
             // model + previewer
@@ -388,14 +388,27 @@ impl Skim {
             loop {
                 select! {
                     event = tui.next() => {
-                        if let Some(evt) = &event {
-                          final_event = evt.clone();
+                        let evt = event.ok_or_eyre("Could not acquire next event")?;
+                        
+                        // Handle reload event
+                        if let Event::Reload(new_cmd) = &evt {
+                            // Kill the current reader
+                            reader_control.kill();
+                            // Clear items
+                            app.item_pool.clear();
+                            app.restart_matcher(true);
+                            // Start a new reader with the new command (no source, using cmd)
+                            reader_control = reader.run(app.item_tx.clone(), new_cmd);
+                            reader_done = false;
                         }
+                        
+                        final_event = evt.clone();
+                        
                         if reader_control.is_done() && ! reader_done {
                             app.restart_matcher(true);
                             reader_done = true;
                         }
-                        app.handle_event(&mut tui, &event.ok_or_eyre("Could not acquire next event")?)?;
+                        app.handle_event(&mut tui, &evt)?;
                     }
                     _ = item_receiver_interval.tick() => {
                       while let Ok(item) = app.item_rx.try_recv() {

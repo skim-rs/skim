@@ -25,6 +25,7 @@ pub enum Event {
     Heartbeat,
     RunPreview,
     Redraw,
+    Reload(String),
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]

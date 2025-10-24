@@ -60,6 +60,7 @@ pub struct App<'a> {
 
     pub options: SkimOptions,
     pub input_border: bool,
+    pub cmd: String,
 }
 
 // App ui render function
@@ -217,7 +218,9 @@ impl Default for App<'_> {
             item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
-            matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
+            matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
+                .case(crate::CaseMatching::default())
+                .build(),
             yank_register: Cow::default(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
@@ -229,12 +232,13 @@ impl Default for App<'_> {
             items_just_updated: false,
             options: SkimOptions::default(),
             input_border: false,
+            cmd: String::new(),
         }
     }
 }
 
 impl<'a> App<'a> {
-    pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>) -> Self {
+    pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let (item_tx, item_rx) = unbounded();
         Self {
             input: Input::with_options(&options, theme.clone()),
@@ -252,7 +256,9 @@ impl<'a> App<'a> {
             item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
-            matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build())).build(),
+            matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
+                .case(options.case)
+                .build(),
             yank_register: Cow::default(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
@@ -264,6 +270,7 @@ impl<'a> App<'a> {
             items_just_updated: false,
             options,
             input_border: false,
+            cmd,
         }
     }
 
@@ -537,9 +544,7 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardWord => {
-                self.input.delete_backward_word();
-                self.restart_matcher(true);
-                return Ok(vec![Event::RunPreview]);
+                self.input.move_cursor_backward_word();
             }
             BeginningOfLine => {
                 self.input.move_cursor_to(0);
@@ -608,7 +613,7 @@ impl<'a> App<'a> {
                 self.input.move_cursor(1);
             }
             ForwardWord => {
-                todo!()
+                self.input.move_cursor_forward_word();
             }
             IfQueryEmpty(then, otherwise) => {
                 let inner = crate::binds::parse_action_chain(then)?;
@@ -657,8 +662,9 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             KillWord => {
-                let deleted = Cow::Owned(self.input.delete_backward_word());
+                let deleted = Cow::Owned(self.input.delete_forward_word());
                 self.yank(deleted);
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => todo!(),
@@ -690,8 +696,14 @@ impl<'a> App<'a> {
             PreviewPageDown(n) => todo!(),
             PreviousHistory => todo!(),
             Redraw => return Ok(vec![Event::Clear]),
-            Reload(Some(s)) => todo!(),
-            Reload(None) => todo!(),
+            Reload(Some(s)) => {
+                self.item_list.clear_selection();
+                return Ok(vec![Event::Reload(s.clone())]);
+            }
+            Reload(None) => {
+                self.item_list.clear_selection();
+                return Ok(vec![Event::Reload(self.cmd.clone())]);
+            }
             RefreshCmd => todo!(),
             RefreshPreview => {
                 return Ok(vec![Event::RunPreview]);
@@ -733,7 +745,11 @@ impl<'a> App<'a> {
             }
             TogglePreviewWrap => todo!(),
             ToggleSort => todo!(),
-            UnixLineDiscard => todo!(),
+            UnixLineDiscard => {
+                self.input.delete_to_beginning();
+                self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
+            }
             UnixWordRubout => {
                 self.input.delete_backward_word();
                 return Ok(vec![Event::RunPreview]);

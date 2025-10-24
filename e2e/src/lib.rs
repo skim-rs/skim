@@ -36,7 +36,7 @@ where
         if let Ok(t) = pred() {
             return Ok(t);
         }
-        sleep(Duration::from_millis(50));
+        sleep(Duration::from_millis(5));
     }
     Err(Error::new(ErrorKind::TimedOut, "wait timed out"))
 }
@@ -94,7 +94,6 @@ impl TmuxController {
             .split(|c| *c == b'\n')
             .map(|bytes| String::from_utf8(bytes.to_vec()).expect("Failed to parse bytes as UTF8 string"))
             .collect::<Vec<String>>();
-        sleep(Duration::from_millis(50));
         Ok(output[0..output.len() - 1].to_vec())
     }
 

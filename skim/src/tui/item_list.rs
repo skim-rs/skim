@@ -186,6 +186,9 @@ impl ItemList {
             self.selection.insert(item.clone());
         }
     }
+    pub fn clear_selection(&mut self) {
+        self.selection.clear();
+    }
     pub fn scroll_by(&mut self, offset: i32) {
         self.current = self
             .current
