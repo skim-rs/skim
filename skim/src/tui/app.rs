@@ -375,9 +375,28 @@ impl<'a> App<'a> {
                             ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                                 self.preview.content(&t.bytes().collect())?
                             }
-                            ItemPreview::CommandWithPos(_, _preview_position) => todo!(),
-                            ItemPreview::TextWithPos(_, _preview_position) => todo!(),
-                            ItemPreview::AnsiWithPos(_, _preview_position) => todo!(),
+                            ItemPreview::CommandWithPos(cmd, _preview_position) => {
+                                // Preview with position - treat as regular command preview for now
+                                self.preview.run(
+                                    tui,
+                                    &printf(
+                                        cmd,
+                                        &self.options.delimiter,
+                                        self.item_list.selection.iter().map(|m| m.item.clone()),
+                                        self.item_list.selected(),
+                                        &self.input.value,
+                                        &self.input.value,
+                                    ),
+                                )
+                            }
+                            ItemPreview::TextWithPos(t, _preview_position) => {
+                                // Text preview with position - treat as regular text preview for now
+                                self.preview.content(&t.bytes().collect())?
+                            }
+                            ItemPreview::AnsiWithPos(t, _preview_position) => {
+                                // ANSI text preview with position - treat as regular ANSI text preview for now  
+                                self.preview.content(&t.bytes().collect())?
+                            }
                             ItemPreview::Global => {
                                 self.preview.run(
                                     tui,
@@ -692,12 +711,30 @@ impl<'a> App<'a> {
                 self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
-            PreviewUp(n) => todo!(),
-            PreviewDown(n) => todo!(),
-            PreviewLeft(n) => todo!(),
-            PreviewRight(n) => todo!(),
-            PreviewPageUp(n) => todo!(),
-            PreviewPageDown(n) => todo!(),
+            PreviewUp(n) => {
+                // Scroll preview up - currently not implemented
+                return Ok(vec![]);
+            }
+            PreviewDown(n) => {
+                // Scroll preview down - currently not implemented
+                return Ok(vec![]);
+            }
+            PreviewLeft(n) => {
+                // Scroll preview left - currently not implemented
+                return Ok(vec![]);
+            }
+            PreviewRight(n) => {
+                // Scroll preview right - currently not implemented
+                return Ok(vec![]);
+            }
+            PreviewPageUp(n) => {
+                // Scroll preview page up - currently not implemented
+                return Ok(vec![]);
+            }
+            PreviewPageDown(n) => {
+                // Scroll preview page down - currently not implemented
+                return Ok(vec![]);
+            }
             PreviousHistory => {
                 self.input.previous_history();
                 self.restart_matcher(true);
@@ -712,16 +749,29 @@ impl<'a> App<'a> {
                 self.item_list.clear_selection();
                 return Ok(vec![Event::Reload(self.cmd.clone())]);
             }
-            RefreshCmd => todo!(),
+            RefreshCmd => {
+                // Refresh the command query - currently not implemented for ratatui version
+                return Ok(vec![]);
+            }
             RefreshPreview => {
                 return Ok(vec![Event::RunPreview]);
             }
             RestartMatcher => {
                 self.restart_matcher(true);
             }
-            RotateMode => todo!(),
-            ScrollLeft(n) => todo!(),
-            ScrollRight(n) => todo!(),
+            RotateMode => {
+                // Rotate between exact/fuzzy/inverse-exact/inverse-fuzzy matching modes
+                // Currently not implemented for ratatui version
+                return Ok(vec![]);
+            }
+            ScrollLeft(n) => {
+                // Horizontal scroll left - currently not implemented
+                return Ok(vec![]);
+            }
+            ScrollRight(n) => {
+                // Horizontal scroll right - currently not implemented
+                return Ok(vec![]);
+            }
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
             Select => self.item_list.select(),
@@ -751,8 +801,14 @@ impl<'a> App<'a> {
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
             }
-            TogglePreviewWrap => todo!(),
-            ToggleSort => todo!(),
+            TogglePreviewWrap => {
+                // Toggle preview text wrapping - currently not implemented
+                return Ok(vec![]);
+            }
+            ToggleSort => {
+                // Toggle sorting - currently not implemented
+                return Ok(vec![]);
+            }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();
                 self.restart_matcher(true);
