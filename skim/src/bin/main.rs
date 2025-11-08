@@ -88,7 +88,7 @@ fn main() -> Result<()> {
 }
 
 fn sk_main() -> Result<i32> {
-    let mut opts = parse_args()?.build();
+    let mut opts = parse_args()?;
 
     let reader_opts = SkimItemReaderOption::default()
         .ansi(opts.ansi)
