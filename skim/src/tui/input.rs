@@ -17,6 +17,9 @@ pub struct Input {
     pub cursor_pos: u16,
     pub theme: Arc<ColorTheme>,
     pub border: bool,
+    // History support
+    history_before: Vec<String>,
+    history_after: Vec<String>,
 }
 
 impl Default for Input {
@@ -27,6 +30,8 @@ impl Default for Input {
             cursor_pos: 0,
             theme: Arc::new(ColorTheme::default()),
             border: false,
+            history_before: Vec::new(),
+            history_after: Vec::new(),
         }
     }
 }
@@ -39,7 +44,8 @@ impl Input {
             theme,
             border: options.border,
             cursor_pos: options.query.clone().map(|q| q.len() as u16).unwrap_or_default(),
-            ..Default::default()
+            history_before: options.query_history.clone(),
+            history_after: Vec::new(),
         }
     }
     pub fn insert(&mut self, c: char) {
@@ -203,6 +209,33 @@ impl Input {
     }
     pub fn cursor_pos(&self) -> u16 {
         self.cursor_pos + self.prompt.chars().count() as u16
+    }
+    
+    /// Navigate to the previous history entry (Ctrl-P)
+    pub fn previous_history(&mut self) {
+        if let Some(history_entry) = self.history_before.pop() {
+            // Save current query to history_after
+            self.history_after.push(self.value.clone());
+            // Load history entry as current query
+            self.value = history_entry;
+            self.cursor_pos = self.value.len() as u16;
+        }
+    }
+    
+    /// Navigate to the next history entry (Ctrl-N)
+    pub fn next_history(&mut self) {
+        if let Some(history_entry) = self.history_after.pop() {
+            // Save current query to history_before
+            self.history_before.push(self.value.clone());
+            // Load history entry as current query
+            self.value = history_entry;
+            self.cursor_pos = self.value.len() as u16;
+        }
+    }
+    
+    /// Get the current query for saving to history
+    pub fn get_current_query(&self) -> String {
+        self.value.clone()
     }
 }
 

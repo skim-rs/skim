@@ -667,7 +667,11 @@ impl<'a> App<'a> {
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
-            NextHistory => todo!(),
+            NextHistory => {
+                self.input.next_history();
+                self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
+            }
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
                 self.item_list.scroll_by(offset * n);
@@ -694,7 +698,11 @@ impl<'a> App<'a> {
             PreviewRight(n) => todo!(),
             PreviewPageUp(n) => todo!(),
             PreviewPageDown(n) => todo!(),
-            PreviousHistory => todo!(),
+            PreviousHistory => {
+                self.input.previous_history();
+                self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
+            }
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
                 self.item_list.clear_selection();
