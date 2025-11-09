@@ -75,7 +75,6 @@ The skim project contains several components:
 | -------------- | ----------------- | ---------------------------- |
 | macOS          | Homebrew          | `brew install sk`            |
 | macOS          | MacPorts          | `sudo port install skim`     |
-| Fedora         | dnf               | `dnf install skim`           |
 | Alpine         | apk               | `apk add skim`               |
 | Arch           | pacman            | `pacman -S skim`             |
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
