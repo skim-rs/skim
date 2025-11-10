@@ -431,7 +431,12 @@ impl Skim {
         })?;
 
         Ok(SkimOutput {
-            cmd,
+            cmd: if app.options.interactive {
+                // In interactive mode, cmd is what the user typed
+                app.input.to_string()
+            } else {
+                cmd
+            },
             final_event,
             final_key: KeyCode::Enter, // TODO
             query: app.input.to_string(),

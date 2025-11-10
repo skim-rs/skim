@@ -63,6 +63,11 @@ pub struct App<'a> {
     pub history_index: Option<usize>,
     pub saved_input: String,
 
+    // command history navigation (for interactive mode)
+    pub cmd_history: Vec<String>,
+    pub cmd_history_index: Option<usize>,
+    pub saved_cmd_input: String,
+
     pub options: SkimOptions,
     pub input_border: bool,
     pub cmd: String,
@@ -238,6 +243,9 @@ impl Default for App<'_> {
             query_history: Vec::new(),
             history_index: None,
             saved_input: String::new(),
+            cmd_history: Vec::new(),
+            cmd_history_index: None,
+            saved_cmd_input: String::new(),
             options: SkimOptions::default(),
             input_border: false,
             cmd: String::new(),
@@ -248,8 +256,20 @@ impl Default for App<'_> {
 impl<'a> App<'a> {
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let (item_tx, item_rx) = unbounded();
+        let mut input = Input::with_options(&options, theme.clone());
+
+        // In interactive mode, use cmd_prompt instead of regular prompt
+        if options.interactive {
+            input.prompt = options.cmd_prompt.clone();
+            // In interactive mode, use cmd_query if provided
+            if let Some(ref cmd_query) = options.cmd_query {
+                input.value = cmd_query.clone();
+                input.cursor_pos = cmd_query.len() as u16;
+            }
+        }
+
         Self {
-            input: Input::with_options(&options, theme.clone()),
+            input,
             preview: {
                 let mut preview = Preview::default();
                 preview.theme = theme.clone();
@@ -279,6 +299,9 @@ impl<'a> App<'a> {
             query_history: options.query_history.clone(),
             history_index: None,
             saved_input: String::new(),
+            cmd_history: options.cmd_history.clone(),
+            cmd_history_index: None,
+            saved_cmd_input: String::new(),
             options,
             input_border: false,
             cmd,
@@ -698,30 +721,47 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => {
-                if self.query_history.is_empty() {
+                // Use cmd_history in interactive mode, query_history otherwise
+                let (history, history_index, saved_input) = if self.options.interactive {
+                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                } else {
+                    (&self.query_history, &mut self.history_index, &mut self.saved_input)
+                };
+
+                if history.is_empty() {
                     return Ok(vec![]);
                 }
 
-                match self.history_index {
+                match *history_index {
                     None => {
                         // Already at most recent (current input), do nothing
                     }
                     Some(idx) => {
-                        if idx + 1 >= self.query_history.len() {
+                        if idx + 1 >= history.len() {
                             // Move to most recent (restore saved input)
-                            self.input.value = self.saved_input.clone();
+                            self.input.value = saved_input.clone();
                             self.input.move_cursor_to(self.input.value.len() as u16);
-                            self.history_index = None;
-                            self.restart_matcher(true);
+                            *history_index = None;
+                            if !self.options.interactive {
+                                self.restart_matcher(true);
+                            }
                         } else {
                             // Move forward in history (toward more recent)
                             let new_idx = idx + 1;
-                            self.input.value = self.query_history[new_idx].clone();
+                            self.input.value = history[new_idx].clone();
                             self.input.move_cursor_to(self.input.value.len() as u16);
-                            self.history_index = Some(new_idx);
-                            self.restart_matcher(true);
+                            *history_index = Some(new_idx);
+                            if !self.options.interactive {
+                                self.restart_matcher(true);
+                            }
                         }
                     }
+                }
+
+                // In interactive mode, execute the command to update results
+                if self.options.interactive {
+                    let cmd = self.input.value.clone();
+                    return Ok(vec![Event::Reload(cmd)]);
                 }
                 return Ok(vec![Event::RunPreview]);
             }
@@ -764,31 +804,48 @@ impl<'a> App<'a> {
                 self.preview.page_down();
             }
             PreviousHistory => {
-                if self.query_history.is_empty() {
+                // Use cmd_history in interactive mode, query_history otherwise
+                let (history, history_index, saved_input) = if self.options.interactive {
+                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                } else {
+                    (&self.query_history, &mut self.history_index, &mut self.saved_input)
+                };
+
+                if history.is_empty() {
                     return Ok(vec![]);
                 }
 
-                match self.history_index {
+                match *history_index {
                     None => {
                         // Save current input and go to most recent history entry
-                        self.saved_input = self.input.value.clone();
-                        let new_idx = self.query_history.len() - 1;
-                        self.input.value = self.query_history[new_idx].clone();
+                        *saved_input = self.input.value.clone();
+                        let new_idx = history.len() - 1;
+                        self.input.value = history[new_idx].clone();
                         self.input.move_cursor_to(self.input.value.len() as u16);
-                        self.history_index = Some(new_idx);
-                        self.restart_matcher(true);
+                        *history_index = Some(new_idx);
+                        if !self.options.interactive {
+                            self.restart_matcher(true);
+                        }
                     }
                     Some(idx) => {
                         if idx > 0 {
                             // Move backward in history (toward older entries)
                             let new_idx = idx - 1;
-                            self.input.value = self.query_history[new_idx].clone();
+                            self.input.value = history[new_idx].clone();
                             self.input.move_cursor_to(self.input.value.len() as u16);
-                            self.history_index = Some(new_idx);
-                            self.restart_matcher(true);
+                            *history_index = Some(new_idx);
+                            if !self.options.interactive {
+                                self.restart_matcher(true);
+                            }
                         }
                         // else: already at oldest, do nothing
                     }
+                }
+
+                // In interactive mode, execute the command to update results
+                if self.options.interactive {
+                    let cmd = self.input.value.clone();
+                    return Ok(vec![Event::Reload(cmd)]);
                 }
                 return Ok(vec![Event::RunPreview]);
             }
