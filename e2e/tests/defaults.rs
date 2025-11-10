@@ -71,21 +71,19 @@ fn version_short() -> Result<()> {
 fn interactive_mode_command_execution() -> Result<()> {
     let tmux = TmuxController::new()?;
 
-    // Start interactive mode without piped input
-    let _ = tmux.start_sk(None, &["-i"])?;
+    // Start interactive mode with a command that uses {} placeholder
+    let _ = tmux.start_sk(None, &["-i", "--cmd", "echo 'foo {}'"])?;
     tmux.until(|l| l[0].starts_with("c>"))?;
 
-    // Type "echo foo" - should execute the command and show "foo"
-    tmux.send_keys(&[Keys::Str("echo foo")])?;
-    tmux.until(|l| l[0] == "c> echo foo")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo")?;
+    // Type "bar" - the command "echo 'foo bar'" should execute and show "foo bar"
+    tmux.send_keys(&[Keys::Str("bar")])?;
+    tmux.until(|l| l[0] == "c> bar")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> foo bar")?;
 
-    // Clear and type "echo bar" - should show "bar"
-    tmux.send_keys(&[Keys::Ctrl(&Keys::Key('u'))])?;
-    tmux.until(|l| l[0] == "c>")?;
-    tmux.send_keys(&[Keys::Str("echo bar")])?;
-    tmux.until(|l| l[0] == "c> echo bar")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> bar")?;
+    // Type more - command re-executes with new substitution
+    tmux.send_keys(&[Keys::Str("baz")])?;
+    tmux.until(|l| l[0] == "c> barbaz")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> foo barbaz")?;
 
     Ok(())
 }
