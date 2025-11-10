@@ -375,9 +375,28 @@ impl<'a> App<'a> {
                             ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                                 self.preview.content(&t.bytes().collect())?
                             }
-                            ItemPreview::CommandWithPos(_, _preview_position) => todo!(),
-                            ItemPreview::TextWithPos(_, _preview_position) => todo!(),
-                            ItemPreview::AnsiWithPos(_, _preview_position) => todo!(),
+                            ItemPreview::CommandWithPos(cmd, _preview_position) => {
+                                // TODO: Implement preview with position
+                                self.preview.run(
+                                    tui,
+                                    &printf(
+                                        cmd.to_string(),
+                                        &self.options.delimiter,
+                                        self.item_list.selection.iter().map(|m| m.item.clone()),
+                                        self.item_list.selected(),
+                                        &self.input,
+                                        &self.input,
+                                    ),
+                                )
+                            }
+                            ItemPreview::TextWithPos(t, _preview_position) => {
+                                // TODO: Implement text preview with position
+                                self.preview.content(&t.bytes().collect())?
+                            }
+                            ItemPreview::AnsiWithPos(t, _preview_position) => {
+                                // TODO: Implement ANSI text preview with position
+                                self.preview.content(&t.bytes().collect())?
+                            }
                             ItemPreview::Global => {
                                 self.preview.run(
                                     tui,
@@ -667,7 +686,9 @@ impl<'a> App<'a> {
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
-            NextHistory => todo!(),
+            NextHistory => {
+                // TODO: Implement history navigation
+            }
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
                 self.item_list.scroll_by(offset * n);
@@ -688,13 +709,27 @@ impl<'a> App<'a> {
                 self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
-            PreviewUp(n) => todo!(),
-            PreviewDown(n) => todo!(),
-            PreviewLeft(n) => todo!(),
-            PreviewRight(n) => todo!(),
-            PreviewPageUp(n) => todo!(),
-            PreviewPageDown(n) => todo!(),
-            PreviousHistory => todo!(),
+            PreviewUp(_n) => {
+                // TODO: Implement preview scrolling up
+            }
+            PreviewDown(_n) => {
+                // TODO: Implement preview scrolling down
+            }
+            PreviewLeft(_n) => {
+                // TODO: Implement preview scrolling left
+            }
+            PreviewRight(_n) => {
+                // TODO: Implement preview scrolling right
+            }
+            PreviewPageUp(_n) => {
+                // TODO: Implement preview page up
+            }
+            PreviewPageDown(_n) => {
+                // TODO: Implement preview page down
+            }
+            PreviousHistory => {
+                // TODO: Implement history navigation
+            }
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
                 self.item_list.clear_selection();
@@ -704,16 +739,24 @@ impl<'a> App<'a> {
                 self.item_list.clear_selection();
                 return Ok(vec![Event::Reload(self.cmd.clone())]);
             }
-            RefreshCmd => todo!(),
+            RefreshCmd => {
+                // TODO: Implement command refresh
+            }
             RefreshPreview => {
                 return Ok(vec![Event::RunPreview]);
             }
             RestartMatcher => {
                 self.restart_matcher(true);
             }
-            RotateMode => todo!(),
-            ScrollLeft(n) => todo!(),
-            ScrollRight(n) => todo!(),
+            RotateMode => {
+                // TODO: Implement mode rotation
+            }
+            ScrollLeft(_n) => {
+                // TODO: Implement horizontal scrolling left
+            }
+            ScrollRight(_n) => {
+                // TODO: Implement horizontal scrolling right
+            }
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
             Select => self.item_list.select(),
@@ -743,8 +786,12 @@ impl<'a> App<'a> {
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
             }
-            TogglePreviewWrap => todo!(),
-            ToggleSort => todo!(),
+            TogglePreviewWrap => {
+                // TODO: Implement preview wrap toggle
+            }
+            ToggleSort => {
+                // TODO: Implement sort toggle
+            }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();
                 self.restart_matcher(true);
