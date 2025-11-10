@@ -567,7 +567,11 @@ impl<'a> App<'a> {
             }
             AddChar(c) => {
                 self.input.insert(*c);
-                self.restart_matcher(true);
+                // In interactive mode, typing updates the command but doesn't filter items
+                // Items are only updated when the command is executed (Enter key)
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             AppendAndSelect => {
@@ -588,13 +592,17 @@ impl<'a> App<'a> {
             }
             BackwardDeleteChar => {
                 self.input.delete(-1);
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardKillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardWord => {
@@ -615,12 +623,16 @@ impl<'a> App<'a> {
             }
             DeleteChar => {
                 self.input.delete(0);
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             DeleteCharEOF => {
                 self.input.delete(0);
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             DeselectAll => {
@@ -718,7 +730,9 @@ impl<'a> App<'a> {
             KillWord => {
                 let deleted = Cow::Owned(self.input.delete_forward_word());
                 self.yank(deleted);
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => {
@@ -914,12 +928,16 @@ impl<'a> App<'a> {
             }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             UnixWordRubout => {
                 self.input.delete_backward_to_whitespace();
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             Up(n) => {
@@ -933,7 +951,9 @@ impl<'a> App<'a> {
             Yank => {
                 // Insert from yank register at cursor position
                 self.input.insert_str(&self.yank_register);
-                self.restart_matcher(true);
+                if !self.options.interactive {
+                    self.restart_matcher(true);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
         }
@@ -968,7 +988,14 @@ impl<'a> App<'a> {
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
             self.status.matcher_running = true;
-            self.matcher_control = self.matcher.run(&self.input, self.item_pool.clone(), move |matches| {
+            // In interactive mode, use empty query so all items are shown
+            // The input contains the command to execute, not a filter query
+            let query = if self.options.interactive {
+                &input::Input::default()
+            } else {
+                &self.input
+            };
+            self.matcher_control = self.matcher.run(query, self.item_pool.clone(), move |matches| {
                 let m = matches.lock();
                 debug!("Got {} results from matcher, sending to item list...", m.len());
                 let _ = tx.send(m.clone());
