@@ -745,23 +745,23 @@ impl<'a> App<'a> {
                 self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
-            PreviewUp(_n) => {
-                // TODO: Implement preview scrolling up
+            PreviewUp(n) => {
+                self.preview.scroll_up(*n as u16);
             }
-            PreviewDown(_n) => {
-                // TODO: Implement preview scrolling down
+            PreviewDown(n) => {
+                self.preview.scroll_down(*n as u16);
             }
-            PreviewLeft(_n) => {
-                // TODO: Implement preview scrolling left
+            PreviewLeft(n) => {
+                self.preview.scroll_left(*n as u16);
             }
-            PreviewRight(_n) => {
-                // TODO: Implement preview scrolling right
+            PreviewRight(n) => {
+                self.preview.scroll_right(*n as u16);
             }
             PreviewPageUp(_n) => {
-                // TODO: Implement preview page up
+                self.preview.page_up();
             }
             PreviewPageDown(_n) => {
-                // TODO: Implement preview page down
+                self.preview.page_down();
             }
             PreviousHistory => {
                 if self.query_history.is_empty() {
