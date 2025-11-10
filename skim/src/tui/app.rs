@@ -929,8 +929,10 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             Yank => {
-                let contents = Cow::Owned(self.input.clone());
-                self.yank(contents);
+                // Insert from yank register at cursor position
+                self.input.insert_str(&self.yank_register);
+                self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
         }
         Ok(Vec::default())

@@ -46,6 +46,10 @@ impl Input {
         self.value.insert(self.cursor_pos.into(), c);
         self.move_cursor(1);
     }
+    pub fn insert_str(&mut self, s: &str) {
+        self.value.insert_str(self.cursor_pos as usize, s);
+        self.move_cursor(s.len() as i32);
+    }
     pub fn delete(&mut self, offset: i32) -> Option<char> {
         self.delete_at(self.cursor_pos() as i32 + offset)
     }
@@ -131,32 +135,32 @@ impl Input {
         pos
     }
     
-    /// Find the position to delete backward to (stops at whitespace, not just word boundaries)
+    /// Find the position to delete backward to (stops at non-word characters)
     fn find_delete_backward_pos(&self, start_pos: usize) -> usize {
         if start_pos == 0 {
             return 0;
         }
-        
+
         let mut pos = start_pos;
-        
-        // Move back while we're on whitespace
+
+        // Skip any non-word characters (whitespace, punctuation, etc.)
         while pos > 0 {
             let ch = self.value.chars().nth(pos - 1).unwrap();
-            if !ch.is_whitespace() {
+            if Self::is_word_char(ch) {
                 break;
             }
             pos -= 1;
         }
-        
-        // Move back while we're on non-whitespace
+
+        // Skip back through word characters
         while pos > 0 {
             let ch = self.value.chars().nth(pos - 1).unwrap();
-            if ch.is_whitespace() {
+            if !Self::is_word_char(ch) {
                 break;
             }
             pos -= 1;
         }
-        
+
         pos
     }
     
