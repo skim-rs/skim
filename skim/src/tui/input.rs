@@ -51,15 +51,20 @@ impl Input {
         self.move_cursor(s.len() as i32);
     }
     pub fn delete(&mut self, offset: i32) -> Option<char> {
-        self.delete_at(self.cursor_pos() as i32 + offset)
-    }
-    pub fn delete_at(&mut self, pos: i32) -> Option<char> {
-        if self.value.is_empty() || pos < 0 {
+        if self.value.is_empty() {
             return None;
         }
-        let clamped = usize::clamp(pos as usize, 0, max(self.value.len(), 1) - 1);
-        self.move_cursor(-1);
-        Some(self.value.remove(clamped))
+        let new_pos = self.cursor_pos as i32 + offset;
+        if new_pos < 0 || new_pos as usize >= self.value.len() {
+            return None;
+        }
+        let pos = new_pos as usize;
+        let ch = self.value.remove(pos);
+        // Only move cursor if deleting backwards
+        if offset < 0 {
+            self.move_cursor(-1);
+        }
+        Some(ch)
     }
     pub fn move_cursor(&mut self, offset: i32) {
         self.move_cursor_to((self.cursor_pos as i32 + offset) as u16)
@@ -73,25 +78,20 @@ impl Input {
         ch.is_alphanumeric()
     }
     
-    /// Find the position of the start of the next word going forward from current position
+    /// Find the position of the end of the next word (alphanumeric word boundaries)
     fn find_next_word_end(&self, start_pos: usize) -> usize {
         let mut pos = start_pos;
-        
-        // If we're on a non-word char, skip to the next word
-        if pos < self.value.len() {
+
+        // Skip any non-word characters
+        while pos < self.value.len() {
             let ch = self.value.chars().nth(pos).unwrap();
-            if !Self::is_word_char(ch) {
-                while pos < self.value.len() {
-                    let ch = self.value.chars().nth(pos).unwrap();
-                    if Self::is_word_char(ch) {
-                        break;
-                    }
-                    pos += 1;
-                }
+            if Self::is_word_char(ch) {
+                break;
             }
+            pos += 1;
         }
-        
-        // Now skip to the end of the word
+
+        // Skip to the end of the word
         while pos < self.value.len() {
             let ch = self.value.chars().nth(pos).unwrap();
             if !Self::is_word_char(ch) {
@@ -99,39 +99,33 @@ impl Input {
             }
             pos += 1;
         }
-        
+
         pos
     }
     
-    /// Find the position of the start of the previous word going backward from current position
+    /// Find the position of the start of the previous word (alphanumeric word boundaries)
     fn find_prev_word_start(&self, start_pos: usize) -> usize {
         if start_pos == 0 {
             return 0;
         }
-        
-        let mut pos = start_pos - 1;
-        
+
+        let mut pos = start_pos;
+
+        // Move back at least one position
+        if pos > 0 {
+            pos -= 1;
+        }
+
         // Skip any non-word characters
-        while pos > 0 {
-            let ch = self.value.chars().nth(pos).unwrap();
-            if Self::is_word_char(ch) {
-                break;
-            }
-            if pos == 0 {
-                break;
-            }
+        while pos > 0 && !Self::is_word_char(self.value.chars().nth(pos).unwrap()) {
             pos -= 1;
         }
-        
+
         // Skip to the beginning of the word
-        while pos > 0 {
-            let ch = self.value.chars().nth(pos - 1).unwrap();
-            if !Self::is_word_char(ch) {
-                break;
-            }
+        while pos > 0 && Self::is_word_char(self.value.chars().nth(pos - 1).unwrap()) {
             pos -= 1;
         }
-        
+
         pos
     }
     
@@ -168,13 +162,40 @@ impl Input {
         if self.cursor_pos == 0 {
             return String::new();
         }
+        // Delete back by alphanumeric word boundaries (for Alt+Backspace)
         let start_pos = self.find_delete_backward_pos(self.cursor_pos as usize);
         let deleted = self.value[start_pos..self.cursor_pos as usize].to_string();
-        self.value = format!("{}{}", 
+        self.value = format!("{}{}",
             &self.value[..start_pos],
             &self.value[self.cursor_pos as usize..]
         );
         self.cursor_pos = start_pos as u16;
+        deleted
+    }
+
+    pub fn delete_backward_to_whitespace(&mut self) -> String {
+        if self.cursor_pos == 0 {
+            return String::new();
+        }
+        // Unix word rubout: delete back to whitespace (for Ctrl+W)
+        let mut pos = self.cursor_pos as usize;
+
+        // Skip any trailing whitespace
+        while pos > 0 && self.value.chars().nth(pos - 1).unwrap().is_whitespace() {
+            pos -= 1;
+        }
+
+        // Delete back to next whitespace or start
+        while pos > 0 && !self.value.chars().nth(pos - 1).unwrap().is_whitespace() {
+            pos -= 1;
+        }
+
+        let deleted = self.value[pos..self.cursor_pos as usize].to_string();
+        self.value = format!("{}{}",
+            &self.value[..pos],
+            &self.value[self.cursor_pos as usize..]
+        );
+        self.cursor_pos = pos as u16;
         deleted
     }
     

@@ -613,12 +613,12 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::Clear]);
             }
             DeleteChar => {
-                self.input.delete(1);
+                self.input.delete(0);
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             DeleteCharEOF => {
-                self.input.delete(1);
+                self.input.delete(0);
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
@@ -917,7 +917,8 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             UnixWordRubout => {
-                self.input.delete_backward_word();
+                self.input.delete_backward_to_whitespace();
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             Up(n) => {
