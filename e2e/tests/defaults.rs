@@ -72,7 +72,7 @@ fn interactive_mode_command_execution() -> Result<()> {
     let tmux = TmuxController::new()?;
 
     // Start interactive mode with a command that uses {} placeholder
-    let _ = tmux.start_sk(None, &["-i", "--cmd", "echo 'foo {}'"])?;
+    let _ = tmux.start_sk(None, &["-i", "--cmd=\"echo 'foo {}'\""])?;
     tmux.until(|l| l[0].starts_with("c>"))?;
 
     // Type "bar" - the command "echo 'foo bar'" should execute and show "foo bar"

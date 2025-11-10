@@ -249,28 +249,3 @@ fn keys_interactive_ctrl_m() -> Result<()> {
     assert_eq!(res[0], "1");
     Ok(())
 }
-
-#[test]
-fn interactive_command_execution() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    // Start interactive mode with a command that uses {} placeholder
-    let _ = tmux.start_sk(None, &["-i", "--cmd", "echo 'foo {}'"])?;
-    tmux.until(|l| l[0].starts_with("c>"))?;
-
-    // Type "bar" - the command "echo 'foo bar'" should execute and show "foo bar"
-    tmux.send_keys(&[Str("bar")])?;
-    tmux.until(|l| l[0] == "c> bar")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo bar")?;
-
-    // Type more characters - command re-executes with new substitution
-    tmux.send_keys(&[Str("baz")])?;
-    tmux.until(|l| l[0] == "c> barbaz")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo barbaz")?;
-
-    // Delete characters - command re-executes
-    tmux.send_keys(&[BSpace, BSpace, BSpace])?;
-    tmux.until(|l| l[0] == "c> bar")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo bar")?;
-
-    Ok(())
-}

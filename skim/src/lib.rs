@@ -373,7 +373,12 @@ impl Skim {
 
             //------------------------------------------------------------------------------
             // reader
-            let mut reader_control = reader.run(app.item_tx.clone(), &cmd);
+            // In interactive mode with --cmd, don't run the command initially - wait for user input
+            let mut reader_control = if app.options.interactive && app.options.cmd.is_some() {
+                reader.run(app.item_tx.clone(), ":")  // Use ":" (no-op) as placeholder
+            } else {
+                reader.run(app.item_tx.clone(), &cmd)
+            };
 
             //------------------------------------------------------------------------------
             // model + previewer
@@ -396,6 +401,10 @@ impl Skim {
                             reader_control.kill();
                             // Clear items
                             app.item_pool.clear();
+                            app.item_list.items.clear();
+                            app.item_list.clear_selection();
+                            // Drain any pending matches from the channel
+                            app.item_list.drain_rx();
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
                             reader_control = reader.run(app.item_tx.clone(), new_cmd);

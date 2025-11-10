@@ -567,11 +567,12 @@ impl<'a> App<'a> {
             }
             AddChar(c) => {
                 self.input.insert(*c);
-                // In interactive mode, typing updates the command but doesn't filter items
-                // Items are only updated when the command is executed (Enter key)
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                // In interactive mode with --cmd, execute the command with {} substitution
+                if self.options.interactive && self.options.cmd.is_some() {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             AppendAndSelect => {
@@ -592,17 +593,21 @@ impl<'a> App<'a> {
             }
             BackwardDeleteChar => {
                 self.input.delete(-1);
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardKillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardWord => {
@@ -623,16 +628,20 @@ impl<'a> App<'a> {
             }
             DeleteChar => {
                 self.input.delete(0);
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             DeleteCharEOF => {
                 self.input.delete(0);
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             DeselectAll => {
@@ -730,9 +739,11 @@ impl<'a> App<'a> {
             KillWord => {
                 let deleted = Cow::Owned(self.input.delete_forward_word());
                 self.yank(deleted);
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => {
@@ -928,16 +939,20 @@ impl<'a> App<'a> {
             }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             UnixWordRubout => {
                 self.input.delete_backward_to_whitespace();
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             Up(n) => {
@@ -951,9 +966,11 @@ impl<'a> App<'a> {
             Yank => {
                 // Insert from yank register at cursor position
                 self.input.insert_str(&self.yank_register);
-                if !self.options.interactive {
-                    self.restart_matcher(true);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
         }
@@ -1011,13 +1028,18 @@ impl<'a> App<'a> {
     }
 
     fn expand_cmd(&self, cmd: &str) -> String {
-        util::printf(
-            cmd.to_string(),
-            &self.options.delimiter,
-            self.item_list.items.iter().map(|x| x.item.clone()),
-            self.item_list.selected(),
-            &self.input.value,
-            &self.input.value,
-        )
+        if self.options.interactive {
+            // In interactive mode, only {} makes sense - expand it with typed input
+            cmd.replace("{}", &self.input.value)
+        } else {
+            util::printf(
+                cmd.to_string(),
+                &self.options.delimiter,
+                self.item_list.items.iter().map(|x| x.item.clone()),
+                self.item_list.selected(),
+                &self.input.value,
+                &self.input.value,
+            )
+        }
     }
 }
