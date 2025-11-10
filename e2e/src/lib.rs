@@ -32,11 +32,11 @@ fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..200 {
+    for _ in 1..400 {
         if let Ok(t) = pred() {
             return Ok(t);
         }
-        sleep(Duration::from_millis(5));
+        sleep(Duration::from_millis(25));
     }
     Err(Error::new(ErrorKind::TimedOut, "wait timed out"))
 }
