@@ -78,7 +78,7 @@ impl Input {
         ch.is_alphanumeric()
     }
     
-    /// Find the position of the end of the next word (alphanumeric word boundaries)
+    /// Find the position of the end of the next word (alphanumeric boundaries for deletion)
     fn find_next_word_end(&self, start_pos: usize) -> usize {
         let mut pos = start_pos;
 
@@ -95,6 +95,31 @@ impl Input {
         while pos < self.value.len() {
             let ch = self.value.chars().nth(pos).unwrap();
             if !Self::is_word_char(ch) {
+                break;
+            }
+            pos += 1;
+        }
+
+        pos
+    }
+
+    /// Find the end of compound word (whitespace boundaries for cursor movement)
+    fn find_compound_word_end(&self, start_pos: usize) -> usize {
+        let mut pos = start_pos;
+
+        // Skip any whitespace
+        while pos < self.value.len() {
+            let ch = self.value.chars().nth(pos).unwrap();
+            if !ch.is_whitespace() {
+                break;
+            }
+            pos += 1;
+        }
+
+        // Skip to the end of the non-whitespace sequence (includes punctuation)
+        while pos < self.value.len() {
+            let ch = self.value.chars().nth(pos).unwrap();
+            if ch.is_whitespace() {
                 break;
             }
             pos += 1;
@@ -212,7 +237,7 @@ impl Input {
         deleted
     }
     pub fn move_cursor_forward_word(&mut self) {
-        let new_pos = self.find_next_word_end(self.cursor_pos as usize);
+        let new_pos = self.find_compound_word_end(self.cursor_pos as usize);
         self.cursor_pos = new_pos as u16;
     }
     
