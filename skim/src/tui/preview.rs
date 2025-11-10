@@ -18,6 +18,8 @@ pub struct Preview<'a> {
     pub cmd: String,
     pub rows: u16,
     pub cols: u16,
+    pub scroll_y: u16,
+    pub scroll_x: u16,
     pub thread_handle: Option<JoinHandle<()>>,
     pub theme: Arc<ColorTheme>,
 }
@@ -29,6 +31,8 @@ impl Default for Preview<'_> {
             cmd: String::default(),
             rows: 0,
             cols: 0,
+            scroll_y: 0,
+            scroll_x: 0,
             thread_handle: None,
             theme: Arc::new(ColorTheme::default()),
         }
@@ -39,7 +43,36 @@ impl Preview<'_> {
     pub fn content(&mut self, content: &Vec<u8>) -> Result<()> {
         let text = content.clone().into_text()?;
         self.content = text;
+        // Reset scroll when content changes
+        self.scroll_y = 0;
+        self.scroll_x = 0;
         Ok(())
+    }
+
+    pub fn scroll_up(&mut self, lines: u16) {
+        self.scroll_y = self.scroll_y.saturating_sub(lines);
+    }
+
+    pub fn scroll_down(&mut self, lines: u16) {
+        self.scroll_y = self.scroll_y.saturating_add(lines);
+    }
+
+    pub fn scroll_left(&mut self, cols: u16) {
+        self.scroll_x = self.scroll_x.saturating_sub(cols);
+    }
+
+    pub fn scroll_right(&mut self, cols: u16) {
+        self.scroll_x = self.scroll_x.saturating_add(cols);
+    }
+
+    pub fn page_up(&mut self) {
+        let page_size = self.rows.saturating_sub(2); // Account for borders
+        self.scroll_up(page_size);
+    }
+
+    pub fn page_down(&mut self) {
+        let page_size = self.rows.saturating_sub(2); // Account for borders
+        self.scroll_down(page_size);
     }
 
     pub fn run(&mut self, tui: &mut Tui, cmd: &str) {
@@ -90,6 +123,9 @@ impl Widget for &mut Preview<'_> {
             .border_style(self.theme.border())
             .style(self.theme.normal());
         Clear.render(area, buf);
-        Paragraph::new(self.content.clone()).block(block).render(area, buf);
+        Paragraph::new(self.content.clone())
+            .block(block)
+            .scroll((self.scroll_y, self.scroll_x))
+            .render(area, buf);
     }
 }

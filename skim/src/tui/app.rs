@@ -58,6 +58,16 @@ pub struct App<'a> {
     // track when items were just updated to avoid unnecessary status updates
     pub items_just_updated: bool,
 
+    // query history navigation
+    pub query_history: Vec<String>,
+    pub history_index: Option<usize>,
+    pub saved_input: String,
+
+    // command history navigation (for interactive mode)
+    pub cmd_history: Vec<String>,
+    pub cmd_history_index: Option<usize>,
+    pub saved_cmd_input: String,
+
     pub options: SkimOptions,
     pub input_border: bool,
     pub cmd: String,
@@ -211,6 +221,7 @@ impl Default for App<'_> {
             item_list: {
                 let mut il = ItemList::default();
                 il.theme = theme.clone();
+                il.multi_select = SkimOptions::default().multi;
                 il
             },
             theme,
@@ -230,6 +241,12 @@ impl Default for App<'_> {
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
+            query_history: Vec::new(),
+            history_index: None,
+            saved_input: String::new(),
+            cmd_history: Vec::new(),
+            cmd_history_index: None,
+            saved_cmd_input: String::new(),
             options: SkimOptions::default(),
             input_border: false,
             cmd: String::new(),
@@ -240,8 +257,20 @@ impl Default for App<'_> {
 impl<'a> App<'a> {
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let (item_tx, item_rx) = unbounded();
+        let mut input = Input::with_options(&options, theme.clone());
+
+        // In interactive mode, use cmd_prompt instead of regular prompt
+        if options.interactive {
+            input.prompt = options.cmd_prompt.clone();
+            // In interactive mode, use cmd_query if provided
+            if let Some(ref cmd_query) = options.cmd_query {
+                input.value = cmd_query.clone();
+                input.cursor_pos = cmd_query.len() as u16;
+            }
+        }
+
         Self {
-            input: Input::with_options(&options, theme.clone()),
+            input,
             preview: {
                 let mut preview = Preview::default();
                 preview.theme = theme.clone();
@@ -268,6 +297,12 @@ impl<'a> App<'a> {
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
+            query_history: options.query_history.clone(),
+            history_index: None,
+            saved_input: String::new(),
+            cmd_history: options.cmd_history.clone(),
+            cmd_history_index: None,
+            saved_cmd_input: String::new(),
             options,
             input_border: false,
             cmd,
@@ -375,9 +410,28 @@ impl<'a> App<'a> {
                             ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                                 self.preview.content(&t.bytes().collect())?
                             }
-                            ItemPreview::CommandWithPos(_, _preview_position) => todo!(),
-                            ItemPreview::TextWithPos(_, _preview_position) => todo!(),
-                            ItemPreview::AnsiWithPos(_, _preview_position) => todo!(),
+                            ItemPreview::CommandWithPos(cmd, _preview_position) => {
+                                // TODO: Implement preview with position
+                                self.preview.run(
+                                    tui,
+                                    &printf(
+                                        cmd.to_string(),
+                                        &self.options.delimiter,
+                                        self.item_list.selection.iter().map(|m| m.item.clone()),
+                                        self.item_list.selected(),
+                                        &self.input,
+                                        &self.input,
+                                    ),
+                                )
+                            }
+                            ItemPreview::TextWithPos(t, _preview_position) => {
+                                // TODO: Implement text preview with position
+                                self.preview.content(&t.bytes().collect())?
+                            }
+                            ItemPreview::AnsiWithPos(t, _preview_position) => {
+                                // TODO: Implement ANSI text preview with position
+                                self.preview.content(&t.bytes().collect())?
+                            }
                             ItemPreview::Global => {
                                 self.preview.run(
                                     tui,
@@ -513,6 +567,11 @@ impl<'a> App<'a> {
             }
             AddChar(c) => {
                 self.input.insert(*c);
+                // In interactive mode with --cmd, execute the command with {} substitution
+                if self.options.interactive && self.options.cmd.is_some() {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
@@ -534,12 +593,20 @@ impl<'a> App<'a> {
             }
             BackwardDeleteChar => {
                 self.input.delete(-1);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardKillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
@@ -560,12 +627,20 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::Clear]);
             }
             DeleteChar => {
-                self.input.delete(1);
+                self.input.delete(0);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             DeleteCharEOF => {
-                self.input.delete(1);
+                self.input.delete(0);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
@@ -664,10 +739,58 @@ impl<'a> App<'a> {
             KillWord => {
                 let deleted = Cow::Owned(self.input.delete_forward_word());
                 self.yank(deleted);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
-            NextHistory => todo!(),
+            NextHistory => {
+                // Use cmd_history in interactive mode, query_history otherwise
+                let (history, history_index, saved_input) = if self.options.interactive {
+                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                } else {
+                    (&self.query_history, &mut self.history_index, &mut self.saved_input)
+                };
+
+                if history.is_empty() {
+                    return Ok(vec![]);
+                }
+
+                match *history_index {
+                    None => {
+                        // Already at most recent (current input), do nothing
+                    }
+                    Some(idx) => {
+                        if idx + 1 >= history.len() {
+                            // Move to most recent (restore saved input)
+                            self.input.value = saved_input.clone();
+                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            *history_index = None;
+                            if !self.options.interactive {
+                                self.restart_matcher(true);
+                            }
+                        } else {
+                            // Move forward in history (toward more recent)
+                            let new_idx = idx + 1;
+                            self.input.value = history[new_idx].clone();
+                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            *history_index = Some(new_idx);
+                            if !self.options.interactive {
+                                self.restart_matcher(true);
+                            }
+                        }
+                    }
+                }
+
+                // In interactive mode, execute the command to update results
+                if self.options.interactive {
+                    let cmd = self.input.value.clone();
+                    return Ok(vec![Event::Reload(cmd)]);
+                }
+                return Ok(vec![Event::RunPreview]);
+            }
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
                 self.item_list.scroll_by(offset * n);
@@ -688,13 +811,70 @@ impl<'a> App<'a> {
                 self.item_list.scroll_by(offset * n);
                 return Ok(vec![Event::RunPreview]);
             }
-            PreviewUp(n) => todo!(),
-            PreviewDown(n) => todo!(),
-            PreviewLeft(n) => todo!(),
-            PreviewRight(n) => todo!(),
-            PreviewPageUp(n) => todo!(),
-            PreviewPageDown(n) => todo!(),
-            PreviousHistory => todo!(),
+            PreviewUp(n) => {
+                self.preview.scroll_up(*n as u16);
+            }
+            PreviewDown(n) => {
+                self.preview.scroll_down(*n as u16);
+            }
+            PreviewLeft(n) => {
+                self.preview.scroll_left(*n as u16);
+            }
+            PreviewRight(n) => {
+                self.preview.scroll_right(*n as u16);
+            }
+            PreviewPageUp(_n) => {
+                self.preview.page_up();
+            }
+            PreviewPageDown(_n) => {
+                self.preview.page_down();
+            }
+            PreviousHistory => {
+                // Use cmd_history in interactive mode, query_history otherwise
+                let (history, history_index, saved_input) = if self.options.interactive {
+                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                } else {
+                    (&self.query_history, &mut self.history_index, &mut self.saved_input)
+                };
+
+                if history.is_empty() {
+                    return Ok(vec![]);
+                }
+
+                match *history_index {
+                    None => {
+                        // Save current input and go to most recent history entry
+                        *saved_input = self.input.value.clone();
+                        let new_idx = history.len() - 1;
+                        self.input.value = history[new_idx].clone();
+                        self.input.move_cursor_to(self.input.value.len() as u16);
+                        *history_index = Some(new_idx);
+                        if !self.options.interactive {
+                            self.restart_matcher(true);
+                        }
+                    }
+                    Some(idx) => {
+                        if idx > 0 {
+                            // Move backward in history (toward older entries)
+                            let new_idx = idx - 1;
+                            self.input.value = history[new_idx].clone();
+                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            *history_index = Some(new_idx);
+                            if !self.options.interactive {
+                                self.restart_matcher(true);
+                            }
+                        }
+                        // else: already at oldest, do nothing
+                    }
+                }
+
+                // In interactive mode, execute the command to update results
+                if self.options.interactive {
+                    let cmd = self.input.value.clone();
+                    return Ok(vec![Event::Reload(cmd)]);
+                }
+                return Ok(vec![Event::RunPreview]);
+            }
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
                 self.item_list.clear_selection();
@@ -704,16 +884,24 @@ impl<'a> App<'a> {
                 self.item_list.clear_selection();
                 return Ok(vec![Event::Reload(self.cmd.clone())]);
             }
-            RefreshCmd => todo!(),
+            RefreshCmd => {
+                // TODO: Implement command refresh
+            }
             RefreshPreview => {
                 return Ok(vec![Event::RunPreview]);
             }
             RestartMatcher => {
                 self.restart_matcher(true);
             }
-            RotateMode => todo!(),
-            ScrollLeft(n) => todo!(),
-            ScrollRight(n) => todo!(),
+            RotateMode => {
+                // TODO: Implement mode rotation
+            }
+            ScrollLeft(_n) => {
+                // TODO: Implement horizontal scrolling left
+            }
+            ScrollRight(_n) => {
+                // TODO: Implement horizontal scrolling right
+            }
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
             Select => self.item_list.select(),
@@ -743,15 +931,28 @@ impl<'a> App<'a> {
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
             }
-            TogglePreviewWrap => todo!(),
-            ToggleSort => todo!(),
+            TogglePreviewWrap => {
+                // TODO: Implement preview wrap toggle
+            }
+            ToggleSort => {
+                // TODO: Implement sort toggle
+            }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             UnixWordRubout => {
-                self.input.delete_backward_word();
+                self.input.delete_backward_to_whitespace();
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
+                self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }
             Up(n) => {
@@ -763,8 +964,14 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             Yank => {
-                let contents = Cow::Owned(self.input.clone());
-                self.yank(contents);
+                // Insert from yank register at cursor position
+                self.input.insert_str(&self.yank_register);
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
+                self.restart_matcher(true);
+                return Ok(vec![Event::RunPreview]);
             }
         }
         Ok(Vec::default())
@@ -798,7 +1005,14 @@ impl<'a> App<'a> {
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
             self.status.matcher_running = true;
-            self.matcher_control = self.matcher.run(&self.input, self.item_pool.clone(), move |matches| {
+            // In interactive mode, use empty query so all items are shown
+            // The input contains the command to execute, not a filter query
+            let query = if self.options.interactive {
+                &input::Input::default()
+            } else {
+                &self.input
+            };
+            self.matcher_control = self.matcher.run(query, self.item_pool.clone(), move |matches| {
                 let m = matches.lock();
                 debug!("Got {} results from matcher, sending to item list...", m.len());
                 let _ = tx.send(m.clone());
@@ -814,13 +1028,18 @@ impl<'a> App<'a> {
     }
 
     fn expand_cmd(&self, cmd: &str) -> String {
-        util::printf(
-            cmd.to_string(),
-            &self.options.delimiter,
-            self.item_list.items.iter().map(|x| x.item.clone()),
-            self.item_list.selected(),
-            &self.input.value,
-            &self.input.value,
-        )
+        if self.options.interactive {
+            // In interactive mode, only {} makes sense - expand it with typed input
+            cmd.replace("{}", &self.input.value)
+        } else {
+            util::printf(
+                cmd.to_string(),
+                &self.options.delimiter,
+                self.item_list.items.iter().map(|x| x.item.clone()),
+                self.item_list.selected(),
+                &self.input.value,
+                &self.input.value,
+            )
+        }
     }
 }

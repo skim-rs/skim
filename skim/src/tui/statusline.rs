@@ -17,10 +17,6 @@ const SPINNER_DURATION: u32 = 200;
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-// Constants for indicator timing thresholds
-const ACTIVE_COLLECTION_THRESHOLD: Duration = Duration::from_secs(2);
-const SUSTAINED_MATCHING_THRESHOLD: Duration = Duration::from_millis(300);
-
 lazy_static! {
     static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
     static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
@@ -90,9 +86,8 @@ impl Widget for &StatusLine {
         let info_attr_bold = self.theme.info().add_modifier(Modifier::BOLD);
 
         // Show indicators during active collection phase or sustained matcher activity
-        // Use reader timer to detect if we're still in active collection (within 2 seconds of last read)
-        let show_progress_indicators = self.time_since_read <= ACTIVE_COLLECTION_THRESHOLD
-            || (self.matcher_running && self.time_since_match >= SUSTAINED_MATCHING_THRESHOLD);
+        // Show indicators when actively reading or when matcher is running
+        let show_progress_indicators = self.reading || self.matcher_running;
 
         // Compute spinner animation timing once for performance
         let spinner_elapsed_ms = self.start.elapsed().as_millis();
@@ -113,8 +108,11 @@ impl Widget for &StatusLine {
             let ch = spinner_set[index];
             Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
         } else if self.info == InfoDisplay::Inline {
-          let ch = spinner_set.last().unwrap();
-          Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+            let ch = spinner_set.last().unwrap();
+            Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+        } else {
+            // Render a space when spinner is not shown to maintain layout
+            Paragraph::new(" ").render(spinner_a, buf);
         }
 
         // build matched/total and extra info (mode, percentage, selection)

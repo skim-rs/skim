@@ -33,6 +33,7 @@ pub struct ItemList {
     pub(crate) current: usize,
     pub(crate) height: u16,
     pub(crate) theme: std::sync::Arc<crate::theme::ColorTheme>,
+    pub(crate) multi_select: bool,
     reserved: usize,
 }
 
@@ -50,6 +51,7 @@ impl Default for ItemList {
             current: Default::default(),
             height: Default::default(),
             theme: Arc::new(ColorTheme::default()),
+            multi_select: false,
             reserved: 0,
         }
     }
@@ -65,6 +67,7 @@ impl ItemList {
             },
             current: options.header_lines,
             theme,
+            multi_select: options.multi,
             ..Default::default()
         }
     }
@@ -101,14 +104,25 @@ impl ItemList {
         let mut list = List::new(
             self.items
                 .iter()
+                .enumerate()
                 .skip(self.offset)
                 .take(area.height as usize)
-                .map(|item| {
-                    let mut spans: Vec<Span> = vec![if self.selection.contains(item) {
-                        Span::styled(">", theme.selected().add_modifier(Modifier::BOLD))
-                    } else {
-                        Span::raw(" ")
-                    }];
+                .map(|(idx, item)| {
+                    let is_current = idx == self.current;
+                    let is_selected = self.selection.contains(item);
+
+                    let mut spans: Vec<Span> = vec![
+                        if is_current {
+                            Span::styled(">", theme.selected().add_modifier(Modifier::BOLD))
+                        } else {
+                            Span::raw(" ")
+                        },
+                        if self.multi_select && is_selected {
+                            Span::raw(">")
+                        } else {
+                            Span::raw(" ")
+                        },
+                    ];
                     spans.append(
                         &mut item
                             .item
@@ -120,7 +134,7 @@ impl ItemList {
                                     None => crate::Matches::None,
                                 },
                                 container_width: area.width as usize,
-                                style: theme.normal(),
+                                style: if is_current { theme.current() } else { theme.normal() },
                             })
                             .spans,
                     );
@@ -128,12 +142,7 @@ impl ItemList {
                 })
                 .collect::<Vec<Line>>(),
         )
-        .highlight_style(theme.current())
         .direction(self.direction);
-
-        if self.reserved < self.items.len() {
-          list = list.highlight_symbol(">");
-        }
 
         StatefulWidget::render(
             list,
@@ -238,15 +247,24 @@ impl Widget for &mut ItemList {
         let list = List::new(
             self.items
                 .iter()
+                .enumerate()
                 .skip(self.offset)
                 .take(area.height as usize)
-                .map(|item| {
-                    let selector = if self.selection.contains(item) {
+                .map(|(idx, item)| {
+                    let is_current = idx == self.current;
+                    let is_selected = self.selection.contains(item);
+
+                    let current_marker = if is_current {
                         Span::styled(">", self.theme.selected().add_modifier(Modifier::BOLD))
                     } else {
                         Span::raw(" ")
                     };
-                    let idx = Span::raw(format!("{}", item.get_index()));
+                    let selection_marker = if self.multi_select && is_selected {
+                        Span::raw(">")
+                    } else {
+                        Span::raw(" ")
+                    };
+                    let item_idx = Span::raw(format!("{}", item.get_index()));
                     let mut spans = item
                         .item
                         .display(DisplayContext {
@@ -257,11 +275,12 @@ impl Widget for &mut ItemList {
                                 None => crate::Matches::None,
                             },
                             container_width: area.width as usize,
-                            style: self.theme.normal(),
+                            style: if is_current { self.theme.current() } else { self.theme.normal() },
                         })
                         .spans;
-                    spans.insert(0, selector);
-                    spans.insert(0, idx);
+                    spans.insert(0, selection_marker);
+                    spans.insert(0, current_marker);
+                    spans.insert(0, item_idx);
                     let offset = Span::raw(format!(":{}:", self.offset));
                     let current = Span::raw(format!("{}", self.current.saturating_sub(self.offset)));
                     spans.insert(0, offset);
@@ -270,8 +289,6 @@ impl Widget for &mut ItemList {
                 })
                 .collect::<Vec<Line>>(),
         )
-        .highlight_symbol(">")
-        .highlight_style(self.theme.current())
         .direction(self.direction);
 
         StatefulWidget::render(

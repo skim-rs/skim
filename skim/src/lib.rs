@@ -373,7 +373,12 @@ impl Skim {
 
             //------------------------------------------------------------------------------
             // reader
-            let mut reader_control = reader.run(app.item_tx.clone(), &cmd);
+            // In interactive mode with --cmd, don't run the command initially - wait for user input
+            let mut reader_control = if app.options.interactive && app.options.cmd.is_some() {
+                reader.run(app.item_tx.clone(), ":")  // Use ":" (no-op) as placeholder
+            } else {
+                reader.run(app.item_tx.clone(), &cmd)
+            };
 
             //------------------------------------------------------------------------------
             // model + previewer
@@ -431,7 +436,12 @@ impl Skim {
         })?;
 
         Ok(SkimOutput {
-            cmd,
+            cmd: if app.options.interactive {
+                // In interactive mode, cmd is what the user typed
+                app.input.to_string()
+            } else {
+                cmd
+            },
             final_event,
             final_key: KeyCode::Enter, // TODO
             query: app.input.to_string(),
