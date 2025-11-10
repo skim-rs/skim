@@ -401,10 +401,6 @@ impl Skim {
                             reader_control.kill();
                             // Clear items
                             app.item_pool.clear();
-                            app.item_list.items.clear();
-                            app.item_list.clear_selection();
-                            // Drain any pending matches from the channel
-                            app.item_list.drain_rx();
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
                             reader_control = reader.run(app.item_tx.clone(), new_cmd);

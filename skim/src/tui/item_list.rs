@@ -198,10 +198,6 @@ impl ItemList {
     pub fn clear_selection(&mut self) {
         self.selection.clear();
     }
-    pub fn drain_rx(&mut self) {
-        // Drain any pending items from the rx channel
-        while self.rx.try_recv().is_ok() {}
-    }
     pub fn scroll_by(&mut self, offset: i32) {
         self.current = self
             .current
