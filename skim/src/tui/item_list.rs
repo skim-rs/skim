@@ -33,6 +33,7 @@ pub struct ItemList {
     pub(crate) current: usize,
     pub(crate) height: u16,
     pub(crate) theme: std::sync::Arc<crate::theme::ColorTheme>,
+    pub(crate) multi_select: bool,
     reserved: usize,
 }
 
@@ -50,6 +51,7 @@ impl Default for ItemList {
             current: Default::default(),
             height: Default::default(),
             theme: Arc::new(ColorTheme::default()),
+            multi_select: false,
             reserved: 0,
         }
     }
@@ -65,6 +67,7 @@ impl ItemList {
             },
             current: options.header_lines,
             theme,
+            multi_select: options.multi,
             ..Default::default()
         }
     }
@@ -114,7 +117,11 @@ impl ItemList {
                         } else {
                             Span::raw(" ")
                         },
-                        Span::raw(" "),
+                        if self.multi_select && is_selected {
+                            Span::raw(">")
+                        } else {
+                            Span::raw(" ")
+                        },
                     ];
                     spans.append(
                         &mut item
@@ -247,10 +254,15 @@ impl Widget for &mut ItemList {
                     let is_current = idx == self.current;
                     let is_selected = self.selection.contains(item);
 
-                    let selector = if is_current {
-                        Span::styled("> ", self.theme.selected().add_modifier(Modifier::BOLD))
+                    let current_marker = if is_current {
+                        Span::styled(">", self.theme.selected().add_modifier(Modifier::BOLD))
                     } else {
-                        Span::raw("  ")
+                        Span::raw(" ")
+                    };
+                    let selection_marker = if self.multi_select && is_selected {
+                        Span::raw(">")
+                    } else {
+                        Span::raw(" ")
                     };
                     let item_idx = Span::raw(format!("{}", item.get_index()));
                     let mut spans = item
@@ -266,7 +278,8 @@ impl Widget for &mut ItemList {
                             style: if is_current { self.theme.current() } else { self.theme.normal() },
                         })
                         .spans;
-                    spans.insert(0, selector);
+                    spans.insert(0, selection_marker);
+                    spans.insert(0, current_marker);
                     spans.insert(0, item_idx);
                     let offset = Span::raw(format!(":{}:", self.offset));
                     let current = Span::raw(format!("{}", self.current.saturating_sub(self.offset)));

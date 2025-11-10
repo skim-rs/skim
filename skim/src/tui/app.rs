@@ -221,6 +221,7 @@ impl Default for App<'_> {
             item_list: {
                 let mut il = ItemList::default();
                 il.theme = theme.clone();
+                il.multi_select = SkimOptions::default().multi;
                 il
             },
             theme,
