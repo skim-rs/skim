@@ -66,3 +66,26 @@ fn version_short() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn interactive_mode_command_execution() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    // Start interactive mode without piped input
+    let _ = tmux.start_sk(None, &["-i"])?;
+    tmux.until(|l| l[0].starts_with("c>"))?;
+
+    // Type "echo foo" - should execute the command and show "foo"
+    tmux.send_keys(&[Keys::Str("echo foo")])?;
+    tmux.until(|l| l[0] == "c> echo foo")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> foo")?;
+
+    // Clear and type "echo bar" - should show "bar"
+    tmux.send_keys(&[Keys::Ctrl(&Keys::Key('u'))])?;
+    tmux.until(|l| l[0] == "c>")?;
+    tmux.send_keys(&[Keys::Str("echo bar")])?;
+    tmux.until(|l| l[0] == "c> echo bar")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> bar")?;
+
+    Ok(())
+}

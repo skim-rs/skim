@@ -249,3 +249,29 @@ fn keys_interactive_ctrl_m() -> Result<()> {
     assert_eq!(res[0], "1");
     Ok(())
 }
+
+#[test]
+fn interactive_command_execution() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    // Start in interactive mode without piped input
+    let _ = tmux.start_sk(None, &["-i"])?;
+    tmux.until(|l| l[0].starts_with("c>"))?;
+
+    // Type a command - should execute and show results
+    tmux.send_keys(&[Str("echo foo")])?;
+    tmux.until(|l| l[0] == "c> echo foo")?;
+
+    // The command should be executed and "foo" should appear as an item
+    tmux.until(|l| l.len() > 2 && l[2] == "> foo")?;
+
+    // Now type another command
+    tmux.send_keys(&[Ctrl(&Key('u'))])?; // Clear the line
+    tmux.until(|l| l[0] == "c>")?;
+    tmux.send_keys(&[Str("echo bar")])?;
+    tmux.until(|l| l[0] == "c> echo bar")?;
+
+    // "bar" should appear, "foo" should be gone since we executed a new command
+    tmux.until(|l| l.len() > 2 && l[2] == "> bar")?;
+
+    Ok(())
+}
