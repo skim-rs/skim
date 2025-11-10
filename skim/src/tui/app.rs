@@ -58,6 +58,11 @@ pub struct App<'a> {
     // track when items were just updated to avoid unnecessary status updates
     pub items_just_updated: bool,
 
+    // query history navigation
+    pub query_history: Vec<String>,
+    pub history_index: Option<usize>,
+    pub saved_input: String,
+
     pub options: SkimOptions,
     pub input_border: bool,
     pub cmd: String,
@@ -230,6 +235,9 @@ impl Default for App<'_> {
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
+            query_history: Vec::new(),
+            history_index: None,
+            saved_input: String::new(),
             options: SkimOptions::default(),
             input_border: false,
             cmd: String::new(),
@@ -268,6 +276,9 @@ impl<'a> App<'a> {
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
+            query_history: options.query_history.clone(),
+            history_index: None,
+            saved_input: String::new(),
             options,
             input_border: false,
             cmd,
@@ -687,7 +698,32 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => {
-                // TODO: Implement history navigation
+                if self.query_history.is_empty() {
+                    return Ok(vec![]);
+                }
+
+                match self.history_index {
+                    None => {
+                        // Already at most recent (current input), do nothing
+                    }
+                    Some(idx) => {
+                        if idx + 1 >= self.query_history.len() {
+                            // Move to most recent (restore saved input)
+                            self.input.value = self.saved_input.clone();
+                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            self.history_index = None;
+                            self.restart_matcher(true);
+                        } else {
+                            // Move forward in history (toward more recent)
+                            let new_idx = idx + 1;
+                            self.input.value = self.query_history[new_idx].clone();
+                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            self.history_index = Some(new_idx);
+                            self.restart_matcher(true);
+                        }
+                    }
+                }
+                return Ok(vec![Event::RunPreview]);
             }
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
@@ -728,7 +764,33 @@ impl<'a> App<'a> {
                 // TODO: Implement preview page down
             }
             PreviousHistory => {
-                // TODO: Implement history navigation
+                if self.query_history.is_empty() {
+                    return Ok(vec![]);
+                }
+
+                match self.history_index {
+                    None => {
+                        // Save current input and go to most recent history entry
+                        self.saved_input = self.input.value.clone();
+                        let new_idx = self.query_history.len() - 1;
+                        self.input.value = self.query_history[new_idx].clone();
+                        self.input.move_cursor_to(self.input.value.len() as u16);
+                        self.history_index = Some(new_idx);
+                        self.restart_matcher(true);
+                    }
+                    Some(idx) => {
+                        if idx > 0 {
+                            // Move backward in history (toward older entries)
+                            let new_idx = idx - 1;
+                            self.input.value = self.query_history[new_idx].clone();
+                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            self.history_index = Some(new_idx);
+                            self.restart_matcher(true);
+                        }
+                        // else: already at oldest, do nothing
+                    }
+                }
+                return Ok(vec![Event::RunPreview]);
             }
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
