@@ -80,6 +80,7 @@ impl<B: Backend> Tui<B> {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);
         let _event_tx = self.event_tx.clone();
+        let _cancellation_token = self.cancellation_token.clone();
         self.task = Some(tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);
@@ -89,26 +90,29 @@ impl<B: Backend> Tui<B> {
                 let render_delay = render_interval.tick();
                 let crossterm_event = reader.next().fuse();
                 tokio::select! {
+                    _ = _cancellation_token.cancelled() => {
+                        break;
+                    }
                     maybe_event = crossterm_event => {
                       match maybe_event {
                         Some(Ok(evt)) => {
                           if let crossterm::event::Event::Key(key) = evt {
                             if key.kind == KeyEventKind::Press {
-                              _event_tx.send(Event::Key(key)).unwrap();
+                              _ = _event_tx.send(Event::Key(key));
                             }
                           }
                         }
                         Some(Err(e)) => {
-                          _event_tx.send(Event::Error(e.to_string())).unwrap();
+                          _ = _event_tx.send(Event::Error(e.to_string()));
                         }
                         None => {},
                       }
                     },
                     _ = tick_delay => {
-                        _event_tx.send(Event::Heartbeat).unwrap();
+                        _ = _event_tx.send(Event::Heartbeat);
                     },
                     _ = render_delay => {
-                        _event_tx.send(Event::Render).unwrap();
+                        _ = _event_tx.send(Event::Render);
                     },
                 }
             }
