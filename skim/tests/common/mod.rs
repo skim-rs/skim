@@ -142,7 +142,7 @@ impl TmuxController {
     pub fn capture(&self) -> Result<Vec<String>> {
         let tempfile = wait(|| {
             let tempfile = self.tempfile()?;
-            Self::run(&["capture-pane", "-b", &self.window, "-t", &format!("{}.0", self.window)])?;
+            Self::run(&["capture-pane", "-J", "-b", &self.window, "-t", &format!("{}.0", self.window)])?;
             Self::run(&["save-buffer", "-b", &self.window, &tempfile])?;
             Ok(tempfile)
         })?;

@@ -123,6 +123,8 @@ impl ItemList {
                             Span::raw(" ")
                         },
                     ];
+                    let item_text = item.item.text();
+                    trace!("Rendering item: {:?} (len: {})", item_text, item_text.len());
                     spans.append(
                         &mut item
                             .item
@@ -138,6 +140,11 @@ impl ItemList {
                             })
                             .spans,
                     );
+                    // Pad line to full width to preserve trailing spaces
+                    let current_width: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+                    if current_width < area.width as usize {
+                        spans.push(Span::raw(" ".repeat(area.width as usize - current_width)));
+                    }
                     Line::from(spans)
                 })
                 .collect::<Vec<Line>>(),

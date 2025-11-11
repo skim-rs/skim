@@ -181,6 +181,7 @@ pub struct DisplayContext {
 impl DisplayContext {
     pub fn to_line(self, cow: Cow<str>) -> Line {
         let text: String = cow.into_owned();
+
         match &self.matches {
             Matches::CharIndices(indices) => {
                 let mut res = Line::default();
