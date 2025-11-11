@@ -52,6 +52,7 @@ ansi-to-tui = "7.0.0"
 futures = "0.3.31"
 tokio-util = "0.7.12"
 thiserror = "2.0.3"
+tempfile = "3.23.0"
 
 [features]
 default = ["cli"]

@@ -394,7 +394,7 @@ impl Skim {
                 select! {
                     event = tui.next() => {
                         let evt = event.ok_or_eyre("Could not acquire next event")?;
-                        
+
                         // Handle reload event
                         if let Event::Reload(new_cmd) = &evt {
                             // Kill the current reader
@@ -406,9 +406,9 @@ impl Skim {
                             reader_control = reader.run(app.item_tx.clone(), new_cmd);
                             reader_done = false;
                         }
-                        
+
                         final_event = evt.clone();
-                        
+
                         if reader_control.is_done() && ! reader_done {
                             app.restart_matcher(true);
                             reader_done = true;

@@ -1,4 +1,7 @@
-use e2e::{Keys::*, TmuxController};
+#[allow(dead_code)]
+mod common;
+
+use common::{Keys::*, TmuxController};
 use std::io::Result;
 
 fn setup() -> Result<TmuxController> {

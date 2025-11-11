@@ -1,6 +1,9 @@
-use e2e::sk;
-use e2e::Keys::*;
-use e2e::TmuxController;
+#[allow(dead_code)]
+mod common;
+
+use common::sk;
+use common::Keys::*;
+use common::TmuxController;
 use std::io::Result;
 
 fn setup(input: &str, opts: &[&str]) -> Result<TmuxController> {

@@ -9,7 +9,7 @@ use std::{
 };
 
 use rand::distributions::{Alphanumeric, DistString as _};
-use tempfile::{tempdir, NamedTempFile, TempDir};
+use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
 #[cfg(debug_assertions)]
@@ -84,8 +84,8 @@ impl TmuxController {
             .and_then(|a| ["capture-pane", "save-buffer"].iter().find(|x| *x == a))
             .is_none()
         {
-          // Skip debug log for `capture-pane` and `save-buffer`
-          println!("Running {:?}", args);
+            // Skip debug log for `capture-pane` and `save-buffer`
+            println!("Running {:?}", args);
         }
         let output = Command::new(which("tmux").expect("Please install tmux to $PATH"))
             .args(args)

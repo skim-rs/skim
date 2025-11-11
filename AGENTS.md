@@ -5,7 +5,7 @@
 - Run: `cargo run [--release]`
 - Test (all): `cargo test`
 - Test (single): `cargo test test_name` or `cargo test -- test_name`
-- E2E tests: `cargo test -p e2e`
+- E2E tests: `cargo nextest --tests` (will need tmux under the hood)
 - Lint: `cargo clippy`
 - Format: `cargo fmt` (check only: `cargo fmt --check`)
 
@@ -24,7 +24,6 @@
 - Core functionality in `skim/src/`
 - UI toolkit in `skim-tuikit/`
 - Common utilities in `skim-common/`
-- End-to-end tests in `e2e/`
 - Task automation in `xtask/`
 
 

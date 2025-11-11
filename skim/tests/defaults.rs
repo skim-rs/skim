@@ -1,4 +1,7 @@
-use e2e::{sk, Keys, TmuxController};
+#[allow(dead_code)]
+mod common;
+
+use common::{sk, Keys, TmuxController};
 use std::io::Result;
 
 #[test]
@@ -74,16 +77,17 @@ fn interactive_mode_command_execution() -> Result<()> {
     // Start interactive mode with a command that uses {} placeholder
     let _ = tmux.start_sk(None, &["-i", "--cmd=\"echo 'foo {}'\""])?;
     tmux.until(|l| l[0].starts_with("c>"))?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> foo ")?;
 
     // Type "bar" - the command "echo 'foo bar'" should execute and show "foo bar"
     tmux.send_keys(&[Keys::Str("bar")])?;
     tmux.until(|l| l[0] == "c> bar")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo bar")?;
+    tmux.until(|l| l.len() == 2 && l[2] == "> foo bar")?;
 
     // Type more - command re-executes with new substitution
     tmux.send_keys(&[Keys::Str("baz")])?;
     tmux.until(|l| l[0] == "c> barbaz")?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo barbaz")?;
+    tmux.until(|l| l.len() == 2 && l[2] == "> foo barbaz")?;
 
     Ok(())
 }

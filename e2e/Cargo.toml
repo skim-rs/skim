@@ -1,9 +1,0 @@
-[package]
-name = "e2e"
-version = "0.15.3"
-edition = "2021"
-
-[dependencies]
-rand = "0.8.5"
-tempfile = "3.14.0"
-which = "7.0.0"

@@ -1,4 +1,7 @@
-use e2e::TmuxController;
+#[allow(dead_code)]
+mod common;
+
+use common::TmuxController;
 use std::io::Result;
 
 #[test]

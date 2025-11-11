@@ -1,5 +1,8 @@
-use e2e::Keys::*;
-use e2e::TmuxController;
+#[allow(dead_code)]
+mod common;
+
+use common::Keys::*;
+use common::TmuxController;
 use std::fs::File;
 use std::io::Read;
 use std::io::Result;
