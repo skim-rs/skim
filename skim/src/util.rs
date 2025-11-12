@@ -105,7 +105,7 @@ mod test {
                 "query",
                 "cmd query"
             ),
-            String::from("[1] item 2 [2] item 2 [3] 2 [4] item 1\nitem 2\nitem 3\nitem 4 [5] query [6] cmd query")
+            String::from("[1] item 2 [2] item 2 [3] 2 [4] item 1 item 2 item 3 item 4 [5] query [6] cmd query")
         );
     }
 }
