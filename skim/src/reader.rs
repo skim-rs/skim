@@ -63,7 +63,7 @@ pub struct Reader {
 }
 
 impl Reader {
-    pub fn with_options(options: &SkimOptions) -> Self {
+    pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             cmd_collector: options.cmd_collector.clone(),
             rx_item: None,
