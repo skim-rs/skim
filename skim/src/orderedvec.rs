@@ -94,11 +94,7 @@ impl<T: Send + Ord + 'static> OrderedVec<T> {
 
     #[inline]
     fn compare_item(&self, a: &T, b: &T) -> Ordering {
-        if !self.tac {
-            a.cmp(b)
-        } else {
-            b.cmp(a)
-        }
+        if !self.tac { a.cmp(b) } else { b.cmp(a) }
     }
 
     fn merge_till(&self, index: usize) {

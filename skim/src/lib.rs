@@ -356,7 +356,7 @@ impl Skim {
         // application state
         // Initialize theme from options
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
-        let mut reader = Reader::with_options(&options).source(source);
+        let mut reader = Reader::from_options(&options).source(source);
         const SKIM_DEFAULT_COMMAND: &str = "find .";
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
             Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
@@ -365,7 +365,6 @@ impl Skim {
         let cmd = options.cmd.clone().unwrap_or(default_command);
 
         let mut app = App::from_options(options, theme.clone(), cmd.clone());
-
 
         let rt = tokio::runtime::Runtime::new()?;
         let mut final_event: Event = Event::Quit;

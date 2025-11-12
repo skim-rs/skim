@@ -1,11 +1,4 @@
-use crate::{
-    SkimOptions,
-    binds::{KeyMap, parse_keymaps},
-    tui::{Direction, Size},
-};
-use clap::ValueEnum;
-use color_eyre::Result;
-use regex::Regex;
+use crate::tui::{Direction, Size};
 
 #[derive(Default, Debug, Clone, Copy, clap::ValueEnum, PartialEq, Eq)]
 pub enum TuiLayout {

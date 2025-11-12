@@ -8,6 +8,7 @@ use crate::matcher::{Matcher, MatcherControl};
 use crate::model::options::InfoDisplay;
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::options::TuiLayout;
+use crate::tui::widget::SkimWidget;
 use crate::util::{self, printf};
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
@@ -73,7 +74,6 @@ pub struct App<'a> {
     pub cmd: String,
 }
 
-// App ui render function
 impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let status_area;
@@ -257,7 +257,7 @@ impl Default for App<'_> {
 impl<'a> App<'a> {
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let (item_tx, item_rx) = unbounded();
-        let mut input = Input::with_options(&options, theme.clone());
+        let mut input = Input::from_options(&options, theme.clone());
 
         // In interactive mode, use cmd_prompt instead of regular prompt
         if options.interactive {
@@ -279,22 +279,20 @@ impl<'a> App<'a> {
                 preview.theme = theme.clone();
                 preview
             },
-            header: Header::with_options(&options).theme(theme.clone()),
-            status: StatusLine::with_options(&options, theme.clone()),
+            header: Header::from_options(&options, theme.clone()),
+            status: StatusLine::from_options(&options, theme.clone()),
             item_pool: Arc::default(),
-            item_list: ItemList::with_options(&options, theme.clone()),
+            item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             item_rx,
             item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .rank_builder(rank_builder)
-                    .build()
+                ExactOrFuzzyEngineFactory::builder().rank_builder(rank_builder).build(),
             ))
-                .case(options.case)
-                .build(),
+            .case(options.case)
+            .build(),
             yank_register: Cow::default(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
@@ -315,7 +313,9 @@ impl<'a> App<'a> {
             cmd,
         }
     }
+}
 
+impl<'a> App<'a> {
     /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
     fn on_items_updated(&mut self) {
         self.status.total = self.item_pool.len();
@@ -358,7 +358,7 @@ impl<'a> App<'a> {
                 self.status.matcher_running = !self.matcher_control.stopped();
                 tui.get_frame();
                 tui.draw(|f| {
-                    self.render(f.area(), f.buffer_mut());
+                    f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
                 // Update status only if item list actually received new items
@@ -583,7 +583,7 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             AppendAndSelect => {
-                let value = self.input.clone();
+                let value = self.input.value.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
                 self.item_pool.append(vec![item.clone()]);
                 self.item_list.items.append(&mut vec![MatchedItem {
@@ -756,7 +756,11 @@ impl<'a> App<'a> {
             NextHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
                 let (history, history_index, saved_input) = if self.options.interactive {
-                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                    (
+                        &self.cmd_history,
+                        &mut self.cmd_history_index,
+                        &mut self.saved_cmd_input,
+                    )
                 } else {
                     (&self.query_history, &mut self.history_index, &mut self.saved_input)
                 };
@@ -839,7 +843,11 @@ impl<'a> App<'a> {
             PreviousHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
                 let (history, history_index, saved_input) = if self.options.interactive {
-                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                    (
+                        &self.cmd_history,
+                        &mut self.cmd_history_index,
+                        &mut self.saved_cmd_input,
+                    )
                 } else {
                     (&self.query_history, &mut self.history_index, &mut self.saved_input)
                 };

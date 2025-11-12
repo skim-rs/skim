@@ -1,5 +1,5 @@
-use clap::builder::PossibleValue;
 use clap::ValueEnum;
+use clap::builder::PossibleValue;
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum InfoDisplay {

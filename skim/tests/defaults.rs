@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 mod common;
 
-use common::{sk, Keys, TmuxController};
+use common::{Keys, TmuxController, sk};
 use std::io::Result;
 
 #[test]

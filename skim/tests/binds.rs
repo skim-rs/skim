@@ -1,9 +1,9 @@
 #[allow(dead_code)]
 mod common;
 
-use common::sk;
 use common::Keys::*;
 use common::TmuxController;
+use common::sk;
 use std::io::Result;
 
 fn setup(input: &str, opts: &[&str]) -> Result<TmuxController> {

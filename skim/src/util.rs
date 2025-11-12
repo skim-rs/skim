@@ -1,6 +1,6 @@
-use crate::field::get_string_by_field;
-use crate::field::FieldRange;
 use crate::SkimItem;
+use crate::field::FieldRange;
+use crate::field::get_string_by_field;
 use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};

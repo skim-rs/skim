@@ -8,6 +8,7 @@ use ratatui::widgets::{Paragraph, Widget};
 use regex::Regex;
 
 use crate::theme::ColorTheme;
+use crate::tui::widget::{SkimRender, SkimWidget};
 
 use crate::SkimOptions;
 use crate::model::options::InfoDisplay;
@@ -67,21 +68,16 @@ impl Default for StatusLine {
     }
 }
 
-impl StatusLine {
-    pub fn with_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+impl SkimWidget for StatusLine {
+    fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
         Self {
             theme,
             info: options.info.clone(),
             ..Default::default()
         }
     }
-}
 
-impl Widget for &StatusLine {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
+    fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
         let info_attr = self.theme.info();
         let info_attr_bold = self.theme.info().add_modifier(Modifier::BOLD);
 
@@ -106,10 +102,14 @@ impl Widget for &StatusLine {
             // use pre-computed elapsed time for stable animation
             let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (spinner_set.len() as u128)) as usize;
             let ch = spinner_set[index];
-            Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+            Paragraph::new(ch.to_string())
+                .style(self.theme.spinner())
+                .render(spinner_a, buf);
         } else if self.info == InfoDisplay::Inline {
             let ch = spinner_set.last().unwrap();
-            Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+            Paragraph::new(ch.to_string())
+                .style(self.theme.spinner())
+                .render(spinner_a, buf);
         } else {
             // Render a space when spinner is not shown to maintain layout
             Paragraph::new(" ").render(spinner_a, buf);
@@ -142,5 +142,7 @@ impl Widget for &StatusLine {
         Paragraph::new(line_num_str.to_text().set_style(info_attr_bold))
             .alignment(ratatui::layout::Alignment::Right)
             .render(cursor_a, buf);
+
+        SkimRender::default()
     }
 }

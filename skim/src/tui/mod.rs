@@ -4,6 +4,7 @@ pub use app::App;
 pub use event::Event;
 use thiserror::Error;
 pub use tui::Tui;
+pub use widget::{SkimRender, SkimWidget};
 mod app;
 pub mod event;
 pub mod header;
@@ -13,6 +14,7 @@ pub mod options;
 mod preview;
 mod statusline;
 mod tui;
+pub mod widget;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
@@ -31,15 +33,14 @@ pub(crate) enum Direction {
 impl From<&str> for Direction {
     fn from(value: &str) -> Self {
         match value.to_lowercase().as_str() {
-          "up" => Self::Up,
-          "down" => Self::Down,
-          "left" => Self::Left,
-          "right" => Self::Right,
-          _ => panic!("Unknown direction {value}")
+            "up" => Self::Up,
+            "down" => Self::Down,
+            "left" => Self::Left,
+            "right" => Self::Right,
+            _ => panic!("Unknown direction {value}"),
         }
     }
 }
-
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum SizeParseError {

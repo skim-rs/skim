@@ -5,11 +5,11 @@ use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam::channel::{bounded, select, Sender};
+use crossbeam::channel::{Sender, bounded, select};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 
 const CHANNEL_SIZE: usize = 1024;
@@ -63,7 +63,7 @@ pub struct Reader {
 }
 
 impl Reader {
-    pub fn with_options(options: &SkimOptions) -> Self {
+    pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             cmd_collector: options.cmd_collector.clone(),
             rx_item: None,
