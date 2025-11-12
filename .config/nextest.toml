@@ -1,23 +1,13 @@
 experimental = ["setup-scripts"]
+
 [scripts.setup.stop-tmux]
 command = "sh -c 'tmux kill-session -t skim_e2e || true'"
 [scripts.setup.start-tmux]
 command = "tmux new-session -d -s skim_e2e"
 
 [profile.default]
-fail-fast = true
-retries = 1
+fail-fast = false
+retries = 2
 [[profile.default.scripts]]
 platform = "cfg(unix)"
 setup = ["stop-tmux", "start-tmux"]
-
-[profile.ci]
-fail-fast = false
-retries = 2
-[[profile.ci.scripts]]
-platform = "cfg(unix)"
-setup = ["stop-tmux", "start-tmux"]
-
-[[profile.ci.overrides]]
-platform = { host = "cfg(unix)" }
-run-extra-args = ["release"]
