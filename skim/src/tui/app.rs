@@ -74,8 +74,8 @@ pub struct App<'a> {
     pub cmd: String,
 }
 
-impl<'a> App<'a> {
-    fn render_skim(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
+impl Widget for &mut App<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let status_area;
         let input_area;
         let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
@@ -196,10 +196,6 @@ impl<'a> App<'a> {
         self.items_just_updated = self.item_list.render_with_theme(list_area, buf);
 
         self.cursor_pos = (input_area.x + self.input.cursor_pos(), input_area.y);
-
-        SkimRender {
-            items_updated: self.items_just_updated,
-        }
     }
 }
 
@@ -364,7 +360,7 @@ impl<'a> App<'a> {
                 self.status.matcher_running = !self.matcher_control.stopped();
                 tui.get_frame();
                 tui.draw(|f| {
-                    self.render_skim(f.area(), f.buffer_mut());
+                    f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
                 // Update status only if item list actually received new items
