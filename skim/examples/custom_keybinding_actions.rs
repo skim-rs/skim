@@ -19,11 +19,11 @@ fn main() {
     // `delete` and `create` are arbitrary keywords used for this example.
     let options = SkimOptionsBuilder::default()
         .multi(true)
-        .bind(vec![String::from("bs:abort"), String::from("Enter:accept")])
+        .bind("bs:abort,Enter:accept".into())
         .build()
         .unwrap();
 
-    if let Ok(out) = Skim::run_with(&options, None) {
+    if let Ok(out) = Skim::run_with(options, None) {
         match out.final_key {
             // Delete each selected item
             KeyCode::Backspace => out.selected_items.iter().for_each(|i| fake_delete_item(&i.text())),

@@ -56,7 +56,7 @@ pub fn main() {
 
     drop(tx);
 
-    let selected_items = Skim::run_with(&options, Some(rx))
+    let selected_items = Skim::run_with(options, Some(rx))
         .map(|out| out.selected_items)
         .unwrap_or_default()
         .iter()

@@ -98,7 +98,7 @@ mod size_test {
             assert!(false);
             return;
         };
-        assert_eq!(internal_error.kind(), &IntErrorKind::NegOverflow);
+        assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
         assert_eq!(err_value, String::from("-10"));
     }
     #[test]
@@ -107,8 +107,8 @@ mod size_test {
             assert!(false);
             return;
         };
-        assert_eq!(internal_error.kind(), &IntErrorKind::NegOverflow);
-        assert_eq!(err_value, String::from("-10"));
+        assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
+        assert_eq!(err_value, String::from("-10%"));
     }
     #[test]
     fn percent_over_100() {
