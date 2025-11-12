@@ -90,6 +90,7 @@ impl ItemList {
         let items_updated = if let Ok(items) = self.rx.try_recv() {
             debug!("Got {} items to put in list", items.len());
             self.items = items;
+            self.items.sort_by_key(|item| item.rank);
             true
         } else {
             false
@@ -237,7 +238,7 @@ impl Widget for &mut ItemList {
         if let Ok(items) = self.rx.try_recv() {
             debug!("Got {} items to put in list", items.len());
             self.items = items;
-            //self.items.sort_by_key(|item| std::cmp::Reverse(item.rank));
+            self.items.sort_by_key(|item| item.rank);
         }
 
         if self.items.is_empty() {
