@@ -108,7 +108,7 @@ impl Widget for &mut App<'_> {
                     a
                 }
             };
-            SkimWidget::render(&mut self.header, header_area, buf);
+            self.header.render(header_area, buf);
         }
         if self.options.info == InfoDisplay::Hidden {
             input_area = remaining_area;
@@ -165,10 +165,10 @@ impl Widget for &mut App<'_> {
                 self.status.show_spinner = self.spinner_visible;
             }
 
-            SkimWidget::render(&mut self.status, status_area, buf);
+            self.status.render(status_area, buf);
         }
         self.input.border = self.input_border;
-        SkimWidget::render(&mut self.input, input_area, buf);
+        self.input.render(input_area, buf);
 
         if self.options.preview.is_some() && !self.options.preview_window.hidden {
             let direction = match self.options.preview_window.direction {
@@ -191,7 +191,7 @@ impl Widget for &mut App<'_> {
                     areas[1]
                 }
             };
-            SkimWidget::render(&mut self.preview, preview_area, buf);
+            self.preview.render(preview_area, buf);
         }
         self.items_just_updated = self.item_list.render_with_theme(list_area, buf);
 
