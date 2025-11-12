@@ -132,12 +132,11 @@ impl SkimWidget for StatusLine {
         let line = Line::from(parts);
         Paragraph::new(Text::from(vec![line])).render(matched_a, buf);
 
-        // item cursor (current index / hscroll, show '.' when matcher running or recently active)
+        // item cursor (current index / hscroll)
         let line_num_str = format!(
-            "{}/{}{}",
+            "{}/{}",
             self.current_item_idx,
-            self.hscroll_offset,
-            if show_progress_indicators { '.' } else { ' ' }
+            self.hscroll_offset
         );
         Paragraph::new(line_num_str.to_text().set_style(info_attr_bold))
             .alignment(ratatui::layout::Alignment::Right)

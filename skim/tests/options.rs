@@ -380,6 +380,7 @@ fn opt_print_query() -> Result<()> {
 #[test]
 fn opt_print_cmd() -> Result<()> {
     let (tmux, outfile) = setup("1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"])?;
+    tmux.until(|l| l[0].starts_with(">"))?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| !l[0].starts_with(">"))?;
     let output = tmux.output(&outfile)?;
@@ -395,6 +396,7 @@ fn opt_print_cmd_and_query() -> Result<()> {
         "10\\n20\\n30",
         &["--cmd-query", "cmd", "--print-cmd", "-q", "2", "--print-query"],
     )?;
+    tmux.until(|l| l[0].starts_with("> 2"))?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| !l[0].starts_with(">"))?;
     let output = tmux.output(&outfile)?;

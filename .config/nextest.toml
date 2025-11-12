@@ -6,7 +6,7 @@ command = "sh -c 'tmux kill-session -t skim_e2e || true'"
 command = "tmux new-session -d -s skim_e2e"
 
 [profile.default]
-fail-fast = false
+# fail-fast = false
 retries = 2
 [[profile.default.scripts]]
 platform = "cfg(unix)"

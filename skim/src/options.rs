@@ -762,6 +762,9 @@ impl SkimOptions {
         if self.inline_info {
             self.info = InfoDisplay::Inline;
         }
+        if self.no_info {
+            self.info = InfoDisplay::Hidden;
+        }
 
         self
     }
