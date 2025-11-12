@@ -6,7 +6,6 @@ use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimOptions, theme::ColorTheme};
 use std::sync::Arc;
 
-#[derive(Clone)]
 pub struct Input {
     pub prompt: String,
     pub value: String,
