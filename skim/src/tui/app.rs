@@ -3,7 +3,7 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::item::{ItemPool, MatchedItem};
+use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::model::options::InfoDisplay;
 use crate::prelude::ExactOrFuzzyEngineFactory;
@@ -269,6 +269,9 @@ impl<'a> App<'a> {
             }
         }
 
+        // Create RankBuilder from tiebreak options
+        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
+
         Self {
             input,
             preview: {
@@ -285,7 +288,11 @@ impl<'a> App<'a> {
             item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
-            matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
+            matcher: Matcher::builder(Rc::new(
+                ExactOrFuzzyEngineFactory::builder()
+                    .rank_builder(rank_builder)
+                    .build()
+            ))
                 .case(options.case)
                 .build(),
             yank_register: Cow::default(),
