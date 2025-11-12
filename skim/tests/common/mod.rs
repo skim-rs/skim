@@ -79,14 +79,6 @@ pub struct TmuxController {
 
 impl TmuxController {
     pub fn run(args: &[&str]) -> Result<Vec<String>> {
-        if args
-            .first()
-            .and_then(|a| ["capture-pane", "save-buffer"].iter().find(|x| *x == a))
-            .is_none()
-        {
-            // Skip debug log for `capture-pane` and `save-buffer`
-            println!("Running {:?}", args);
-        }
         let output = Command::new(which("tmux").expect("Please install tmux to $PATH"))
             .args(args)
             .output()?
@@ -124,9 +116,12 @@ impl TmuxController {
     }
 
     pub fn send_keys(&self, keys: &[Keys]) -> Result<()> {
+        print!("typing `");
         for key in keys {
             Self::run(&["send-keys", "-t", &self.window, &key.to_string()])?;
+            print!("{}", key.to_string());
         }
+        println!("`");
         Ok(())
     }
 
@@ -207,7 +202,9 @@ impl TmuxController {
             Some(s) => format!("{} | {}", s, sk_cmd),
             None => sk_cmd,
         };
+        println!("--- starting up sk ---");
         self.send_keys(&[Keys::Str(&cmd), Keys::Enter])?;
+        println!("--- sk is running  ---");
         Ok(outfile)
     }
 }
