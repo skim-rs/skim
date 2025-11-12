@@ -15,7 +15,7 @@ pub fn main() {
     let item_reader = SkimItemReader::new(SkimItemReaderOption::default().nth(vec!["2"].into_iter()).build());
 
     let items = item_reader.of_bufread(Cursor::new(input));
-    let selected_items = Skim::run_with(&options, Some(items))
+    let selected_items = Skim::run_with(options, Some(items))
         .map(|out| out.selected_items)
         .unwrap_or_default();
 

@@ -39,7 +39,7 @@ fn main() {
     }));
     drop(tx_item); // so that skim could know when to stop waiting for more items.
 
-    let selected_items = Skim::run_with(&options, Some(rx_item))
+    let selected_items = Skim::run_with(options, Some(rx_item))
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
