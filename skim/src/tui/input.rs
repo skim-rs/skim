@@ -9,8 +9,10 @@ use ratatui::{
 };
 
 use crate::{SkimOptions, theme::ColorTheme};
+use crate::tui::widget::{SkimRender, SkimWidget};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Input {
     pub prompt: String,
     pub value: String,
@@ -256,11 +258,18 @@ impl Input {
     }
 }
 
-impl Widget for &Input {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
+impl SkimWidget for Input {
+    fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        Self {
+            prompt: options.prompt.clone(),
+            value: options.query.clone().unwrap_or_default(),
+            theme,
+            border: options.border,
+            cursor_pos: options.query.clone().map(|q| q.len() as u16).unwrap_or_default(),
+        }
+    }
+
+    fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
         use ratatui::text::{Line, Span};
         use ratatui::widgets::Paragraph;
 
@@ -274,6 +283,8 @@ impl Widget for &Input {
             Block::default()
         };
         Paragraph::new(line).block(block).render(area, buf);
+
+        SkimRender::default()
     }
 }
 

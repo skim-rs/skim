@@ -20,6 +20,7 @@ use crate::{
     item::{MatchedItem, RankBuilder},
     theme::ColorTheme,
     tui::options::TuiLayout,
+    tui::widget::{SkimRender, SkimWidget},
 };
 
 pub struct ItemList {
@@ -224,79 +225,23 @@ impl ItemList {
     }
 }
 
-impl Widget for &mut ItemList {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
-        self.height = area.height;
-        if self.current < self.offset {
-            self.offset = self.current;
-        } else if self.offset + area.height as usize <= self.current {
-            self.offset = self.current - area.height as usize + 1;
+impl SkimWidget for ItemList {
+    fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        Self {
+            reserved: options.header_lines,
+            direction: match options.layout {
+                TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
+                TuiLayout::Reverse | TuiLayout::ReverseList => ratatui::widgets::ListDirection::TopToBottom,
+            },
+            current: options.header_lines,
+            theme,
+            multi_select: options.multi,
+            ..Default::default()
         }
-        if let Ok(items) = self.rx.try_recv() {
-            debug!("Got {} items to put in list", items.len());
-            self.items = items;
-            self.items.sort_by_key(|item| item.rank);
-        }
+    }
 
-        if self.items.is_empty() {
-            return;
-        }
-
-        let list = List::new(
-            self.items
-                .iter()
-                .enumerate()
-                .skip(self.offset)
-                .take(area.height as usize)
-                .map(|(idx, item)| {
-                    let is_current = idx == self.current;
-                    let is_selected = self.selection.contains(item);
-
-                    let current_marker = if is_current {
-                        Span::styled(">", self.theme.selected().add_modifier(Modifier::BOLD))
-                    } else {
-                        Span::raw(" ")
-                    };
-                    let selection_marker = if self.multi_select && is_selected {
-                        Span::raw(">")
-                    } else {
-                        Span::raw(" ")
-                    };
-                    let item_idx = Span::raw(format!("{}", item.get_index()));
-                    let mut spans = item
-                        .item
-                        .display(DisplayContext {
-                            score: item.rank[0],
-                            matches: match &item.matched_range {
-                                Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
-                                Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
-                                None => crate::Matches::None,
-                            },
-                            container_width: area.width as usize,
-                            style: if is_current { self.theme.current() } else { self.theme.normal() },
-                        })
-                        .spans;
-                    spans.insert(0, selection_marker);
-                    spans.insert(0, current_marker);
-                    spans.insert(0, item_idx);
-                    let offset = Span::raw(format!(":{}:", self.offset));
-                    let current = Span::raw(format!("{}", self.current.saturating_sub(self.offset)));
-                    spans.insert(0, offset);
-                    spans.insert(0, current);
-                    Line::from(spans)
-                })
-                .collect::<Vec<Line>>(),
-        )
-        .direction(self.direction);
-
-        StatefulWidget::render(
-            list,
-            area,
-            buf,
-            &mut ListState::default().with_selected(Some(self.current.saturating_sub(self.offset))),
-        );
+    fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
+        let items_updated = self.render_with_theme(area, buf);
+        SkimRender { items_updated }
     }
 }

@@ -8,6 +8,7 @@ use ratatui::widgets::{Paragraph, Widget};
 use regex::Regex;
 
 use crate::theme::ColorTheme;
+use crate::tui::widget::{SkimRender, SkimWidget};
 
 use crate::SkimOptions;
 use crate::model::options::InfoDisplay;
@@ -77,11 +78,16 @@ impl StatusLine {
     }
 }
 
-impl Widget for &StatusLine {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
+impl SkimWidget for StatusLine {
+    fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        Self {
+            theme,
+            info: options.info.clone(),
+            ..Default::default()
+        }
+    }
+
+    fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
         let info_attr = self.theme.info();
         let info_attr_bold = self.theme.info().add_modifier(Modifier::BOLD);
 
@@ -142,5 +148,7 @@ impl Widget for &StatusLine {
         Paragraph::new(line_num_str.to_text().set_style(info_attr_bold))
             .alignment(ratatui::layout::Alignment::Right)
             .render(cursor_a, buf);
+
+        SkimRender::default()
     }
 }

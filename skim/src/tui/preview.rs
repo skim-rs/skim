@@ -12,6 +12,8 @@ use super::Event;
 
 use std::sync::Arc;
 use crate::theme::ColorTheme;
+use crate::SkimOptions;
+use crate::tui::widget::{SkimRender, SkimWidget};
 
 pub struct Preview<'a> {
     pub content: Text<'a>,
@@ -22,6 +24,21 @@ pub struct Preview<'a> {
     pub scroll_x: u16,
     pub thread_handle: Option<JoinHandle<()>>,
     pub theme: Arc<ColorTheme>,
+}
+
+impl<'a> Clone for Preview<'a> {
+    fn clone(&self) -> Self {
+        Self {
+            content: self.content.clone(),
+            cmd: self.cmd.clone(),
+            rows: self.rows,
+            cols: self.cols,
+            scroll_y: self.scroll_y,
+            scroll_x: self.scroll_x,
+            thread_handle: None, // JoinHandle cannot be cloned
+            theme: self.theme.clone(),
+        }
+    }
 }
 
 impl Default for Preview<'_> {
@@ -110,11 +127,15 @@ impl Preview<'_> {
     }
 }
 
-impl Widget for &mut Preview<'_> {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
+impl<'a> SkimWidget for Preview<'a> {
+    fn from_options(_options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        Self {
+            theme,
+            ..Default::default()
+        }
+    }
+
+    fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
         if self.rows != area.height || self.cols != area.width {
             self.rows = area.height;
             self.cols = area.width;
@@ -127,5 +148,7 @@ impl Widget for &mut Preview<'_> {
             .block(block)
             .scroll((self.scroll_y, self.scroll_x))
             .render(area, buf);
+
+        SkimRender::default()
     }
 }

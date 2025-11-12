@@ -4,6 +4,7 @@ pub use app::App;
 pub use event::Event;
 use thiserror::Error;
 pub use tui::Tui;
+pub use widget::{SkimRender, SkimWidget};
 mod app;
 pub mod event;
 pub mod header;
@@ -13,6 +14,7 @@ pub mod options;
 mod preview;
 mod statusline;
 mod tui;
+pub mod widget;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
