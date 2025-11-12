@@ -73,7 +73,7 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 ///     2      Error
 ///     130    Interrupted with CTRL-C or ESC
 
-#[derive(Builder, Clone)]
+#[derive(Builder)]
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
 #[derive(Parser)]

@@ -74,65 +74,8 @@ pub struct App<'a> {
     pub cmd: String,
 }
 
-impl<'a> SkimWidget for App<'a> {
-    fn from_options(options: &SkimOptions, theme: Arc<crate::theme::ColorTheme>) -> Self {
-        let (item_tx, item_rx) = unbounded();
-        let mut input = Input::from_options(options, theme.clone());
-
-        // In interactive mode, use cmd_prompt instead of regular prompt
-        if options.interactive {
-            input.prompt = options.cmd_prompt.clone();
-            // In interactive mode, use cmd_query if provided
-            if let Some(ref cmd_query) = options.cmd_query {
-                input.value = cmd_query.clone();
-                input.cursor_pos = cmd_query.len() as u16;
-            }
-        }
-
-        // Create RankBuilder from tiebreak options
-        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
-
-        Self {
-            input,
-            preview: Preview::from_options(options, theme.clone()),
-            header: Header::from_options(options, theme.clone()),
-            status: StatusLine::from_options(options, theme.clone()),
-            item_pool: Arc::default(),
-            item_list: ItemList::from_options(options, theme.clone()),
-            theme,
-            item_rx,
-            item_tx,
-            should_quit: false,
-            cursor_pos: (0, 0),
-            matcher: Matcher::builder(Rc::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .rank_builder(rank_builder)
-                    .build()
-            ))
-                .case(options.case)
-                .build(),
-            yank_register: Cow::default(),
-            should_trigger_matcher: false,
-            matcher_control: MatcherControl::default(),
-            reader_timer: std::time::Instant::now(),
-            matcher_timer: std::time::Instant::now(),
-            // spinner initial state
-            spinner_visible: false,
-            spinner_last_change: std::time::Instant::now(),
-            items_just_updated: false,
-            query_history: options.query_history.clone(),
-            history_index: None,
-            saved_input: String::new(),
-            cmd_history: options.cmd_history.clone(),
-            cmd_history_index: None,
-            saved_cmd_input: String::new(),
-            options: options.clone(),
-            input_border: false,
-            cmd: String::new(),
-        }
-    }
-
-    fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
+impl<'a> App<'a> {
+    fn render_skim(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
         let status_area;
         let input_area;
         let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
@@ -421,7 +364,7 @@ impl<'a> App<'a> {
                 self.status.matcher_running = !self.matcher_control.stopped();
                 tui.get_frame();
                 tui.draw(|f| {
-                    SkimWidget::render(self, f.area(), f.buffer_mut());
+                    self.render_skim(f.area(), f.buffer_mut());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
                 // Update status only if item list actually received new items
