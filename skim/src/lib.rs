@@ -181,6 +181,7 @@ pub struct DisplayContext {
 impl DisplayContext {
     pub fn to_line(self, cow: Cow<str>) -> Line {
         let text: String = cow.into_owned();
+
         match &self.matches {
             Matches::CharIndices(indices) => {
                 let mut res = Line::default();
@@ -373,12 +374,13 @@ impl Skim {
 
             //------------------------------------------------------------------------------
             // reader
-            // In interactive mode with --cmd, don't run the command initially - wait for user input
-            let mut reader_control = if app.options.interactive && app.options.cmd.is_some() {
-                reader.run(app.item_tx.clone(), ":")  // Use ":" (no-op) as placeholder
+            // In interactive mode, expand {} with initial query (empty or from --query)
+            let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
+                cmd.replace("{}", &app.input.value)
             } else {
-                reader.run(app.item_tx.clone(), &cmd)
+                cmd.clone()
             };
+            let mut reader_control = reader.run(app.item_tx.clone(), &initial_cmd);
 
             //------------------------------------------------------------------------------
             // model + previewer
