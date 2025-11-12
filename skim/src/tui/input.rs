@@ -27,16 +27,6 @@ impl Default for Input {
 }
 
 impl Input {
-    pub fn with_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
-        Self {
-            prompt: options.prompt.clone(),
-            value: options.query.clone().unwrap_or_default(),
-            theme,
-            border: options.border,
-            cursor_pos: options.query.clone().map(|q| q.len() as u16).unwrap_or_default(),
-            ..Default::default()
-        }
-    }
     pub fn insert(&mut self, c: char) {
         self.value.insert(self.cursor_pos.into(), c);
         self.move_cursor(1);

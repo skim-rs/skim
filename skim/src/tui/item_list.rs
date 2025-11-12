@@ -54,19 +54,6 @@ impl Default for ItemList {
 }
 
 impl ItemList {
-    pub fn with_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
-        Self {
-            reserved: options.header_lines,
-            direction: match options.layout {
-                TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
-                TuiLayout::Reverse | TuiLayout::ReverseList => ratatui::widgets::ListDirection::TopToBottom,
-            },
-            current: options.header_lines,
-            theme,
-            multi_select: options.multi,
-            ..Default::default()
-        }
-    }
     fn cursor(&self) -> usize {
         trace!("{:?}", self.selection);
         self.current

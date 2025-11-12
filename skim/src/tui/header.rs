@@ -39,14 +39,6 @@ impl Header {
         self
     }
 
-    pub fn with_options(options: &SkimOptions) -> Self {
-        Self {
-            tabstop: max(1, options.tabstop),
-            reverse: options.layout == TuiLayout::Reverse || options.layout == TuiLayout::ReverseList,
-            header: options.header.clone().unwrap_or_default(),
-            ..Default::default()
-        }
-    }
 }
 
 impl SkimWidget for Header {

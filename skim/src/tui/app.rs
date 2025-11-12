@@ -257,7 +257,7 @@ impl Default for App<'_> {
 impl<'a> App<'a> {
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let (item_tx, item_rx) = unbounded();
-        let mut input = Input::with_options(&options, theme.clone());
+        let mut input = Input::from_options(&options, theme.clone());
 
         // In interactive mode, use cmd_prompt instead of regular prompt
         if options.interactive {
@@ -279,10 +279,10 @@ impl<'a> App<'a> {
                 preview.theme = theme.clone();
                 preview
             },
-            header: Header::with_options(&options).theme(theme.clone()),
-            status: StatusLine::with_options(&options, theme.clone()),
+            header: Header::from_options(&options, theme.clone()),
+            status: StatusLine::from_options(&options, theme.clone()),
             item_pool: Arc::default(),
-            item_list: ItemList::with_options(&options, theme.clone()),
+            item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             item_rx,
             item_tx,

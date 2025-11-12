@@ -68,16 +68,6 @@ impl Default for StatusLine {
     }
 }
 
-impl StatusLine {
-    pub fn with_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
-        Self {
-            theme,
-            info: options.info.clone(),
-            ..Default::default()
-        }
-    }
-}
-
 impl SkimWidget for StatusLine {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
         Self {
