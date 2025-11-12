@@ -8,7 +8,7 @@ use crate::matcher::{Matcher, MatcherControl};
 use crate::model::options::InfoDisplay;
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::options::TuiLayout;
-use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::tui::widget::SkimWidget;
 use crate::util::{self, printf};
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
@@ -289,12 +289,10 @@ impl<'a> App<'a> {
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .rank_builder(rank_builder)
-                    .build()
+                ExactOrFuzzyEngineFactory::builder().rank_builder(rank_builder).build(),
             ))
-                .case(options.case)
-                .build(),
+            .case(options.case)
+            .build(),
             yank_register: Cow::default(),
             should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
@@ -758,7 +756,11 @@ impl<'a> App<'a> {
             NextHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
                 let (history, history_index, saved_input) = if self.options.interactive {
-                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                    (
+                        &self.cmd_history,
+                        &mut self.cmd_history_index,
+                        &mut self.saved_cmd_input,
+                    )
                 } else {
                     (&self.query_history, &mut self.history_index, &mut self.saved_input)
                 };
@@ -841,7 +843,11 @@ impl<'a> App<'a> {
             PreviousHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
                 let (history, history_index, saved_input) = if self.options.interactive {
-                    (&self.cmd_history, &mut self.cmd_history_index, &mut self.saved_cmd_input)
+                    (
+                        &self.cmd_history,
+                        &mut self.cmd_history_index,
+                        &mut self.saved_cmd_input,
+                    )
                 } else {
                     (&self.query_history, &mut self.history_index, &mut self.saved_input)
                 };

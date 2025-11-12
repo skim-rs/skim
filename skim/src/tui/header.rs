@@ -7,7 +7,6 @@ use crate::tui::widget::{SkimRender, SkimWidget};
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::Line;
 use ratatui::text::Text;
 use ratatui::text::ToLine;
 use ratatui::widgets::Paragraph;
@@ -42,10 +41,10 @@ impl Header {
 
     pub fn with_options(options: &SkimOptions) -> Self {
         Self {
-          tabstop: max(1, options.tabstop),
-          reverse: options.layout == TuiLayout::Reverse || options.layout == TuiLayout::ReverseList,
-          header: options.header.clone().unwrap_or_default(),
-          ..Default::default()
+            tabstop: max(1, options.tabstop),
+            reverse: options.layout == TuiLayout::Reverse || options.layout == TuiLayout::ReverseList,
+            header: options.header.clone().unwrap_or_default(),
+            ..Default::default()
         }
     }
 }

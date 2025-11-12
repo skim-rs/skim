@@ -1,5 +1,5 @@
-use crate::tui::Event;
 use crate::SkimItem;
+use crate::tui::Event;
 use std::sync::Arc;
 
 pub struct SkimOutput {

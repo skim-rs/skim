@@ -112,10 +112,14 @@ impl SkimWidget for StatusLine {
             // use pre-computed elapsed time for stable animation
             let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (spinner_set.len() as u128)) as usize;
             let ch = spinner_set[index];
-            Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+            Paragraph::new(ch.to_string())
+                .style(self.theme.spinner())
+                .render(spinner_a, buf);
         } else if self.info == InfoDisplay::Inline {
             let ch = spinner_set.last().unwrap();
-            Paragraph::new(ch.to_string()).style(self.theme.spinner()).render(spinner_a, buf);
+            Paragraph::new(ch.to_string())
+                .style(self.theme.spinner())
+                .render(spinner_a, buf);
         } else {
             // Render a space when spinner is not shown to maintain layout
             Paragraph::new(" ").render(spinner_a, buf);

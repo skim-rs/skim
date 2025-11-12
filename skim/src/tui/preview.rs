@@ -7,13 +7,13 @@ use ratatui::{
 use std::process::Command;
 use tokio::task::JoinHandle;
 
-use super::tui::Tui;
 use super::Event;
+use super::tui::Tui;
 
-use std::sync::Arc;
-use crate::theme::ColorTheme;
 use crate::SkimOptions;
+use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
+use std::sync::Arc;
 
 pub struct Preview<'a> {
     pub content: Text<'a>,
@@ -103,7 +103,7 @@ impl Preview<'_> {
             .arg("-c")
             .arg(cmd);
         if let Some(th) = &self.thread_handle {
-          th.abort();
+            th.abort();
         }
         self.thread_handle = Some(tokio::spawn(async move {
             let try_out = shell_cmd.output();

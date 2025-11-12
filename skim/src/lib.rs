@@ -366,7 +366,6 @@ impl Skim {
 
         let mut app = App::from_options(options, theme.clone(), cmd.clone());
 
-
         let rt = tokio::runtime::Runtime::new()?;
         let mut final_event: Event = Event::Quit;
         rt.block_on(async {

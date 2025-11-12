@@ -1,15 +1,9 @@
-use std::{
-    cmp::max,
-    ops::{Deref, DerefMut},
-};
+use std::ops::{Deref, DerefMut};
 
-use ratatui::{
-    prelude::*,
-    widgets::{Block, Paragraph, Widget},
-};
+use ratatui::{prelude::*, widgets::Widget};
 
-use crate::{SkimOptions, theme::ColorTheme};
 use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::{SkimOptions, theme::ColorTheme};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -74,12 +68,12 @@ impl Input {
     pub fn move_cursor_to(&mut self, pos: u16) {
         self.cursor_pos = u16::clamp(pos, 0, self.value.len() as u16);
     }
-    
+
     /// Check if a character is a word character (alphanumeric only)
     fn is_word_char(ch: char) -> bool {
         ch.is_alphanumeric()
     }
-    
+
     /// Find the position of the end of the next word (alphanumeric boundaries for deletion)
     fn find_next_word_end(&self, start_pos: usize) -> usize {
         let mut pos = start_pos;
@@ -129,7 +123,7 @@ impl Input {
 
         pos
     }
-    
+
     /// Find the position of the start of the previous word (alphanumeric word boundaries)
     fn find_prev_word_start(&self, start_pos: usize) -> usize {
         if start_pos == 0 {
@@ -155,7 +149,7 @@ impl Input {
 
         pos
     }
-    
+
     /// Find the position to delete backward to (stops at non-word characters)
     fn find_delete_backward_pos(&self, start_pos: usize) -> usize {
         if start_pos == 0 {
@@ -184,7 +178,7 @@ impl Input {
 
         pos
     }
-    
+
     pub fn delete_backward_word(&mut self) -> String {
         if self.cursor_pos == 0 {
             return String::new();
@@ -192,7 +186,8 @@ impl Input {
         // Delete back by alphanumeric word boundaries (for Alt+Backspace)
         let start_pos = self.find_delete_backward_pos(self.cursor_pos as usize);
         let deleted = self.value[start_pos..self.cursor_pos as usize].to_string();
-        self.value = format!("{}{}",
+        self.value = format!(
+            "{}{}",
             &self.value[..start_pos],
             &self.value[self.cursor_pos as usize..]
         );
@@ -218,31 +213,25 @@ impl Input {
         }
 
         let deleted = self.value[pos..self.cursor_pos as usize].to_string();
-        self.value = format!("{}{}",
-            &self.value[..pos],
-            &self.value[self.cursor_pos as usize..]
-        );
+        self.value = format!("{}{}", &self.value[..pos], &self.value[self.cursor_pos as usize..]);
         self.cursor_pos = pos as u16;
         deleted
     }
-    
+
     pub fn delete_forward_word(&mut self) -> String {
         if self.cursor_pos as usize >= self.value.len() {
             return String::new();
         }
         let end_pos = self.find_next_word_end(self.cursor_pos as usize);
         let deleted = self.value[self.cursor_pos as usize..end_pos].to_string();
-        self.value = format!("{}{}",
-            &self.value[..self.cursor_pos as usize],
-            &self.value[end_pos..]
-        );
+        self.value = format!("{}{}", &self.value[..self.cursor_pos as usize], &self.value[end_pos..]);
         deleted
     }
     pub fn move_cursor_forward_word(&mut self) {
         let new_pos = self.find_compound_word_end(self.cursor_pos as usize);
         self.cursor_pos = new_pos as u16;
     }
-    
+
     pub fn move_cursor_backward_word(&mut self) {
         let new_pos = self.find_prev_word_start(self.cursor_pos as usize);
         self.cursor_pos = new_pos as u16;

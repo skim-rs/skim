@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use tokio::task::{self, JoinHandle};
@@ -31,7 +31,7 @@ impl MatcherControl {
     pub fn kill(&self) {
         self.stopped.store(true, Ordering::Relaxed);
         if let Some(th) = &self.thread_matcher {
-          th.abort();
+            th.abort();
         }
     }
 

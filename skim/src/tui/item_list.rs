@@ -1,17 +1,12 @@
-use std::{
-    collections::HashSet,
-    hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use ratatui::{
-    style::{Color, Stylize as _},
-    widgets::{List, ListDirection, ListState, StatefulWidget},
+    style::Modifier,
+    text::{Line, Span},
 };
 use ratatui::{
-    style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::Widget,
+    style::Stylize as _,
+    widgets::{List, ListDirection, ListState, StatefulWidget},
 };
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
@@ -103,7 +98,7 @@ impl ItemList {
 
         let theme = &self.theme;
 
-        let mut list = List::new(
+        let list = List::new(
             self.items
                 .iter()
                 .enumerate()

@@ -33,15 +33,14 @@ pub(crate) enum Direction {
 impl From<&str> for Direction {
     fn from(value: &str) -> Self {
         match value.to_lowercase().as_str() {
-          "up" => Self::Up,
-          "down" => Self::Down,
-          "left" => Self::Left,
-          "right" => Self::Right,
-          _ => panic!("Unknown direction {value}")
+            "up" => Self::Up,
+            "down" => Self::Down,
+            "left" => Self::Left,
+            "right" => Self::Right,
+            _ => panic!("Unknown direction {value}"),
         }
     }
 }
-
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum SizeParseError {
