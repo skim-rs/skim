@@ -23,7 +23,7 @@ pub enum Size {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
-pub(crate) enum Direction {
+pub enum Direction {
     Up,
     Down,
     Left,

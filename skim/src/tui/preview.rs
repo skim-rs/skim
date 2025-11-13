@@ -1,12 +1,12 @@
 use ansi_to_tui::IntoText;
 use color_eyre::eyre::Result;
 use ratatui::{
-    text::Text,
-    widgets::{Block, Clear, Paragraph, Widget},
+    style::Stylize, text::{Line, Text}, widgets::{Block, Borders, Clear, Paragraph, Widget}
 };
 use std::process::Command;
 use tokio::task::JoinHandle;
 
+use super::Direction;
 use super::Event;
 use super::tui::Tui;
 
@@ -24,21 +24,8 @@ pub struct Preview<'a> {
     pub scroll_x: u16,
     pub thread_handle: Option<JoinHandle<()>>,
     pub theme: Arc<ColorTheme>,
-}
-
-impl<'a> Clone for Preview<'a> {
-    fn clone(&self) -> Self {
-        Self {
-            content: self.content.clone(),
-            cmd: self.cmd.clone(),
-            rows: self.rows,
-            cols: self.cols,
-            scroll_y: self.scroll_y,
-            scroll_x: self.scroll_x,
-            thread_handle: None, // JoinHandle cannot be cloned
-            theme: self.theme.clone(),
-        }
-    }
+    pub border: bool,
+    pub direction: Direction,
 }
 
 impl Default for Preview<'_> {
@@ -52,6 +39,8 @@ impl Default for Preview<'_> {
             scroll_x: 0,
             thread_handle: None,
             theme: Arc::new(ColorTheme::default()),
+            border: false,
+            direction: Direction::Right,
         }
     }
 }
@@ -82,6 +71,10 @@ impl Preview<'_> {
         self.scroll_x = self.scroll_x.saturating_add(cols);
     }
 
+    pub fn set_offset(&mut self, offset: u16) {
+        self.scroll_y = offset.saturating_sub(1); // -1 because line numbers are 1-indexed
+    }
+
     pub fn page_up(&mut self) {
         let page_size = self.rows.saturating_sub(2); // Account for borders
         self.scroll_up(page_size);
@@ -108,7 +101,8 @@ impl Preview<'_> {
         self.thread_handle = Some(tokio::spawn(async move {
             let try_out = shell_cmd.output();
             if try_out.is_err() {
-                let _ = _event_tx.send(Event::Error(try_out.unwrap_err().to_string()));
+                println!("Shell cmd in error: {:?}", try_out);
+                // let _ = _event_tx.send(Event::Error(try_out.unwrap_err().to_string()));
                 return;
             };
 
@@ -117,20 +111,23 @@ impl Preview<'_> {
             if out.status.success() {
                 _event_tx
                     .send(Event::PreviewReady(out.stdout))
-                    .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
+                    .unwrap_or_else(|e| println!("Failed on success"));
             } else {
                 _event_tx
                     .send(Event::PreviewReady(out.stderr))
-                    .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
+                    .unwrap_or_else(|e| println!("Failed on error"));
+                // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
             }
         }));
     }
 }
 
 impl<'a> SkimWidget for Preview<'a> {
-    fn from_options(_options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+    fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
         Self {
             theme,
+            border: options.border,
+            direction: options.preview_window.direction,
             ..Default::default()
         }
     }
@@ -140,14 +137,40 @@ impl<'a> SkimWidget for Preview<'a> {
             self.rows = area.height;
             self.cols = area.width;
         }
-        let block = Block::bordered()
-            .border_style(self.theme.border())
-            .style(self.theme.normal());
+
+        // Calculate total lines in content
+        let total_lines = self.content.lines.len();
+
+        // Create paragraph with optional block
+        let mut paragraph = Paragraph::new(self.content.clone()).scroll((self.scroll_y, self.scroll_x));
+        let mut block = Block::new()
+            .style(self.theme.normal())
+            .border_style(self.theme.border());
+
+        // Add scroll position indicator at bottom if scrolled
+        if self.scroll_y > 0 && total_lines > 0 {
+            let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
+            let title = format!("{}/{}", current_line, total_lines);
+            use ratatui::layout::Alignment;
+            use ratatui::widgets::block::Title;
+            block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
+        }
+
+        if self.border {
+            block = block.borders(Borders::ALL);
+        } else {
+            // No border on preview itself - separator will be drawn between areas
+            match self.direction {
+                Direction::Up => block = block.borders(Borders::BOTTOM),
+                Direction::Down => block = block.borders(Borders::TOP),
+                Direction::Left => block = block.borders(Borders::RIGHT),
+                Direction::Right => block = block.borders(Borders::LEFT),
+            };
+        }
+        paragraph = paragraph.block(block);
+
         Clear.render(area, buf);
-        Paragraph::new(self.content.clone())
-            .block(block)
-            .scroll((self.scroll_y, self.scroll_x))
-            .render(area, buf);
+        paragraph.render(area, buf);
 
         SkimRender::default()
     }

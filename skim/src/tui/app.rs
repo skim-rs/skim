@@ -85,13 +85,45 @@ impl Widget for &mut App<'_> {
                 .then_some(1)
                 .or(Some(0))
                 .unwrap();
+
+        // Determine if preview should be split from the root area (for left/right) or from list area (for up/down)
+        let preview_visible = self.options.preview.is_some() && !self.options.preview_window.hidden;
+
+        // Split preview from root area if it's on left/right
+        let (mut work_area, preview_area_opt) = if preview_visible {
+            let size = match self.options.preview_window.size {
+                super::Size::Fixed(n) => Constraint::Length(n),
+                super::Size::Percent(n) => Constraint::Percentage(n),
+            };
+            match self.options.preview_window.direction {
+                super::Direction::Left => {
+                    let areas: [_; 2] = Layout::new(Direction::Horizontal, [size, Constraint::Fill(1)]).areas(area);
+                    (areas[1], Some(areas[0]))
+                }
+                super::Direction::Right => {
+                    let areas: [_; 2] = Layout::new(Direction::Horizontal, [Constraint::Fill(1), size]).areas(area);
+                    (areas[0], Some(areas[1]))
+                }
+                super::Direction::Up => {
+                    let areas: [_; 2] = Layout::new(Direction::Vertical, [size, Constraint::Fill(1)]).areas(area);
+                    (areas[1], Some(areas[0]))
+                }
+                super::Direction::Down => {
+                    let areas: [_; 2] = Layout::new(Direction::Vertical, [Constraint::Fill(1), size]).areas(area);
+                    (areas[0], Some(areas[1]))
+                }
+            }
+        } else {
+            (area, None)
+        };
+
         let [mut list_area, mut remaining_area] = match self.options.layout {
             TuiLayout::Default | TuiLayout::ReverseList => {
-                Layout::vertical([Constraint::Fill(1), Constraint::Length(remaining_height)]).areas(area)
+                Layout::vertical([Constraint::Fill(1), Constraint::Length(remaining_height)]).areas(work_area)
             }
             TuiLayout::Reverse => {
                 let mut layout =
-                    Layout::vertical([Constraint::Length(remaining_height), Constraint::Fill(1)]).areas(area);
+                    Layout::vertical([Constraint::Length(remaining_height), Constraint::Fill(1)]).areas(work_area);
                 layout.reverse();
                 layout
             }
@@ -170,26 +202,29 @@ impl Widget for &mut App<'_> {
         self.input.border = self.input_border;
         self.input.render(input_area, buf);
 
-        if self.options.preview.is_some() && !self.options.preview_window.hidden {
-            let direction = match self.options.preview_window.direction {
-                super::Direction::Up | super::Direction::Down => Direction::Vertical,
-                super::Direction::Left | super::Direction::Right => Direction::Horizontal,
-            };
+        // Render preview if enabled
+        if let Some(preview_area) = preview_area_opt {
+            // Preview was already split at the root level (left/right)
+            self.preview.render(preview_area, buf);
+        } else if self.options.preview.is_some() && !self.options.preview_window.hidden {
+            // Preview needs to be split from list area (up/down)
+            let direction = Direction::Vertical;
             let size = match self.options.preview_window.size {
                 super::Size::Fixed(n) => Constraint::Length(n),
                 super::Size::Percent(n) => Constraint::Percentage(n),
             };
             let preview_area = match self.options.preview_window.direction {
-                super::Direction::Down | super::Direction::Left => {
+                super::Direction::Down => {
                     let areas: [_; 2] = Layout::new(direction, [size, Constraint::Fill(1)]).areas(list_area);
                     list_area = areas[1];
                     areas[0]
                 }
-                super::Direction::Up | super::Direction::Right => {
+                super::Direction::Up => {
                     let areas: [_; 2] = Layout::new(direction, [Constraint::Fill(1), size]).areas(list_area);
                     list_area = areas[0];
                     areas[1]
                 }
+                _ => unreachable!(),
             };
             self.preview.render(preview_area, buf);
         }
@@ -274,11 +309,7 @@ impl<'a> App<'a> {
 
         Self {
             input,
-            preview: {
-                let mut preview = Preview::default();
-                preview.theme = theme.clone();
-                preview
-            },
+            preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
             status: StatusLine::from_options(&options, theme.clone()),
             item_pool: Arc::default(),
@@ -316,6 +347,35 @@ impl<'a> App<'a> {
 }
 
 impl<'a> App<'a> {
+    /// Calculate preview offset from offset expression (e.g., "+123", "+{2}", "+{2}-2")
+    fn calculate_preview_offset(&self, offset_expr: &str) -> u16 {
+        // Remove the leading '+'
+        let expr = offset_expr.trim_start_matches('+');
+
+        // Substitute field placeholders using printf
+        let substituted = printf(
+            expr.to_string(),
+            &self.options.delimiter,
+            self.item_list.selection.iter().map(|m| m.item.clone()),
+            self.item_list.selected(),
+            &self.input.value,
+            &self.input.value,
+        );
+
+        // Evaluate the expression (handle simple arithmetic like "321-2")
+        if let Some((left, right)) = substituted.split_once('-') {
+            let left_val = left.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
+            let right_val = right.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
+            left_val.saturating_sub(right_val)
+        } else if let Some((left, right)) = substituted.split_once('+') {
+            let left_val = left.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
+            let right_val = right.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
+            left_val.saturating_add(right_val)
+        } else {
+            substituted.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0)
+        }
+    }
+
     /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
     fn on_items_updated(&mut self) {
         self.status.total = self.item_pool.len();
@@ -471,6 +531,11 @@ impl<'a> App<'a> {
             }
             Event::PreviewReady(s) => {
                 self.preview.content(s)?;
+                // Apply preview offset if configured
+                if let Some(offset_expr) = &self.options.preview_window.offset {
+                    let offset = self.calculate_preview_offset(offset_expr);
+                    self.preview.set_offset(offset);
+                }
             }
             Event::Error(msg) => {
                 tui.exit(1)?;

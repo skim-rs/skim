@@ -25,6 +25,10 @@ pub fn depends_on_items(cmd: &str) -> bool {
     RE_ITEMS.is_match(cmd)
 }
 
+fn escape_arg(a: &str) -> String {
+    format!("'{}'", a.replace('\0', "\\0").replace("'", "'\\''"))
+}
+
 /// Replace the fields in `pattern` with the items, expanding {...} patterns
 ///
 /// Replaces:
@@ -47,14 +51,14 @@ pub fn printf<'a>(
         None => String::default(),
     };
     // Replace static fields first
-    let mut res = pattern.replace("{}", &item_text);
+    let mut res = pattern.replace("{}", &escape_arg(&item_text));
 
     res = res.replace(
         "{+}",
-        &items.map(|i| i.text().into_owned()).collect::<Vec<_>>().join(" "),
+        &escape_arg(&items.map(|i| i.text().into_owned()).collect::<Vec<_>>().join(" ")),
     );
-    res = res.replace("{q}", query);
-    res = res.replace("{cq}", command_query);
+    res = res.replace("{q}", &escape_arg(query));
+    res = res.replace("{cq}", &escape_arg(command_query));
 
     let mut inside = false;
     let mut pattern = String::new();
@@ -64,7 +68,7 @@ pub fn printf<'a>(
             if c == '}' {
                 let range = FieldRange::from_str(&pattern).unwrap(); // TODO
                 let replacement = get_string_by_field(delimiter, &item_text, &range).unwrap();
-                replaced.push_str(replacement);
+                replaced.push_str(&escape_arg(replacement));
 
                 pattern = String::new();
                 inside = false;

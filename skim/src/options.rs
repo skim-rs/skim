@@ -485,6 +485,12 @@ pub struct SkimOptions {
     #[arg(long, default_value = "0", help_heading = "Display")]
     pub header_lines: usize,
 
+    /// Draw borders around the UI components
+    ///
+    #[arg(long, help_heading = "Display")]
+    pub border: bool,
+
+
     //  --- History ---
     /// History file
     ///
@@ -696,10 +702,6 @@ pub struct SkimOptions {
         help_heading = "Reserved for later use"
     )]
     pub jump_labels: String,
-
-    /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
-    pub border: bool,
 
     /// Reserved for later use
     #[arg(long, hide = true, help_heading = "Reserved for later use")]

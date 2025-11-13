@@ -9,15 +9,53 @@ fn preview_preserve_quotes() -> Result<()> {
     let tmux = TmuxController::new()?;
     tmux.start_sk(Some("echo \"'\\\"ABC\\\"'\""), &["--preview", "\"echo X{}X\""])?;
 
-    tmux.until(|l| l.iter().any(|s| s.contains("X'\"ABC\"'")))
+    tmux.until(|l| l[l.len() - 1].contains("X'\"ABC\"'X"))
 }
 
 #[test]
 fn preview_nul_char() -> Result<()> {
     let tmux = TmuxController::new()?;
-    tmux.start_sk(Some("echo -ne 'a\\0b'"), &["--preview", "'echo -en {} | hexdump -C'"])?;
+    tmux.start_sk(
+        Some("echo -ne 'a\\0b'"),
+        &["--preview", "'echo -en \"{}\" | hexdump -C'"],
+    )?;
     tmux.until(|l| l[0].starts_with(">"))?;
     tmux.until(|l| l.iter().any(|s| s.contains("61 00 62")))
+}
+
+#[test]
+fn preview_window_left() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    tmux.start_sk(
+        Some("echo -ne 'a\\nb'"),
+        &["--preview", "'seq 1000'", "--preview-window", "left"],
+    )?;
+    tmux.until(|l| l[0].contains(">"))?;
+    tmux.until(|l| l[0].starts_with("1") || l[0].starts_with("2"))?;
+    Ok(())
+}
+
+#[test]
+fn preview_window_down() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    tmux.start_sk(
+        Some("echo -ne 'a\\nb'"),
+        &["--preview", "'seq 1000'", "--preview-window", "down"],
+    )?;
+    tmux.until(|l| l[0].starts_with("1") || l[0].starts_with("2"))?;
+    Ok(())
+}
+
+#[test]
+fn preview_window_up() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    tmux.start_sk(
+        Some("echo -ne 'a\\nb'"),
+        &["--preview", "'seq 1000'", "--preview-window", "up"],
+    )?;
+    tmux.until(|l| l[0].starts_with(">"))?;
+    tmux.until(|l| l[l.len() - 1] == "1")?;
+    Ok(())
 }
 
 #[test]
