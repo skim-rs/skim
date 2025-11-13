@@ -19,12 +19,16 @@ _sk() {
 
     case "${cmd}" in
         sk)
-            opts="-t -n -d -e -b -m -c -i -I -p -q -1 -0 -f -x -h -V --tac --no-sort --tiebreak --nth --with-nth --delimiter --exact --regex --algo --case --bind --multi --no-multi --no-mouse --cmd --interactive --color --no-hscroll --keep-right --skip-to-pattern --no-clear-if-empty --no-clear-start --no-clear --show-cmd-error --layout --reverse --height --no-height --min-height --margin --prompt --cmd-prompt --ansi --tabstop --info --no-info --inline-info --header --header-lines --border --history --history-size --cmd-history --cmd-history-size --preview --preview-window --query --cmd-query --read0 --print0 --print-query --print-cmd --print-score --select-1 --exit-0 --sync --pre-select-n --pre-select-pat --pre-select-items --pre-select-file --filter --tmux --extended --literal --cycle --hscroll-off --filepath-word --jump-labels --no-bold --pointer --marker --phony --help --version"
+            opts="-t -n -d -e -b -m -c -i -I -p -q -1 -0 -f -x -h -V --tac --min-query-length --no-sort --tiebreak --nth --with-nth --delimiter --exact --regex --algo --case --bind --multi --no-multi --no-mouse --cmd --interactive --color --no-hscroll --keep-right --skip-to-pattern --no-clear-if-empty --no-clear-start --no-clear --show-cmd-error --layout --reverse --height --no-height --min-height --margin --prompt --cmd-prompt --ansi --tabstop --info --no-info --inline-info --header --header-lines --border --history --history-size --cmd-history --cmd-history-size --preview --preview-window --query --cmd-query --read0 --print0 --print-query --print-cmd --print-score --select-1 --exit-0 --sync --pre-select-n --pre-select-pat --pre-select-items --pre-select-file --filter --tmux --extended --literal --cycle --hscroll-off --filepath-word --jump-labels --no-bold --pointer --marker --phony --help --version"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
+                --min-query-length)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --tiebreak)
                     COMPREPLY=($(compgen -W "score -score begin -begin end -end length -length index -index" -- "${cur}"))
                     return 0
