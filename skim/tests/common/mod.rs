@@ -32,11 +32,11 @@ fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..400 {
+    for _ in 1..200 {
         if let Ok(t) = pred() {
             return Ok(t);
         }
-        sleep(Duration::from_millis(25));
+        sleep(Duration::from_millis(5));
     }
     Err(Error::new(ErrorKind::TimedOut, "wait timed out"))
 }
@@ -188,8 +188,6 @@ impl TmuxController {
             }
         })?;
         let mut string_lines = String::new();
-        println!("{}", Path::new(outfile).exists());
-        println!("Reading file {outfile}");
         BufReader::new(File::open(outfile)?).read_to_string(&mut string_lines)?;
 
         let str_lines = string_lines.trim();

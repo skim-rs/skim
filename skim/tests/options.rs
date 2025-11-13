@@ -33,11 +33,13 @@ fn opt_read0() -> Result<()> {
 #[test]
 fn opt_print0() -> Result<()> {
     let (tmux, outfile) = setup("a\\nb\\nc", &["-m", "--print0"])?;
+    tmux.until(|l| l.len() > 4)?;
     tmux.send_keys(&[BTab, BTab, Enter])?;
     tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
 
-    let lines = tmux.output(&outfile)?;
+    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() == 1)?;
 
+    let lines = tmux.output(&outfile)?;
     assert_eq!(lines, vec!["a\0b\0"]);
 
     Ok(())
@@ -373,6 +375,8 @@ fn opt_print_query() -> Result<()> {
     let (tmux, outfile) = setup("10\\n20\\n30", &["-q", "2", "--print-query"])?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
+
+    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() > 1)?;
     let output = tmux.output(&outfile)?;
 
     assert_eq!(output[0], "20");
@@ -383,9 +387,10 @@ fn opt_print_query() -> Result<()> {
 #[test]
 fn opt_print_cmd() -> Result<()> {
     let (tmux, outfile) = setup("1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"])?;
-    tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+    tmux.until(|l| l.len() > 4 && l[0].starts_with(">"))?;
     tmux.send_keys(&[Enter])?;
-    tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
+
+    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() > 1)?;
     let output = tmux.output(&outfile)?;
 
     assert_eq!(output[0], "1");
@@ -486,6 +491,8 @@ fn opt_no_info() -> Result<()> {
     let (tmux, _) = setup("a\\nb\\nc", &["--no-info"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+    tmux.until(|_| tmux.capture().unwrap_or_default().len() > 1)?;
+
     let cap = tmux.capture()?;
 
     assert_eq!(cap[0], ">");
@@ -498,6 +505,8 @@ fn opt_info_hidden() -> Result<()> {
     let (tmux, _) = setup("a\\nb\\nc", &["--info", "hidden"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+
+    tmux.until(|_| tmux.capture().unwrap_or_default().len() > 1)?;
     let cap = tmux.capture()?;
 
     assert_eq!(cap[0], ">");
@@ -572,12 +581,10 @@ fn opt_header_lines_1() -> Result<()> {
 fn opt_header_lines_all() -> Result<()> {
     let (tmux, _) = setup("a\\nb\\nc", &["--header-lines", "4"])?;
 
-    let lines = tmux.capture()?;
-
-    assert!(lines.len() > 4);
-    assert_eq!(lines[2].trim(), "a");
-    assert_eq!(lines[3].trim(), "b");
-    assert_eq!(lines[4].trim(), "c");
+    tmux.until(|l| l.len() > 4)?;
+    tmux.until(|l| l[2].trim() == "a")?;
+    tmux.until(|l| l[3].trim() == "b")?;
+    tmux.until(|l| l[4].trim() == "c")?;
 
     Ok(())
 }
@@ -779,10 +786,10 @@ fn opt_multi() -> Result<()> {
     tmux.until(|l| l.len() > 2 && l[2] == " >a" && l[3] == " >b")?;
     tmux.send_keys(&[Enter])?;
 
+    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() == 2)?;
     let output = tmux.output(&outfile)?;
 
-    assert_eq!(output[0], "b");
-    assert_eq!(output[1], "a");
+    assert_eq!(output, &["b", "a"]);
 
     Ok(())
 }
