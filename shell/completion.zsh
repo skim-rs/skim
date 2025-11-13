@@ -53,7 +53,6 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '-q+[Initial query]:QUERY:_default' \
 '--query=[Initial query]:QUERY:_default' \
 '--cmd-query=[Initial query in interactive mode]:CMD_QUERY:_default' \
-'*--expect=[Comma separated list of keys used to complete skim]:EXPECT:_default' \
 '--pre-select-n=[Pre-select the first n items in multi-selection mode]:PRE_SELECT_N:_default' \
 '--pre-select-pat=[Pre-select the matched items in multi-selection mode]:PRE_SELECT_PAT:_default' \
 '--pre-select-items=[Pre-select the items separated by newline character]:PRE_SELECT_ITEMS:_default' \

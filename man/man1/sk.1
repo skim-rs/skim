@@ -4,7 +4,7 @@
 .SH NAME
 sk \- Fuzzy Finder in rust!
 .SH SYNOPSIS
-\fBsk\fR [\fB\-\-tac\fR] [\fB\-\-no\-sort\fR] [\fB\-t\fR|\fB\-\-tiebreak\fR] [\fB\-n\fR|\fB\-\-nth\fR] [\fB\-\-with\-nth\fR] [\fB\-d\fR|\fB\-\-delimiter\fR] [\fB\-e\fR|\fB\-\-exact\fR] [\fB\-\-regex\fR] [\fB\-\-algo\fR] [\fB\-\-case\fR] [\fB\-b\fR|\fB\-\-bind\fR] [\fB\-m\fR|\fB\-\-multi\fR] [\fB\-\-no\-multi\fR] [\fB\-\-no\-mouse\fR] [\fB\-c\fR|\fB\-\-cmd\fR] [\fB\-i\fR|\fB\-\-interactive\fR] [\fB\-I \fR] [\fB\-\-color\fR] [\fB\-\-no\-hscroll\fR] [\fB\-\-keep\-right\fR] [\fB\-\-skip\-to\-pattern\fR] [\fB\-\-no\-clear\-if\-empty\fR] [\fB\-\-no\-clear\-start\fR] [\fB\-\-no\-clear\fR] [\fB\-\-show\-cmd\-error\fR] [\fB\-\-layout\fR] [\fB\-\-reverse\fR] [\fB\-\-height\fR] [\fB\-\-no\-height\fR] [\fB\-\-min\-height\fR] [\fB\-\-margin\fR] [\fB\-p\fR|\fB\-\-prompt\fR] [\fB\-\-cmd\-prompt\fR] [\fB\-\-ansi\fR] [\fB\-\-tabstop\fR] [\fB\-\-info\fR] [\fB\-\-no\-info\fR] [\fB\-\-inline\-info\fR] [\fB\-\-header\fR] [\fB\-\-header\-lines\fR] [\fB\-\-border\fR] [\fB\-\-history\fR] [\fB\-\-history\-size\fR] [\fB\-\-cmd\-history\fR] [\fB\-\-cmd\-history\-size\fR] [\fB\-\-preview\fR] [\fB\-\-preview\-window\fR] [\fB\-q\fR|\fB\-\-query\fR] [\fB\-\-cmd\-query\fR] [\fB\-\-expect\fR] [\fB\-\-read0\fR] [\fB\-\-print0\fR] [\fB\-\-print\-query\fR] [\fB\-\-print\-cmd\fR] [\fB\-\-print\-score\fR] [\fB\-1\fR|\fB\-\-select\-1\fR] [\fB\-0\fR|\fB\-\-exit\-0\fR] [\fB\-\-sync\fR] [\fB\-\-pre\-select\-n\fR] [\fB\-\-pre\-select\-pat\fR] [\fB\-\-pre\-select\-items\fR] [\fB\-\-pre\-select\-file\fR] [\fB\-f\fR|\fB\-\-filter\fR] [\fB\-\-tmux\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
+\fBsk\fR [\fB\-\-tac\fR] [\fB\-\-no\-sort\fR] [\fB\-t\fR|\fB\-\-tiebreak\fR] [\fB\-n\fR|\fB\-\-nth\fR] [\fB\-\-with\-nth\fR] [\fB\-d\fR|\fB\-\-delimiter\fR] [\fB\-e\fR|\fB\-\-exact\fR] [\fB\-\-regex\fR] [\fB\-\-algo\fR] [\fB\-\-case\fR] [\fB\-b\fR|\fB\-\-bind\fR] [\fB\-m\fR|\fB\-\-multi\fR] [\fB\-\-no\-multi\fR] [\fB\-\-no\-mouse\fR] [\fB\-c\fR|\fB\-\-cmd\fR] [\fB\-i\fR|\fB\-\-interactive\fR] [\fB\-I \fR] [\fB\-\-color\fR] [\fB\-\-no\-hscroll\fR] [\fB\-\-keep\-right\fR] [\fB\-\-skip\-to\-pattern\fR] [\fB\-\-no\-clear\-if\-empty\fR] [\fB\-\-no\-clear\-start\fR] [\fB\-\-no\-clear\fR] [\fB\-\-show\-cmd\-error\fR] [\fB\-\-layout\fR] [\fB\-\-reverse\fR] [\fB\-\-height\fR] [\fB\-\-no\-height\fR] [\fB\-\-min\-height\fR] [\fB\-\-margin\fR] [\fB\-p\fR|\fB\-\-prompt\fR] [\fB\-\-cmd\-prompt\fR] [\fB\-\-ansi\fR] [\fB\-\-tabstop\fR] [\fB\-\-info\fR] [\fB\-\-no\-info\fR] [\fB\-\-inline\-info\fR] [\fB\-\-header\fR] [\fB\-\-header\-lines\fR] [\fB\-\-border\fR] [\fB\-\-history\fR] [\fB\-\-history\-size\fR] [\fB\-\-cmd\-history\fR] [\fB\-\-cmd\-history\-size\fR] [\fB\-\-preview\fR] [\fB\-\-preview\-window\fR] [\fB\-q\fR|\fB\-\-query\fR] [\fB\-\-cmd\-query\fR] [\fB\-\-read0\fR] [\fB\-\-print0\fR] [\fB\-\-print\-query\fR] [\fB\-\-print\-cmd\fR] [\fB\-\-print\-score\fR] [\fB\-1\fR|\fB\-\-select\-1\fR] [\fB\-0\fR|\fB\-\-exit\-0\fR] [\fB\-\-sync\fR] [\fB\-\-pre\-select\-n\fR] [\fB\-\-pre\-select\-pat\fR] [\fB\-\-pre\-select\-items\fR] [\fB\-\-pre\-select\-file\fR] [\fB\-f\fR|\fB\-\-filter\fR] [\fB\-\-tmux\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
 .SH DESCRIPTION
 sk \- fuzzy finder in Rust
 .PP
@@ -491,13 +491,6 @@ Initial query
 .TP
 \fB\-\-cmd\-query\fR=\fICMD_QUERY\fR
 Initial query in interactive mode
-.TP
-\fB\-\-expect\fR=\fIEXPECT\fR
-Comma separated list of keys used to complete skim
-
-Comma\-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second line  if \-\-print\-query is also used). The line will be empty if sk is completed with the default enter key. If \-\-expect option is specified multiple times, sk will expect the union of the keys. \-\-no\-expect will clear  the list.
-
-e.g. sk \-\-expect=ctrl\-v,ctrl\-t,alt\-s \-\-expect=f1,f2,~,@
 .TP
 \fB\-\-read0\fR
 Read input delimited by ASCII NUL(\\\\0) characters
