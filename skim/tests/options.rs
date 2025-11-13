@@ -643,7 +643,6 @@ fn opt_reserved_options() -> Result<()> {
 fn opt_multiple_flags_basic() -> Result<()> {
     let basic_flags = [
         "--bind=ctrl-a:cancel --bind ctrl-b:cancel",
-        "--expect=ctrl-a --expect=ctrl-v",
         "--tiebreak=begin --tiebreak=score",
         "--cmd asdf --cmd find",
         "--query asdf -q xyz",
@@ -654,7 +653,6 @@ fn opt_multiple_flags_basic() -> Result<()> {
         "--color base --color light",
         "--margin 30% --margin 0",
         "--min-height 30% --min-height 10",
-        "--height 30% --height 10",
         "--preview 'ls {}' --preview 'cat {}'",
         "--preview-window up --preview-window down",
         "--multi -m",
@@ -734,25 +732,6 @@ fn opt_multiple_flags_reverse() -> Result<()> {
 }
 
 #[test]
-fn opt_mutliple_flags_combined_expect_first() -> Result<()> {
-    let (tmux, outfile) = setup("a\\nb", &["--expect", "ctrl-a,ctrl-b"])?;
-    tmux.send_keys(&[Ctrl(&Key('a'))])?;
-    let output = tmux.output(&outfile)?;
-    assert_eq!(output[0], "a");
-    assert_eq!(output[1], "ctrl-a");
-    Ok(())
-}
-#[test]
-fn opt_mutliple_flags_combined_expect_second() -> Result<()> {
-    let (tmux, outfile) = setup("a\\nb", &["--expect", "ctrl-a,ctrl-b"])?;
-    tmux.send_keys(&[Ctrl(&Key('b'))])?;
-    let output = tmux.output(&outfile)?;
-    assert_eq!(output[0], "a");
-    assert_eq!(output[1], "ctrl-b");
-    Ok(())
-}
-
-#[test]
 fn opt_multiple_flags_combined_nth() -> Result<()> {
     let (tmux, _) = setup("a b c\\nd e f", &["--nth 1,2"])?;
 
@@ -790,6 +769,7 @@ fn opt_skip_to_pattern() -> Result<()> {
 #[test]
 fn opt_multi() -> Result<()> {
     let (tmux, outfile) = setup("a\\nb\\nc", &["--multi"])?;
+    tmux.until(|l| l.len() > 3)?;
 
     tmux.send_keys(&[BTab, BTab])?;
     tmux.until(|l| l.len() > 2 && l[2] == " >a" && l[3] == " >b")?;

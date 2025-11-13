@@ -226,7 +226,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let is_abort = !status.success();
     let final_event = match is_abort {
         true => Event::Action(Action::Abort),
-        false => Event::Action(Action::Accept(None)), // if --expect or --bind accept(key) are used,
+        false => Event::Action(Action::Accept(None)), // if --bind accept(key) is used,
                                                       // the key is technically returned in the selected_items
     };
 

@@ -587,18 +587,6 @@ pub struct SkimOptions {
     #[arg(long, help_heading = "Scripting")]
     pub cmd_query: Option<String>,
 
-    /// Comma separated list of keys used to complete skim
-    ///
-    /// Comma-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this
-    /// option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second
-    /// line  if --print-query is also used). The line will be empty if sk is completed with the default enter key. If
-    /// --expect option is specified multiple times, sk will expect the union of the keys. --no-expect will clear  the
-    /// list.
-    ///
-    /// e.g. sk --expect=ctrl-v,ctrl-t,alt-s --expect=f1,f2,~,@
-    #[arg(long, help_heading = "Scripting", value_delimiter = ',')]
-    pub expect: Vec<String>,
-
     /// Read input delimited by ASCII NUL(\\0) characters
     #[arg(long, help_heading = "Scripting")]
     pub read0: bool,
