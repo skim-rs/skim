@@ -12,7 +12,7 @@ mod input;
 pub mod item_list;
 pub mod options;
 mod preview;
-mod statusline;
+pub mod statusline;
 mod tui;
 pub mod widget;
 

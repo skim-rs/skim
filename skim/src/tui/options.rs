@@ -1,6 +1,7 @@
 use crate::tui::{Direction, Size};
 
-#[derive(Default, Debug, Clone, Copy, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum TuiLayout {
     /// Display from the bottom of the screen
     #[default]

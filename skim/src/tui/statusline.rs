@@ -11,7 +11,36 @@ use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
 
 use crate::SkimOptions;
-use crate::model::options::InfoDisplay;
+
+#[cfg(feature = "cli")]
+use clap::ValueEnum;
+#[cfg(feature = "cli")]
+use clap::builder::PossibleValue;
+
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub enum InfoDisplay {
+    #[default]
+    Default,
+    Inline,
+    Hidden,
+}
+
+#[cfg(feature = "cli")]
+impl ValueEnum for InfoDisplay {
+    fn value_variants<'a>() -> &'a [Self] {
+        use InfoDisplay::*;
+        &[Default, Inline, Hidden]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        use InfoDisplay::*;
+        match self {
+            Default => Some(PossibleValue::new("default")),
+            Inline => Some(PossibleValue::new("inline")),
+            Hidden => Some(PossibleValue::new("hidden")),
+        }
+    }
+}
 
 const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];

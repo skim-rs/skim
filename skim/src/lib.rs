@@ -10,7 +10,6 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::time::Duration;
 
-use clap::ValueEnum;
 use color_eyre::eyre;
 use color_eyre::eyre::OptionExt;
 use color_eyre::eyre::Result;
@@ -36,17 +35,13 @@ mod engine;
 pub mod field;
 mod global;
 mod helper;
-mod input;
 pub mod item;
 mod matcher;
-mod model;
 pub mod options;
 mod orderedvec;
 mod output;
 pub mod prelude;
-mod query;
 pub mod reader;
-mod selection;
 mod spinlock;
 mod theme;
 pub mod tmux;
@@ -266,8 +261,9 @@ pub enum ItemPreview {
 //==============================================================================
 // A match engine will execute the matching algorithm
 
-#[derive(ValueEnum, Eq, PartialEq, Debug, Copy, Clone, Default)]
-#[clap(rename_all = "snake_case")]
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum CaseMatching {
     Respect,
     Ignore,

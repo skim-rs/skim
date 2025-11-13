@@ -9,7 +9,6 @@ use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_width::UnicodeWidthStr;
 
-use crate::item;
 use crate::{
     DisplayContext, MatchRange, Selector, SkimItem, SkimOptions,
     item::{MatchedItem, RankBuilder},
@@ -38,7 +37,7 @@ pub struct ItemList {
     selector: Option<Rc<dyn Selector>>,
     pre_select_target: usize, // How many items we want to pre-select
     no_clear_if_empty: bool,
-    interactive: bool, // Whether we're in interactive mode
+    interactive: bool,         // Whether we're in interactive mode
     showing_stale_items: bool, // True when displaying old items due to no_clear_if_empty
 }
 
@@ -76,17 +75,13 @@ impl ItemList {
         trace!("{:?}", self.selection);
         self.current
     }
-    
+
     /// Returns the count of items for status display
     /// This may differ from items.len() when no_clear_if_empty is active and showing stale items
     pub fn count(&self) -> usize {
-        if self.showing_stale_items {
-            0
-        } else {
-            self.items.len()
-        }
+        if self.showing_stale_items { 0 } else { self.items.len() }
     }
-    
+
     pub fn selected(&self) -> Option<Arc<dyn SkimItem>> {
         self.items.get(self.cursor()).map(|x| x.item.clone())
     }
@@ -419,8 +414,7 @@ impl SkimWidget for ItemList {
             let items_are_empty_or_blank =
                 items.is_empty() || items.iter().all(|item| item.item.text().trim().is_empty());
 
-            if this.interactive && this.no_clear_if_empty && items_are_empty_or_blank && !this.items.is_empty()
-            {
+            if this.interactive && this.no_clear_if_empty && items_are_empty_or_blank && !this.items.is_empty() {
                 debug!(
                     "no_clear_if_empty: keeping {} old items for display (new items are empty/blank)",
                     this.items.len()

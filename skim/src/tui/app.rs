@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
-use crate::model::options::InfoDisplay;
+use crate::tui::statusline::InfoDisplay;
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory};
 use crate::tui::options::TuiLayout;
 use crate::tui::widget::SkimWidget;
@@ -90,7 +90,7 @@ impl Widget for &mut App<'_> {
         let preview_visible = self.options.preview.is_some() && !self.options.preview_window.hidden;
 
         // Split preview from root area if it's on left/right
-        let (mut work_area, preview_area_opt) = if preview_visible {
+        let (work_area, preview_area_opt) = if preview_visible {
             let size = match self.options.preview_window.size {
                 super::Size::Fixed(n) => Constraint::Length(n),
                 super::Size::Percent(n) => Constraint::Percentage(n),
@@ -1089,6 +1089,28 @@ impl<'a> App<'a> {
     }
 
     pub(crate) fn restart_matcher(&mut self, force: bool) {
+        // Check if query meets minimum length requirement
+        if let Some(min_length) = self.options.min_query_length {
+            let query_to_check = if self.options.interactive {
+                &self.input.value
+            } else {
+                &self.input.value
+            };
+
+            if query_to_check.chars().count() < min_length {
+                // Query is too short, clear items and don't run matcher
+                self.matcher_control.kill();
+                self.item_list.items.clear();
+                self.item_list.current = 0;
+                self.item_list.offset = 0;
+                self.status.matcher_running = false;
+                if self.should_trigger_matcher {
+                    self.should_trigger_matcher = false;
+                }
+                return;
+            }
+        }
+
         let matcher_stopped = self.matcher_control.stopped();
         if force || (matcher_stopped && self.item_pool.num_not_taken() == 0) {
             self.matcher_control.kill();

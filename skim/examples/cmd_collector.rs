@@ -7,7 +7,7 @@ struct BasicSkimItem {
 }
 
 impl SkimItem for BasicSkimItem {
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         return Cow::Borrowed(&self.value);
     }
 }

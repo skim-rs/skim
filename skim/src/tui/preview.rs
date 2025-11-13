@@ -111,11 +111,11 @@ impl Preview<'_> {
             if out.status.success() {
                 _event_tx
                     .send(Event::PreviewReady(out.stdout))
-                    .unwrap_or_else(|e| println!("Failed on success"));
+                    .unwrap_or_else(|e| println!("Failed on success: {e}"));
             } else {
                 _event_tx
                     .send(Event::PreviewReady(out.stderr))
-                    .unwrap_or_else(|e| println!("Failed on error"));
+                    .unwrap_or_else(|e| println!("Failed on error: {e}"));
                 // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
             }
         }));

@@ -19,6 +19,7 @@ doctest = false
 [[bin]]
 name = "sk"
 path = "src/bin/main.rs"
+required-features = ["cli"]
 
 [dependencies]
 nix = "0.29.0"

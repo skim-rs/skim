@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[cfg(feature = "cli")]
 use clap::Parser;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
@@ -8,7 +9,7 @@ use regex::Regex;
 
 use crate::binds::KeyMap;
 use crate::item::RankCriteria;
-use crate::model::options::InfoDisplay;
+use crate::tui::statusline::InfoDisplay;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
 use crate::tui::event::Action;
@@ -22,6 +23,10 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 ///
 ///
 /// ENVIRONMENT VARIABLES
+///
+///      NO_COLOR
+///
+///          If set and not empty, sk will not use any colors in the output.
 ///
 ///      SKIM_DEFAULT_COMMAND
 ///
@@ -76,21 +81,27 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
-#[derive(Parser)]
-#[command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about)]
+#[cfg_attr(feature = "cli", derive(clap::Parser))]
+#[cfg_attr(feature = "cli", command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about))]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
     ///
     /// Often used in combination with --no-sort
-    #[arg(long, help_heading = "Search")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub tac: bool,
+
+    /// Minimum query length to start showing results
+    ///
+    /// Only show results when the query is at least this many characters long
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
+    pub min_query_length: Option<usize>,
 
     /// Do not sort the results
     ///
     /// Often used in combination with --tac
     /// Example: `history | sk --tac --no-sort`
-    #[arg(long, help_heading = "Search")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub no_sort: bool,
 
     /// Comma-separated list of sort criteria to apply when the scores are tied.
@@ -103,7 +114,7 @@ pub struct SkimOptions {
     ///
     ///     - Each criterion could be negated, e.g. (-index)
     ///     - Each criterion should appear only once in the list
-    #[arg(
+    #[cfg_attr(feature = "cli", arg(
         short,
         long,
         default_value = "score,begin,end",
@@ -111,7 +122,7 @@ pub struct SkimOptions {
         value_delimiter = ',',
         help_heading = "Search",
         verbatim_doc_comment
-    )]
+    ))]
     pub tiebreak: Vec<RankCriteria>,
 
     /// Fields to be matched
@@ -128,34 +139,34 @@ pub struct SkimOptions {
     ///     2..    From the 2nd field to the last field
     ///     ..-3   From the 1st field to the 3rd to the last field
     ///     ..     All the fields
-    #[arg(
+    #[cfg_attr(feature = "cli", arg(
         short,
         long,
         default_value = "",
         help_heading = "Search",
         verbatim_doc_comment,
         value_delimiter = ','
-    )]
+    ))]
     pub nth: Vec<String>,
 
     /// Fields to be transformed
     ///
     /// See **nth** for the details
-    #[arg(long, default_value = "", help_heading = "Search", value_delimiter = ',')]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Search", value_delimiter = ','))]
     pub with_nth: Vec<String>,
 
     /// Delimiter between fields
     ///
     /// In regex format, default to AWK-style
-    #[arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search")]
+    #[cfg_attr(feature = "cli", arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search"))]
     pub delimiter: Regex,
 
     /// Run in exact mode
-    #[arg(short, long, help_heading = "Search")]
+    #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Search"))]
     pub exact: bool,
 
     /// Start in regex mode instead of fuzzy-match
-    #[arg(long, help_heading = "Search")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub regex: bool,
 
     /// Fuzzy matching algorithm
@@ -163,19 +174,19 @@ pub struct SkimOptions {
     /// skim_v2 Latest skim algorithm, should be better in almost any case
     /// skim_v1 Legacy skim algorithm
     /// clangd Used in clangd for keyword completion
-    #[arg(
+    #[cfg_attr(feature = "cli", arg(
         long = "algo",
         default_value = "skim_v2",
         value_enum,
         help_heading = "Search",
         verbatim_doc_comment
-    )]
+    ))]
     pub algorithm: FuzzyAlgorithm,
 
     /// Case sensitivity
     ///
     /// Determines whether or not to ignore case while matching
-    #[arg(long, default_value = "smart", value_enum, help_heading = "Search")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "smart", value_enum, help_heading = "Search"))]
     pub case: CaseMatching,
 
     //  --- Interface ---
@@ -315,51 +326,51 @@ pub struct SkimOptions {
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
     /// is equal to ‘delete-char/eof‘.
-    #[arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "")]
+    #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = ""))]
     pub bind: KeyMap,
 
     /// Enable multiple selection
     ///
     /// Uses Tab and S-Tab by default for selection
-    #[arg(short, long, overrides_with = "no_multi", help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(short, long, overrides_with = "no_multi", help_heading = "Interface"))]
     pub multi: bool,
 
     /// Disable multiple selection
-    #[arg(long, conflicts_with = "multi", help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, conflicts_with = "multi", help_heading = "Interface"))]
     pub no_multi: bool,
 
     /// Disable mouse
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_mouse: bool,
 
     /// Command to invoke dynamically in interactive mode
     ///
     /// Will be invoked using `sh -c`
-    #[arg(short, long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub cmd: Option<String>,
 
     /// Run in interactive mode
-    #[arg(short, long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub interactive: bool,
 
     /// Replace replstr with the selected item in commands
-    #[arg(short = 'I', default_value = "{}", help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(short = 'I', default_value = "{}", help_heading = "Interface"))]
     pub replstr: String,
 
     /// Set color theme
     ///
     /// Format: [BASE][,COLOR:ANSI]
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub color: Option<String>,
 
     /// Disable horizontal scroll
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_hscroll: bool,
 
     /// Keep the right end of the line visible on overflow
     ///
     /// Effective only when the query string is empty
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub keep_right: bool,
 
     /// Show the matched pattern at the line start
@@ -368,7 +379,7 @@ pub struct SkimOptions {
     /// string is empty. Was designed to skip showing starts of paths of rg/grep results.
     ///
     /// e.g. sk -i -c "rg {} --color=always" --skip-to-pattern '[^/]*:' --ansi
-    #[arg(long, help_heading = "Interface", verbatim_doc_comment)]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub skip_to_pattern: Option<String>,
 
     /// Do not clear previous line if the command returns an empty result
@@ -379,11 +390,11 @@ pub struct SkimOptions {
     /// This is not default however because similar usecases for grep and rg had already been op‐
     /// timized  where  empty  result  of  a query do mean "empty" and previous results should be
     /// cleared.
-    #[arg(long, help_heading = "Interface", verbatim_doc_comment)]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub no_clear_if_empty: bool,
 
     /// Do not clear items on start
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_clear_start: bool,
 
     /// Do not clear screen on exit
@@ -391,38 +402,38 @@ pub struct SkimOptions {
     /// Do not clear finder interface on exit. If skim was started in full screen mode, it will not switch back to the
     /// original  screen, so you'll have to manually run tput rmcup to return. This option can be used to avoid
     /// flickering of the screen when your application needs to start skim multiple times in order.
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_clear: bool,
 
     /// Show error message if command fails
-    #[arg(long, help_heading = "Interface")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub show_cmd_error: bool,
 
     //  --- Layout ---
     /// Set layout
     ///
-    #[arg(long, help_heading = "Layout", verbatim_doc_comment, default_value = "default")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout", verbatim_doc_comment, default_value = "default"))]
     pub layout: TuiLayout,
 
     /// Shorthand for reverse layout
-    #[arg(long, help_heading = "Layout")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
     pub reverse: bool,
 
     /// Height of skim's window
     ///
     /// Can either be a row count or a percentage
-    #[arg(long, default_value = "100%", help_heading = "Layout")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "100%", help_heading = "Layout"))]
     pub height: String,
 
     /// Disable height feature
-    #[arg(long, help_heading = "Layout")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
     pub no_height: bool,
 
     /// Minimum height of skim's window
     ///
     /// Useful when the height is set as a percentage
     /// Ignored when --height is not specified
-    #[arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment)]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment))]
     pub min_height: String,
 
     /// Screen margin
@@ -434,24 +445,24 @@ pub struct SkimOptions {
     ///     - T,RL,B
     ///     - T,R,B,L
     /// Example: 1,10%
-    #[arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment)]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment))]
     pub margin: String,
 
     /// Set prompt
-    #[arg(long, short, default_value = "> ", help_heading = "Layout")]
+    #[cfg_attr(feature = "cli", arg(long, short, default_value = "> ", help_heading = "Layout"))]
     pub prompt: String,
 
     /// Set prompt in command mode
-    #[arg(long, default_value = "c> ", help_heading = "Layout")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "c> ", help_heading = "Layout"))]
     pub cmd_prompt: String,
 
     //  --- Display ---
     /// Parse ANSI color codes in input strings
-    #[arg(long, help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub ansi: bool,
 
     /// Number of spaces that make up a tab
-    #[arg(long, default_value = "8", help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "8", help_heading = "Display"))]
     pub tabstop: usize,
 
     /// Set matching result count display position
@@ -459,15 +470,15 @@ pub struct SkimOptions {
     ///     hidden: do not display info
     ///     inline: display info in the same row as the input
     ///     default: display info in a dedicated row above the input
-    #[arg(long, help_heading = "Display", value_enum, default_value = "default")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", value_enum, default_value = "default"))]
     pub info: InfoDisplay,
 
     /// Alias for --info=hidden
-    #[arg(long, help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub no_info: bool,
 
     /// Alias for --info=inline
-    #[arg(long, help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub inline_info: bool,
 
     /// Set header, displayed next to the info
@@ -475,19 +486,19 @@ pub struct SkimOptions {
     /// The  given  string  will  be printed as the sticky header. The lines are displayed in the
     /// given order from top to bottom regardless of --layout option, and  are  not  affected  by
     /// --with-nth. ANSI color codes are processed even when --ansi is not set.
-    #[arg(long, help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub header: Option<String>,
 
     /// Number of lines of the input treated as header
     ///
     /// The  first N lines of the input are treated as the sticky header. When --with-nth is set,
     /// the lines are transformed just like the other lines that follow.
-    #[arg(long, default_value = "0", help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Display"))]
     pub header_lines: usize,
 
     /// Draw borders around the UI components
     ///
-    #[arg(long, help_heading = "Display")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub border: bool,
 
 
@@ -497,11 +508,11 @@ pub struct SkimOptions {
     /// Load search history from the specified file and update the file on completion.
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
-    #[arg(long = "history", help_heading = "History")]
+    #[cfg_attr(feature = "cli", arg(long = "history", help_heading = "History"))]
     pub history_file: Option<String>,
 
     /// Maximum number of query history entries to keep
-    #[arg(long, default_value = "1000", help_heading = "History")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "1000", help_heading = "History"))]
     pub history_size: usize,
 
     /// Command history file
@@ -509,11 +520,11 @@ pub struct SkimOptions {
     /// Load command query history from the specified file and update the file on completion.
     /// When enabled, CTRL-N and CTRL-P are automatically remapped
     /// to next-history and previous-history.
-    #[arg(long = "cmd-history", help_heading = "History")]
+    #[cfg_attr(feature = "cli", arg(long = "cmd-history", help_heading = "History"))]
     pub cmd_history_file: Option<String>,
 
     /// Maximum number of query history entries to keep
-    #[arg(long, default_value = "1000", help_heading = "History")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "1000", help_heading = "History"))]
     pub cmd_history_size: usize,
 
     //  --- Preview ---
@@ -543,7 +554,7 @@ pub struct SkimOptions {
     ///
     /// Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐
     /// pressions evaluates to a non-empty string.
-    #[arg(long, help_heading = "Preview", verbatim_doc_comment)]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Preview", verbatim_doc_comment))]
     pub preview: Option<String>,
 
     /// Preview window layout
@@ -575,44 +586,44 @@ pub struct SkimOptions {
     ///               sk --delimiter : \
     ///                   --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
     ///                   --preview-window +{2}-/2
-    #[arg(long, default_value = "right:50%", help_heading = "Preview")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "right:50%", help_heading = "Preview"))]
     pub preview_window: PreviewLayout,
 
     //  --- Scripting ---
     /// Initial query
-    #[arg(long, short, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, short, help_heading = "Scripting"))]
     pub query: Option<String>,
 
     /// Initial query in interactive mode
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub cmd_query: Option<String>,
 
     /// Read input delimited by ASCII NUL(\\0) characters
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub read0: bool,
 
     /// Print output delimited by ASCII NUL(\\0) characters
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print0: bool,
 
     /// Print the query as the first line
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_query: bool,
 
     /// Print the command as the first line (after print-query)
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_cmd: bool,
 
     /// Print the command as the first line (after print-cmd)
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_score: bool,
 
     /// Automatically select the match if there is only one
-    #[arg(long, short = '1', help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, short = '1', help_heading = "Scripting"))]
     pub select_1: bool,
 
     /// Automatically exit when no match is left
-    #[arg(long, short = '0', help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, short = '0', help_heading = "Scripting"))]
     pub exit_0: bool,
 
     /// Synchronous search for multi-staged filtering
@@ -621,32 +632,32 @@ pub struct SkimOptions {
     /// skim will launch ncurses finder only after the input stream is complete.
     ///
     ///     e.g. sk --multi | sk --sync
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub sync: bool,
 
     /// Pre-select the first n items in multi-selection mode
-    #[arg(long, default_value = "0", help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Scripting"))]
     pub pre_select_n: usize,
 
     /// Pre-select the matched items in multi-selection mode
     ///
     /// Check the doc for the detailed syntax:
     /// https://docs.rs/regex/1.4.1/regex/
-    #[arg(long, default_value = "", help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Scripting"))]
     pub pre_select_pat: String,
 
     /// Pre-select the items separated by newline character
     ///
     /// Exemple: 'item1\nitem2'
-    #[arg(long, default_value = "", help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Scripting"))]
     pub pre_select_items: String,
 
     /// Pre-select the items read from this file
-    #[arg(long, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub pre_select_file: Option<String>,
 
     /// Query for filter mode
-    #[arg(long, short, help_heading = "Scripting")]
+    #[cfg_attr(feature = "cli", arg(long, short, help_heading = "Scripting"))]
     pub filter: Option<String>,
 
     /// Run in a tmux popup
@@ -659,67 +670,154 @@ pub struct SkimOptions {
     ///     - left | right: (width, height) or height = 100%, width = size if only one is provided
     ///
     /// Default: center,50%
-    #[arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..)]
+    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
     pub tmux: Option<String>,
 
     /// Reserved for later use
-    #[arg(short = 'x', long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(short = 'x', long, hide = true, help_heading = "Reserved for later use"))]
     pub extended: bool,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub literal: bool,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub cycle: bool,
 
     /// Reserved for later use
-    #[arg(long, hide = true, default_value = "10", help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = "10", help_heading = "Reserved for later use"))]
     pub hscroll_off: usize,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub filepath_word: bool,
 
     /// Reserved for later use
-    #[arg(
+    #[cfg_attr(feature = "cli", arg(
         long,
         hide = true,
         default_value = "abcdefghijklmnopqrstuvwxyz",
         help_heading = "Reserved for later use"
-    )]
+    ))]
     pub jump_labels: String,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub no_bold: bool,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub pointer: bool,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub marker: bool,
 
     /// Reserved for later use
-    #[arg(long, hide = true, help_heading = "Reserved for later use")]
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub phony: bool,
 
-    #[clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>)]
+    #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
     pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
-    #[clap(skip)]
+    #[cfg_attr(feature = "cli", clap(skip))]
     pub query_history: Vec<String>,
-    #[clap(skip)]
+    #[cfg_attr(feature = "cli", clap(skip))]
     pub cmd_history: Vec<String>,
-    #[clap(skip)]
+    #[cfg_attr(feature = "cli", clap(skip))]
     pub selector: Option<Rc<dyn Selector>>,
 }
 
+#[cfg(feature = "cli")]
 impl Default for SkimOptions {
     fn default() -> Self {
         Self::parse_from::<_, &str>([])
+    }
+}
+
+#[cfg(not(feature = "cli"))]
+impl Default for SkimOptions {
+    fn default() -> Self {
+        Self {
+            tac: Default::default(),
+            min_query_length: Default::default(),
+            no_sort: Default::default(),
+            tiebreak: vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End],
+            nth: Default::default(),
+            with_nth: Default::default(),
+            delimiter: Regex::new(r"[\t\n ]+").unwrap(),
+            exact: Default::default(),
+            regex: Default::default(),
+            algorithm: Default::default(),
+            case: Default::default(),
+            bind: crate::binds::get_default_key_map(),
+            multi: Default::default(),
+            no_multi: Default::default(),
+            no_mouse: Default::default(),
+            cmd: Default::default(),
+            interactive: Default::default(),
+            replstr: String::from("{}"),
+            color: Default::default(),
+            no_hscroll: Default::default(),
+            keep_right: Default::default(),
+            skip_to_pattern: Default::default(),
+            no_clear_if_empty: Default::default(),
+            no_clear_start: Default::default(),
+            no_clear: Default::default(),
+            show_cmd_error: Default::default(),
+            layout: TuiLayout::Default,
+            reverse: Default::default(),
+            height: String::from("100%"),
+            no_height: Default::default(),
+            min_height: String::from("10"),
+            margin: Default::default(),
+            prompt: String::from("> "),
+            cmd_prompt: String::from("c> "),
+            ansi: Default::default(),
+            tabstop: 8,
+            info: Default::default(),
+            no_info: Default::default(),
+            inline_info: Default::default(),
+            header: Default::default(),
+            header_lines: Default::default(),
+            border: Default::default(),
+            history_file: Default::default(),
+            history_size: 1000,
+            cmd_history_file: Default::default(),
+            cmd_history_size: 1000,
+            preview: Default::default(),
+            preview_window: Default::default(),
+            read0: Default::default(),
+            print0: Default::default(),
+            query: Default::default(),
+            cmd_query: Default::default(),
+            print_query: Default::default(),
+            print_cmd: Default::default(),
+            print_score: Default::default(),
+            select_1: Default::default(),
+            exit_0: Default::default(),
+            sync: Default::default(),
+            pre_select_n: Default::default(),
+            pre_select_pat: Default::default(),
+            pre_select_items: Default::default(),
+            pre_select_file: Default::default(),
+            filter: Default::default(),
+            tmux: Default::default(),
+            extended: Default::default(),
+            literal: Default::default(),
+            cycle: Default::default(),
+            hscroll_off: 10,
+            filepath_word: Default::default(),
+            jump_labels: String::from("abcdefghijklmnopqrstuvwxyz"),
+            no_bold: Default::default(),
+            pointer: Default::default(),
+            marker: Default::default(),
+            phony: Default::default(),
+            cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
+            query_history: Default::default(),
+            cmd_history: Default::default(),
+            selector: Default::default(),
+        }
     }
 }
 

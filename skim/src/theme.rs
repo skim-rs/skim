@@ -54,11 +54,15 @@ impl ColorTheme {
         if let Some(color) = options.color.clone() {
             ColorTheme::from_options(&color)
         } else {
-            ColorTheme::dark256()
+            // Check for NO_COLOR environment variable
+            match std::env::var_os("NO_COLOR") {
+                Some(no_color) if !no_color.is_empty() => ColorTheme::none(),
+                _ => ColorTheme::dark256(),
+            }
         }
     }
 
-    fn empty() -> Self {
+    fn none() -> Self {
         ColorTheme {
             fg:                   Color::Reset,
             bg:                   Color::Reset,
@@ -90,7 +94,7 @@ impl ColorTheme {
             matched_effect:       Modifier::UNDERLINED,
             current_effect:       Modifier::REVERSED,
             current_match_effect: Modifier::UNDERLINED | Modifier::REVERSED,
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -109,7 +113,7 @@ impl ColorTheme {
             selected:         Color::Magenta,
             header:           Color::Cyan,
             border:           Color::Black,
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -128,7 +132,7 @@ impl ColorTheme {
             selected:         Color::Indexed(168),
             header:           Color::Indexed(109),
             border:           Color::Indexed(59),
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -147,7 +151,7 @@ impl ColorTheme {
             selected:         Color::Indexed(168),
             header:           Color::Indexed(109),
             border:           Color::Indexed(59),
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -166,7 +170,7 @@ impl ColorTheme {
             selected:         Color::Indexed(168),
             header:           Color::Indexed(31),
             border:           Color::Indexed(145),
-            ..ColorTheme::empty()
+            ..ColorTheme::none()
         }
     }
 
@@ -181,7 +185,7 @@ impl ColorTheme {
                     "light"    => ColorTheme::light256(),
                     "16"       => ColorTheme::default16(),
                     "bw"       => ColorTheme::bw(),
-                    "empty"    => ColorTheme::empty(),
+                    "none" | "empty" => ColorTheme::none(),
                     "dark" | "default" | _ => ColorTheme::dark256(),
                 };
                 continue;
