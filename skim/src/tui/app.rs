@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::model::options::InfoDisplay;
-use crate::prelude::ExactOrFuzzyEngineFactory;
+use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory};
 use crate::tui::options::TuiLayout;
 use crate::tui::widget::SkimWidget;
 use crate::util::{self, printf};
@@ -319,9 +319,12 @@ impl<'a> App<'a> {
             item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
-            matcher: Matcher::builder(Rc::new(
-                ExactOrFuzzyEngineFactory::builder().rank_builder(rank_builder).build(),
-            ))
+            matcher: Matcher::builder(Rc::new(AndOrEngineFactory::new(
+                ExactOrFuzzyEngineFactory::builder()
+                    .rank_builder(rank_builder)
+                    .exact_mode(options.exact)
+                    .build(),
+            )))
             .case(options.case)
             .build(),
             yank_register: Cow::default(),
@@ -365,14 +368,23 @@ impl<'a> App<'a> {
         // Evaluate the expression (handle simple arithmetic like "321-2")
         if let Some((left, right)) = substituted.split_once('-') {
             let left_val = left.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
-            let right_val = right.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
+            let right_val = right
+                .trim_matches(|x: char| !x.is_numeric())
+                .parse::<u16>()
+                .unwrap_or(0);
             left_val.saturating_sub(right_val)
         } else if let Some((left, right)) = substituted.split_once('+') {
             let left_val = left.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
-            let right_val = right.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
+            let right_val = right
+                .trim_matches(|x: char| !x.is_numeric())
+                .parse::<u16>()
+                .unwrap_or(0);
             left_val.saturating_add(right_val)
         } else {
-            substituted.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0)
+            substituted
+                .trim_matches(|x: char| !x.is_numeric())
+                .parse::<u16>()
+                .unwrap_or(0)
         }
     }
 
