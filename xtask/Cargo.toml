@@ -4,9 +4,9 @@ version = "0.15.4"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.20", features = ["derive"] }
-clap_complete = "4.5.37"
+clap = { version = "4.5.51", features = ["derive"] }
+clap_complete = "4.5.60"
 clap_complete_fig = "4.5.2"
-clap_complete_nushell = "4.5.4"
-clap_mangen = "0.2.24"
+clap_complete_nushell = "4.5.10"
+clap_mangen = "0.2.31"
 skim = { path = "../skim", features = [] }

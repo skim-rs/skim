@@ -7,7 +7,7 @@ use std::{
 };
 
 use crossterm::event::KeyCode;
-use rand::{Rng, distributions::Alphanumeric};
+use rand::{Rng, distr::Alphanumeric};
 use which::which;
 
 use crate::{

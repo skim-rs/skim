@@ -152,7 +152,7 @@ impl<'a> SkimWidget for Preview<'a> {
             let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
             let title = format!("{}/{}", current_line, total_lines);
             use ratatui::layout::Alignment;
-            use ratatui::widgets::block::Title;
+            
             block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
         }
 
