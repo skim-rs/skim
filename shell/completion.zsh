@@ -85,6 +85,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
+'--border[Draw borders around the UI components]' \
 '--read0[Read input delimited by ASCII NUL(\\\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\\\0) characters]' \
 '--print-query[Print the query as the first line]' \
@@ -100,7 +101,6 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--literal[Reserved for later use]' \
 '--cycle[Reserved for later use]' \
 '--filepath-word[Reserved for later use]' \
-'--border[Reserved for later use]' \
 '--no-bold[Reserved for later use]' \
 '--pointer[Reserved for later use]' \
 '--marker[Reserved for later use]' \
