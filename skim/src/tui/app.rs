@@ -228,7 +228,7 @@ impl Widget for &mut App<'_> {
             };
             self.preview.render(preview_area, buf);
         }
-        self.items_just_updated = self.item_list.render_with_theme(list_area, buf);
+        self.items_just_updated = self.item_list.render(list_area, buf).items_updated;
 
         self.cursor_pos = (input_area.x + self.input.cursor_pos(), input_area.y);
     }
@@ -379,7 +379,7 @@ impl<'a> App<'a> {
     /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
     fn on_items_updated(&mut self) {
         self.status.total = self.item_pool.len();
-        self.status.matched = self.item_list.items.len();
+        self.status.matched = self.item_list.count();
         self.status.processed = self.matcher_control.get_num_processed();
         // keep multi-selection flag synced with options
         self.status.multi_selection = self.options.multi;
@@ -651,12 +651,12 @@ impl<'a> App<'a> {
                 let value = self.input.value.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
                 self.item_pool.append(vec![item.clone()]);
-                self.item_list.items.append(&mut vec![MatchedItem {
+                self.item_list.append(&mut vec![MatchedItem {
                     item,
                     rank: [0, 0, 0, 0],
                     matched_range: None,
                 }]);
-                self.item_list.select();
+                self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher(true);
                 return Ok(vec![Event::RunPreview]);
             }

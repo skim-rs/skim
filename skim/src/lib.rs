@@ -440,7 +440,11 @@ impl Skim {
             cmd: if app.options.interactive {
                 // In interactive mode, cmd is what the user typed
                 app.input.to_string()
+            } else if app.options.cmd_query.is_some() {
+                // If cmd_query was provided, use that for output
+                app.options.cmd_query.clone().unwrap()
             } else {
+                // Otherwise use the execution command
                 cmd
             },
             final_event,

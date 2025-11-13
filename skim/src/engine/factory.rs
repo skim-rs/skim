@@ -184,11 +184,11 @@ impl AndOrEngineFactory {
     }
 
     fn mask_escape_space(&self, string: &str) -> String {
-        string.replace("\\ ", "\0")
+        string.replace("\\ ", "\u{00}")
     }
 
     fn unmask_escape_space(&self, string: &str) -> String {
-        string.replace('\0', " ")
+        string.replace('\u{00}', " ")
     }
 }
 
