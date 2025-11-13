@@ -89,8 +89,14 @@ impl SkimItem for DefaultSkimItem {
         self.matching_ranges.as_ref().map(|vec| vec as &[(usize, usize)])
     }
 
-    fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
-        context.to_line(self.text())
+    fn display<'a>(&'a self, _context: DisplayContext) -> Line<'a> {
+        // Return the first line of the transformed text for display
+        // The text field already contains the transformed/filtered content
+        if let Some(line) = self.text.lines.first() {
+            line.clone()
+        } else {
+            Line::default()
+        }
     }
 
     fn get_index(&self) -> usize {
