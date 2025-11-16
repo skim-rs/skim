@@ -469,6 +469,7 @@ fn opt_print_query() -> Result<()> {
     let (tmux, outfile) = setup("10\\n20\\n30", &["-q", "2", "--print-query"])?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
 
     tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() > 1)?;
     let output = tmux.output(&outfile)?;
@@ -485,9 +486,9 @@ fn opt_print_cmd() -> Result<()> {
     tmux.send_keys(&[Enter])?;
 
     tmux.until(|_| {
-      let out = tmux.output(&outfile).unwrap_or_default();
-      println!("Out: {out:?}");
-      out.len() > 1
+        let out = tmux.output(&outfile).unwrap_or_default();
+        println!("Out: {out:?}");
+        out.len() > 1
     })?;
     let output = tmux.output(&outfile)?;
 
@@ -506,9 +507,9 @@ fn opt_print_cmd_and_query() -> Result<()> {
     tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|_| {
-      let out = tmux.output(&outfile).unwrap_or_default();
-      println!("Out: {out:?}");
-      out.len() > 2
+        let out = tmux.output(&outfile).unwrap_or_default();
+        println!("Out: {out:?}");
+        out.len() > 2
     })?;
     let output = tmux.output(&outfile)?;
 

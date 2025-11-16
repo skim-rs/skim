@@ -106,7 +106,7 @@ pub trait EventHandler {
 
 #[rustfmt::skip]
 pub fn parse_action(raw_action: &str) -> Option<Action> {
-  let parts = raw_action.split_once(&[':', '(', ')']);
+  let parts = raw_action.split_once([':', '(', ')']);
   let action;
   let mut arg = None;
   match parts {
@@ -121,7 +121,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
     let then_arg;
     let mut otherwise_arg = None;
 
-    let if_arg  = arg.expect(&format!("no arg specified for event {action}"));
+    let if_arg = arg.unwrap_or_else(|| panic!("no arg specified for event {action}"));
     if if_arg.contains("+") {
       let split = if_arg.split_once("+");
       match split {

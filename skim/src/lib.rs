@@ -339,7 +339,6 @@ impl Skim {
     /// # Panics
     ///
     /// Panics if the tui fails to initilize
-    #[must_use]
     pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         // let min_height = Skim::parse_height_string(&options.min_height);
 

@@ -94,10 +94,10 @@ impl ItemList {
     /// Calculate the width to skip when using skip_to_pattern
     /// Returns the actual skip width (not accounting for ".." - that's handled in apply_hscroll)
     fn calc_skip_width(&self, text: &str) -> usize {
-        if let Some(ref regex) = self.skip_to_pattern {
-            if let Some(mat) = regex.find(text) {
-                return text[..mat.start()].width_cjk();
-            }
+        if let Some(ref regex) = self.skip_to_pattern
+            && let Some(mat) = regex.find(text)
+        {
+            return text[..mat.start()].width_cjk();
         }
         0
     }
@@ -360,10 +360,10 @@ impl SkimWidget for ItemList {
                         .map(|s| s.to_string())
                         .collect();
 
-                    if let Some(ref pre_select_file) = options.pre_select_file {
-                        if let Ok(file_items) = read_file_lines(pre_select_file) {
-                            preset_items.extend(file_items);
-                        }
+                    if let Some(ref pre_select_file) = options.pre_select_file
+                        && let Ok(file_items) = read_file_lines(pre_select_file)
+                    {
+                        preset_items.extend(file_items);
                     }
 
                     let selector = DefaultSkimSelector::default()

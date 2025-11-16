@@ -1,11 +1,10 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Modifier, Styled};
 use ratatui::text::{Line, Span, Text, ToText};
 use ratatui::widgets::{Paragraph, Widget};
-use regex::Regex;
 
 use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
@@ -46,10 +45,6 @@ const SPINNER_DURATION: u32 = 200;
 // const SPINNERS: [char; 8] = ['-', '\\', '|', '/', '-', '\\', '|', '/'];
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-static RE_FIELDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap());
-static RE_PREVIEW_OFFSET: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
 
 #[derive(Clone)]
 pub struct StatusLine {

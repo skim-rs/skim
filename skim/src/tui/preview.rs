@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 
 use super::Direction;
 use super::Event;
-use super::tui::Tui;
+use super::backend::Tui;
 
 use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
@@ -73,8 +73,8 @@ impl Default for Preview<'_> {
 }
 
 impl Preview<'_> {
-    pub fn content(&mut self, content: &Vec<u8>) -> Result<()> {
-        let text = content.clone().into_text()?;
+    pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
+        let text = content.to_owned().into_text()?;
         self.content = text;
         // Reset scroll when content changes
         self.scroll_y = 0;

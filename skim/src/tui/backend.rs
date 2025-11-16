@@ -95,17 +95,15 @@ impl<B: Backend> Tui<B> {
                     }
                     maybe_event = crossterm_event => {
                       match maybe_event {
-                        Some(Ok(evt)) => {
-                          if let crossterm::event::Event::Key(key) = evt {
-                            if key.kind == KeyEventKind::Press {
-                              _ = _event_tx.send(Event::Key(key));
-                            }
+                        Some(Ok(crossterm::event::Event::Key(key))) => {
+                          if key.kind == KeyEventKind::Press {
+                            _ = _event_tx.send(Event::Key(key));
                           }
                         }
                         Some(Err(e)) => {
                           _ = _event_tx.send(Event::Error(e.to_string()));
                         }
-                        None => {},
+                        None | Some(Ok(_)) => {},
                       }
                     },
                     _ = tick_delay => {

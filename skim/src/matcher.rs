@@ -11,6 +11,7 @@ use defer_drop::DeferDrop;
 use std::rc::Rc;
 
 //==============================================================================
+#[derive(Default)]
 pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
@@ -42,18 +43,6 @@ impl MatcherControl {
     pub fn into_items(self) -> Arc<SpinLock<Vec<MatchedItem>>> {
         while !self.stopped() {}
         self.items
-    }
-}
-
-impl Default for MatcherControl {
-    fn default() -> Self {
-        Self {
-            stopped: Default::default(),
-            processed: Default::default(),
-            matched: Default::default(),
-            items: Default::default(),
-            thread_matcher: None,
-        }
     }
 }
 

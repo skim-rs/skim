@@ -122,9 +122,7 @@ impl Input {
         let mut pos = start_pos;
 
         // Move back at least one position
-        if pos > 0 {
-            pos -= 1;
-        }
+        pos = pos.saturating_sub(1);
 
         // Skip any non-word characters
         while pos > 0 && !Self::is_word_char(self.value.chars().nth(pos).unwrap()) {

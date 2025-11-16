@@ -4,9 +4,10 @@ pub use app::App;
 pub use event::Event;
 pub use preview::PreviewCallback;
 use thiserror::Error;
-pub use tui::Tui;
 pub use widget::{SkimRender, SkimWidget};
 mod app;
+mod backend;
+pub use backend::Tui;
 pub mod event;
 pub mod header;
 mod input;
@@ -14,7 +15,6 @@ pub mod item_list;
 pub mod options;
 mod preview;
 pub mod statusline;
-mod tui;
 pub mod widget;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

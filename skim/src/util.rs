@@ -15,7 +15,6 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 }
 
 static RE_ITEMS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\?(\{ *-?[0-9.+]*? *})").unwrap());
-static RE_FIELDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\?(\{ *-?[0-9.,cq+n]*? *})").unwrap());
 
 /// Check if a command depends on item
 /// e.g. contains `{}`, `{1..}`, `{+}`
@@ -36,7 +35,7 @@ fn escape_arg(a: &str) -> String {
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
 ///
-pub fn printf<'a>(
+pub fn printf(
     pattern: String,
     delimiter: &Regex,
     items: impl Iterator<Item = Arc<dyn SkimItem>>,

@@ -28,7 +28,7 @@ use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::Widget;
 
-use super::{input, preview, tui};
+use super::{input, preview};
 
 // App state
 pub struct App<'a> {
@@ -80,11 +80,8 @@ impl Widget for &mut App<'_> {
         let input_area;
         let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
         let remaining_height = 1
-            + (self.options.header.as_ref().and(Some(1)).or(Some(0))).unwrap()
-            + (self.options.info == InfoDisplay::Default)
-                .then_some(1)
-                .or(Some(0))
-                .unwrap();
+            + (self.options.header.as_ref().and(Some(1)).unwrap_or(0))
+            + if self.options.info == InfoDisplay::Default { 1 } else { 0 };
 
         // Determine if preview should be split from the root area (for left/right) or from list area (for up/down)
         let preview_visible = self.options.preview.is_some() && !self.options.preview_window.hidden;
@@ -238,27 +235,14 @@ impl Default for App<'_> {
     fn default() -> Self {
         let (item_tx, item_rx) = unbounded();
         let theme = Arc::new(crate::theme::ColorTheme::default());
+        let opts = SkimOptions::default();
         Self {
-            input: Input::default(),
-            preview: {
-                let mut preview = Preview::default();
-                preview.theme = theme.clone();
-                preview
-            },
-            header: Header::default().theme(theme.clone()),
-            status: {
-                let mut s = StatusLine::default();
-                s.theme = theme.clone();
-                s.multi_selection = SkimOptions::default().multi;
-                s
-            },
+            input: Input::from_options(&opts, theme.clone()),
+            preview: Preview::from_options(&opts, theme.clone()),
+            header: Header::from_options(&opts, theme.clone()),
+            status: StatusLine::from_options(&opts, theme.clone()),
+            item_list: ItemList::from_options(&opts, theme.clone()),
             item_pool: Arc::default(),
-            item_list: {
-                let mut il = ItemList::default();
-                il.theme = theme.clone();
-                il.multi_select = SkimOptions::default().multi;
-                il
-            },
             theme,
             item_rx,
             item_tx,
@@ -417,7 +401,7 @@ impl<'a> App<'a> {
         };
     }
 
-    pub fn handle_event(&mut self, tui: &mut tui::Tui, event: &Event) -> Result<()> {
+    pub fn handle_event(&mut self, tui: &mut super::Tui, event: &Event) -> Result<()> {
         let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
@@ -445,89 +429,82 @@ impl<'a> App<'a> {
                 self.on_matcher_state_changed();
             }
             Event::RunPreview => {
-                if let Some(preview_opt) = &self.options.preview {
-                    if let Some(item) = self.item_list.selected() {
-                        let selection: Vec<_> =
-                            self.item_list.selection.iter().map(|i| i.text().into_owned()).collect();
-                        let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
-                        let ctx = PreviewContext {
-                            query: &self.input.value,
-                            cmd_query: &self.input.value, // TODO handle mode
-                            width: self.preview.cols as usize,
-                            height: self.preview.rows as usize,
-                            current_index: self
-                                .item_list
-                                .selected()
-                                .and_then(|i| Some(i.get_index()))
-                                .unwrap_or_default(),
-                            current_selection: &self
-                                .item_list
-                                .selected()
-                                .and_then(|i| Some(i.text().into_owned()))
-                                .unwrap_or_default(),
-                            selected_indices: &self
-                                .item_list
-                                .selection
-                                .iter()
-                                .map(|v| v.get_index())
-                                .collect::<Vec<_>>(),
-                            selections: &selection_str,
-                        };
-                        let preview = item.preview(ctx);
-                        match preview {
-                            ItemPreview::Command(cmd) => self.preview.run(
+                if let Some(preview_opt) = &self.options.preview
+                    && let Some(item) = self.item_list.selected()
+                {
+                    let selection: Vec<_> = self.item_list.selection.iter().map(|i| i.text().into_owned()).collect();
+                    let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
+                    let ctx = PreviewContext {
+                        query: &self.input.value,
+                        cmd_query: &self.input.value, // TODO handle mode
+                        width: self.preview.cols as usize,
+                        height: self.preview.rows as usize,
+                        current_index: self.item_list.selected().map(|i| i.get_index()).unwrap_or_default(),
+                        current_selection: &self
+                            .item_list
+                            .selected()
+                            .map(|i| i.text().into_owned())
+                            .unwrap_or_default(),
+                        selected_indices: &self
+                            .item_list
+                            .selection
+                            .iter()
+                            .map(|v| v.get_index())
+                            .collect::<Vec<_>>(),
+                        selections: &selection_str,
+                    };
+                    let preview = item.preview(ctx);
+                    match preview {
+                        ItemPreview::Command(cmd) => self.preview.run(
+                            tui,
+                            &printf(
+                                cmd,
+                                &self.options.delimiter,
+                                self.item_list.selection.iter().map(|m| m.item.clone()),
+                                self.item_list.selected(),
+                                &self.input,
+                                &self.input,
+                            ),
+                        ),
+                        ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
+                        ItemPreview::CommandWithPos(cmd, _preview_position) => {
+                            // TODO: Implement preview with position
+                            self.preview.run(
                                 tui,
                                 &printf(
-                                    cmd,
+                                    cmd.to_string(),
                                     &self.options.delimiter,
                                     self.item_list.selection.iter().map(|m| m.item.clone()),
                                     self.item_list.selected(),
                                     &self.input,
                                     &self.input,
                                 ),
-                            ),
-                            ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
-                                self.preview.content(&t.bytes().collect())?
-                            }
-                            ItemPreview::CommandWithPos(cmd, _preview_position) => {
-                                // TODO: Implement preview with position
-                                self.preview.run(
-                                    tui,
-                                    &printf(
-                                        cmd.to_string(),
-                                        &self.options.delimiter,
-                                        self.item_list.selection.iter().map(|m| m.item.clone()),
-                                        self.item_list.selected(),
-                                        &self.input,
-                                        &self.input,
-                                    ),
-                                )
-                            }
-                            ItemPreview::TextWithPos(t, _preview_position) => {
-                                // TODO: Implement text preview with position
-                                self.preview.content(&t.bytes().collect())?
-                            }
-                            ItemPreview::AnsiWithPos(t, _preview_position) => {
-                                // TODO: Implement ANSI text preview with position
-                                self.preview.content(&t.bytes().collect())?
-                            }
-                            ItemPreview::Global => {
-                                self.preview.run(
-                                    tui,
-                                    &printf(
-                                        preview_opt.to_string(),
-                                        &self.options.delimiter,
-                                        self.item_list.selection.iter().map(|m| m.item.clone()),
-                                        self.item_list.selected(),
-                                        &self.input,
-                                        &self.input,
-                                    ),
-                                );
-                            }
-                        };
-                        self.on_items_updated();
-                        self.on_selection_changed();
-                    }
+                            )
+                        }
+                        ItemPreview::TextWithPos(t, _preview_position) => {
+                            // TODO: Implement text preview with position
+                            self.preview.content(t.bytes().collect())?
+                        }
+                        ItemPreview::AnsiWithPos(t, _preview_position) => {
+                            // TODO: Implement ANSI text preview with position
+                            self.preview.content(t.bytes().collect())?
+                        }
+                        ItemPreview::Global => {
+                            self.preview.run(
+                                tui,
+                                &printf(
+                                    preview_opt.to_string(),
+                                    &self.options.delimiter,
+                                    self.item_list.selection.iter().map(|m| m.item.clone()),
+                                    self.item_list.selected(),
+                                    &self.input,
+                                    &self.input,
+                                ),
+                            );
+                        }
+                    };
+                    self.on_items_updated();
+                    self.on_selection_changed();
                 }
             }
             Event::Clear => {
@@ -542,7 +519,7 @@ impl<'a> App<'a> {
                 self.should_quit = true;
             }
             Event::PreviewReady(s) => {
-                self.preview.content(s)?;
+                self.preview.content(s.to_owned())?;
                 // Apply preview offset if configured
                 if let Some(offset_expr) = &self.options.preview_window.offset {
                     let offset = self.calculate_preview_offset(offset_expr);
@@ -612,12 +589,10 @@ impl<'a> App<'a> {
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         debug!("key event: {:?}", key);
-        let binds = &self.options.bind;
 
-        let act = binds.get(key);
-        if act.is_some() {
+        if let Some(act) = &self.options.bind.get(key) {
             debug!("{act:?}");
-            return act.unwrap().iter().map(|a| Event::Action(a.clone())).collect();
+            return act.iter().map(|a| Event::Action(a.clone())).collect();
         }
         match key.modifiers {
             KeyModifiers::CONTROL => {
@@ -745,7 +720,7 @@ impl<'a> App<'a> {
             }
             Execute(cmd) => {
                 let mut command = Command::new("sh");
-                let expanded_cmd = self.expand_cmd(&cmd);
+                let expanded_cmd = self.expand_cmd(cmd);
                 debug!("execute: {}", expanded_cmd);
                 command.args(["-c", &expanded_cmd]);
                 let in_raw_mode = crossterm::terminal::is_raw_mode_enabled()?;
@@ -762,7 +737,7 @@ impl<'a> App<'a> {
             }
             ExecuteSilent(cmd) => {
                 let mut command = Command::new("sh");
-                let expanded_cmd = self.expand_cmd(&cmd);
+                let expanded_cmd = self.expand_cmd(cmd);
                 command.args(["-c", &expanded_cmd]);
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
@@ -778,39 +753,33 @@ impl<'a> App<'a> {
                 let inner = crate::binds::parse_action_chain(then)?;
                 if self.input.is_empty() {
                     return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else {
-                    if let Some(o) = otherwise {
-                        return Ok(crate::binds::parse_action_chain(&o)?
-                            .iter()
-                            .map(|e| Event::Action(e.to_owned()))
-                            .collect());
-                    }
+                } else if let Some(o) = otherwise {
+                    return Ok(crate::binds::parse_action_chain(o)?
+                        .iter()
+                        .map(|e| Event::Action(e.to_owned()))
+                        .collect());
                 }
             }
             IfQueryNotEmpty(then, otherwise) => {
                 let inner = crate::binds::parse_action_chain(then)?;
                 if !self.input.is_empty() {
                     return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else {
-                    if let Some(o) = otherwise {
-                        return Ok(crate::binds::parse_action_chain(&o)?
-                            .iter()
-                            .map(|e| Event::Action(e.to_owned()))
-                            .collect());
-                    }
+                } else if let Some(o) = otherwise {
+                    return Ok(crate::binds::parse_action_chain(o)?
+                        .iter()
+                        .map(|e| Event::Action(e.to_owned()))
+                        .collect());
                 }
             }
             IfNonMatched(then, otherwise) => {
                 let inner = crate::binds::parse_action_chain(then)?;
                 if self.item_list.items.is_empty() {
                     return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else {
-                    if let Some(o) = otherwise {
-                        return Ok(crate::binds::parse_action_chain(&o)?
-                            .iter()
-                            .map(|e| Event::Action(e.to_owned()))
-                            .collect());
-                    }
+                } else if let Some(o) = otherwise {
+                    return Ok(crate::binds::parse_action_chain(o)?
+                        .iter()
+                        .map(|e| Event::Action(e.to_owned()))
+                        .collect());
                 }
             }
             Ignore => (),
@@ -1079,23 +1048,17 @@ impl<'a> App<'a> {
                     item.item.clone()
                 })
                 .collect()
+        } else if let Some(sel) = self.item_list.selected() {
+            vec![sel]
         } else {
-            if let Some(sel) = self.item_list.selected() {
-                vec![sel]
-            } else {
-                vec![]
-            }
+            vec![]
         }
     }
 
     pub(crate) fn restart_matcher(&mut self, force: bool) {
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.options.min_query_length {
-            let query_to_check = if self.options.interactive {
-                &self.input.value
-            } else {
-                &self.input.value
-            };
+            let query_to_check = &self.input.value;
 
             if query_to_check.chars().count() < min_length {
                 // Query is too short, clear items and don't run matcher

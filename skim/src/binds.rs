@@ -190,10 +190,10 @@ pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
             break;
         }
         let mut s = opt_s.unwrap().to_string();
-        if s.starts_with("if-") {
-            if let Some(otherwise) = split.next() {
-                s += &(String::from("+") + otherwise);
-            }
+        if s.starts_with("if-")
+            && let Some(otherwise) = split.next()
+        {
+            s += &(String::from("+") + otherwise);
         }
         if let Some(act) = event::parse_action(&s) {
             actions.push(act);
