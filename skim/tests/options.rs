@@ -139,14 +139,9 @@ fn opt_min_query_length_interactive_cmd_mode() -> Result<()> {
 
     // Wait for the UI to initialize in command mode
     tmux.until(|l| l[0].starts_with("c> :bb"))?;
-    sleep(Duration::from_millis(300));
 
     // Verify that with sufficient command query length, results are shown
-    let lines = tmux.capture()?;
-    assert!(
-        lines.iter().any(|s| s.contains("bbb")),
-        "Items should be displayed when command mode query meets min-query-length"
-    );
+    tmux.until(|l| l.iter().any(|s| s.contains("bbb")))?;
 
     Ok(())
 }
@@ -467,11 +462,15 @@ fn opt_nth_range_dec() -> Result<()> {
 #[test]
 fn opt_print_query() -> Result<()> {
     let (tmux, outfile) = setup("10\\n20\\n30", &["-q", "2", "--print-query"])?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
 
-    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() > 1)?;
+    tmux.until(|_| {
+        let out = tmux.output(&outfile).unwrap_or_default();
+        println!("Out: {out:?}");
+        out.len() > 1
+    })?;
     let output = tmux.output(&outfile)?;
 
     assert_eq!(output[0], "20");
@@ -483,6 +482,7 @@ fn opt_print_query() -> Result<()> {
 fn opt_print_cmd() -> Result<()> {
     let (tmux, outfile) = setup("1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"])?;
     tmux.until(|l| l.len() > 4 && l[0].starts_with(">"))?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> 1")?;
     tmux.send_keys(&[Enter])?;
 
     tmux.until(|_| {
