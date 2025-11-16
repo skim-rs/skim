@@ -81,7 +81,11 @@ impl Widget for &mut App<'_> {
         let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
         let remaining_height = 1
             + (self.options.header.as_ref().and(Some(1)).unwrap_or(0))
-            + if self.options.info == InfoDisplay::Default { 1 } else { 0 };
+            + if self.options.info == InfoDisplay::Default {
+                1
+            } else {
+                0
+            };
 
         // Determine if preview should be split from the root area (for left/right) or from list area (for up/down)
         let preview_visible = self.options.preview.is_some() && !self.options.preview_window.hidden;
