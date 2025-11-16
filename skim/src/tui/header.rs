@@ -38,7 +38,6 @@ impl Header {
         self.theme = theme;
         self
     }
-
 }
 
 impl SkimWidget for Header {

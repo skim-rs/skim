@@ -34,19 +34,19 @@ impl Default for PreviewLayout {
 impl From<&str> for PreviewLayout {
     fn from(value: &str) -> Self {
         let mut res: Self = PreviewLayout::default();
-        
+
         if let Some((dir, remainder)) = value.split_once(':') {
             // Format: "direction:size:offset:hidden" or variants
             res.direction = dir.into();
-            
+
             // Parse the remainder which can be: size:offset:hidden, offset:hidden, size:hidden, etc.
             let parts: Vec<&str> = remainder.split(':').collect();
-            
+
             for part in parts {
                 if part.is_empty() {
                     continue;
                 }
-                
+
                 if part.starts_with('+') {
                     // This is an offset expression
                     res.offset = Some(part.to_string());

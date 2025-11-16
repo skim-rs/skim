@@ -11,7 +11,10 @@ use std::{
 
 use async_ratatui::BackgroundWidget;
 use ratatui::{
-    crossterm::{self, event::{self, KeyCode, KeyModifiers}},
+    crossterm::{
+        self,
+        event::{self, KeyCode, KeyModifiers},
+    },
     prelude::*,
     widgets::WidgetRef,
 };
@@ -96,14 +99,14 @@ pub fn main() -> std::io::Result<()> {
     while !j.is_finished() {
         if event::poll(TICK)? {
             match event::read()? {
-              event::Event::Key(k) => {
-                match (k.code, k.modifiers) {
-                  (KeyCode::Char('c'), KeyModifiers::CONTROL) => app.send(Event::Stop),
-                  (KeyCode::Char(c), _) => app.send(Event::SetName(format!("Key: {c}"))),
-                  _ => Ok(())
-                };
-              },
-              _ => ()
+                event::Event::Key(k) => {
+                    match (k.code, k.modifiers) {
+                        (KeyCode::Char('c'), KeyModifiers::CONTROL) => app.send(Event::Stop),
+                        (KeyCode::Char(c), _) => app.send(Event::SetName(format!("Key: {c}"))),
+                        _ => Ok(()),
+                    };
+                }
+                _ => (),
             };
         }
         terminal.draw(|frame| {

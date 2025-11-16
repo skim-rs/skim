@@ -48,7 +48,8 @@ const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 static RE_FIELDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap());
-static RE_PREVIEW_OFFSET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
+static RE_PREVIEW_OFFSET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
 
 #[derive(Clone)]
 pub struct StatusLine {
@@ -160,11 +161,7 @@ impl SkimWidget for StatusLine {
         Paragraph::new(Text::from(vec![line])).render(matched_a, buf);
 
         // item cursor (current index / hscroll)
-        let line_num_str = format!(
-            "{}/{}",
-            self.current_item_idx,
-            self.hscroll_offset
-        );
+        let line_num_str = format!("{}/{}", self.current_item_idx, self.hscroll_offset);
         Paragraph::new(line_num_str.to_text().set_style(info_attr_bold))
             .alignment(ratatui::layout::Alignment::Right)
             .render(cursor_a, buf);

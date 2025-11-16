@@ -9,12 +9,12 @@ use regex::Regex;
 
 use crate::binds::KeyMap;
 use crate::item::RankCriteria;
-use crate::tui::statusline::InfoDisplay;
 use crate::prelude::SkimItemReader;
-use crate::tui::PreviewCallback;
 use crate::reader::CommandCollector;
+use crate::tui::PreviewCallback;
 use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
+use crate::tui::statusline::InfoDisplay;
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 
@@ -93,7 +93,10 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
 #[cfg_attr(feature = "cli", derive(clap::Parser))]
-#[cfg_attr(feature = "cli", command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about))]
+#[cfg_attr(
+    feature = "cli",
+    command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about)
+)]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
@@ -121,15 +124,18 @@ pub struct SkimOptions {
     ///
     ///     - Each criterion could be negated, e.g. (-index)
     ///     - Each criterion should appear only once in the list
-    #[cfg_attr(feature = "cli", arg(
-        short,
-        long,
-        default_value = "score,begin,end",
-        value_enum,
-        value_delimiter = ',',
-        help_heading = "Search",
-        verbatim_doc_comment
-    ))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            short,
+            long,
+            default_value = "score,begin,end",
+            value_enum,
+            value_delimiter = ',',
+            help_heading = "Search",
+            verbatim_doc_comment
+        )
+    )]
     pub tiebreak: Vec<RankCriteria>,
 
     /// Fields to be matched
@@ -146,26 +152,35 @@ pub struct SkimOptions {
     ///     2..    From the 2nd field to the last field
     ///     ..-3   From the 1st field to the 3rd to the last field
     ///     ..     All the fields
-    #[cfg_attr(feature = "cli", arg(
-        short,
-        long,
-        default_value = "",
-        help_heading = "Search",
-        verbatim_doc_comment,
-        value_delimiter = ','
-    ))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            short,
+            long,
+            default_value = "",
+            help_heading = "Search",
+            verbatim_doc_comment,
+            value_delimiter = ','
+        )
+    )]
     pub nth: Vec<String>,
 
     /// Fields to be transformed
     ///
     /// See **nth** for the details
-    #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Search", value_delimiter = ','))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "", help_heading = "Search", value_delimiter = ',')
+    )]
     pub with_nth: Vec<String>,
 
     /// Delimiter between fields
     ///
     /// In regex format, default to AWK-style
-    #[cfg_attr(feature = "cli", arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search")
+    )]
     pub delimiter: Regex,
 
     /// Run in exact mode
@@ -181,19 +196,25 @@ pub struct SkimOptions {
     /// skim_v2 Latest skim algorithm, should be better in almost any case
     /// skim_v1 Legacy skim algorithm
     /// clangd Used in clangd for keyword completion
-    #[cfg_attr(feature = "cli", arg(
-        long = "algo",
-        default_value = "skim_v2",
-        value_enum,
-        help_heading = "Search",
-        verbatim_doc_comment
-    ))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long = "algo",
+            default_value = "skim_v2",
+            value_enum,
+            help_heading = "Search",
+            verbatim_doc_comment
+        )
+    )]
     pub algorithm: FuzzyAlgorithm,
 
     /// Case sensitivity
     ///
     /// Determines whether or not to ignore case while matching
-    #[cfg_attr(feature = "cli", arg(long, default_value = "smart", value_enum, help_heading = "Search"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "smart", value_enum, help_heading = "Search")
+    )]
     pub case: CaseMatching,
 
     //  --- Interface ---
@@ -431,13 +452,19 @@ pub struct SkimOptions {
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
     /// is equal to ‘delete-char/eof‘.
-    #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = ""))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "")
+    )]
     pub bind: KeyMap,
 
     /// Enable multiple selection
     ///
     /// Uses Tab and S-Tab by default for selection
-    #[cfg_attr(feature = "cli", arg(short, long, overrides_with = "no_multi", help_heading = "Interface"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(short, long, overrides_with = "no_multi", help_heading = "Interface")
+    )]
     pub multi: bool,
 
     /// Disable multiple selection
@@ -517,7 +544,10 @@ pub struct SkimOptions {
     //  --- Layout ---
     /// Set layout
     ///
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout", verbatim_doc_comment, default_value = "default"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Layout", verbatim_doc_comment, default_value = "default")
+    )]
     pub layout: TuiLayout,
 
     /// Shorthand for reverse layout
@@ -538,7 +568,10 @@ pub struct SkimOptions {
     ///
     /// Useful when the height is set as a percentage
     /// Ignored when --height is not specified
-    #[cfg_attr(feature = "cli", arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment)
+    )]
     pub min_height: String,
 
     /// Screen margin
@@ -551,7 +584,10 @@ pub struct SkimOptions {
     ///     - T,RL,B
     ///     - T,R,B,L
     /// Example: 1,10%
-    #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment)
+    )]
     pub margin: String,
 
     /// Set prompt
@@ -576,7 +612,10 @@ pub struct SkimOptions {
     ///     hidden: do not display info
     ///     inline: display info in the same row as the input
     ///     default: display info in a dedicated row above the input
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", value_enum, default_value = "default"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Display", value_enum, default_value = "default")
+    )]
     pub info: InfoDisplay,
 
     /// Alias for --info=hidden
@@ -606,7 +645,6 @@ pub struct SkimOptions {
     ///
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub border: bool,
-
 
     //  --- History ---
     /// History file
@@ -804,7 +842,10 @@ pub struct SkimOptions {
     pub tmux: Option<String>,
 
     /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(short = 'x', long, hide = true, help_heading = "Reserved for later use"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(short = 'x', long, hide = true, help_heading = "Reserved for later use")
+    )]
     pub extended: bool,
 
     /// Reserved for later use
@@ -816,7 +857,10 @@ pub struct SkimOptions {
     pub cycle: bool,
 
     /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = "10", help_heading = "Reserved for later use"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, hide = true, default_value = "10", help_heading = "Reserved for later use")
+    )]
     pub hscroll_off: usize,
 
     /// Reserved for later use
@@ -824,12 +868,15 @@ pub struct SkimOptions {
     pub filepath_word: bool,
 
     /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(
-        long,
-        hide = true,
-        default_value = "abcdefghijklmnopqrstuvwxyz",
-        help_heading = "Reserved for later use"
-    ))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long,
+            hide = true,
+            default_value = "abcdefghijklmnopqrstuvwxyz",
+            help_heading = "Reserved for later use"
+        )
+    )]
     pub jump_labels: String,
 
     /// Reserved for later use

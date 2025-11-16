@@ -38,7 +38,7 @@ fn parse_args() -> Result<SkimOptions, Error> {
         args.push(arg);
     }
 
-    Ok(SkimOptions::try_parse_from(args)?)
+    SkimOptions::try_parse_from(args)
 }
 
 #[derive(Error, Debug)]

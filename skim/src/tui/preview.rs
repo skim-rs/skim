@@ -1,7 +1,9 @@
 use ansi_to_tui::IntoText;
 use color_eyre::eyre::Result;
 use ratatui::{
-    style::Stylize, text::{Line, Text}, widgets::{Block, Borders, Clear, Paragraph, Widget}
+    style::Stylize,
+    text::{Line, Text},
+    widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
 use std::process::Command;
 use tokio::task::JoinHandle;
@@ -10,9 +12,9 @@ use super::Direction;
 use super::Event;
 use super::tui::Tui;
 
-use crate::{SkimItem, SkimOptions};
 use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::{SkimItem, SkimOptions};
 use std::sync::Arc;
 
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
@@ -177,7 +179,7 @@ impl<'a> SkimWidget for Preview<'a> {
             let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
             let title = format!("{}/{}", current_line, total_lines);
             use ratatui::layout::Alignment;
-            
+
             block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
         }
 

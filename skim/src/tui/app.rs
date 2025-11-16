@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
-use crate::tui::statusline::InfoDisplay;
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory};
 use crate::tui::options::TuiLayout;
+use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
 use crate::util::{self, printf};
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
