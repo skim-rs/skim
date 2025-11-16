@@ -1,12 +1,11 @@
 //! Handle the color theme
+use std::sync::LazyLock;
+
 use ratatui::style::{Color, Modifier, Style};
 
 use crate::options::SkimOptions;
 
-#[rustfmt::skip]
-lazy_static! {
-    pub static ref DEFAULT_THEME:  ColorTheme = ColorTheme::dark256();
-}
+pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 
 /// The color scheme of skim's UI
 ///

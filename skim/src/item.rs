@@ -42,7 +42,7 @@ impl RankBuilder {
 
     /// score: the greater the better
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize, index: usize) -> Rank {
-        let mut rank = [0; 4];
+        let mut rank = [0; 5];
         let begin = begin as i32;
         let end = end as i32;
         let length = length as i32;
@@ -65,7 +65,7 @@ impl RankBuilder {
             rank[priority] = value;
         }
 
-        trace!("ranks: {:?}", rank);
+        trace!("ranks: {rank:?}");
         rank
     }
 }
@@ -173,6 +173,10 @@ impl ItemPool {
         self.length.load(Ordering::SeqCst)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn num_not_taken(&self) -> usize {
         self.length.load(Ordering::SeqCst) - self.taken.load(Ordering::SeqCst)
     }
@@ -199,7 +203,7 @@ impl ItemPool {
     /// append the items and return the new_size of the pool
     pub fn append(&self, mut items: Vec<Arc<dyn SkimItem>>) -> usize {
         let len = items.len();
-        trace!("item pool, append {} items", len);
+        trace!("item pool, append {len} items");
         let mut pool = self.pool.lock();
         let mut header_items = self.reserved_items.lock();
 
@@ -212,7 +216,7 @@ impl ItemPool {
             pool.append(&mut items);
         }
         self.length.store(pool.len(), Ordering::SeqCst);
-        trace!("item pool, done append {} items", len);
+        trace!("item pool, done append {len} items");
         pool.len()
     }
 
@@ -233,7 +237,7 @@ pub struct ItemPoolGuard<'a, T: Sized + 'a> {
     start: usize,
 }
 
-impl<'mutex, T: Sized> Deref for ItemPoolGuard<'mutex, T> {
+impl<T: Sized> Deref for ItemPoolGuard<'_, T> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {

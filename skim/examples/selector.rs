@@ -7,7 +7,7 @@ struct BasicSelector {
 
 impl Selector for BasicSelector {
     fn should_select(&self, _index: usize, item: &dyn SkimItem) -> bool {
-        return item.text().contains(&self.pat);
+        item.text().contains(&self.pat)
     }
 }
 

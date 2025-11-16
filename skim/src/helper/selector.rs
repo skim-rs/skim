@@ -13,7 +13,7 @@ pub struct DefaultSkimSelector {
 
 impl DefaultSkimSelector {
     pub fn first_n(mut self, first_n: usize) -> Self {
-        trace!("select first_n: {}", first_n);
+        trace!("select first_n: {first_n}");
         self.first_n = first_n;
         self
     }
@@ -30,7 +30,7 @@ impl DefaultSkimSelector {
     }
 
     pub fn regex(mut self, regex: &str) -> Self {
-        trace!("select regex: {}", regex);
+        trace!("select regex: {regex}");
         if !regex.is_empty() {
             self.regex = Regex::new(regex).ok();
         }

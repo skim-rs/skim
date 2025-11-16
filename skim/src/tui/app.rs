@@ -665,7 +665,7 @@ impl<'a> App<'a> {
                 self.item_pool.append(vec![item.clone()]);
                 self.item_list.append(&mut vec![MatchedItem {
                     item,
-                    rank: [0, 0, 0, 0],
+                    rank: [0, 0, 0, 0, 0],
                     matched_range: None,
                 }]);
                 self.item_list.select_row(self.item_list.items.len() - 1);

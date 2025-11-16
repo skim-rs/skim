@@ -1,17 +1,43 @@
 {
+  "$schema": "https://github.com/googleapis/release-please/raw/refs/heads/main/schemas/config.json",
   "release-type": "rust",
+  "last-release-sha": "e93e65c35205290f8e1d0ed833ac6c8016d7a818",
   "bump-minor-pre-major": true,
-  "include-component-in-tag": false,
+  "separate-pull-requests": false,
+  "tag-separator": "@",
+  "always-update": true,
+  "group-pull-request-title-pattern": "chore: release ${version}",
+  "plugins": [
+    {
+      "type": "cargo-workspace"
+    }
+  ],
   "packages": {
-    "skim": {
-      "changelog-path": "/CHANGELOG.md"
+    ".": {
+      "package-name": "root",
+      "component": "root",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md"
     },
-    "e2e": {
+    "skim": {
       "skip-github-release": true
     },
     "xtask": {
       "skip-github-release": true
+    },
+    "e2e": {
+      "skip-github-release": true
+    },
+    "common": {
+      "skip-github-release": true
+    },
+    "tuikit": {
+      "skip-github-release": true
+    },
+    "shell": {
+      "release-type": "simple",
+      "skip-github-release": true,
+      "package-name": "shell-integrations"
     }
-  },
-  "plugins": ["cargo-workspace"]
+  }
 }

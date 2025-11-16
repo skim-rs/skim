@@ -3,7 +3,7 @@
     <img src="https://img.shields.io/crates/v/skim.svg" alt="Crates.io" />
   </a>
   <a href="https://github.com/skim-rs/skim/actions?query=workflow%3A%22Build+%26+Test%22+event%3Apush">
-    <img src="https://github.com/skim-rs/skim/actions/workflows/ci.yml/badge.svg?event=push" alt="Build & Test" />
+    <img src="https://github.com/skim-rs/skim/actions/workflows/test.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
   <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
@@ -15,73 +15,78 @@
 
 > Life is short, skim!
 
-Half of our life is spent on navigation: files, lines, commands… You need skim!
-It's a general fuzzy finder that saves you time.
+We spend so much of our time navigating through files, lines, and commands. That's where Skim comes in!
+It's a powerful fuzzy finder designed to make your workflow faster and more efficient.
 
 [![skim demo](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm.svg)](https://asciinema.org/a/pIfwazaM0mTHA8F7qRbjrqOnm)
 
-skim provides a single executable: `sk`. Anywhere you would want to use
-`grep`, try `sk` instead!
+Skim provides a single executable called `sk`. Think of it as a smarter alternative to tools like
+`grep` - once you try it, you'll wonder how you ever lived without it!
 
 # Table of contents
 
 - [Installation](#installation)
+   * [Package Managers](#package-managers)
+   * [Manually](#manually)
 - [Usage](#usage)
-    - [As Filter](#as-filter)
-    - [As Interactive Interface](#as-interactive-interface)
-    - [Key Bindings](#key-bindings)
-    - [Search Syntax](#search-syntax)
-    - [Exit code](#exit-code)
+   * [As Vim plugin](#as-vim-plugin)
+   * [As filter](#as-filter)
+   * [As Interactive Interface](#as-interactive-interface)
+   * [Shell Bindings](#shell-bindings)
+   * [Key Bindings](#key-bindings)
+   * [Search Syntax](#search-syntax)
+   * [exit code](#exit-code)
+- [Tools compatible with `skim`](#tools-compatible-with-skim)
+   * [fzf-lua neovim plugin](#fzf-lua-neovim-plugin)
+   * [nu_plugin_skim](#nu_plugin_skim)
 - [Customization](#customization)
-    - [Keymap to redefine](#keymap)
-    - [Sort Criteria](#sort-criteria)
-    - [Color Scheme](#color-scheme)
-    - [Misc](#misc)
-- [Advance Topics](#advance-topics)
-    - [Interactive Mode](#interactive-mode)
-    - [Executing external programs](#executing-external-programs)
-    - [Preview Window](#preview-window)
-    - [Fields Support](#fields-support)
-    - [Use as a Library](#use-as-a-library)
+   * [Keymap](#keymap)
+   * [Sort Criteria](#sort-criteria)
+   * [Color Scheme](#color-scheme)
+   * [Misc](#misc)
+- [Advanced Topics](#advanced-topics)
+   * [Interactive mode](#interactive-mode)
+      + [How does it work?](#how-does-it-work)
+   * [Executing external programs](#executing-external-programs)
+   * [Preview Window](#preview-window)
+      + [How does it work?](#how-does-it-work-1)
+   * [Fields support](#fields-support)
+   * [Use as a library](#use-as-a-library)
+   * [Tuikit](#tuikit)
 - [FAQ](#faq)
-    - [How to ignore files?](#how-to-ignore-files)
-    - [Some files are not shown in vim plugin](#some-files-are-not-shown-in-vim-plugin)
-- [Differences to fzf](#differences-to-fzf)
+   * [How to ignore files?](#how-to-ignore-files)
+   * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
+- [Differences from fzf](#differences-from-fzf)
 - [How to contribute](#how-to-contribute)
+- [Troubleshooting](#troubleshooting)
+   * [No line feed issues with nix, FreeBSD, termux](#no-line-feed-issues-with-nix-freebsd-termux)
 
 # Installation
 
 The skim project contains several components:
 
-1. `sk` executable -- the core.
-2. **DEPRECATED in favor of `sk --tmux`** `sk-tmux` -- script for launching `sk` in a tmux pane.
-3. Vim/Nvim plugin -- to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
+1. `sk` executable - the core program
+2. `sk-tmux` - a script for launching `sk` in a tmux pane
+3. Vim/Nvim plugin - to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
 
 ## Package Managers
 
-| Distribution   | Package Manager   | Command                   |
-| -------------- | ----------------- | ------------------------- |
-| macOS          | Homebrew          | `brew install sk`         |
-| macOS          | MacPorts          | `sudo port install skim`  |
-| Fedora         | dnf               | `dnf install skim`        |
-| Alpine         | apk               | `apk add skim`            |
-| Arch           | pacman            | `pacman -S skim`          |
+| OS             | Package Manager   | Command                      |
+| -------------- | ----------------- | ---------------------------- |
+| macOS          | Homebrew          | `brew install sk`            |
+| macOS          | MacPorts          | `sudo port install skim`     |
+| Fedora         | dnf               | `dnf install skim`           |
+| Alpine         | apk               | `apk add skim`               |
+| Arch           | pacman            | `pacman -S skim`             |
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
-| Guix           | guix              | `guix install skim`       |
-| Void           | XBPS              | `xbps-install -S skim`      |
+| Guix           | guix              | `guix install skim`          |
+| Void           | XBPS              | `xbps-install -S skim`       |
 
-See [repology](https://repology.org/project/skim-fuzzy-finder/versions) for a comprehensive overview of package availability.
+<a href="https://repology.org/project/skim-fuzzy-finder/versions">
+    <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
+</a>
 
-
-## Install as Vim plugin
-
-Via vim-plug (recommended):
-
-```vim
-Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
-```
-
-## Hard Core
+## Manually
 
 Any of the following applies:
 
@@ -90,35 +95,44 @@ Any of the following applies:
     $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ ~/.skim/install
     ```
-- Using Binary: directly [download the sk executable](https://github.com/skim-rs/skim/releases).
-- Install from [crates.io](https://crates.io/): `cargo install skim`
-- Build Manually
+- Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
+- Install from [crates.io](https://crates.io/): Run `cargo install skim`
+- Build Manually:
     ```sh
     $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ cd ~/.skim
     $ cargo install
     $ cargo build --release
-    $ # put the resulting `target/release/sk` executable on your PATH.
+    $ # Add the resulting `target/release/sk` executable to your PATH
     ```
 
 # Usage
 
-skim can be used as a general filter (like `grep`) or as an interactive
-interface for invoking commands.
+Skim can be used either as a general filter (similar to `grep`) or as an interactive
+interface for running commands.
+
+## As Vim plugin
+
+Via vim-plug (recommended):
+
+```vim
+Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
+```
+
 
 ## As filter
 
-Try the following:
+Here are some examples to get you started:
 
 ```bash
 # directly invoke skim
 sk
 
-# or pipe some input to it: (press TAB key to select multiple items with -m enabled)
+# Or pipe some input to it (press TAB key to select multiple items when -m is enabled)
 vim $(find . -name "*.rs" | sk -m)
 ```
-The above command will allow you to select files with ".rs" extension and open
-the ones you selected in Vim.
+This last command lets you select files with the ".rs" extension and opens
+your selections in Vim - a great time-saver for developers!
 
 ## As Interactive Interface
 
@@ -140,7 +154,55 @@ sk --ansi -i -c 'ag --color "{}"'
 sk --ansi -i -c 'rg --color=always --line-number "{}"'
 ```
 
+> **Note**: In these examples, `{}` will be literally expanded to the current input query.
+> This means these examples will search for the exact query string, not fuzzily.
+> For fuzzy searching, pipe the command output into `sk` without using interactive mode.
+
 ![interactive mode demo](https://cloud.githubusercontent.com/assets/1527040/21603930/655d859a-d1db-11e6-9fec-c25099d30a12.gif)
+
+## Shell Bindings
+
+Bindings for Fish, Bash and Zsh are available in the `shell` directory:
+- `completion.{shell}` contains the completion scripts for `sk` cli usage
+- `key-bindings.{shell}` contains key-binds and shell integrations:
+    - `ctrl-t` to select a file through `sk`
+    - `ctrl-r` to select an history entry through `sk`
+    - `alt-c`  to `cd` into a directory selected through `sk`
+    - (not available in `fish`) `**` to complete file paths, for example `ls **<tab>` will show a `sk` widget to select a folder
+
+To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation or see below.
+
+### Shell Completions
+
+You can generate shell completions for your preferred shell using the `--shell` flag with one of the supported shells: `bash`, `zsh`, `fish`, `powershell`, or `elvish`:
+
+> **Note:** While PowerShell completions are supported, Windows is not supported for now.
+
+#### Option 1: Source directly in your current shell session
+
+```sh
+# For bash
+source <(sk --shell bash)
+
+# For zsh
+source <(sk --shell zsh)
+
+# For fish
+sk --shell fish | source
+```
+
+#### Option 2: Save to a file to be loaded automatically on shell startup
+
+```sh
+# For bash, add to ~/.bashrc
+echo 'source <(sk --shell bash)' >> ~/.bashrc  # Or save to ~/.bash_completion
+
+# For zsh, add to ~/.zshrc
+sk --shell zsh > ~/.zfunc/_sk  # Create ~/.zfunc directory and add to fpath in ~/.zshrc
+
+# For fish, add to ~/.config/fish/completions/
+sk --shell fish > ~/.config/fish/completions/sk.fish
+```
 
 ## Key Bindings
 
@@ -155,7 +217,7 @@ Some commonly used key bindings:
 | TAB               | Toggle selection and move down (with `-m`) |
 | Shift-TAB         | Toggle selection and move up (with `-m`)   |
 
-For the full list of key bindings, check out the [man
+For a complete list of key bindings, refer to the [man
 page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 
 ## Search Syntax
@@ -178,10 +240,10 @@ page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 - ` | ` means `OR` (note the spaces around `|`). With the term `.md$ |
     .markdown$`, `skim` will search for items ends with either `.md` or
     `.markdown`.
-- `OR` has higher precedence. So `readme .md$ | .markdown$` is grouped into
+- `OR` has higher precedence. For example, `readme .md$ | .markdown$` is interpreted as
     `readme AND (.md$ OR .markdown$)`.
 
-In case that you want to use regular expressions, `skim` provides `regex` mode:
+If you prefer using regular expressions, `skim` offers a `regex` mode:
 
 ```sh
 sk --regex
@@ -196,6 +258,34 @@ You can switch to `regex` mode dynamically by pressing `Ctrl-R` (Rotate Mode).
 | 0         | Exited normally                     |
 | 1         | No Match found                      |
 | 130       | Aborted by Ctrl-C/Ctrl-G/ESC/etc... |
+
+# Tools compatible with `skim`
+
+These tools are or aim to be compatible with `skim`:
+
+## [fzf-lua neovim plugin](https://github.com/ibhagwan/fzf-lua)
+
+A [neovim](https://neovim.io) plugin allowing fzf and skim to be used in a to navigate your code.
+
+Install it with your package manager, following the README. For instance, with `lazy.nvim`:
+
+```lua
+{
+  "ibhagwan/fzf-lua",
+  -- enable `sk` support instead of the default `fzf`
+  opts = {'skim'}
+}
+```
+
+## [nu_plugin_skim](https://github.com/idanarye/nu_plugin_skim)
+
+A [nushell](https://www.nushell.sh/) plugin to allow for better interaction between skim and nushell.
+
+Following the instruction in the plugin's README, you can install it with cargo:
+```nu
+cargo install nu_plugin_skim
+plugin add ~/.cargo/bin/nu_plugin_skim
+```
 
 # Customization
 
@@ -222,23 +312,77 @@ other order you want.
 
 ## Color Scheme
 
-It is a high chance that you are a better artist than me. Luckily you won't
-be stuck with the default colors - `skim` supports customization of the color scheme.
+You probably have your own aesthetic preferences! Fortunately, you aren't
+limited to the default appearance - Skim supports comprehensive customization of its color scheme.
 
 ```sh
 --color=[BASE_SCHEME][,COLOR:ANSI]
 ```
 
-The configuration of colors starts with the name of the base color scheme,
-followed by custom color mappings. For example:
+Skim also respects the `NO_COLOR` environment variable. Set it to anything and `sk` (and many other terminal apps) will disable all colored output. See [no-color.org](https://no-color.org/) for more details.
 
+### Available Base Color Schemes
+
+Skim comes with several built-in color schemes that you can use as a starting point:
 
 ```sh
-sk --color=current_bg:24
+sk --color=dark      # Default dark theme (256 colors)
+sk --color=light     # Light theme (256 colors)
+sk --color=16        # Simple 16-color theme
+sk --color=bw        # Minimal black & white theme (no colors, just styles)
+sk --color=none      # Minimal black & white theme (no colors, no styles)
+sk --color=molokai   # Molokai-inspired theme (256 colors)
+```
+
+### Customizing Colors
+
+You can customize individual UI elements by specifying color values after the base scheme:
+
+```sh
 sk --color=light,fg:232,bg:255,current_bg:116,info:27
 ```
 
-See the `--color` option in the man page for details.
+Colors can be specified in several ways:
+
+- ANSI colors (0-255): `sk --color=fg:232,bg:255`
+- RGB hex values: `sk --color=fg:#FF0000` (red text)
+
+### Available Color Customization Options
+
+The following UI elements can be customized:
+
+| Element            | Description                                 | Example                  |
+|--------------------|---------------------------------------------|-------------------------|
+| `fg`               | Normal text foreground color                | `--color=fg:232`        |
+| `bg`               | Normal text background color                | `--color=bg:255`        |
+| `matched`          | Matched text in search results              | `--color=matched:108`   |
+| `matched_bg`       | Background of matched text                  | `--color=matched_bg:0`  |
+| `current`          | Current line foreground color               | `--color=current:254`   |
+| `current_bg`       | Current line background color               | `--color=current_bg:236`|
+| `current_match`    | Matched text in current line                | `--color=current_match:151` |
+| `current_match_bg` | Background of matched text in current line  | `--color=current_match_bg:236` |
+| `spinner`          | Progress indicator color                     | `--color=spinner:148`   |
+| `info`             | Information line color                      | `--color=info:144`      |
+| `prompt`           | Prompt color                                | `--color=prompt:110`    |
+| `cursor`           | Cursor color                                | `--color=cursor:161`    |
+| `selected`         | Selected item marker color                  | `--color=selected:168`  |
+| `header`           | Header text color                           | `--color=header:109`    |
+| `border`           | Border color for preview/layout             | `--color=border:59`     |
+
+### Examples
+
+```sh
+# Use light theme but change the current line background
+sk --color=light,current_bg:24
+
+# Custom theme with multiple colors
+sk --color=dark,matched:#00FF00,current:#FFFFFF,current_bg:#000080
+
+# High contrast theme
+sk --color=fg:232,bg:255,matched:160,current:255,current_bg:20
+```
+
+For more details, check the man page (`man sk`).
 
 ## Misc
 
@@ -257,7 +401,7 @@ sk --ansi -i -c 'rg --color=always --line-number "{}"'
 
 ### How does it work?
 
-![skim's interactive mode](https://user-images.githubusercontent.com/1527040/53381293-461ce380-39ab-11e9-8e86-7c3bbfd557bc.png)
+![How Skim's interactive mode works](https://user-images.githubusercontent.com/1527040/53381293-461ce380-39ab-11e9-8e86-7c3bbfd557bc.png)
 
 - Skim  accepts two kinds of sources: Command output or piped input
 - Skim has two kinds of prompts: A query prompt to specify the query pattern and a
@@ -265,12 +409,12 @@ sk --ansi -i -c 'rg --color=always --line-number "{}"'
 - `-c` is used to specify the command to execute and defaults to `SKIM_DEFAULT_COMMAND`
 - `-i` tells skim to open command prompt on startup, which will show `c>` by default.
 
-If you want to further narrow down the results returned by the command, press
+To further narrow down the results returned by the command, press
 `Ctrl-Q` to toggle interactive mode.
 
 ## Executing external programs
 
-You can set up key bindings for starting external processes without leaving skim (`execute`, `execute-silent`).
+You can configure key bindings to start external processes without leaving Skim (`execute`, `execute-silent`).
 
 ```sh
 # Press F1 to open the file with less without leaving skim
@@ -283,7 +427,7 @@ sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 This is a great feature of fzf that skim borrows. For example, we use 'ag' to
 find the matched lines, and once we narrow down to the target lines, we want to
 finally decide which lines to pick by checking the context around the line.
-`grep` and `ag` have the option `--context`, and skim can make use of `--context` for 
+`grep` and `ag` have the option `--context`, and skim can make use of `--context` for
 a better preview window. For example:
 
 ```sh
@@ -361,7 +505,7 @@ use std::io::Cursor;
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(Some("50%"))
+        .height(String::from("50%"))
         .multi(true)
         .build()
         .unwrap();
@@ -379,7 +523,7 @@ pub fn main() {
         .unwrap_or_else(|| Vec::new());
 
     for item in selected_items.iter() {
-        print!("{}{}", item.output(), "\n");
+        println!("{}", item.output());
     }
 }
 ```
@@ -401,12 +545,18 @@ so that you could deal with strings or files easily.
 
 Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
 
+## Tuikit
+
+`tuikit` is the TUI framework used in `skim`. It is available from the library as `skim::tuikit`.
+
+Check [the README](./skim-tuikit/README.md) for more details.
+
 # FAQ
 
 ## How to ignore files?
 
 Skim invokes `find .` to fetch a list of files for filtering. You can override
-that by setting the environment variable `SKIM_DEFAULT_COMMAND`. For example:
+this by setting the environment variable `SKIM_DEFAULT_COMMAND`. For example:
 
 ```sh
 $ SKIM_DEFAULT_COMMAND="fd --type f || git ls-tree -r --name-only HEAD || rg --files || find ."
@@ -417,7 +567,7 @@ You could put it in your `.bashrc` or `.zshrc` if you like it to be default.
 
 ## Some files are not shown in Vim plugin
 
-If you use the Vim plugin and execute the `:SK` command, you might find some
+If you use the Vim plugin and execute the `:SK` command, you may find some
 of your files not shown.
 
 As described in [#3](https://github.com/skim-rs/skim/issues/3), in the Vim
@@ -427,8 +577,8 @@ plugin, `SKIM_DEFAULT_COMMAND` is set to the command by default:
 let $SKIM_DEFAULT_COMMAND = "git ls-tree -r --name-only HEAD || rg --files || ag -l -g \"\" || find ."
 ```
 
-That means, the files not recognized by git will not shown. Either override the
-default with `let $SKIM_DEFAULT_COMMAND = ''` or find the missing file by
+This means files not recognized by git won't be shown. You can either override the
+default with `let $SKIM_DEFAULT_COMMAND = ''` or locate the missing files by
 yourself.
 
 # Differences from fzf
@@ -440,13 +590,12 @@ in Rust!
 This project is written from scratch. Some decisions of implementation are
 different from fzf. For example:
 
-1. `skim` is a binary as well as a library while fzf is only a binary.
-2. `skim` has an interactive mode.
-3. `skim` supports pre-selection
-4. The fuzzy search algorithm is different.
-5. ~~UI of showing matched items. `fzf` will show only the range matched while
-   `skim` will show each character matched.~~ (fzf has this now)
-6. ~~`skim`'s range syntax is Git style~~: now it is the same with fzf.
+1. `skim` has an interactive mode.
+2. `skim` supports pre-selection.
+3. The fuzzy search algorithm is different.
+
+More generally, `skim`'s maintainers allow themselves some freedom of implementation.
+The goal is to keep `skim` as feature-full as `fzf` is, but the command flags might differ.
 
 # How to contribute
 

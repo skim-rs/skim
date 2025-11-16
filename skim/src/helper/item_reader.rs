@@ -159,8 +159,11 @@ impl SkimItemReader {
     fn raw_bufread(&self, mut source: impl BufRead + Send + 'static) -> SkimItemReceiver {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = bounded(self.option.buf_size);
         let line_ending = self.option.line_ending;
+        let use_ansi = self.option.use_ansi_color;
+        let delimiter = self.option.delimiter.clone();
         thread::spawn(move || {
             let mut buffer = Vec::with_capacity(1024);
+            let mut idx = 0;
             loop {
                 buffer.clear();
                 // start reading
@@ -178,10 +181,19 @@ impl SkimItemReader {
                         }
 
                         let string = String::from_utf8_lossy(&buffer);
-                        let result = tx_item.send(Arc::new(string.into_owned()));
+                        //let result = tx_item.send(Arc::new(string.into_owned()));
+                        let result = tx_item.send(Arc::new(DefaultSkimItem::new(
+                            string.to_string(),
+                            use_ansi,
+                            &[],
+                            &[],
+                            &delimiter,
+                            idx,
+                        )));
                         if result.is_err() {
                             break;
                         }
+                        idx += 1;
                     }
                     Err(_err) => {} // String not UTF8 or other error, skip.
                 }

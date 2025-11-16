@@ -64,6 +64,6 @@ pub fn main() {
         .collect::<Vec<Item>>();
 
     for item in selected_items {
-        println!("{:?}", item);
+        println!("{item:?}");
     }
 }

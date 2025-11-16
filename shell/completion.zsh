@@ -60,6 +60,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--pre-select-file=[Pre-select the items read from this file]:PRE_SELECT_FILE:_default' \
 '-f+[Query for filter mode]:FILTER:_default' \
 '--filter=[Query for filter mode]:FILTER:_default' \
+'--shell=[Generate shell completion script]:SHELL:(bash elvish fish powershell zsh)' \
 '--tmux=[Run in a tmux popup]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
@@ -86,8 +87,8 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
 '--border[Draw borders around the UI components]' \
-'--read0[Read input delimited by ASCII NUL(\\\\0) characters]' \
-'--print0[Print output delimited by ASCII NUL(\\\\0) characters]' \
+'--read0[Read input delimited by ASCII NUL(\\0) characters]' \
+'--print0[Print output delimited by ASCII NUL(\\0) characters]' \
 '--print-query[Print the query as the first line]' \
 '--print-cmd[Print the command as the first line (after print-query)]' \
 '--print-score[Print the command as the first line (after print-cmd)]' \

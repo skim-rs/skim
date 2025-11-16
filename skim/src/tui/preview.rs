@@ -10,10 +10,35 @@ use super::Direction;
 use super::Event;
 use super::tui::Tui;
 
-use crate::SkimOptions;
+use crate::{SkimItem, SkimOptions};
 use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use std::sync::Arc;
+
+// PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
+pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
+
+#[derive(Clone)]
+pub struct PreviewCallback {
+    inner: Arc<PreviewCallbackFn>,
+}
+
+impl<F> From<F> for PreviewCallback
+where
+    F: Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static,
+{
+    fn from(func: F) -> Self {
+        Self { inner: Arc::new(func) }
+    }
+}
+
+impl std::ops::Deref for PreviewCallback {
+    type Target = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.inner
+    }
+}
 
 pub struct Preview<'a> {
     pub content: Text<'a>,

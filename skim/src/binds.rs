@@ -31,6 +31,12 @@ impl From<&str> for KeyMap {
     }
 }
 
+impl Default for KeyMap {
+    fn default() -> Self {
+        get_default_key_map()
+    }
+}
+
 #[rustfmt::skip]
 pub fn get_default_key_map() -> KeyMap {
     let mut ret = HashMap::new();

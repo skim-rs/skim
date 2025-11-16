@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use ratatui::layout::{Constraint, Layout};
@@ -47,10 +47,8 @@ const SPINNER_DURATION: u32 = 200;
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-lazy_static! {
-    static ref RE_FIELDS: Regex = Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap();
-    static ref RE_PREVIEW_OFFSET: Regex = Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap();
-}
+static RE_FIELDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\?(\{-?[0-9.,q]*?})").unwrap());
+static RE_PREVIEW_OFFSET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\+([0-9]+|\{-?[0-9]+\})(-[0-9]+|-/[1-9][0-9]*)?$").unwrap());
 
 #[derive(Clone)]
 pub struct StatusLine {

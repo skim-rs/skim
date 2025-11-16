@@ -1,637 +1,674 @@
-# Change Log
+# Changelog
 
-## [0.15.4](https://github.com/skim-rs/skim/compare/v0.15.3...v0.15.4) (2024-12-01)
+All notable changes to this project will be documented in this file.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### Bug Fixes
+## [Unreleased]
 
-* clippy pedantic on lib.rs ([e3637e0](https://github.com/skim-rs/skim/commit/e3637e068ebfeb389993697e36ae9631cb1a659d))
+## [0.20.5](https://github.com/skim-rs/skim/compare/v0.20.4...v0.20.5) - 2025-08-09
 
-## [0.15.3](https://github.com/skim-rs/skim/compare/v0.15.2...v0.15.3) (2024-12-01)
+### <!-- 1 -->🐛 Bug Fixes
 
+- compile without the cli feature ([#834](https://github.com/skim-rs/skim/pull/834))
 
-### Bug Fixes
+## [0.20.4](https://github.com/skim-rs/skim/compare/v0.20.3...v0.20.4) - 2025-08-02
 
-* clippy pedantic on main.rs ([04541d5](https://github.com/skim-rs/skim/commit/04541d515b3f46243a7f590a81022ee0a2d1a34e))
+### <!-- 1 -->🐛 Bug Fixes
 
-## [0.15.2](https://github.com/skim-rs/skim/compare/v0.15.1...v0.15.2) (2024-12-01)
+- *(options)* allow border to be used without args
+- *(cli)* allow value for border arg
+# Changelog
 
+## [0.20.3](https://github.com/skim-rs/skim/compare/v0.20.2...v0.20.3)
 
-### Bug Fixes
+### ⚙️ Miscellaneous Tasks
 
-* make item module public (closes [#568](https://github.com/skim-rs/skim/issues/568)) ([0963b97](https://github.com/skim-rs/skim/commit/0963b974ffdead23fad3a0db19b92229bf2ab606))
 
-## [0.15.1](https://github.com/skim-rs/skim/compare/v0.15.0...v0.15.1) (2024-12-01)
+- Update Cargo.toml dependencies - ([0000000](https://github.com/skim-rs/skim/commit/0000000))
+## [0.20.1](https://github.com/skim-rs/skim/compare/v0.20.0...v0.20.1)
 
+### 🐛 Bug Fixes
 
-### Bug Fixes
 
-* fix urls in cargo.toml ([36c4757](https://github.com/skim-rs/skim/commit/36c47578f2e1b7603db6d28f829920243eb8b51e))
+- Min-query-length in interactive mode ([#814](https://github.com/skim-rs/skim/pull/814)) - ([727be81](https://github.com/skim-rs/skim/commit/727be819291588150f362b7c55b671af0b818688)) (by @LoricAndre)
 
-## [0.15.0](https://github.com/skim-rs/skim/compare/v0.14.4...v0.15.0) (2024-12-01)
+### Contributors
 
+* @LoricAndre
+## [0.20.0](https://github.com/skim-rs/skim/compare/v0.19.0...v0.20.0)
 
-### ⚠ BREAKING CHANGES
+### ⛰️ Features
 
-* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625))
 
-### Features
+- **ui:** Respect NO_COLOR environment variable ([#804](https://github.com/skim-rs/skim/pull/804)) - ([0f4b13e](https://github.com/skim-rs/skim/commit/0f4b13e8c44a17142aa264bc4f8beb38e6f7eb3e)) (by @saidelmark)
 
-* add `--tmux` flag (deprecates sk-tmux, fixes [#596](https://github.com/skim-rs/skim/issues/596)) ([#603](https://github.com/skim-rs/skim/issues/603)) ([a2d8c3f](https://github.com/skim-rs/skim/commit/a2d8c3f6022197727b3907562068053a8326a2a2))
-* add reload action ([#604](https://github.com/skim-rs/skim/issues/604)) ([4b47244](https://github.com/skim-rs/skim/commit/4b47244922c8910930d5c02016b1c5e99409754a))
-* allow more flexibility for use as a library ([#613](https://github.com/skim-rs/skim/issues/613)) ([33ca402](https://github.com/skim-rs/skim/commit/33ca4023c16b20a4ba6f3e1889efddd78ead15d6))
-* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625)) ([bcee1f4](https://github.com/skim-rs/skim/commit/bcee1f4c028012a24ef7ebbda1f80c0decb2375e))
-* readd index tiebreak ([#609](https://github.com/skim-rs/skim/issues/609)) ([0befe8d](https://github.com/skim-rs/skim/commit/0befe8d20659ef90b564f59c07a908ab0953dc0a))
-* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([a5b8181](https://github.com/skim-rs/skim/commit/a5b81818d6eb8bfe4c2ceeed3b4cc6e22cc95731))
-* use clap & derive for options, manpage & completions ([#586](https://github.com/skim-rs/skim/issues/586)) ([7df8b77](https://github.com/skim-rs/skim/commit/7df8b77739ae5a05e8cd87bff905ee091e5afd7f))
+### Contributors
 
+* @saidelmark
+## [0.19.0](https://github.com/skim-rs/skim/compare/v0.18.0...v0.19.0)
 
-### Bug Fixes
+### ⛰️ Features
 
-* allow combined multiple args (fixes [#622](https://github.com/skim-rs/skim/issues/622)) ([#623](https://github.com/skim-rs/skim/issues/623)) ([4144879](https://github.com/skim-rs/skim/commit/4144879f00f6a541637112bdb96e23101eb4acda))
-* undo sk-tmux deprecation ([c9f9025](https://github.com/skim-rs/skim/commit/c9f9025da9cf0bae7802f725eebd28ebac324378))
 
-## [0.14.4](https://github.com/skim-rs/skim/compare/v0.14.4...v0.14.4) (2024-12-01)
+- Add min query length option ([#806](https://github.com/skim-rs/skim/pull/806)) - ([71b82d0](https://github.com/skim-rs/skim/commit/71b82d0f58f96788e509b5af5b92e292dadf4dd3)) (by @LoricAndre)
 
+### ⚙️ Miscellaneous Tasks
 
-### ⚠ BREAKING CHANGES
 
-* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625))
+- Update Cargo.toml dependencies - ([0000000](https://github.com/skim-rs/skim/commit/0000000))
 
-### Features
+### Contributors
 
-* add `--tmux` flag (deprecates sk-tmux, fixes [#596](https://github.com/skim-rs/skim/issues/596)) ([#603](https://github.com/skim-rs/skim/issues/603)) ([a2d8c3f](https://github.com/skim-rs/skim/commit/a2d8c3f6022197727b3907562068053a8326a2a2))
-* add reload action ([#604](https://github.com/skim-rs/skim/issues/604)) ([4b47244](https://github.com/skim-rs/skim/commit/4b47244922c8910930d5c02016b1c5e99409754a))
-* allow more flexibility for use as a library ([#613](https://github.com/skim-rs/skim/issues/613)) ([33ca402](https://github.com/skim-rs/skim/commit/33ca4023c16b20a4ba6f3e1889efddd78ead15d6))
-* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625)) ([bcee1f4](https://github.com/skim-rs/skim/commit/bcee1f4c028012a24ef7ebbda1f80c0decb2375e))
-* readd index tiebreak ([#609](https://github.com/skim-rs/skim/issues/609)) ([0befe8d](https://github.com/skim-rs/skim/commit/0befe8d20659ef90b564f59c07a908ab0953dc0a))
-* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([b0868e8](https://github.com/skim-rs/skim/commit/b0868e849a64265618696c071b963b89577f46cd))
-* use clap & derive for options, manpage & completions ([#586](https://github.com/skim-rs/skim/issues/586)) ([7df8b77](https://github.com/skim-rs/skim/commit/7df8b77739ae5a05e8cd87bff905ee091e5afd7f))
+* @LoricAndre
+## [0.18.0](https://github.com/skim-rs/skim/compare/v0.17.3...v0.18.0)
 
+### 🚀 Features
 
-### Bug Fixes
+- *(shell)* Improve shell completion with dynamic generation (#790)
 
-* allow combined multiple args (fixes [#622](https://github.com/skim-rs/skim/issues/622)) ([#623](https://github.com/skim-rs/skim/issues/623)) ([4144879](https://github.com/skim-rs/skim/commit/4144879f00f6a541637112bdb96e23101eb4acda))
-* undo sk-tmux deprecation ([c9f9025](https://github.com/skim-rs/skim/commit/c9f9025da9cf0bae7802f725eebd28ebac324378))
+### 🐛 Bug Fixes
 
+- *(ci)* Remove version from pr name
 
-### Miscellaneous Chores
+### 📚 Documentation
 
-* release 0.14.4 ([0f2e061](https://github.com/skim-rs/skim/commit/0f2e0612522c8d046af1f283f264ee6af76b9232))
+- *(contributing)* Refine guidelines for GPT-assisted development
+- Improve theming documentation (#788)
+- Improve wording in README and options.rs (#789)
 
-## [0.14.4](https://github.com/skim-rs/skim/compare/v0.14.4...v0.14.4) (2024-11-30)
+## [0.17.3] - 2025-05-20
 
+### 🐛 Bug Fixes
 
-### ⚠ BREAKING CHANGES
+- *(shell)* Fix zsh tmux args in key bindings (#777)
+- *(shell)* Remove duplocate tmux height arg fixes #776 (#778)
 
-* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625))
+### 💼 Other
 
-### Features
+- Set keybinding right before printing special character (#774)
 
-* add `--tmux` flag (deprecates sk-tmux, fixes [#596](https://github.com/skim-rs/skim/issues/596)) ([#603](https://github.com/skim-rs/skim/issues/603)) ([a2d8c3f](https://github.com/skim-rs/skim/commit/a2d8c3f6022197727b3907562068053a8326a2a2))
-* add reload action ([#604](https://github.com/skim-rs/skim/issues/604)) ([4b47244](https://github.com/skim-rs/skim/commit/4b47244922c8910930d5c02016b1c5e99409754a))
-* allow more flexibility for use as a library ([#613](https://github.com/skim-rs/skim/issues/613)) ([33ca402](https://github.com/skim-rs/skim/commit/33ca4023c16b20a4ba6f3e1889efddd78ead15d6))
-* do not check for expect before printing the argument of accept… ([#625](https://github.com/skim-rs/skim/issues/625)) ([bcee1f4](https://github.com/skim-rs/skim/commit/bcee1f4c028012a24ef7ebbda1f80c0decb2375e))
-* readd index tiebreak ([#609](https://github.com/skim-rs/skim/issues/609)) ([0befe8d](https://github.com/skim-rs/skim/commit/0befe8d20659ef90b564f59c07a908ab0953dc0a))
-* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([b0868e8](https://github.com/skim-rs/skim/commit/b0868e849a64265618696c071b963b89577f46cd))
-* use clap & derive for options, manpage & completions ([#586](https://github.com/skim-rs/skim/issues/586)) ([7df8b77](https://github.com/skim-rs/skim/commit/7df8b77739ae5a05e8cd87bff905ee091e5afd7f))
+## [0.17.2] - 2025-05-04
 
+### 🐛 Bug Fixes
 
-### Bug Fixes
+- *(tmux)* Force sh as shell for tmux mode (#765)
+- *(ci)* Remove release commits filter
 
-* allow combined multiple args (fixes [#622](https://github.com/skim-rs/skim/issues/622)) ([#623](https://github.com/skim-rs/skim/issues/623)) ([4144879](https://github.com/skim-rs/skim/commit/4144879f00f6a541637112bdb96e23101eb4acda))
-* undo sk-tmux deprecation ([c9f9025](https://github.com/skim-rs/skim/commit/c9f9025da9cf0bae7802f725eebd28ebac324378))
+### ⚙️ Miscellaneous Tasks
 
+- *(ci)* Remove temp workflow
+- *(release)* Release v0.17.2 (#766)
 
-### Miscellaneous Chores
+## [0.17.1] - 2025-05-04
 
-* release 0.14.4 ([0f2e061](https://github.com/skim-rs/skim/commit/0f2e0612522c8d046af1f283f264ee6af76b9232))
+### 🚀 Features
 
-## [0.14.4](https://github.com/skim-rs/skim/compare/v0.14.3...v0.14.4) (2024-11-30)
+- *(ci)* Manually update versions
 
+### 🐛 Bug Fixes
 
-### Features
+- *(cargo)* Fix tuikit re-export
+- *(ci)* More generic pr name
+- *(ci)* Split release pr and gh release
+- *(cargo)* Fix tuikit readme path
+- *(ci)* Fix broken ci after migration
 
-* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([b0868e8](https://github.com/skim-rs/skim/commit/b0868e849a64265618696c071b963b89577f46cd))
+### 🧪 Testing
 
+- *(ci)* Show context
+- *(ci)* Test trigger (#761)
 
-### Bug Fixes
+### ⚙️ Miscellaneous Tasks
 
-* undo sk-tmux deprecation ([c9f9025](https://github.com/skim-rs/skim/commit/c9f9025da9cf0bae7802f725eebd28ebac324378))
+- *(ci)* Only release after merge
+- Release (#760)
+- *(cargo)* Update to 2024 edition (#764)
+- *(ci)* Update dependencies
 
+## [0.17.0] - 2025-05-04
 
-### Miscellaneous Chores
+### 🐛 Bug Fixes
 
-* release 0.14.4 ([0f2e061](https://github.com/skim-rs/skim/commit/0f2e0612522c8d046af1f283f264ee6af76b9232))
+- Fix local dependencies
 
-## [0.15.0](https://github.com/skim-rs/skim/compare/v0.14.4...v0.15.0) (2024-11-30)
+## [common-v0.1.0] - 2025-05-04
 
+### 🚀 Features
 
-### Features
+- *(tui)* Add tuikit as workspace member and update (#741)
+- *(shell)* Readd completions (#726) (#739)
 
-* **tui:** add info hidden ([#630](https://github.com/skim-rs/skim/issues/630)) ([b0868e8](https://github.com/skim-rs/skim/commit/b0868e849a64265618696c071b963b89577f46cd))
+### 🐛 Bug Fixes
 
-## [0.14.4](https://github.com/skim-rs/skim/compare/v0.14.3...v0.14.4) (2024-11-30)
+- *(cargo)* Fix workspace packages
+- *(ci)* Remove leftover package
+- *(ci)* Add metadata to common package
 
+### ⚙️ Miscellaneous Tasks
 
-### Bug Fixes
+- *(tuikit)* Bring skim-rs/tuikit#43 (#743)
+- *(ci)* Back to manifest release
+- *(ci)* Readd manifest manually
+- *(ci)* Revert action
+- *(ci)* Use linked changelog
+- *(ci)* Disable skim prefix in tag
+- *(ci)* Test without extra packages
+- *(ci)* Readd all components
+- *(ci)* Release every package at the same version
+- *(ci)* Release whole workspace at once
+- *(ci)* Update manifest
+- *(ci)* Readd all packages as well as root
+- *(ci)* Better handling of packages in release
+- *(ci)* Unlink versions
+- *(ci)* Set package names
+- *(ci)* Explicitely set root component
+- *(ci)* Explicitely set last release sha
+- *(ci)* Use previous versions for packages
+- *(ci)* Migrate to release-plz
+- *(ci)* Update release-plz changelog format
+- *(ci)* Update release-plz changelog format
+- *(ci)* Split release actions
+- Release (#756)
+- *(ci)* Do not publish extra packages
+- *(ci)* Release on all commits
+- *(ci)* Make local packages publishable
 
-* undo sk-tmux deprecation ([c9f9025](https://github.com/skim-rs/skim/commit/c9f9025da9cf0bae7802f725eebd28ebac324378))
+## [0.16.2] - 2025-04-26
 
+### 🐛 Bug Fixes
 
-### Miscellaneous Chores
+- *(tmux)* Check if TMUX is set (closes #734) (#736)
+- *(filter)* Fix broken pipe while writing results to locked stdout (closes #733) (#737)
 
-* release 0.14.4 ([0f2e061](https://github.com/skim-rs/skim/commit/0f2e0612522c8d046af1f283f264ee6af76b9232))
+### 📚 Documentation
 
-## 0.13.0: 2024-11-25
+- *(tmux)* Add note about env var (#732)
+- *(tmux)* Fix docs formatting
 
-Features:
+### 🧪 Testing
 
-- [33ca402](https://github.com/skim-rs/skim/commit/33ca402) - allow more flexibility for use as a library (PR [#613](https://github.com/skim-rs/skim/pull/613) by [@LoricAndre](https://github.com/LoricAndre))
-  - ↘️ addresses issue [#612](https://github.com/skim-rs/skim/issues/612) opened by [@idanarye](https://github.com/idanarye)
+- *(ci)* Try a simpler release-please config
 
-Chores:
+### ⚙️ Miscellaneous Tasks
 
-- [53612a7](https://github.com/skim-rs/skim/commit/53612a7) - add pull request template (PR [#608](https://github.com/skim-rs/skim/pull/608) by [@LoricAndre](https://github.com/LoricAndre))
+- Move changelog to subdir (#740)
+- *(master)* Release 0.16.2 (#738)
 
-## 0.12.0: 2024-11-24
+## [0.16.1] - 2025-03-06
 
-Features:
+### 🐛 Bug Fixes
 
-- [4b47244](https://github.com/skim-rs/skim/commit/4b47244) - add reload action (PR [#604](https://github.com/skim-rs/skim/pull/604) by [@LoricAndre](https://github.com/LoricAndre))
+- Hasten deprecation of expect after #703
 
-## 0.11.12: 2024-11-24
+### ⚙️ Miscellaneous Tasks
 
-Fixes:
+- Manually update release-please manifest after release
+- *(master)* Release 0.16.1 (#712)
 
-- [bd73f62](https://github.com/skim-rs/skim/commit/bd73f62) - remove index tiebreak from shell bindings (PR [#611](https://github.com/skim-rs/skim/pull/611) by [@LoricAndre](https://github.com/LoricAndre))
+## [0.16.0] - 2025-01-23
 
-Chores:
+### 🚀 Features
 
-- [63f4e33](https://github.com/skim-rs/skim/commit/63f4e33) - remove some platform-specific quirkinesses from e2e (PR [#602](https://github.com/skim-rs/skim/pull/602) by [@LoricAndre](https://github.com/LoricAndre))
+- Add preview callback (#407)
 
-## 0.11.10: 2024-11-21
+### 🐛 Bug Fixes
 
-Features:
+- *(docs)* Fix README lib example
+- *(term)* Clamp height option (#690)
 
-- [7df8b77](https://github.com/skim-rs/skim/commit/7df8b77) - use clap & derive for options, manpage & completions (PR [#586](https://github.com/skim-rs/skim/pull/586) by [@LoricAndre](https://github.com/LoricAndre))
+### 📚 Documentation
 
-Fixes:
+- *(readme)* Correct fzf library statement in README (#679)
 
-- [966d8f5](https://github.com/skim-rs/skim/commit/966d8f5) - 398 shift-up/down was bind to wrong action (PR [#399](https://github.com/skim-rs/skim/pull/399) by [@lotabout](https://github.com/lotabout))
-- [aa03781](https://github.com/skim-rs/skim/commit/aa03781) - fix github publish action
+### 🧪 Testing
 
-Chores:
+- *(ci)* Test previous fixes
+- *(ci)* Test previous fixes
+- *(ci)* Try removing the packages altogether
 
-- [8a57983](https://github.com/skim-rs/skim/commit/8a57983) - fix clippy
-- [838ba21](https://github.com/skim-rs/skim/commit/838ba21) - remove atty (PR [#587](https://github.com/skim-rs/skim/pull/587) by [@LoricAndre](https://github.com/LoricAndre))
-- [c932a1f](https://github.com/skim-rs/skim/commit/c932a1f) - remove bitflags (PR [#579](https://github.com/skim-rs/skim/pull/579) by [@LoricAndre](https://github.com/LoricAndre))
+### ⚙️ Miscellaneous Tasks
 
-## 0.10.4: 2023-03-02
+- Remove lazy_static (#687)
+- Fix clippy warning in rust 1.84 (#688)
+- *(ci)* Try to fix release-please on extra packages
+- *(ci)* Do not search commits on e2e & xtask
+- *(ci)* Try releasing as 0.1.0
+- Release master (#672)
+- Release master (#691)
 
-- Fix release issue
+## [0.15.7] - 2024-12-27
 
-## 0.10.3: 2023-02-23
+### 🐛 Bug Fixes
 
-- Update README.md
+- Remove atty (#671)
 
-## 0.10.2: 2022-11-08
+### ⚙️ Miscellaneous Tasks
 
-- Use crate version
+- Release master (#670)
 
-## 0.10.1: 2022-12-28
+## [0.15.6] - 2024-12-26
 
-Features:
+### 🐛 Bug Fixes
 
-- transparency on start
-- add light colors parsing support
-- Update --tiebreak options with length
+- Fix non-functional vim plugin (#659)
+- Update rank to follow the readded index tiebreak (#669)
 
-Fixes:
+### ⚙️ Miscellaneous Tasks
 
-- fix ci.yml
-- update deps and fix lots of clippy lints
+- Release master (#656)
 
-## 0.10.0: 2022-10-28
+## [0.15.5] - 2024-12-04
 
-Features:
+### 🐛 Bug Fixes
 
-- transparency on start
-- add light colors parsing support
-- Update --tiebreak options with length
+- Revert README overwrite
+- Fix --tmux quoting (#643)
 
-Fixes:
+### 📚 Documentation
 
-- fix ci.yml
-- update deps and fix lots of clippy lints
+- Missing backtick in install commands (#646)
+- Add note about fuzziness of interactive examples (fixes #543)
 
-## 0.9.4: 2021-02-15
+### ⚙️ Miscellaneous Tasks
 
-Feature:
+- Release master (#647)
+- Fix release-please config
+- Fix release config
+- Release master (#655)
 
-- Upgrade dependency versions
-- use Github Actions for CI
-- Support bracketed paste
-- [#384](https://github.com/lotabout/skim/issues/384) support ctrl-left/right
-  for cursor movement between words
+## [0.15.4] - 2024-12-01
 
-Fix:
+### 🐛 Bug Fixes
 
-- [#386](https://github.com/lotabout/skim/issues/386) freeze on unknown
-  keystrokes
-- [#376](https://github.com/lotabout/skim/issues/376) noticeable delay in
-  interactive mode
+- Fix token permissions for release file
+- Clippy pedantic on lib.rs
 
-## 0.9.3: 2020-11-02
+### ⚙️ Miscellaneous Tasks
 
-Fix:
+- Cargo fmt
+- Release master (#642)
 
-- [#370](https://github.com/lotabout/skim/issues/370) Ansi parse error for
-  multi-byte strings
-- [#372](https://github.com/lotabout/skim/issues/372) Can't bind `Enter` key
-  with `expect` specified
-- [#369](https://github.com/lotabout/skim/issues/369) `--select-1` and
-  `--exit-0` still take effect after all items are read and matched.
+## [0.15.3] - 2024-12-01
 
-## 0.9.2: 2020-10-24
+### 🐛 Bug Fixes
 
-Feature:
+- Fix missing var in CI
+- Clippy pedantic on main.rs
 
-- new action `refresh-cmd`: call the interactive command and refresh the
-  items accordingly.
-- new action `refresh-preview`: call the preview command and refresh the
-  preview display. Will only refresh if the preview window is shown.
+### ⚙️ Miscellaneous Tasks
 
-Fix:
+- Remove cli feature from skim
+- Cargo fmt
+- Release master (#641)
 
-- zsh corrupt `REPORTTIME` settings.
-- [#359](https://github.com/lotabout/skim/issues/359) panic with multi-byte and regex
-- [#361](https://github.com/lotabout/skim/issues/361) support literal space by `\ `
-- [#365](https://github.com/lotabout/skim/issues/365) new option
-  `--show-cmd-error` to retrieve error message of failed interactive command
-  and display as items. Served as a debug helper.
+## [0.15.2] - 2024-12-01
 
-## 0.9.1: 2020-10-20
+### 🐛 Bug Fixes
 
-Feature:
+- Do not run tests in release workflow
+- Make item module public (closes #568)
 
-- Support preview scroll offset relative to window height
-  ```sh
-  git grep --line-number '' |
-    sk --delimiter : \
-        --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
-        --preview-window +{2}-/2
-  ```
+### ⚙️ Miscellaneous Tasks
 
-Fix:
+- Release master (#640)
 
-- [#356](https://github.com/lotabout/skim/issues/356) panic on ANSI enabled.
-- `tiebreak` would now include `score` in the front of criterion if not specified.
-- Reduce preview window flicking when moving cursor fast.
-- Multiple preview window options weren't merged.
-- `pre-select-items` should not contain empty string by default.
-- click/wheel events's row weren't correct if `--height` is specified.
+## [0.15.1] - 2024-12-01
 
-## 0.9.0: 2020-10-18
+### 🚀 Features
 
-Breaking Change to the Library:
+- *(tui)* Add info hidden (#630)
 
-- `SkimItem::display` now accepts a `DisplayContext` that provide more
-  information such as container width, score, matches, etc.
-- `SkimItem::preview` now accepts a `PreviewContext` that provide more
-  information such as query, width, selections, etc.
-- `Skim::run_as` now returns `Some` on both `Accept` and `Abort`, so that user
-  could collect and react on abort events.
-- `SkimOutput` now provides the final key received before return.
+### 🐛 Bug Fixes
 
-Features:
+- *(ci)* Fix clippy os
+- *(ci)* Set release-please path
+- Undo sk-tmux deprecation
+- *(ci)* Release-please permissions on job level
+- *(ci)* Use subpath for release-please outputs
+- *(ci)* Remove needs in release-please condition
+- *(ci)* Use different syntax for conditions
+- *(ci)* Add intermediary step for release
+- *(ci)* Use release-please in workspace root
+- *(ci)* Test with different release-please config
+- *(ci)* Set skim version
+- *(ci)* Set skim changelog path
+- *(ci)* Use absolute path for changelog
+- *(ci)* Do not bump major
+- *(ci)* Bump minor for feat
+- *(ci)* Use correct tag
+- *(ci)* Remove string from cond
+- *(ci)* Fix templating
+- *(ci)* Fix extra dot
+- *(ci)* Use stable toolchain
+- *(ci)* Remove extra modules
+- *(ci)* Skip extra packages
+- *(ci)* Replace underscore with dashes
+- Set toolchain
+- Fix ci
+- Fix urls in cargo.toml
 
-- Reduce memory usage
-- Defer drops of items, to improve interaction speed
-- support `--tac` and `--nosort`
-- new action: `half-page-up` and `half-page-down`
-- support tiebreak by `length`
-- [#344](https://github.com/lotabout/skim/issues/344) expose preview context
-  in `preview()` function
-- [#341](https://github.com/lotabout/skim/issues/341) support multiline header
-- use unicode spinner
-- [#324](https://github.com/lotabout/skim/issues/324) support option
-  `--no-clear` to keep the content drawn on screen
-- [#300](https://github.com/lotabout/skim/issues/300) library: move reader
-  options to default reader
-- support new option `--keep-right` to show the right most text if it is too
-  long.
-- support negative horizontal scroll
-- support `--skip-to-pattern` to start item display with the pattern matched
-- support `--select-1` that automatically select the only match
-- support `--exit-0` that exit automatically if no item matched
-- support `--sync` that waits for all inputs to be ready and then starts the
-  selection UI
-- [#309](https://github.com/lotabout/skim/issues/309) support pre-selection
-  - `pre-select-n`: select first `n` items
-  - `pre-select-pat`: select items that matches regex
-  - `pre-select-items`: select items from a preset
-  - `pre-select-file`: select items from a preset that's loaded from file
-- [#328](https://github.com/lotabout/skim/issues/328) support
-  `--no-clear-if-empty` that preserve selection if the new command query
-  returns nothing. Was designed to reduce flicking.
+### 🧪 Testing
 
-Fixes:
+- Migrate e2e to rust (#629)
+- *(ci)* Try downgrading cargo.toml
+- *(ci)* Test with crate root
+- *(ci)* Test with subpath
+- *(ci)* Add debug
+- *(ci)* Fix dash in test
+- *(ci)* Check for string
 
-- [#326](https://github.com/lotabout/skim/issues/326) preview not updated anymore
-- [#349](https://github.com/lotabout/skim/issues/349) kill-line and
-  discard-line in interactive mode
-- [#344](https://github.com/lotabout/skim/issues/344) implement `text()` and
-  `display()` correctly
-- [#312](https://github.com/lotabout/skim/issues/312) mouse click and page
-  up/down out of bound
-- Do not auto-scroll for customized items
-- [#321](https://github.com/lotabout/skim/issues/321) fix annoyance through
-  ZSH's REPORTTIME
+### ⚙️ Miscellaneous Tasks
 
-## 0.8.2: 2020-06-26
+- Readd crate to release-please
+- Fix release-please target branch
+- Fix condition
+- Release master (#632)
+- Release master (#633)
+- Cleanup failed releases
+- Release master (#634)
+- Release master (#635)
+- Release master (#636)
+- Release master (#637)
+- Generate files in PR (#638)
+- Fix push
+- Test push with explicit ref
+- Use cache for xtask
+- Simplify release ci
+- Use PAT for release-please to trigger downstream ci
+- Use gh app for token
+- Use gh app for push
+- Manually use gh app for push
+- Skip ci on modified files
+- Use token in checkout
+- Exit success when nothing to commit
+- Avoid duplicate test runs
+- Cleanup
+- Release master (#639)
 
-Bug fixes:
+## [0.14.0] - 2024-11-28
 
-- fix skim executable in bash completion
-- fix [#291](https://github.com/lotabout/skim/issues/291) hide scroll in when
-  content fit
-- fix [#308](https://github.com/lotabout/skim/issues/308) hangs on
-  initialization
+### 🚀 Features
 
-## 0.8.1: 2020-02-23
+- Readd index tiebreak (#609)
+- [**breaking**] Do not check for expect before printing the argument of accept… (#625)
+- Add `--tmux` flag (deprecates sk-tmux, fixes #596) (#603)
 
-Feature:
+### 🐛 Bug Fixes
 
-- [#63](https://github.com/lotabout/skim/issues/63) could save to and read
-  from history for query and command query via `--history` and `--cmd-history`
-- [#273](https://github.com/lotabout/skim/issues/273) inline-info now has
-  spinner
-- [#276](https://github.com/lotabout/skim/issues/276) new action:
-  `if-non-matched` will execute if non of the items matches
-- reduce memory footprint
-- [#248](https://github.com/lotabout/skim/issues/248) implement `{n}`
-  placeholder, used to refer to current items's index(zero based).
+- Allow combined multiple args (fixes #622) (#623)
 
-Bug fixes:
+### 📚 Documentation
 
-- [PR #279](https://github.com/lotabout/skim/pull/279) exit gracefully on
-  SIGPIPE error. (e.g. Ctrl-C on pipes)
-- [#276](https://github.com/lotabout/skim/issues/276) `execute` panic on zero
-  results
-- [#278](https://github.com/lotabout/skim/issues/278) `NUL` character not
-  working in preview command
-- handle `print0` correctly in filter mode
-- Preview's fields now based on original text, not transformed.
-- [#295](https://github.com/lotabout/skim/issues/295) skim not exits
-  sometimes (occasionally happens on Ubuntu)
+- Update changelog from github releases (#620)
+- Link all PRs, issues, commits and authors in CHANGELOG (#621)
+- Add fzf-lua and nu_plugin_skim to the README (#626)
 
-## 0.8.0: 2020-02-23
+### ⚙️ Miscellaneous Tasks
 
-**Breaking Changes in API**
+- Bump unicode-width from 0.1.14 to 0.2.0 (#616)
+- Bump nix from 0.25.1 to 0.29.0 (#614)
+- Bump env_logger from 0.9.3 to 0.11.5 (#615)
+- Improve PR ci (#617)
+- Remove ci dir (#627)
 
-- `Skim::run_with` now accept a stream of `SkimItem` instead of a `BufRead`.
+## [0.13.0] - 2024-11-25
 
-Feature:
+### 🚀 Features
 
-- [#233](https://github.com/lotabout/skim/issues/233) support mouse
-  scroll/click event
-- [#254](https://github.com/lotabout/skim/issues/254) support `{+}` in preview
-  and execute command
-- [#226](https://github.com/lotabout/skim/issues/226) support exact match
-  combination(e.g. `^abc$`)
-- [#216](https://github.com/lotabout/skim/issues/216) support item specific
-  preview hook method
-- [#219](https://github.com/lotabout/skim/issues/219) support case insensitive
-  match
+- Allow more flexibility for use as a library (#613)
 
-Bug fixes:
+### ⚙️ Miscellaneous Tasks
 
-- [#252](https://github.com/lotabout/skim/issues/252) Deal with `\b` correctly
-- [#210](https://github.com/lotabout/skim/issues/210) exclude current item in
-  multi-selection
-- [#225](https://github.com/lotabout/skim/issues/225) disable score in filter
-  output
+- Add pull request template (#608)
 
-## 0.7.0: 2020-01-15
+## [0.12.0] - 2024-11-24
 
-Feature:
+### 🚀 Features
 
-- New fuzzy matching algorithm, should be more precise and faster.
+- Add reload action (#604)
 
-Bug fixes:
+## [0.11.12] - 2024-11-24
 
-- [PR #227](https://github.com/lotabout/skim/pull/227)
-  Fix `isatty` check on more OS.
-- Fix various cases where ANSI code not behave correctly.
+### 🐛 Bug Fixes
 
-## 0.6.9: 2019-09-22
+- Remove index tiebreak from shell bindings (#611)
 
-Bug fixes:
+### ⚙️ Miscellaneous Tasks
 
-- [PR #171](https://github.com/lotabout/skim/pull/171)
-  search with more than one multi-byte condition would crash skim.
-- [#194](https://github.com/lotabout/skim/issues/194)
-  color not working with ag
-- [#196](https://github.com/lotabout/skim/issues/196)
-  `+` in execute expression was eaten by skim
-- bind `Home` key to `begining-of-line` by default.
-- [#192](https://github.com/lotabout/skim/issues/192)
-  Prompt was eaten in shell completion
-- [#205](https://github.com/lotabout/skim/issues/205)
-  tabstop of selection was initialized to `0`, now to `8`.
-- [#207](https://github.com/lotabout/skim/issues/207)
-  color config not working for header
+- Remove some platform-specific quirkinesses from e2e (#602)
 
-## 0.6.8: 2019-06-23
+## [0.11.11] - 2024-11-22
 
-Feature:
+### 💼 Other
 
-- New action: `if-query-empty`, `if-query-not-empty`. Execute actions on
-  certain query conditions.
-- New action: `append-and-select` allows you to append current query to the
-  item pool and select it. It would help to turn skim into a tag manager
-  where new tags could be added to the candidate list.
+- Readd version arg (#606)
 
-Bug fixes:
+## [0.11.1] - 2024-11-21
 
-- Fix [#188](https://github.com/skim-rs/skim/issues/188): crates.io breaks on 0.6.7
-- Fix: `run_with` will break if called multiple times from the same process.
-- Update nix to 0.14
+### 🐛 Bug Fixes
 
-## 0.6.7: 2019-05-31
+- Fix github publish action
 
-Feature:
+## [0.11.0] - 2024-11-20
 
-- Refer to query and command query with `{q}` and `{cq}` in preview command.
-- Support fzf's theme strings, e.g. `bg+` for current line's background.
-- Support customizing styles of query strings.
+### 🚀 Features
 
-Bug fixes:
+- Use clap & derive for options, manpage & completions (#586)
 
-- skim would crash if multiple CJK items are matched in an `OR` query.
-- SKIM_DEFAULT_COMMAND not correctly recognized in `sk-tmux`
-- UI responses are slow on large input
+### 💼 Other
 
-## 0.6.6: 2019-04-03
+- "Package Managers": add Portage
+- Remove unuseful entries (#382)
 
-fix [#158](https://github.com/skim-rs/skim/issues/158): preview window not udpate correctly.
+### 📚 Documentation
 
-## 0.6.5: 2019-04-01
+- *(discord)* Discord invitation link
 
-Bug Fixes:
+### ⚙️ Miscellaneous Tasks
 
-- [#155](https://github.com/skim-rs/skim/issues/155): screen is not fully cleared upon resize
-- [#156](https://github.com/skim-rs/skim/issues/156): preview dies on large chunk of input
-- [#157](https://github.com/skim-rs/skim/issues/157): cursor overflow on empty input
-- [#154](https://github.com/skim-rs/skim/issues/154): reduce CPU usage on idle
-- wrong matches on empty input lines
+- Fix clippy
+- Remove atty (#587)
+- Remove bitflags (#579)
 
-## 0.6.4: 2019-03-26
+## [0.10.2] - 2022-11-08
 
-Fix: [#153](https://github.com/skim-rs/skim/issues/153) build fail with rust 2018 (1.31.0)
+### 🐛 Bug Fixes
 
-## 0.6.3: 2019-03-25
+- Print version from Cargo.toml with latest clap
 
-Feature:
+## [0.10.0] - 2022-10-28
 
-- support action: `execute`
-- support action chaining
-- preview window actions: `toggle-preview-wrap`, `preview-[up|down|left|right]`, `preview-page-[up|down]`
-- support `--filter` mode, it will print out the screen and matched item
-- support more (alt) keys
+### ⚙️ Miscellaneous Tasks
 
-Bug Fixes:
+- Update deps and fix lots of clippy lints
 
-- wrong cursor position after item changed
-- [#142](https://github.com/skim-rs/skim/issues/142): NULL character was dropped with `--ansi`
-- regression: `--margin` not working
-- [#148](https://github.com/skim-rs/skim/issues/148): screen won't clear in interactive mode
-- number of matched item not showing correctly (during matching)
-- lag in changing query on large collection of inputs
+## [0.9.4] - 2021-02-15
 
-## 0.6.2: 2019-03-19
+### 💼 Other
 
-Feature:
+- Update
 
-- Support `--header-lines`
-- Support `--layout`
-- Update the latest fzf.vim
+### ⚙️ Miscellaneous Tasks
 
-## 0.6.1: 2019-03-17
+- *(cargo)* Fix documentation link
 
-Fix:
+## [0.9.3] - 2020-11-02
 
-- compile fail with rust 2018 (1.31.0)
-- reduce the time on exit. It took time to free memories on large
-  collections.
+### 🐛 Bug Fixes
 
-## 0.6.0: 2019-03-17
+- Ansi parse error for multi-bytes string
 
-Performance improvement.
+## [0.9.1] - 2020-10-20
 
-This is a large rewrite of skim, previously there are 4 major components of
-skim:
+### 🚀 Features
 
-- reader: for reading from command or piped input
-- sender: will cache the lines from reader and re-send all lines to matcher on restart
-- matcher: match against the lines and send the matched items to model
-- model: handle the selection of items and draw on screen.
+- Support initial scroll for preview window
 
-They are communicated using rust's `channel` which turned out to be too slow
-in skim's use case. Now we use `SpinLock` for sharing data. The performance on
-large collections are greatly improved.
+### 🐛 Bug Fixes
 
-Besides, use `tuikit` for buferred rendering.
+- Ansi merge fragments (typo)
+- Tiebreak should contains score by default
+- Reduce flickering of preview window
+- Multiple preview options won't merge
+- Clippy
+- Pre-select-items select '' by default
+- Preview's scroll could be 0
 
-## 0.5.5: 2019-02-23
+## [0.9.0] - 2020-10-18
 
-Bug fixes:
+### 🚀 Features
 
-- fix: regression on `--with-nth` feature
-- fix: 100% CPU on not enough printing area
+- Unicode spinner
+- Implement `--keep-right`
+- Support skip-to-pattern
 
-## 0.5.4: 2019-02-20
+### 🐛 Bug Fixes
 
-Emergency release that fix test failures which breaks
-[APKBUILD](https://github.com/5paceToast/user-aports/blob/master/toast/skim/APKBUILD).
-Check out [#128](https://github.com/lotabout/skim/issues/128).
+- Orderedvec won't preserve insertion order
+- Upgrade fuzzy-matcher to fix wrong matching indices
+- Ensure the matching range is within bound
+- Some options are broken (introduced by 08bc067)
+- Do no auto scroll for customized items
+- Multiple selection (regression in 1d72fca)
 
-## 0.5.3: 2019-02-20
+### 💼 Other
 
-Features:
+- Ansi color were not shown for DefaultSkimItem
 
-- `--header` for adding header line
-- `--inline-info` for displaying info besides query
-- run preview commands asynchronizely
-- implement action `delete-charEOF`
-- support key: `ctrl+space`
+### 🚜 Refactor
 
-More bug fixes, noticable ones are:
+- Demangle lib and bin implementations
+- Separate MatchResult from MatchedItem
 
-- Panic on reading non-utf8 characters
-- 100% CPU when input is not ready
+## [0.8.2] - 2020-06-26
 
-## 0.5.2: 2018-10-22
+### 🐛 Bug Fixes
 
-- fix: stop command immediately on accept or abort.
-- minor optimization over ASCII inputs.
-- [#90](https://github.com/skim-rs/skim/issues/90): escape quotes in specified preview command
+- Preview's fields should based on orig text
 
-## 0.5.1: 2018-06-24
+### 💼 Other
 
-Use [cross](https://github.com/japaric/cross) to build targets.
+- Move filter function to binary
+- Exit gracefully on SIGPIPE error(see PR#279)
+- Handle print0 parameters correctly in filter mode
 
-## 0.5.0: 2018-06-12
+### 🚜 Refactor
 
-Change the field syntax to be fzf compatible.
+- DefaultSkimItem now accept string
 
-- Previously it was git style
-  - fields starts with `0`
-  - `1..3` results in `2, 3` (which is `0, 1, 2, 3` minus `0, 1`)
-- Now it is `cut` style
-  - fields starts with `1`
-  - `1..3` results in `1, 2, 3`
+## [0.8.0] - 2020-02-23
 
-## 0.4.0: 2018-06-03
+### 🚀 Features
 
-Refactor skim into a library. With minor bug fixes:
+- Support left click event on selection list
 
-- support multiple arguments, to be a drop-in replacement of fzf.
-- support negative range field. (e.g. `-1` to specify the last field)
-- respond to terminal resize event on Mac.
+### 🐛 Bug Fixes
 
-## 0.3.2: 2018-01-18
+- Ensure screen is rendered with item
 
-Some minor enhancements that might comes handy.
+### 💼 Other
 
-- Reserve all fzf options, so that skim can be a drop-in replacement of fzf.
-- Fix: the number of columns a unicode character occupies
-- Accept multiple values for most options. So that you can safely put them
-  in `$SKIM_DEFAULT_OPTIONS` and override it in command line.
+- "enter" key not printed with expect keys
+- Support case insensitive in exact mode
+- Case insensitive + refactor engine
 
-Thanks to [@magnetophon](https://github.com/magnetophon) for the bug report and feature requests.
+## [0.7.0] - 2020-01-15
 
-## 0.3.1: 2017-12-04
+### 💼 Other
 
-Support more options, and reserve several others. The purpose is to reuse
-`fzf.vim` as much as possible.
+- *(src/ansi.rs)* Use pattern match to destruct Option wrapper.
 
-- `--print0`: use NUL(\0) as field separator for output.
-- `--read0`: read input delimited by NUL(\0) characters
-- `--tabstop`: allow customizing tabstop (default to 8).
-- `--no-hscroll`: disable hscroll on match.
-- reserve several other options, skim will do nothing on them instead of throwing errors.
+### 📚 Documentation
 
-## 0.3.0: 2017-09-21
+- Add installation instructions for arch linux
 
-This release starts from adding `--height` featuren, ends up a big change in
-the code base.
+### ⚙️ Miscellaneous Tasks
 
-- feature: `--bind` accept character keys. Only Ctrl/Alt/F keys were accepted.
-- feature: support multiple `--bind` options. (replace getopts with clap.rs)
-- feature: `--tac` to reverse the order of input lines.
-- feature: `--preview` to show preview of current selected line.
-- feature: `--height` to use only part instead of full of the screen.
-- test: use tmux for integration test
-- replace [ncurses-rs](https://github.com/jeaye/ncurses-rs) with [termion](https://github.com/ticki/termion), now skim is fully rust, no C bindings.
+- Update derive_builder to 0.9
+
+## [0.6.7] - 2019-05-31
+
+### 💼 Other
+
+- Use as a library: remove extraneous line in example code.
+- Remove extraneous line.
+- Remove extraneous line.
+- Add crates.io svg.
+
+## [0.6.5] - 2019-04-01
+
+### 🐛 Bug Fixes
+
+- Wrong matches on empty lines
+
+## [0.6.3] - 2019-03-25
+
+### 🐛 Bug Fixes
+
+- Number of matched items not show correctly
+- Matcher is slow to kill
+
+## [0.6.2] - 2019-03-19
+
+### 🚀 Features
+
+- Header-lines
+
+### 🐛 Bug Fixes
+
+- Compilation error of examples
+
+## [0.6.0] - 2019-03-17
+
+### 💼 Other
+
+- Rotate mode
+
+## [0.5.3] - 2019-02-20
+
+### 💼 Other
+
+- Create new variable for lines used by skim
+- Update usage string.
+- Return slice instead of new vector
+- Draw status after query
+- Return early if possible
+
+## [0.3.0] - 2017-09-21
+
+### 🐛 Bug Fixes
+
+- Main window did not earse correctly
+- Some lines now shown if too long
+- Skim cannot show empty lines
+- Alternate screen is not switched off on exit
+- Ansi color not shown correctly in main area
+- Toggle will panic if there is no item matched
+
+## [0.2.1-beta.2] - 2017-01-19
+
+### 🚜 Refactor
+
+- Use filter_map instead of map then filter
+
+## [0.2.0] - 2017-01-03
+
+### 🐛 Bug Fixes
+
+- Model will not redraw from the 1 line
+- Reader: reader and sender will lock each other.
+
+## [0.1.1-rc2] - 2016-07-19
+
+### 🐛 Bug Fixes
+
+- #4 exit with non-zero status on cancel.
+- Fields result in incorrect output with ANSI enabled.
+
+### 💼 Other
+
+- Remove debug code
+
+<!-- generated by git-cliff -->

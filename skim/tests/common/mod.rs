@@ -54,7 +54,7 @@ pub enum Keys<'a> {
     BSpace,
 }
 
-impl<'a> Display for Keys<'a> {
+impl Display for Keys<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         use Keys::*;
         match self {
@@ -94,7 +94,7 @@ impl TmuxController {
 
         let shell_cmd = "bash --rcfile None";
 
-        let name = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+        let name = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
         Self::run(&[
             "new-window",

@@ -136,7 +136,7 @@ impl MatchEngine for FuzzyEngine {
 
         let (score, matched_range) = matched_result.unwrap();
 
-        trace!("matched range {:?}", matched_range);
+        trace!("matched range {matched_range:?}");
         let begin = *matched_range.first().unwrap_or(&0);
         let end = *matched_range.last().unwrap_or(&0);
 

@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate log;
 
 use std::any::Any;
@@ -29,6 +27,7 @@ pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
+pub use skim_common::spinlock;
 
 pub mod binds;
 mod engine;
@@ -42,7 +41,6 @@ mod orderedvec;
 mod output;
 pub mod prelude;
 pub mod reader;
-mod spinlock;
 mod theme;
 pub mod tmux;
 pub mod tui;
@@ -279,7 +277,7 @@ pub enum MatchRange {
     Chars(Vec<usize>), // individual character indices matched
 }
 
-pub type Rank = [i32; 4];
+pub type Rank = [i32; 5];
 
 #[derive(Clone)]
 pub struct MatchResult {
@@ -450,4 +448,9 @@ impl Skim {
             selected_items: app.results(),
         })
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // Tests moved to appropriate modules
 }

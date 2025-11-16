@@ -1,9 +1,11 @@
 use regex::Regex;
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    sync::LazyLock,
+};
 
-lazy_static! {
-    static ref FIELD_RANGE: Regex = Regex::new(r"^(?P<left>-?\d+)?(?P<sep>\.\.)?(?P<right>-?\d+)?$").unwrap();
-}
+static FIELD_RANGE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?P<left>-?\d+)?(?P<sep>\.\.)?(?P<right>-?\d+)?$").unwrap());
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum FieldRange {

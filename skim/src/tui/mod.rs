@@ -2,6 +2,7 @@ use std::num::ParseIntError;
 
 pub use app::App;
 pub use event::Event;
+pub use preview::PreviewCallback;
 use thiserror::Error;
 pub use tui::Tui;
 pub use widget::{SkimRender, SkimWidget};

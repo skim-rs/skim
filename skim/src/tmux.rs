@@ -1,5 +1,7 @@
 use std::{
     borrow::Cow,
+    env,
+    fs::File,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::{Command, Stdio},
     sync::Arc,
@@ -93,7 +95,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Create temp dir for downstream output
     let temp_dir_name = format!(
         "sk-tmux-{}",
-        &rand::thread_rng()
+        &rand::rng()
             .sample_iter(&Alphanumeric)
             .take(8)
             .map(char::from)
@@ -111,6 +113,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut stdin_reader = BufReader::new(std::io::stdin());
     let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
+    let t_tmp_stdin = temp_dir.join("stdin");
     let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
 
@@ -139,7 +142,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut prev_is_tmux_flag = false;
     // We keep argv[0] to use in the popup's command
     for arg in std::env::args() {
-        debug!("Got arg {}", arg);
+        debug!("Got arg {arg}");
         if prev_is_tmux_flag {
             prev_is_tmux_flag = false;
             if !arg.starts_with("-") {
@@ -154,7 +157,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             debug!("Found equal tmux arg, skipping");
             continue;
         }
-        tmux_shell_cmd.push_str(&format!(" {arg}"));
+        push_quoted_arg(&mut tmux_shell_cmd, &arg);
     }
     if has_piped_input {
         tmux_shell_cmd.push_str(&format!(" <{}", tmp_stdin.display()));
@@ -166,7 +169,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Run downstream sk in tmux
     let raw_tmux_opts = &opts.tmux.clone().unwrap();
     let tmux_opts = TmuxOptions::from(raw_tmux_opts);
-    let mut tmux_cmd = Command::new(which("tmux").unwrap_or_else(|e| panic!("Failed to find tmux in path: {}", e)));
+    let mut tmux_cmd = Command::new(which("tmux").unwrap_or_else(|e| panic!("Failed to find tmux in path: {e}")));
 
     tmux_cmd
         .arg("display-popup")
@@ -178,22 +181,22 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .args(["-y", tmux_opts.y]);
 
     for (name, value) in std::env::vars() {
-        if name.starts_with("SKIM") || name == "PATH" {
-            debug!("adding {} = {} to the command's env", name, value);
-            tmux_cmd.args(["-e", &format!("{}={}", name, value)]);
+        if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
+            debug!("adding {name} = {value} to the command's env");
+            tmux_cmd.args(["-e", &format!("{name}={value}")]);
         }
     }
 
-    tmux_cmd.arg(tmux_shell_cmd);
+    tmux_cmd.args(["sh", "-c", &tmux_shell_cmd]);
 
-    debug!("tmux command: {:?}", tmux_cmd);
+    debug!("tmux command: {tmux_cmd:?}");
 
     let status = tmux_cmd
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .stdin(Stdio::null())
         .status()
-        .unwrap_or_else(|e| panic!("Tmux invocation failed with {}", e));
+        .unwrap_or_else(|e| panic!("Tmux invocation failed with {e}"));
 
     if let Some(h) = stdin_handle {
         h.join().unwrap_or(());
@@ -219,7 +222,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     let mut output_lines: Vec<Arc<dyn SkimItem>> = vec![];
     for line in stdout {
-        debug!("Adding output line: {}", line);
+        debug!("Adding output line: {line}");
         output_lines.push(Arc::new(SkimTmuxOutput { line: line.to_string() }));
     }
 
@@ -240,6 +243,23 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     };
     Some(skim_output)
 }
+
+fn push_quoted_arg(args_str: &mut String, arg: &str) {
+    use shell_quote::{Bash, Fish, Quote as _, Sh, Zsh};
+    let shell_path = env::var("SHELL").unwrap_or(String::from("/bin/sh"));
+    let shell = shell_path.rsplit_once('/').unwrap_or(("", "sh")).1;
+    let quoted_arg: Vec<u8> = match shell {
+        "zsh" => Zsh::quote(arg),
+        "bash" => Bash::quote(arg),
+        "fish" => Fish::quote(arg),
+        _ => Sh::quote(arg),
+    };
+    args_str.push_str(&format!(
+        " {}",
+        String::from_utf8(quoted_arg).expect("Failed to parse quoted arg as utf8, this should not happen")
+    ));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

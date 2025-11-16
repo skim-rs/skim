@@ -6,11 +6,11 @@ use skim::prelude::*;
 // This example only produce friendly print statements!
 
 fn fake_delete_item(item: &str) {
-    println!("Deleting item `{}`...", item);
+    println!("Deleting item `{item}`...");
 }
 
 fn fake_create_item(item: &str) {
-    println!("Creating a new item `{}`...", item);
+    println!("Creating a new item `{item}`...");
 }
 
 fn main() {

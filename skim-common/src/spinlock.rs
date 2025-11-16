@@ -31,7 +31,7 @@ impl<'a, T: ?Sized + 'a> SpinLockGuard<'a, T> {
     }
 }
 
-unsafe impl<'a, T: ?Sized + Sync> Sync for SpinLockGuard<'a, T> {}
+unsafe impl<T: ?Sized + Sync> Sync for SpinLockGuard<'_, T> {}
 
 impl<T> SpinLock<T> {
     pub fn new(t: T) -> SpinLock<T> {
@@ -53,7 +53,7 @@ impl<T: ?Sized> SpinLock<T> {
     }
 }
 
-impl<'mutex, T: ?Sized> Deref for SpinLockGuard<'mutex, T> {
+impl<T: ?Sized> Deref for SpinLockGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -61,13 +61,13 @@ impl<'mutex, T: ?Sized> Deref for SpinLockGuard<'mutex, T> {
     }
 }
 
-impl<'mutex, T: ?Sized> DerefMut for SpinLockGuard<'mutex, T> {
+impl<T: ?Sized> DerefMut for SpinLockGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.__lock.data.get() }
     }
 }
 
-impl<'a, T: ?Sized> Drop for SpinLockGuard<'a, T> {
+impl<T: ?Sized> Drop for SpinLockGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         while self
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_mutex_unsized() {
-        let mutex: &SpinLock<[i32]> = &SpinLock::new([1, 2, 3]);
+        let mutex = SpinLock::new([1, 2, 3]);
         {
             let b = &mut *mutex.lock();
             b[0] = 4;

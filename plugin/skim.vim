@@ -933,6 +933,7 @@ function! s:popup(opts) abort
 endfunction
 
 let s:default_action = {
+  \ 'enter': 'edit',
   \ 'ctrl-t': 'tab split',
   \ 'ctrl-x': 'split',
   \ 'ctrl-v': 'vsplit' }
