@@ -1037,6 +1037,7 @@ impl Default for SkimOptions {
             query_history: Default::default(),
             cmd_history: Default::default(),
             selector: Default::default(),
+            preview_fn: Default::default(),
         }
     }
 }
