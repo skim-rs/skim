@@ -52,7 +52,7 @@ futures = "0.3.31"
 tokio-util = "0.7.17"
 thiserror = "2.0.17"
 tempfile = { workspace = true }
-crossterm = { version = "0.28.1", features = ["event-stream"] }
+crossterm = { version = "0.28.1", features = ["event-stream", "use-dev-tty", "libc"] } # TODO remove libc after update to 0.29
 
 [features]
 default = ["cli"]
