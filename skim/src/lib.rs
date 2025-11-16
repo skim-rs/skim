@@ -394,8 +394,11 @@ impl Skim {
                         if let Event::Reload(new_cmd) = &evt {
                             // Kill the current reader
                             reader_control.kill();
+                            // Drain any items still in the channel from the old reader
+                            while app.item_rx.try_recv().is_ok() {}
                             // Clear items
                             app.item_pool.clear();
+                            app.item_list.clear();
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
                             reader_control = reader.run(app.item_tx.clone(), new_cmd);

@@ -298,6 +298,13 @@ impl ItemList {
     pub fn clear_selection(&mut self) {
         self.selection.clear();
     }
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.selection.clear();
+        self.current = 0;
+        self.offset = 0;
+        self.showing_stale_items = false;
+    }
     pub fn scroll_by(&mut self, offset: i32) {
         self.current = self
             .current

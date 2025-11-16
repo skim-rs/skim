@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     env,
-    fs::File,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::{Command, Stdio},
     sync::Arc,

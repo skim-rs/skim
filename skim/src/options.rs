@@ -1,8 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(feature = "cli")]
-use clap::Parser;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
 use regex::Regex;
