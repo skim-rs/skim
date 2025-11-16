@@ -8,7 +8,8 @@ use std::{
     time::Duration,
 };
 
-use rand::distributions::{Alphanumeric, DistString as _};
+use rand::Rng;
+use rand::distr::Alphanumeric;
 use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
@@ -94,7 +95,11 @@ impl TmuxController {
 
         let shell_cmd = "bash --rcfile None";
 
-        let name = Alphanumeric.sample_string(&mut rand::rng(), 16);
+        let name: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
 
         Self::run(&[
             "new-window",
