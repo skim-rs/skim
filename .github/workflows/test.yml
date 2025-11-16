@@ -105,6 +105,8 @@ jobs:
           toolchain: stable
           profile: minimal
           components: rustfmt
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
       - name: Build without cli feature
         run: |
           cargo build --no-default-features
