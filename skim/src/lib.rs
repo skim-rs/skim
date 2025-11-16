@@ -398,7 +398,11 @@ impl Skim {
                             while app.item_rx.try_recv().is_ok() {}
                             // Clear items
                             app.item_pool.clear();
-                            app.item_list.clear();
+                            // Clear displayed items unless no_clear_if_empty is set
+                            // (in which case the item_list will handle keeping stale items)
+                            if !app.options.no_clear_if_empty {
+                                app.item_list.clear();
+                            }
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
                             reader_control = reader.run(app.item_tx.clone(), new_cmd);

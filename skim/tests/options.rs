@@ -12,7 +12,7 @@ use tempfile::NamedTempFile;
 fn setup(input: &str, opts: &[&str]) -> Result<(TmuxController, String)> {
     let tmux = TmuxController::new()?;
     let outfile = tmux.start_sk(Some(&format!("echo -n -e '{input}'")), opts)?;
-    tmux.until(|l| l[0].starts_with(">"))?;
+    tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
     Ok((tmux, outfile))
 }
 
@@ -484,7 +484,11 @@ fn opt_print_cmd() -> Result<()> {
     tmux.until(|l| l.len() > 4 && l[0].starts_with(">"))?;
     tmux.send_keys(&[Enter])?;
 
-    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() > 1)?;
+    tmux.until(|_| {
+      let out = tmux.output(&outfile).unwrap_or_default();
+      println!("Out: {out:?}");
+      out.len() > 1
+    })?;
     let output = tmux.output(&outfile)?;
 
     assert_eq!(output[0], "1");
@@ -499,8 +503,13 @@ fn opt_print_cmd_and_query() -> Result<()> {
         &["--cmd-query", "cmd", "--print-cmd", "-q", "2", "--print-query"],
     )?;
     tmux.until(|l| l.len() > 0 && l[0].starts_with("> 2"))?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
     tmux.send_keys(&[Enter])?;
-    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() > 2)?;
+    tmux.until(|_| {
+      let out = tmux.output(&outfile).unwrap_or_default();
+      println!("Out: {out:?}");
+      out.len() > 2
+    })?;
     let output = tmux.output(&outfile)?;
 
     assert_eq!(output[0], "20");
@@ -874,10 +883,10 @@ fn opt_skip_to_pattern() -> Result<()> {
 #[test]
 fn opt_multi() -> Result<()> {
     let (tmux, outfile) = setup("a\\nb\\nc", &["--multi"])?;
-    tmux.until(|l| l.len() > 3)?;
+    tmux.until(|l| l.len() > 4)?;
 
     tmux.send_keys(&[BTab, BTab])?;
-    tmux.until(|l| l.len() > 2 && l[2] == " >a" && l[3] == " >b")?;
+    tmux.until(|l| l.len() > 3 && l[2] == " >a" && l[3] == " >b")?;
     tmux.send_keys(&[Enter])?;
 
     tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() == 2)?;
