@@ -57,9 +57,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Run unit tests
         run: cargo nextest run --retries 5 --no-fail-fast --release
-        env:
-          LC_ALL: en_US.UTF-8
-          TERM: xterm-256color
 
   clippy:
     runs-on: ubuntu-latest
