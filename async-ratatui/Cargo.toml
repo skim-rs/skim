@@ -1,9 +1,0 @@
-[package]
-name = "async-ratatui"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-ratatui = { version = "0.29.0", features = ["unstable-widget-ref"] }
-tokio = { version = "1.47.1", features = ["rt", "sync", "time"] }
-trait-variant = "0.1.2"

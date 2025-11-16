@@ -39,7 +39,6 @@ rayon = { workspace = true }
 regex = { workspace = true }
 shell-quote = { workspace = true }
 shlex = { workspace = true, optional = true }
-skim-common = { path = "../skim-common/", version = "0.2.0" }
 time = { workspace = true }
 timer = { workspace = true }
 tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread", "sync", "time", "tokio-macros"] }

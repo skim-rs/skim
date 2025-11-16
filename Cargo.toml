@@ -1,10 +1,7 @@
 [workspace]
 members = [
   "skim",
-  "skim-tuikit",
-  "skim-common",
   "xtask",
-  "async-ratatui"
 ]
 resolver = "2"
 default-members = ["skim"]

@@ -27,7 +27,6 @@ pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
-pub use skim_common::spinlock;
 
 pub mod binds;
 mod engine;
@@ -41,6 +40,7 @@ mod orderedvec;
 mod output;
 pub mod prelude;
 pub mod reader;
+pub mod spinlock;
 mod theme;
 pub mod tmux;
 pub mod tui;
