@@ -2,13 +2,10 @@
 use crate::SkimOptions;
 use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
-use crate::tui::options::TuiLayout;
 use crate::tui::widget::{SkimRender, SkimWidget};
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::Text;
-use ratatui::text::ToLine;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Widget;
 use std::cmp::max;
@@ -17,8 +14,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct Header {
     header: String,
-    tabstop: usize,
-    reverse: bool,
+    tabstop: String,
     theme: Arc<ColorTheme>,
 }
 
@@ -26,8 +22,7 @@ impl Default for Header {
     fn default() -> Self {
         Self {
             header: Default::default(),
-            tabstop: 8,
-            reverse: false,
+            tabstop: String::from_utf8(vec![b' '; 8]).unwrap(),
             theme: Arc::new(*DEFAULT_THEME),
         }
     }
@@ -43,8 +38,7 @@ impl Header {
 impl SkimWidget for Header {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
         Self {
-            tabstop: max(1, options.tabstop),
-            reverse: options.layout == TuiLayout::Reverse || options.layout == TuiLayout::ReverseList,
+            tabstop: String::from_utf8(vec![b' '; max(1, options.tabstop)]).unwrap(),
             header: options.header.clone().unwrap_or_default(),
             theme,
         }
@@ -59,8 +53,7 @@ impl SkimWidget for Header {
             panic!("screen height is too small to fit the header");
         }
 
-        let header_with_lines = self.header.to_line();
-        Paragraph::new(Text::from(header_with_lines)).render(area, buf);
+        Paragraph::new(self.header.as_str().replace('\t', &self.tabstop)).render(area, buf); // TODO use actual tabstop
 
         SkimRender::default()
     }

@@ -112,7 +112,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
   match parts {
     None => { action = raw_action }
     Some((act, "")) => { action = act }
-    Some((act, a)) => { action = act; arg = Some(a.to_string().trim_end_matches(")").to_string()) }
+    Some((act, a)) => { action = act; arg = Some(a.trim_end_matches(")").to_string()) }
   }
   debug!("parse_action: action={action}, arg={arg:?}");
 

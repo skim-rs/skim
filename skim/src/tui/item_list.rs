@@ -39,6 +39,7 @@ pub struct ItemList {
     no_clear_if_empty: bool,
     interactive: bool,         // Whether we're in interactive mode
     showing_stale_items: bool, // True when displaying old items due to no_clear_if_empty
+    items_need_sort: bool,     // True when items need to be sorted
 }
 
 impl Default for ItemList {
@@ -66,6 +67,7 @@ impl Default for ItemList {
             no_clear_if_empty: false,
             interactive: false,
             showing_stale_items: false,
+            items_need_sort: false,
         }
     }
 }
@@ -304,6 +306,7 @@ impl ItemList {
         self.current = 0;
         self.offset = 0;
         self.showing_stale_items = false;
+        self.items_need_sort = false;
     }
     pub fn scroll_by(&mut self, offset: i32) {
         self.current = self
@@ -415,7 +418,9 @@ impl SkimWidget for ItemList {
         } else if this.offset + area.height as usize <= this.current {
             this.offset = this.current - area.height as usize + 1;
         }
-        let items_updated = if let Ok(items) = this.rx.try_recv() {
+        // Check if new items are available without draining all of them
+        // This prevents wasting CPU on processing items that get discarded
+        let items_updated = if let Ok(mut items) = this.rx.try_recv() {
             debug!("Got {} items to put in list", items.len());
 
             let items_are_empty_or_blank =
@@ -430,11 +435,14 @@ impl SkimWidget for ItemList {
                 this.showing_stale_items = true;
                 true
             } else {
+                // Sort items immediately when received, not on every render
+                // Use unstable sort - faster and we don't need stable ordering
+                items.sort_unstable_by_key(|item| item.rank);
                 this.items = items;
                 this.showing_stale_items = false;
+                this.items_need_sort = false;
 
-                // Apply pre-selection BEFORE sorting, while indices are still meaningful
-                // Only pre-select if we haven't reached our target yet
+                // Apply pre-selection AFTER sorting
                 if this.multi_select && this.selector.is_some() && this.selection.len() < this.pre_select_target {
                     debug!(
                         "Applying pre-selection to {} items (currently {} selected, target {})",
@@ -462,14 +470,17 @@ impl SkimWidget for ItemList {
                     );
                 }
 
-                // Sort AFTER pre-selection so we select the correct items by index
-                this.items.sort_by_key(|item| item.rank);
-
                 true
             }
         } else {
             false
         };
+
+        // Only sort if items need sorting and we haven't just received new items
+        if !items_updated && this.items_need_sort {
+            this.items.sort_unstable_by_key(|item| item.rank);
+            this.items_need_sort = false;
+        }
 
         if this.items.is_empty() {
             return SkimRender { items_updated };
@@ -515,13 +526,16 @@ impl SkimWidget for ItemList {
                         this.calc_hscroll(&item_text, container_width, match_start_char, match_end_char);
 
                     // Get display content from item
+                    // Avoid cloning chars vector - use reference instead
+                    let matches = match &item.matched_range {
+                        Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
+                        Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
+                        None => crate::Matches::None,
+                    };
+                    
                     let mut display_line = item.item.display(DisplayContext {
                         score: item.rank[0],
-                        matches: match &item.matched_range {
-                            Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
-                            Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
-                            None => crate::Matches::None,
-                        },
+                        matches,
                         container_width,
                         style: if is_current { theme.current() } else { theme.normal() },
                     });
@@ -530,18 +544,18 @@ impl SkimWidget for ItemList {
                     display_line = this.apply_hscroll(display_line, shift, container_width, full_width);
 
                     // Prepend cursor indicators
-                    let mut spans: Vec<Span> = vec![
-                        if is_current {
-                            Span::styled(">", theme.selected().add_modifier(Modifier::BOLD))
-                        } else {
-                            Span::raw(" ")
-                        },
-                        if this.multi_select && is_selected {
-                            Span::raw(">")
-                        } else {
-                            Span::raw(" ")
-                        },
-                    ];
+                    // Pre-allocate capacity to avoid reallocation
+                    let mut spans: Vec<Span> = Vec::with_capacity(2 + display_line.spans.len());
+                    spans.push(if is_current {
+                        Span::styled(">", theme.selected().add_modifier(Modifier::BOLD))
+                    } else {
+                        Span::raw(" ")
+                    });
+                    spans.push(if this.multi_select && is_selected {
+                        Span::raw(">")
+                    } else {
+                        Span::raw(" ")
+                    });
                     spans.extend(display_line.spans);
 
                     Line::from(spans)

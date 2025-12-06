@@ -27,6 +27,7 @@ pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
+use crate::tui::event::Action;
 
 pub mod binds;
 mod engine;
@@ -379,11 +380,12 @@ impl Skim {
             // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
             // let _ = input_thread.join();
 
-            let mut reader_done = false;
-            let mut item_receiver_interval = tokio::time::interval(Duration::from_millis(500));
-            let mut matcher_interval = tokio::time::interval(Duration::from_millis(500));
+            // Start initial matcher so items are displayed as soon as they arrive
+            app.restart_matcher(true);
 
-            const BUF_CAPACITY: usize = 1 << 16;
+            let mut reader_done = false;
+            let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
+
             loop {
                 select! {
                     event = tui.next() => {
@@ -416,16 +418,38 @@ impl Skim {
                         }
                         app.handle_event(&mut tui, &evt)?;
                     }
-                    _ = item_receiver_interval.tick() => {
-                      while let Ok(item) = app.item_rx.try_recv() {
-                        let mut items = Vec::with_capacity(BUF_CAPACITY);
-                        items.push(item);
-                        app.handle_items(items);
+                    _ = matcher_interval.tick() => {
+                      // Only restart if there's a pending request
+                      if app.pending_matcher_restart {
+                        app.pending_matcher_restart = false;
+                        app.restart_matcher(true);
                       }
                     }
-                    _ = matcher_interval.tick() => {
-                      app.restart_matcher(true);
+                }
+
+                // Process items in larger batches to improve performance
+                // Batch size of 2048 items significantly reduces overhead for large inputs
+                const BATCH_SIZE: usize = 2048;
+                let mut items = Vec::with_capacity(BATCH_SIZE);
+                
+                // Process items in batches without collecting everything in memory
+                loop {
+                    let mut batch_count = 0;
+                    while batch_count < BATCH_SIZE {
+                        if let Ok(item) = app.item_rx.try_recv() {
+                            items.push(item);
+                            batch_count += 1;
+                        } else {
+                            break;
+                        }
                     }
+                    
+                    if items.is_empty() {
+                        break;
+                    }
+                    
+                    app.handle_items(items);
+                    items = Vec::with_capacity(BATCH_SIZE);
                 }
 
                 if app.should_quit {
@@ -435,6 +459,16 @@ impl Skim {
             reader_control.kill();
             eyre::Ok(())
         })?;
+
+        // Extract final_key and is_abort from final_event
+        let (final_key, is_abort) = match &final_event {
+            Event::Action(Action::Abort) => (KeyCode::Esc, true),
+            Event::Action(Action::Accept(_)) => (KeyCode::Enter, false),
+            Event::Key(key_event) => (key_event.code, false),
+            Event::Quit => (KeyCode::Esc, true),
+            Event::Close => (KeyCode::Enter, false),
+            _ => (KeyCode::Enter, false),
+        };
 
         Ok(SkimOutput {
             cmd: if app.options.interactive {
@@ -448,10 +482,10 @@ impl Skim {
                 cmd
             },
             final_event,
-            final_key: KeyCode::Enter, // TODO
+            final_key,
             query: app.input.to_string(),
-            is_abort: false,
-            selected_items: app.results(),
+            is_abort,
+            selected_items: if is_abort { Vec::new() } else { app.results() },
         })
     }
 }

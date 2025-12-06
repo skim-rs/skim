@@ -34,13 +34,15 @@ use super::{input, preview};
 pub struct App<'a> {
     pub item_pool: Arc<DeferDrop<ItemPool>>,
     pub should_quit: bool,
-    pub should_trigger_matcher: bool,
+
     pub cursor_pos: (u16, u16),
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
     pub yank_register: Cow<'a, str>,
     pub item_rx: Receiver<Arc<dyn SkimItem>>,
     pub item_tx: Sender<Arc<dyn SkimItem>>,
+    pub last_matcher_restart: std::time::Instant,
+    pub pending_matcher_restart: bool,
 
     pub input: Input,
     pub preview: Preview<'a>,
@@ -255,11 +257,12 @@ impl Default for App<'_> {
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
                 .case(crate::CaseMatching::default())
                 .build(),
-            yank_register: Cow::default(),
-            should_trigger_matcher: false,
-            matcher_control: MatcherControl::default(),
-            reader_timer: std::time::Instant::now(),
-            matcher_timer: std::time::Instant::now(),
+                yank_register: Cow::default(),
+                matcher_control: MatcherControl::default(),
+                reader_timer: std::time::Instant::now(),
+                matcher_timer: std::time::Instant::now(),
+                last_matcher_restart: std::time::Instant::now(),
+                pending_matcher_restart: false,
             // spinner initial state
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
@@ -316,10 +319,11 @@ impl<'a> App<'a> {
             .case(options.case)
             .build(),
             yank_register: Cow::default(),
-            should_trigger_matcher: false,
             matcher_control: MatcherControl::default(),
             reader_timer: std::time::Instant::now(),
             matcher_timer: std::time::Instant::now(),
+            last_matcher_restart: std::time::Instant::now(),
+            pending_matcher_restart: false,
             // spinner initial state
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
@@ -416,20 +420,21 @@ impl<'a> App<'a> {
                 self.status.reading = self.item_pool.num_not_taken() != 0;
                 // matcher_running from control
                 self.status.matcher_running = !self.matcher_control.stopped();
+                
+                // Always render to avoid freezing, but the render function itself can optimize
                 tui.get_frame();
                 tui.draw(|f| {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-                // Update status only if item list actually received new items
+                
                 if self.items_just_updated {
                     self.on_items_updated();
-                    self.on_selection_changed();
                     self.items_just_updated = false;
                 }
             }
             Event::Heartbeat => {
-                self.should_trigger_matcher = true;
+                // Heartbeat is used for periodic UI updates
                 self.on_matcher_state_changed();
             }
             Event::RunPreview => {
@@ -507,8 +512,6 @@ impl<'a> App<'a> {
                             );
                         }
                     };
-                    self.on_items_updated();
-                    self.on_selection_changed();
                 }
             }
             Event::Clear => {
@@ -544,47 +547,43 @@ impl<'a> App<'a> {
             Event::NewItem(item) => {
                 self.item_pool.append(vec![item.clone()]);
                 self.restart_matcher(false);
-                self.on_items_updated();
-                self.on_selection_changed();
-                self.on_matcher_state_changed();
                 trace!("Got new item, len {}", self.item_pool.len());
             }
             Event::Key(key) => {
                 for evt in self.handle_key(key) {
                     tui.event_tx.send(evt)?;
                 }
-                self.on_selection_changed();
             }
             Event::Redraw => {
                 tui.clear()?;
             }
             _ => (),
         };
+        
+        // Check if item changed
         let new_item = self.item_list.selected();
         if let Some(new) = new_item {
             if let Some(prev) = prev_item {
                 if prev.text() != new.text() {
                     self.on_item_changed(tui)?;
-                    self.on_selection_changed();
                 }
             } else {
                 self.on_item_changed(tui)?;
-                self.on_selection_changed();
             }
         }
         Ok(())
     }
     pub fn handle_items(&mut self, items: Vec<Arc<dyn SkimItem>>) {
         self.item_pool.append(items);
-        self.restart_matcher(false);
+        // Don't restart matcher immediately - use debounced restart instead
+        self.pending_matcher_restart = true;
         trace!("Got new items, len {}", self.item_pool.len());
         // mark reader activity and reset reader timer
         self.reader_timer = std::time::Instant::now();
         self.status.reading = true;
-        // update status so the statusline reflects the new pool state immediately
+        self.items_just_updated = true;
+        // Update status to reflect new pool state
         self.on_items_updated();
-        self.on_selection_changed();
-        self.on_matcher_state_changed();
     }
     pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()> {
         tui.event_tx.send(Event::RunPreview)?;
@@ -635,7 +634,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             AppendAndSelect => {
@@ -648,7 +647,7 @@ impl<'a> App<'a> {
                     matched_range: None,
                 }]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardChar => {
@@ -660,7 +659,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardKillWord => {
@@ -670,7 +669,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             BackwardWord => {
@@ -695,7 +694,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             DeleteCharEOF => {
@@ -704,7 +703,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             DeselectAll => {
@@ -800,7 +799,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => {
@@ -830,7 +829,7 @@ impl<'a> App<'a> {
                             self.input.move_cursor_to(self.input.value.len() as u16);
                             *history_index = None;
                             if !self.options.interactive {
-                                self.restart_matcher(true);
+                                self.restart_matcher_debounced();
                             }
                         } else {
                             // Move forward in history (toward more recent)
@@ -839,7 +838,7 @@ impl<'a> App<'a> {
                             self.input.move_cursor_to(self.input.value.len() as u16);
                             *history_index = Some(new_idx);
                             if !self.options.interactive {
-                                self.restart_matcher(true);
+                                self.restart_matcher_debounced();
                             }
                         }
                     }
@@ -915,7 +914,7 @@ impl<'a> App<'a> {
                         self.input.move_cursor_to(self.input.value.len() as u16);
                         *history_index = Some(new_idx);
                         if !self.options.interactive {
-                            self.restart_matcher(true);
+                            self.restart_matcher_debounced();
                         }
                     }
                     Some(idx) => {
@@ -926,7 +925,7 @@ impl<'a> App<'a> {
                             self.input.move_cursor_to(self.input.value.len() as u16);
                             *history_index = Some(new_idx);
                             if !self.options.interactive {
-                                self.restart_matcher(true);
+                                self.restart_matcher_debounced();
                             }
                         }
                         // else: already at oldest, do nothing
@@ -1008,7 +1007,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             UnixWordRubout => {
@@ -1017,7 +1016,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
             Up(n) => {
@@ -1035,7 +1034,7 @@ impl<'a> App<'a> {
                     let expanded_cmd = self.expand_cmd(&self.cmd);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
-                self.restart_matcher(true);
+                self.restart_matcher_debounced();
                 return Ok(vec![Event::RunPreview]);
             }
         }
@@ -1043,7 +1042,7 @@ impl<'a> App<'a> {
     }
 
     pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
-        if self.options.multi {
+        if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list
                 .selection
                 .iter()
@@ -1071,15 +1070,15 @@ impl<'a> App<'a> {
                 self.item_list.current = 0;
                 self.item_list.offset = 0;
                 self.status.matcher_running = false;
-                if self.should_trigger_matcher {
-                    self.should_trigger_matcher = false;
-                }
                 return;
             }
         }
 
         let matcher_stopped = self.matcher_control.stopped();
+
         if force || (matcher_stopped && self.item_pool.num_not_taken() == 0) {
+            // Reset debounce timer on any restart to prevent interference
+            self.last_matcher_restart = std::time::Instant::now();
             self.matcher_control.kill();
             let tx = self.item_list.tx.clone();
             self.item_pool.reset();
@@ -1098,9 +1097,6 @@ impl<'a> App<'a> {
                 debug!("Got {} results from matcher, sending to item list...", m.len());
                 let _ = tx.send(m.clone());
             });
-        }
-        if self.should_trigger_matcher {
-            self.should_trigger_matcher = false;
         }
     }
 
@@ -1121,6 +1117,20 @@ impl<'a> App<'a> {
                 &self.input.value,
                 &self.input.value,
             )
+        }
+    }
+
+    /// Restart matcher with debouncing to avoid excessive restarts during rapid typing
+    fn restart_matcher_debounced(&mut self) {
+        const DEBOUNCE_MS: u64 = 50;
+        let now = std::time::Instant::now();
+
+        // If enough time has passed since last restart, restart immediately
+        if now.duration_since(self.last_matcher_restart).as_millis() > DEBOUNCE_MS as u128 {
+            self.restart_matcher(true);
+        } else {
+            // Otherwise, mark that we need to restart and let the periodic check handle it
+            self.pending_matcher_restart = true;
         }
     }
 }

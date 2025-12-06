@@ -27,7 +27,7 @@ impl DerefMut for KeyMap {
 
 impl From<&str> for KeyMap {
     fn from(value: &str) -> Self {
-        parse_keymaps(value.split(',')).expect("Failed to parse keymaps")
+        parse_keymaps(value.split(','))
     }
 }
 
@@ -166,18 +166,21 @@ pub fn bind(keymap: &mut KeyMap, key: &str, action_chain: Vec<Action>) -> Result
 }
 
 /// Parse an iterator of keymaps into a KeyMap
-pub fn parse_keymaps<'a, T>(maps: T) -> Result<KeyMap>
+pub fn parse_keymaps<'a, T>(maps: T) -> KeyMap
 where
     T: Iterator<Item = &'a str>,
 {
     let mut keymap = get_default_key_map();
     for map in maps {
         if !map.is_empty() {
-            let (key, action_chain) = parse_keymap(map)?;
-            bind(&mut keymap, key, action_chain)?;
+            if let Ok((key, action_chain)) = parse_keymap(map) {
+                bind(&mut keymap, key, action_chain).unwrap_or_else(|err| debug!("Failed to bind key {map}: {err}"));
+            } else {
+                debug!("Failed to parse key: {map}");
+            }
         }
     }
-    Ok(keymap)
+    keymap
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions

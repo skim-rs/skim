@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::thread::{self, JoinHandle};
 
 use rayon::prelude::*;
-use tokio::task::{self, JoinHandle};
 
 use crate::item::{ItemPool, MatchedItem};
 use crate::spinlock::SpinLock;
@@ -31,18 +31,27 @@ impl MatcherControl {
 
     pub fn kill(&self) {
         self.stopped.store(true, Ordering::Relaxed);
-        if let Some(th) = &self.thread_matcher {
-            th.abort();
-        }
+        // Note: Regular threads don't have abort(), they'll stop via the stopped flag
     }
 
     pub fn stopped(&self) -> bool {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(self) -> Arc<SpinLock<Vec<MatchedItem>>> {
+    pub fn items(&self) -> Arc<SpinLock<Vec<MatchedItem>>> {
         while !self.stopped() {}
-        self.items
+        self.items.clone()
+    }
+}
+
+impl Drop for MatcherControl {
+    fn drop(&mut self) {
+        // Signal the thread to stop
+        self.stopped.store(true, Ordering::Relaxed);
+        // Join the thread to prevent accumulation
+        if let Some(handle) = self.thread_matcher.take() {
+            let _ = handle.join();
+        }
     }
 }
 
@@ -84,7 +93,7 @@ impl Matcher {
         let matched_items = Arc::new(SpinLock::new(Vec::new()));
         let matched_items_clone = matched_items.clone();
 
-        let thread_matcher = task::spawn(async move {
+        let thread_matcher = thread::spawn(move || {
             let _num_taken = item_pool.num_taken();
             let items = item_pool.take();
 
@@ -102,6 +111,7 @@ impl Matcher {
                         Some(Err("matcher killed"))
                     } else if let Some(match_result) = matcher_engine.match_item(item.clone()) {
                         matched.fetch_add(1, Ordering::Relaxed);
+                        // item is Arc but we get &Arc from iterator, so one clone is needed
                         Some(Ok(MatchedItem {
                             item: item.clone(),
                             rank: match_result.rank,
@@ -132,3 +142,5 @@ impl Matcher {
         }
     }
 }
+
+

@@ -167,6 +167,37 @@ impl TmuxController {
             .collect())
     }
 
+    // Capture with ANSI escape sequences preserved (using -e flag)
+    // Returns the lines in reverted order with ANSI codes
+    pub fn capture_colored(&self) -> Result<Vec<String>> {
+        let tempfile = wait(|| {
+            let tempfile = self.tempfile()?;
+            Self::run(&[
+                "capture-pane",
+                "-e",
+                "-J",
+                "-b",
+                &self.window,
+                "-t",
+                &format!("{}.0", self.window),
+            ])?;
+            Self::run(&["save-buffer", "-b", &self.window, &tempfile])?;
+            Ok(tempfile)
+        })?;
+
+        let mut string_lines = String::new();
+        BufReader::new(File::open(tempfile)?).read_to_string(&mut string_lines)?;
+
+        let str_lines = string_lines.trim();
+        Ok(str_lines
+            .split("\n")
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>()
+            .into_iter()
+            .rev()
+            .collect())
+    }
+
     pub fn until<F>(&self, pred: F) -> Result<()>
     where
         F: Fn(&[String]) -> bool,

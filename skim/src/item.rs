@@ -128,7 +128,7 @@ impl Ord for MatchedItem {
 }
 
 //------------------------------------------------------------------------------
-const ITEM_POOL_CAPACITY: usize = 1024;
+const ITEM_POOL_CAPACITY: usize = 16384;
 
 pub struct ItemPool {
     length: AtomicUsize,
@@ -210,13 +210,19 @@ impl ItemPool {
         let to_reserve = self.lines_to_reserve - header_items.len();
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
+            // Reserve capacity to reduce reallocations
+            header_items.reserve(to_reserve);
             header_items.extend_from_slice(&items[..to_reserve]);
+            // Reserve capacity for remaining items
+            pool.reserve(items.len() - to_reserve);
             pool.extend_from_slice(&items[to_reserve..]);
         } else {
+            // Reserve capacity before appending
+            pool.reserve(items.len());
             pool.append(&mut items);
         }
         self.length.store(pool.len(), Ordering::SeqCst);
-        trace!("item pool, done append {len} items");
+        trace!("item pool, done append {len} items, total: {}", pool.len());
         pool.len()
     }
 

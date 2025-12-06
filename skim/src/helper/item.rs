@@ -1,7 +1,6 @@
 use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::{DisplayContext, SkimItem};
-use ansi_to_tui::IntoText;
-use ratatui::text::{Line, Text};
+use ratatui::text::Line;
 use regex::Regex;
 use std::borrow::Cow;
 
@@ -21,10 +20,10 @@ pub struct DefaultSkimItem {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
-    result: String,
+    orig_text: Option<String>,
 
     /// The text that will be shown on screen and matched.
-    text: Text<'static>,
+    text: String,
 
     // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
     #[allow(clippy::box_collection)]
@@ -54,21 +53,23 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let transformed_text = if using_transform_fields {
-            parse_transform_fields(delimiter, &orig_text, trans_fields).into_text()
+        let (orig_text, text) = if using_transform_fields {
+            let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
+            (Some(orig_text), transformed)
         } else {
-            orig_text.into_text()
+            // Normal case: no transformation needed, save memory by not duplicating
+            (None, orig_text)
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
-            Some(Box::new(parse_matching_fields(delimiter, &orig_text, matching_fields)))
+            Some(Box::new(parse_matching_fields(delimiter, &text, matching_fields)))
         } else {
             None
         };
 
         DefaultSkimItem {
-            result: orig_text,
-            text: transformed_text.expect("Failed to tranform item into text"),
+            orig_text,
+            text,
             matching_ranges,
             index,
         }
@@ -78,25 +79,23 @@ impl DefaultSkimItem {
 impl SkimItem for DefaultSkimItem {
     #[inline]
     fn text(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.result)
+        Cow::Borrowed(&self.text)
     }
 
     fn output(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.result)
+        if let Some(ref orig) = self.orig_text {
+            Cow::Borrowed(orig)
+        } else {
+            Cow::Borrowed(&self.text)
+        }
     }
 
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
         self.matching_ranges.as_ref().map(|vec| vec as &[(usize, usize)])
     }
 
-    fn display<'a>(&'a self, _context: DisplayContext) -> Line<'a> {
-        // Return the first line of the transformed text for display
-        // The text field already contains the transformed/filtered content
-        if let Some(line) = self.text.lines.first() {
-            line.clone()
-        } else {
-            Line::default()
-        }
+    fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
+        context.to_line(Cow::Borrowed(&self.text))
     }
 
     fn get_index(&self) -> usize {

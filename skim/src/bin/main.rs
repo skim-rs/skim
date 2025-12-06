@@ -11,6 +11,7 @@ use clap_complete::generate;
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use derive_builder::Builder;
+use log::{debug, trace};
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
@@ -89,6 +90,7 @@ fn main() -> Result<()> {
 }
 
 fn sk_main() -> Result<i32> {
+    trace!("Command line: {:?}", std::env::args());
     let mut opts = parse_args()?.build();
 
     // Handle shell completion generation if requested

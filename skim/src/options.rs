@@ -893,6 +893,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub phony: bool,
 
+    /// Deprecated, kept for compatibility purposes
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
+    expect: String,
+
     #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
     pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     #[cfg_attr(feature = "cli", clap(skip))]
@@ -911,7 +915,6 @@ pub struct SkimOptions {
     pub preview_fn: Option<PreviewCallback>,
 }
 
-#[cfg(feature = "cli")]
 impl Default for SkimOptions {
     fn default() -> Self {
         Self {
@@ -991,93 +994,7 @@ impl Default for SkimOptions {
             pointer: Default::default(),
             marker: Default::default(),
             phony: Default::default(),
-            cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
-            query_history: Default::default(),
-            cmd_history: Default::default(),
-            selector: Default::default(),
-            preview_fn: Default::default(),
-        }
-    }
-}
-
-#[cfg(not(feature = "cli"))]
-impl Default for SkimOptions {
-    fn default() -> Self {
-        Self {
-            tac: Default::default(),
-            min_query_length: Default::default(),
-            no_sort: Default::default(),
-            tiebreak: vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End],
-            nth: Default::default(),
-            with_nth: Default::default(),
-            delimiter: Regex::new(r"[\t\n ]+").unwrap(),
-            exact: Default::default(),
-            regex: Default::default(),
-            algorithm: Default::default(),
-            case: Default::default(),
-            bind: crate::binds::get_default_key_map(),
-            multi: Default::default(),
-            no_multi: Default::default(),
-            no_mouse: Default::default(),
-            cmd: Default::default(),
-            interactive: Default::default(),
-            replstr: String::from("{}"),
-            color: Default::default(),
-            no_hscroll: Default::default(),
-            keep_right: Default::default(),
-            skip_to_pattern: Default::default(),
-            no_clear_if_empty: Default::default(),
-            no_clear_start: Default::default(),
-            no_clear: Default::default(),
-            show_cmd_error: Default::default(),
-            layout: TuiLayout::Default,
-            reverse: Default::default(),
-            height: String::from("100%"),
-            no_height: Default::default(),
-            min_height: String::from("10"),
-            margin: Default::default(),
-            prompt: String::from("> "),
-            cmd_prompt: String::from("c> "),
-            ansi: Default::default(),
-            tabstop: 8,
-            info: Default::default(),
-            no_info: Default::default(),
-            inline_info: Default::default(),
-            header: Default::default(),
-            header_lines: Default::default(),
-            border: Default::default(),
-            history_file: Default::default(),
-            history_size: 1000,
-            cmd_history_file: Default::default(),
-            cmd_history_size: 1000,
-            preview: Default::default(),
-            preview_window: Default::default(),
-            read0: Default::default(),
-            print0: Default::default(),
-            query: Default::default(),
-            cmd_query: Default::default(),
-            print_query: Default::default(),
-            print_cmd: Default::default(),
-            print_score: Default::default(),
-            select_1: Default::default(),
-            exit_0: Default::default(),
-            sync: Default::default(),
-            pre_select_n: Default::default(),
-            pre_select_pat: Default::default(),
-            pre_select_items: Default::default(),
-            pre_select_file: Default::default(),
-            filter: Default::default(),
-            tmux: Default::default(),
-            extended: Default::default(),
-            literal: Default::default(),
-            cycle: Default::default(),
-            hscroll_off: 10,
-            filepath_word: Default::default(),
-            jump_labels: String::from("abcdefghijklmnopqrstuvwxyz"),
-            no_bold: Default::default(),
-            pointer: Default::default(),
-            marker: Default::default(),
-            phony: Default::default(),
+            expect: Default::default(),
             cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
             query_history: Default::default(),
             cmd_history: Default::default(),

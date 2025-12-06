@@ -141,11 +141,19 @@ impl MatchEngine for FuzzyEngine {
         let end = *matched_range.last().unwrap_or(&0);
 
         let item_len = item_text.len();
+        
+        // For ASCII text (most common case), char index == byte index
+        // For UTF-8, this is an approximation but saves massive memory with large datasets
+        // Use ByteRange instead of Vec<usize> to save memory (16 bytes vs heap allocation)
+        let byte_begin = begin.min(item_text.len());
+        let byte_end = end.min(item_text.len());
+        let matched_range = MatchRange::ByteRange(byte_begin, byte_end);
+        
         Some(MatchResult {
             rank: self
                 .rank_builder
                 .build_rank(score as i32, begin, end, item_len, item.get_index()),
-            matched_range: MatchRange::Chars(matched_range),
+            matched_range,
         })
     }
 }

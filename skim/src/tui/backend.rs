@@ -45,8 +45,8 @@ impl<B: Backend> Tui<B> {
             task: None,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            frame_rate: 30.0,
-            tick_rate: 10.0,
+            frame_rate: 12.0,
+            tick_rate: 12.0,
             cancellation_token: CancellationToken::default(),
             is_fullscreen,
         })
