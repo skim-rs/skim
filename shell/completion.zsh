@@ -64,6 +64,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--tmux=[Run in a tmux popup]' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
+'--expect=[Deprecated, kept for compatibility purposes]:EXPECT:_default' \
 '--tac[Show results in reverse order]' \
 '--no-sort[Do not sort the results]' \
 '-e[Run in exact mode]' \
