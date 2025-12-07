@@ -141,11 +141,11 @@ impl MatchEngine for FuzzyEngine {
         let end = *matched_range.last().unwrap_or(&0);
 
         let item_len = item_text.len();
-        
+
         // Use individual character indices for highlighting instead of byte range
         // This allows each matched character to be highlighted individually
         let matched_range = MatchRange::Chars(matched_range);
-        
+
         Some(MatchResult {
             rank: self
                 .rank_builder

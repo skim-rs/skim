@@ -14,7 +14,6 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
     ret
 }
 
-
 fn escape_arg(a: &str) -> String {
     format!("'{}'", a.replace('\0', "\\0").replace("'", "'\\''"))
 }

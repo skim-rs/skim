@@ -126,4 +126,3 @@ fn test_highlight_split_match() {
     let output = tmux.output(&outfile).unwrap();
     assert_eq!(output, &["banana"]);
 }
-
