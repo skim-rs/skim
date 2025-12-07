@@ -55,6 +55,7 @@ fn bind_if_non_matched() -> Result<()> {
 
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| l[0] == "> a")?;
+    tmux.until(|l| l.len() > 2 && l[2] == "> a")?;
 
     tmux.send_keys(&[Enter, Key('c')])?;
     tmux.until(|l| l[0].starts_with("> ac"))?;
