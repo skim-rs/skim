@@ -257,12 +257,12 @@ impl Default for App<'_> {
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
                 .case(crate::CaseMatching::default())
                 .build(),
-                yank_register: Cow::default(),
-                matcher_control: MatcherControl::default(),
-                reader_timer: std::time::Instant::now(),
-                matcher_timer: std::time::Instant::now(),
-                last_matcher_restart: std::time::Instant::now(),
-                pending_matcher_restart: false,
+            yank_register: Cow::default(),
+            matcher_control: MatcherControl::default(),
+            reader_timer: std::time::Instant::now(),
+            matcher_timer: std::time::Instant::now(),
+            last_matcher_restart: std::time::Instant::now(),
+            pending_matcher_restart: false,
             // spinner initial state
             spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
@@ -518,11 +518,11 @@ impl<'a> App<'a> {
                 tui.clear()?;
             }
             Event::Quit => {
-                tui.exit(-1)?;
+                tui.exit()?;
                 self.should_quit = true;
             }
             Event::Close => {
-                tui.exit(0)?;
+                tui.exit()?;
                 self.should_quit = true;
             }
             Event::PreviewReady(s) => {
@@ -534,7 +534,7 @@ impl<'a> App<'a> {
                 }
             }
             Event::Error(msg) => {
-                tui.exit(1)?;
+                tui.exit()?;
                 bail!(msg.to_owned());
             }
             Event::Action(act) => {

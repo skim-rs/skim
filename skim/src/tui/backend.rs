@@ -60,7 +60,7 @@ impl<B: Backend> Tui<B> {
         Ok(())
     }
 
-    pub fn exit(&mut self, status_code: i32) -> Result<()> {
+    pub fn exit(&mut self) -> Result<()> {
         self.stop()?;
         if crossterm::terminal::is_raw_mode_enabled()? {
             self.flush()?;
@@ -138,7 +138,7 @@ impl<B: Backend> DerefMut for Tui<B> {
 
 impl<B: Backend> Drop for Tui<B> {
     fn drop(&mut self) {
-        self.exit(0).unwrap();
+        let _ = self.exit();
     }
 }
 

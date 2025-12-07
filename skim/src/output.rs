@@ -13,7 +13,7 @@ pub struct SkimOutput {
 
     /// The final key that makes skim accept/quit.
     /// Note that it might be Key::Null if it is triggered by skim.
-    pub final_key: crossterm::event::KeyCode,
+    pub final_key: crossterm::event::KeyEvent,
 
     /// The query
     pub query: String,

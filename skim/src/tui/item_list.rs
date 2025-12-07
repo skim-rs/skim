@@ -11,7 +11,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{
     DisplayContext, MatchRange, Selector, SkimItem, SkimOptions,
-    item::{MatchedItem, RankBuilder},
+    item::MatchedItem,
     spinlock::SpinLock,
     theme::ColorTheme,
     tui::options::TuiLayout,
@@ -27,7 +27,6 @@ pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: HashSet<MatchedItem>,
     pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
-    rank_builder: RankBuilder,
     processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
@@ -64,7 +63,6 @@ impl Default for ItemList {
             direction: ListDirection::BottomToTop,
             items: Default::default(),
             selection: Default::default(),
-            rank_builder: Default::default(),
             offset: Default::default(),
             current: Default::default(),
             height: Default::default(),
@@ -279,7 +277,9 @@ impl ItemList {
                 };
 
                 if visible_start < visible_end && visible_start < span_chars.len() {
-                    let visible_chars: String = span_chars[visible_start..visible_end.min(span_chars.len())].iter().collect();
+                    let visible_chars: String = span_chars[visible_start..visible_end.min(span_chars.len())]
+                        .iter()
+                        .collect();
 
                     // Expand tabs to spaces and preserve styling
                     let processed_chars = if visible_chars.contains('\t') {
@@ -517,7 +517,6 @@ impl SkimWidget for ItemList {
             showing_stale_items: false,
             items: Default::default(),
             selection: Default::default(),
-            rank_builder: Default::default(),
             offset: Default::default(),
             height: Default::default(),
         }
@@ -537,8 +536,8 @@ impl SkimWidget for ItemList {
             debug!("Render: Got {} processed items", processed.items.len());
 
             // Check if items are empty or blank for no_clear_if_empty handling
-            let items_are_empty_or_blank = processed.items.is_empty()
-                || processed.items.iter().all(|item| item.item.text().trim().is_empty());
+            let items_are_empty_or_blank =
+                processed.items.is_empty() || processed.items.iter().all(|item| item.item.text().trim().is_empty());
 
             if this.interactive && this.no_clear_if_empty && items_are_empty_or_blank && !this.items.is_empty() {
                 debug!(
@@ -633,7 +632,11 @@ impl SkimWidget for ItemList {
                         score: item.rank[0],
                         matches,
                         container_width,
-                        style: if is_current { theme.current_match() } else { theme.matched() },
+                        style: if is_current {
+                            theme.current_match()
+                        } else {
+                            theme.matched()
+                        },
                     });
 
                     // Apply horizontal scrolling to the display content

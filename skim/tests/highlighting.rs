@@ -3,7 +3,6 @@ mod common;
 
 use common::Keys::*;
 use common::TmuxController;
-use std::io::Result;
 
 #[test]
 fn test_highlight_match() {

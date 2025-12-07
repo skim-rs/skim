@@ -1,7 +1,6 @@
 //! Reader is used for reading items from datasource (e.g. stdin or command output)
 //!
 //! After reading in a line, reader will save an item into the pool(items)
-use crate::global::mark_new_run;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
@@ -60,7 +59,6 @@ impl ReaderControl {
 pub struct Reader {
     cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     rx_item: Option<SkimItemReceiver>,
-    ansi: bool,
 }
 
 impl Reader {
@@ -68,7 +66,6 @@ impl Reader {
         Self {
             cmd_collector: options.cmd_collector.clone(),
             rx_item: None,
-            ansi: options.ansi,
         }
     }
 
@@ -78,8 +75,6 @@ impl Reader {
     }
 
     pub fn run(&mut self, app_tx: Sender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
-        mark_new_run(cmd);
-
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));
 

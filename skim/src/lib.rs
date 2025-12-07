@@ -13,6 +13,8 @@ use color_eyre::eyre::OptionExt;
 use color_eyre::eyre::Result;
 use crossbeam::channel::{Receiver, Sender};
 use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyModifiers;
 use ratatui::prelude::CrosstermBackend;
 use ratatui::style::Style;
 use ratatui::text::Line;
@@ -32,12 +34,10 @@ use crate::tui::event::Action;
 pub mod binds;
 mod engine;
 pub mod field;
-mod global;
 mod helper;
 pub mod item;
 mod matcher;
 pub mod options;
-mod orderedvec;
 mod output;
 pub mod prelude;
 pub mod reader;
@@ -176,11 +176,8 @@ impl DisplayContext {
     pub fn to_line(self, cow: Cow<str>) -> Line {
         let text: String = cow.into_owned();
 
-
-
         match &self.matches {
             Matches::CharIndices(indices) => {
-
                 let mut res = Line::default();
                 let mut chars = text.chars();
                 let mut prev_index = 0;
@@ -198,36 +195,25 @@ impl DisplayContext {
             // AnsiString::from((context.text, indices, context.highlight_attr)),
             #[allow(clippy::cast_possible_truncation)]
             Matches::CharRange(start, end) => {
-
                 let mut chars = text.chars();
                 let mut res = Line::raw(chars.by_ref().take(*start).collect::<String>());
                 let highlighted_text = chars.by_ref().take(*end - *start).collect::<String>();
 
-                res.push_span(Span::styled(
-                    highlighted_text,
-                    self.style,
-                ));
+                res.push_span(Span::styled(highlighted_text, self.style));
                 res.push_span(Span::raw(chars.collect::<String>()));
                 res
             }
             Matches::ByteRange(start, end) => {
-
                 let mut bytes = text.bytes();
                 let mut res = Line::raw(String::from_utf8(bytes.by_ref().take(*start).collect()).unwrap());
                 let highlighted_bytes = bytes.by_ref().take(*end - *start).collect();
                 let highlighted_text = String::from_utf8(highlighted_bytes).unwrap();
 
-                res.push_span(Span::styled(
-                    highlighted_text,
-                    self.style,
-                ));
+                res.push_span(Span::styled(highlighted_text, self.style));
                 res.push_span(Span::raw(String::from_utf8(bytes.collect()).unwrap()));
                 res
             }
-            Matches::None => {
-
-                Line::raw(text)
-            },
+            Matches::None => Line::raw(text),
         }
     }
 }
@@ -305,7 +291,11 @@ impl MatchResult {
     #[must_use]
     pub fn range_char_indices(&self, text: &str) -> Vec<usize> {
         match &self.matched_range {
-            &MatchRange::ByteRange(start, end) => (start..end).collect(),
+            &MatchRange::ByteRange(start, end) => {
+                let first = text[..start].chars().count();
+                let last = first + text[start..end].chars().count();
+                (first..last).collect()
+            }
             MatchRange::Chars(vec) => vec.clone(),
         }
     }
@@ -373,6 +363,7 @@ impl Skim {
 
         let rt = tokio::runtime::Runtime::new()?;
         let mut final_event: Event = Event::Quit;
+        let mut final_key: KeyEvent = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
         rt.block_on(async {
             tui.enter()?;
 
@@ -422,7 +413,11 @@ impl Skim {
                             reader_done = false;
                         }
 
-                        final_event = evt.clone();
+                        if let Event::Key(k) = &evt {
+                          final_key = k.to_owned();
+                        } else {
+                          final_event = evt.to_owned();
+                        }
 
                         if reader_control.is_done() && ! reader_done {
                             app.restart_matcher(true);
@@ -477,13 +472,9 @@ impl Skim {
         })?;
 
         // Extract final_key and is_abort from final_event
-        let (final_key, is_abort) = match &final_event {
-            Event::Action(Action::Abort) => (KeyCode::Esc, true),
-            Event::Action(Action::Accept(_)) => (KeyCode::Enter, false),
-            Event::Key(key_event) => (key_event.code, false),
-            Event::Quit => (KeyCode::Esc, true),
-            Event::Close => (KeyCode::Enter, false),
-            _ => (KeyCode::Enter, false),
+        let is_abort = match &final_event {
+            Event::Action(Action::Accept(_)) => false,
+            _ => true,
         };
 
         Ok(SkimOutput {

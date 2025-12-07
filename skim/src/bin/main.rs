@@ -11,7 +11,8 @@ use clap_complete::generate;
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use derive_builder::Builder;
-use log::{debug, trace};
+use log::trace;
+use skim::item::RankBuilder;
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
@@ -235,9 +236,11 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     let engine_factory: Box<dyn MatchEngineFactory> = if options.regex {
         Box::new(RegexEngineFactory::builder())
     } else {
+        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
         let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
             .fuzzy_algorithm(options.algorithm)
             .exact_mode(options.exact)
+            .rank_builder(rank_builder)
             .build();
         Box::new(AndOrEngineFactory::new(fuzzy_engine_factory))
     };

@@ -8,7 +8,7 @@ use std::io::Result;
 #[test]
 fn test_ansi_flag_enabled() -> Result<()> {
     let tmux = TmuxController::new().unwrap();
-    let outfile = tmux
+    let _outfile = tmux
         .start_sk(
             Some("echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'"),
             &["--ansi"],
@@ -35,7 +35,7 @@ fn test_ansi_flag_enabled() -> Result<()> {
 #[test]
 fn test_ansi_flag_disabled() -> Result<()> {
     let tmux = TmuxController::new().unwrap();
-    let outfile = tmux
+    let _outfile = tmux
         .start_sk(
             Some("echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'"),
             &[],

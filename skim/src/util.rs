@@ -5,7 +5,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
     let file = File::open(filename)?;
@@ -14,13 +14,6 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
     ret
 }
 
-static RE_ITEMS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\\?(\{ *-?[0-9.+]*? *})").unwrap());
-
-/// Check if a command depends on item
-/// e.g. contains `{}`, `{1..}`, `{+}`
-pub fn depends_on_items(cmd: &str) -> bool {
-    RE_ITEMS.is_match(cmd)
-}
 
 fn escape_arg(a: &str) -> String {
     format!("'{}'", a.replace('\0', "\\0").replace("'", "'\\''"))

@@ -7,7 +7,7 @@ use std::{
     thread,
 };
 
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use rand::{Rng, distr::Alphanumeric};
 use which::which;
 
@@ -112,7 +112,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut stdin_reader = BufReader::new(std::io::stdin());
     let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
-    let t_tmp_stdin = temp_dir.join("stdin");
     let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
 
@@ -235,7 +234,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let skim_output = SkimOutput {
         final_event,
         is_abort,
-        final_key: KeyCode::Enter, // TODO
+        final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()), // TODO
         query: query_str.to_string(),
         cmd: command_str.to_string(),
         selected_items: output_lines,
