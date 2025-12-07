@@ -13,7 +13,7 @@ use regex::Regex;
 use crate::field::FieldRange;
 use crate::helper::item::DefaultSkimItem;
 use crate::reader::CommandCollector;
-use crate::{SkimItem, SkimItemReceiver, SkimItemSender};
+use crate::{SkimItem, SkimItemReceiver, SkimItemSender, SkimOptions};
 
 const CMD_CHANNEL_SIZE: usize = 1024;
 const ITEM_CHANNEL_SIZE: usize = 10240;
@@ -51,6 +51,22 @@ impl Default for SkimItemReaderOption {
 }
 
 impl SkimItemReaderOption {
+    pub fn from_options(options: &SkimOptions) -> Self {
+        Self {
+            buf_size: READ_BUFFER_SIZE,
+            line_ending: if options.read0 { b'\0' } else { b'\n' },
+            use_ansi_color: options.ansi,
+            transform_fields: options
+                .with_nth
+                .iter()
+                .filter_map(|f| FieldRange::from_str(f))
+                .collect(),
+            matching_fields: options.nth.iter().filter_map(|f| FieldRange::from_str(f)).collect(),
+            delimiter: options.delimiter.clone(),
+            show_error: options.show_cmd_error,
+        }
+    }
+
     pub fn buf_size(mut self, buf_size: usize) -> Self {
         self.buf_size = buf_size;
         self

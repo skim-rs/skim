@@ -1,6 +1,6 @@
 use std::{collections::HashSet, rc::Rc, sync::Arc};
 
-use ratatui::widgets::{List, ListDirection, ListState, StatefulWidget};
+use ratatui::widgets::{Clear, List, ListDirection, ListState, StatefulWidget, Widget};
 use ratatui::{
     style::Modifier,
     text::{Line, Span},
@@ -12,17 +12,23 @@ use unicode_width::UnicodeWidthStr;
 use crate::{
     DisplayContext, MatchRange, Selector, SkimItem, SkimOptions,
     item::{MatchedItem, RankBuilder},
+    spinlock::SpinLock,
     theme::ColorTheme,
     tui::options::TuiLayout,
     tui::widget::{SkimRender, SkimWidget},
 };
+
+/// Processed items ready for rendering
+struct ProcessedItems {
+    items: Vec<MatchedItem>,
+}
 
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: HashSet<MatchedItem>,
     pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
     rank_builder: RankBuilder,
-    rx: UnboundedReceiver<Vec<MatchedItem>>,
+    processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     pub(crate) current: usize,
@@ -39,15 +45,22 @@ pub struct ItemList {
     no_clear_if_empty: bool,
     interactive: bool,         // Whether we're in interactive mode
     showing_stale_items: bool, // True when displaying old items due to no_clear_if_empty
-    items_need_sort: bool,     // True when items need to be sorted
 }
 
 impl Default for ItemList {
     fn default() -> Self {
         let (tx, rx) = unbounded_channel();
+        let processed_items = Arc::new(SpinLock::new(None));
+
+        // Spawn background processing thread
+        let processed_items_clone = processed_items.clone();
+        std::thread::spawn(move || {
+            Self::process_items_task(rx, processed_items_clone);
+        });
+
         Self {
             tx,
-            rx,
+            processed_items,
             direction: ListDirection::BottomToTop,
             items: Default::default(),
             selection: Default::default(),
@@ -67,12 +80,32 @@ impl Default for ItemList {
             no_clear_if_empty: false,
             interactive: false,
             showing_stale_items: false,
-            items_need_sort: false,
         }
     }
 }
 
 impl ItemList {
+    /// Background task that processes incoming items from matcher
+    /// Performs expensive operations (sorting) in background to keep render path fast
+    fn process_items_task(
+        mut rx: UnboundedReceiver<Vec<MatchedItem>>,
+        processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
+    ) {
+        while let Some(mut items) = rx.blocking_recv() {
+            debug!("Background task: Got {} items to process", items.len());
+
+            // Sort items immediately - use stable sort to preserve order for equal ranks
+            items.sort_by_key(|item| item.rank);
+
+            // Write processed items to shared state for render thread
+            // Move items instead of cloning for efficiency
+            let processed = ProcessedItems { items };
+
+            *processed_items.lock() = Some(processed);
+        }
+        debug!("Background task: rx channel closed, exiting");
+    }
+
     fn cursor(&self) -> usize {
         trace!("{:?}", self.selection);
         self.current
@@ -209,7 +242,7 @@ impl ItemList {
         let right_indicator_width = if has_right_overflow { 2 } else { 0 };
         let content_width = container_width.saturating_sub(left_indicator_width + right_indicator_width);
 
-        // Extract the visible portion of the line
+        // Extract the visible portion of the line while preserving styling
         let mut result = Line::default();
 
         // Add left indicator if needed
@@ -217,38 +250,99 @@ impl ItemList {
             result.push_span(Span::raw(".."));
         }
 
-        // Calculate which part of the text to show
-        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        // Process spans to extract only the visible portion while preserving styles
+        let mut current_char_index = 0;
         let mut current_width = 0;
-        let mut visible_chars = String::new();
+        let shift_char_start = self.char_index_at_width(&line, shift);
+        let shift_char_end = self.char_index_at_width(&line, shift + content_width);
 
-        for ch in text.chars() {
-            let ch_width = if ch == '\t' {
-                self.tabstop - (current_width % self.tabstop)
-            } else {
-                ch.to_string().width_cjk()
-            };
+        for span in line.spans {
+            let span_text = span.content.as_ref();
+            let span_chars: Vec<char> = span_text.chars().collect();
 
-            if current_width >= shift && current_width + ch_width <= shift + content_width {
-                if ch == '\t' {
-                    visible_chars.push_str(&" ".repeat(ch_width));
+            let span_start_char = current_char_index;
+            let span_end_char = current_char_index + span_chars.len();
+
+            // Check if this span intersects with our visible range
+            if span_end_char > shift_char_start && span_start_char < shift_char_end {
+                // Calculate which part of this span is visible
+                let visible_start = if span_start_char < shift_char_start {
+                    shift_char_start - span_start_char
                 } else {
-                    visible_chars.push(ch);
+                    0
+                };
+
+                let visible_end = if span_end_char > shift_char_end {
+                    shift_char_end - span_start_char
+                } else {
+                    span_chars.len()
+                };
+
+                if visible_start < visible_end && visible_start < span_chars.len() {
+                    let visible_chars: String = span_chars[visible_start..visible_end.min(span_chars.len())].iter().collect();
+
+                    // Expand tabs to spaces and preserve styling
+                    let processed_chars = if visible_chars.contains('\t') {
+                        self.expand_tabs(&visible_chars, current_width)
+                    } else {
+                        visible_chars
+                    };
+
+                    if !processed_chars.is_empty() {
+                        result.push_span(Span::styled(processed_chars, span.style));
+                    }
                 }
             }
 
-            current_width += ch_width;
-
-            if current_width >= shift + content_width {
-                break;
-            }
+            current_char_index += span_chars.len();
+            current_width += span_text.width_cjk();
         }
-
-        result.push_span(Span::raw(visible_chars));
 
         // Add right indicator if needed
         if has_right_overflow {
             result.push_span(Span::raw(".."));
+        }
+
+        result
+    }
+
+    fn char_index_at_width(&self, line: &Line<'_>, target_width: usize) -> usize {
+        let mut current_width = 0;
+        let mut char_index = 0;
+
+        for span in &line.spans {
+            for ch in span.content.chars() {
+                let ch_width = if ch == '\t' {
+                    self.tabstop - (current_width % self.tabstop)
+                } else {
+                    ch.to_string().width_cjk()
+                };
+
+                if current_width >= target_width {
+                    return char_index;
+                }
+
+                current_width += ch_width;
+                char_index += 1;
+            }
+        }
+
+        char_index
+    }
+
+    fn expand_tabs(&self, text: &str, start_width: usize) -> String {
+        let mut result = String::new();
+        let mut current_width = start_width;
+
+        for ch in text.chars() {
+            if ch == '\t' {
+                let tab_width = self.tabstop - (current_width % self.tabstop);
+                result.push_str(&" ".repeat(tab_width));
+                current_width += tab_width;
+            } else {
+                result.push(ch);
+                current_width += ch.to_string().width_cjk();
+            }
         }
 
         result
@@ -306,7 +400,6 @@ impl ItemList {
         self.current = 0;
         self.offset = 0;
         self.showing_stale_items = false;
-        self.items_need_sort = false;
     }
     pub fn scroll_by(&mut self, offset: i32) {
         self.current = self
@@ -389,7 +482,22 @@ impl SkimWidget for ItemList {
             (None, 0)
         };
 
+        let (tx, rx) = unbounded_channel();
+        let processed_items = Arc::new(SpinLock::new(None));
+
+        let interactive = options.interactive;
+        let no_clear_if_empty = options.no_clear_if_empty;
+        let multi_select = options.multi;
+
+        // Spawn background processing thread with the appropriate configuration
+        let processed_items_clone = processed_items.clone();
+        std::thread::spawn(move || {
+            Self::process_items_task(rx, processed_items_clone);
+        });
+
         Self {
+            tx,
+            processed_items,
             reserved: options.header_lines,
             direction: match options.layout {
                 TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
@@ -397,16 +505,21 @@ impl SkimWidget for ItemList {
             },
             current: options.header_lines,
             theme,
-            multi_select: options.multi,
+            multi_select,
             no_hscroll: options.no_hscroll,
             keep_right: options.keep_right,
             skip_to_pattern,
             tabstop: options.tabstop.max(1),
             selector,
             pre_select_target,
-            no_clear_if_empty: options.no_clear_if_empty,
-            interactive: options.interactive,
-            ..Default::default()
+            no_clear_if_empty,
+            interactive,
+            showing_stale_items: false,
+            items: Default::default(),
+            selection: Default::default(),
+            rank_builder: Default::default(),
+            offset: Default::default(),
+            height: Default::default(),
         }
     }
 
@@ -418,31 +531,27 @@ impl SkimWidget for ItemList {
         } else if this.offset + area.height as usize <= this.current {
             this.offset = this.current - area.height as usize + 1;
         }
-        // Check if new items are available without draining all of them
-        // This prevents wasting CPU on processing items that get discarded
-        let items_updated = if let Ok(mut items) = this.rx.try_recv() {
-            debug!("Got {} items to put in list", items.len());
 
-            let items_are_empty_or_blank =
-                items.is_empty() || items.iter().all(|item| item.item.text().trim().is_empty());
+        // Check for pre-processed items from background thread (non-blocking)
+        let items_updated = if let Some(processed) = this.processed_items.lock().take() {
+            debug!("Render: Got {} processed items", processed.items.len());
+
+            // Check if items are empty or blank for no_clear_if_empty handling
+            let items_are_empty_or_blank = processed.items.is_empty()
+                || processed.items.iter().all(|item| item.item.text().trim().is_empty());
 
             if this.interactive && this.no_clear_if_empty && items_are_empty_or_blank && !this.items.is_empty() {
                 debug!(
                     "no_clear_if_empty: keeping {} old items for display (new items are empty/blank)",
                     this.items.len()
                 );
-                // Set flag to show 0 count in status, but keep old items for display
                 this.showing_stale_items = true;
-                true
             } else {
-                // Sort items immediately when received, not on every render
-                // Use unstable sort - faster and we don't need stable ordering
-                items.sort_unstable_by_key(|item| item.rank);
-                this.items = items;
+                this.items = processed.items;
                 this.showing_stale_items = false;
-                this.items_need_sort = false;
 
-                // Apply pre-selection AFTER sorting
+                // Apply pre-selection only when new items arrive and only if we haven't reached target
+                // This runs once per item batch, not on every render
                 if this.multi_select && this.selector.is_some() && this.selection.len() < this.pre_select_target {
                     debug!(
                         "Applying pre-selection to {} items (currently {} selected, target {})",
@@ -451,36 +560,23 @@ impl SkimWidget for ItemList {
                         this.pre_select_target
                     );
                     for (index, item) in this.items.iter().enumerate() {
-                        // Stop if we've reached our target
                         if this.selection.len() >= this.pre_select_target {
                             break;
                         }
-
-                        let item_text = item.item.text();
                         let should_select = this.selector.as_ref().unwrap().should_select(index, item.item.as_ref());
-                        debug!("Item[{}]: '{}' -> {}", index, item_text, should_select);
                         if should_select {
+                            debug!("Pre-selecting item[{}]: '{}'", index, item.item.text());
                             this.selection.insert(item.clone());
                         }
                     }
-                    debug!(
-                        "Pre-selected {} items: {:?}",
-                        this.selection.len(),
-                        this.selection.iter().map(|i| i.item.text()).collect::<Vec<_>>()
-                    );
+                    debug!("Pre-selected {} items total", this.selection.len());
                 }
-
-                true
             }
+
+            true
         } else {
             false
         };
-
-        // Only sort if items need sorting and we haven't just received new items
-        if !items_updated && this.items_need_sort {
-            this.items.sort_unstable_by_key(|item| item.rank);
-            this.items_need_sort = false;
-        }
 
         if this.items.is_empty() {
             return SkimRender { items_updated };
@@ -532,12 +628,12 @@ impl SkimWidget for ItemList {
                         Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
                         None => crate::Matches::None,
                     };
-                    
+
                     let mut display_line = item.item.display(DisplayContext {
                         score: item.rank[0],
                         matches,
                         container_width,
-                        style: if is_current { theme.current() } else { theme.normal() },
+                        style: if is_current { theme.current_match() } else { theme.matched() },
                     });
 
                     // Apply horizontal scrolling to the display content
@@ -564,6 +660,7 @@ impl SkimWidget for ItemList {
         )
         .direction(this.direction);
 
+        Widget::render(Clear, area, buf);
         StatefulWidget::render(
             list,
             area,

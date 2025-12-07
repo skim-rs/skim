@@ -420,14 +420,14 @@ impl<'a> App<'a> {
                 self.status.reading = self.item_pool.num_not_taken() != 0;
                 // matcher_running from control
                 self.status.matcher_running = !self.matcher_control.stopped();
-                
+
                 // Always render to avoid freezing, but the render function itself can optimize
                 tui.get_frame();
                 tui.draw(|f| {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-                
+
                 if self.items_just_updated {
                     self.on_items_updated();
                     self.items_just_updated = false;
@@ -559,7 +559,7 @@ impl<'a> App<'a> {
             }
             _ => (),
         };
-        
+
         // Check if item changed
         let new_item = self.item_list.selected();
         if let Some(new) = new_item {
@@ -1122,7 +1122,7 @@ impl<'a> App<'a> {
 
     /// Restart matcher with debouncing to avoid excessive restarts during rapid typing
     fn restart_matcher_debounced(&mut self) {
-        const DEBOUNCE_MS: u64 = 50;
+        const DEBOUNCE_MS: u64 = 250;
         let now = std::time::Instant::now();
 
         // If enough time has passed since last restart, restart immediately

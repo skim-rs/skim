@@ -100,13 +100,7 @@ fn sk_main() -> Result<i32> {
         return Ok(0);
     }
 
-    let reader_opts = SkimItemReaderOption::default()
-        .ansi(opts.ansi)
-        .delimiter(opts.delimiter.clone())
-        .with_nth(opts.with_nth.iter().map(String::as_str))
-        .nth(opts.nth.iter().map(String::as_str))
-        .read0(opts.read0)
-        .show_error(opts.show_cmd_error);
+    let reader_opts = SkimItemReaderOption::from_options(&opts);
     let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
     opts.cmd_collector = cmd_collector.clone() as Rc<RefCell<dyn CommandCollector>>;
 

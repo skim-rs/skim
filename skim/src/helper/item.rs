@@ -53,12 +53,21 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let (orig_text, text) = if using_transform_fields {
-            let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
-            (Some(orig_text), transformed)
-        } else {
-            // Normal case: no transformation needed, save memory by not duplicating
-            (None, orig_text)
+        let (orig_text, text) = match (using_transform_fields, ansi_enabled) {
+            (true, true) => {
+                let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
+                (Some(orig_text), transformed)
+            }
+            (true, false) => {
+                let transformed = parse_transform_fields(
+                    delimiter,
+                    &orig_text.replace(char::from_u32(27).unwrap(), "?"),
+                    trans_fields,
+                );
+                (Some(orig_text), transformed)
+            }
+            (false, true) => (None, orig_text),
+            (false, false) => (None, orig_text.replace(char::from_u32(27).unwrap(), "?")),
         };
 
         let matching_ranges = if !matching_fields.is_empty() {

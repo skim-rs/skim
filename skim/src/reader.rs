@@ -60,6 +60,7 @@ impl ReaderControl {
 pub struct Reader {
     cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     rx_item: Option<SkimItemReceiver>,
+    ansi: bool,
 }
 
 impl Reader {
@@ -67,6 +68,7 @@ impl Reader {
         Self {
             cmd_collector: options.cmd_collector.clone(),
             rx_item: None,
+            ansi: options.ansi,
         }
     }
 

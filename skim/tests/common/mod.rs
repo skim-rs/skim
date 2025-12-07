@@ -91,7 +91,7 @@ impl TmuxController {
     }
 
     pub fn new() -> Result<Self> {
-        let unset_cmd = "unset SKIM_DEFAULT_COMMAND SKIM_DEFAULT_OPTIONS PS1 PROMPT_COMMAND";
+        let unset_cmd = "unset SKIM_DEFAULT_COMMAND SKIM_DEFAULT_OPTIONS PS1 PROMPT_COMMAND HISTFILE";
 
         let shell_cmd = "bash --rcfile None";
 

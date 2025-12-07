@@ -155,7 +155,7 @@ impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
 
 //------------------------------------------------------------------------------
 // Display Context
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum Matches {
     #[default]
     None,
@@ -176,15 +176,20 @@ impl DisplayContext {
     pub fn to_line(self, cow: Cow<str>) -> Line {
         let text: String = cow.into_owned();
 
+
+
         match &self.matches {
             Matches::CharIndices(indices) => {
+
                 let mut res = Line::default();
                 let mut chars = text.chars();
                 let mut prev_index = 0;
                 for &index in indices {
                     let span_content = chars.by_ref().take(index - prev_index);
                     res.push_span(Span::raw(span_content.collect::<String>()));
-                    res.push_span(Span::styled(chars.next().unwrap_or_default().to_string(), self.style));
+                    let highlighted_char = chars.next().unwrap_or_default().to_string();
+
+                    res.push_span(Span::styled(highlighted_char, self.style));
                     prev_index = index + 1;
                 }
                 res.push_span(Span::raw(chars.collect::<String>()));
@@ -193,26 +198,36 @@ impl DisplayContext {
             // AnsiString::from((context.text, indices, context.highlight_attr)),
             #[allow(clippy::cast_possible_truncation)]
             Matches::CharRange(start, end) => {
+
                 let mut chars = text.chars();
                 let mut res = Line::raw(chars.by_ref().take(*start).collect::<String>());
+                let highlighted_text = chars.by_ref().take(*end - *start).collect::<String>();
+
                 res.push_span(Span::styled(
-                    chars.by_ref().take(*end - *start).collect::<String>(),
+                    highlighted_text,
                     self.style,
                 ));
                 res.push_span(Span::raw(chars.collect::<String>()));
                 res
             }
             Matches::ByteRange(start, end) => {
+
                 let mut bytes = text.bytes();
                 let mut res = Line::raw(String::from_utf8(bytes.by_ref().take(*start).collect()).unwrap());
+                let highlighted_bytes = bytes.by_ref().take(*end - *start).collect();
+                let highlighted_text = String::from_utf8(highlighted_bytes).unwrap();
+
                 res.push_span(Span::styled(
-                    String::from_utf8(bytes.by_ref().take(*end - *start).collect()).unwrap(),
+                    highlighted_text,
                     self.style,
                 ));
                 res.push_span(Span::raw(String::from_utf8(bytes.collect()).unwrap()));
                 res
             }
-            Matches::None => Line::raw(text),
+            Matches::None => {
+
+                Line::raw(text)
+            },
         }
     }
 }
@@ -290,11 +305,7 @@ impl MatchResult {
     #[must_use]
     pub fn range_char_indices(&self, text: &str) -> Vec<usize> {
         match &self.matched_range {
-            &MatchRange::ByteRange(start, end) => {
-                let first = text[..start].chars().count();
-                let last = first + text[start..end].chars().count();
-                (first..last).collect()
-            }
+            &MatchRange::ByteRange(start, end) => (start..end).collect(),
             MatchRange::Chars(vec) => vec.clone(),
         }
     }
@@ -384,7 +395,8 @@ impl Skim {
             app.restart_matcher(true);
 
             let mut reader_done = false;
-            let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
+            let mut first_matcher = true;
+            let mut matcher_interval = tokio::time::interval(Duration::from_millis(50));
 
             loop {
                 select! {
@@ -415,6 +427,10 @@ impl Skim {
                         if reader_control.is_done() && ! reader_done {
                             app.restart_matcher(true);
                             reader_done = true;
+                            matcher_interval = tokio::time::interval(Duration::from_millis(100));
+                        } else if !reader_control.is_done() && first_matcher {
+                            matcher_interval = tokio::time::interval(Duration::from_millis(1000));
+                            first_matcher = false;
                         }
                         app.handle_event(&mut tui, &evt)?;
                     }
@@ -431,7 +447,7 @@ impl Skim {
                 // Batch size of 2048 items significantly reduces overhead for large inputs
                 const BATCH_SIZE: usize = 2048;
                 let mut items = Vec::with_capacity(BATCH_SIZE);
-                
+
                 // Process items in batches without collecting everything in memory
                 loop {
                     let mut batch_count = 0;
@@ -443,11 +459,11 @@ impl Skim {
                             break;
                         }
                     }
-                    
+
                     if items.is_empty() {
                         break;
                     }
-                    
+
                     app.handle_items(items);
                     items = Vec::with_capacity(BATCH_SIZE);
                 }

@@ -6,6 +6,8 @@
 # Usage: bench.sh <binary path>
 
 set -e
+export SHELL="/bin/sh"
+unset HISTFILE
 
 echo "=== Skim Performance Test ==="
 echo ""
@@ -15,7 +17,7 @@ TEST_SIZE=10000000
 QUERY="9999"
 MATCHES="27280"
 
-SESSION_NAME="skim-test-$1-$(date +%s)"
+SESSION_NAME="skim-test-$(date +%s)"
 
 trap "tmux kill-session -t $SESSION_NAME" SIGINT
 trap "tmux kill-session -t $SESSION_NAME" SIGTSTP
@@ -50,7 +52,7 @@ bench() {
     SK_PID=""
     for i in 1 2 3 4 5; do
         sleep 0.5
-        SK_PID=$(pgrep -lf "$BINARY_PATH" | grep "sk" | head -1 | cut -d' ' -f1)
+        SK_PID=$(pgrep -lf "$BINARY_PATH" | grep -E "sk|fzf" | head -1 | cut -d' ' -f1)
         if [ -n "$SK_PID" ]; then
             break
         fi

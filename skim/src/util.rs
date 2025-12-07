@@ -43,9 +43,9 @@ pub fn printf(
     query: &str,
     command_query: &str,
 ) -> String {
-    let item_text = match selected {
-        Some(s) => s.text().into_owned(),
-        None => String::default(),
+    let (item_text, field_text) = match selected {
+        Some(s) => (s.text().into_owned(), s.output().into_owned()),
+        None => (String::default(), String::default()),
     };
     // Replace static fields first
     let mut res = pattern.replace("{}", &escape_arg(&item_text));
@@ -64,7 +64,7 @@ pub fn printf(
         if inside {
             if c == '}' {
                 let range = FieldRange::from_str(&pattern).unwrap(); // TODO
-                let replacement = get_string_by_field(delimiter, &item_text, &range).unwrap();
+                let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap();
                 replaced.push_str(&escape_arg(replacement));
 
                 pattern = String::new();

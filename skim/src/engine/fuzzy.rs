@@ -142,12 +142,9 @@ impl MatchEngine for FuzzyEngine {
 
         let item_len = item_text.len();
         
-        // For ASCII text (most common case), char index == byte index
-        // For UTF-8, this is an approximation but saves massive memory with large datasets
-        // Use ByteRange instead of Vec<usize> to save memory (16 bytes vs heap allocation)
-        let byte_begin = begin.min(item_text.len());
-        let byte_end = end.min(item_text.len());
-        let matched_range = MatchRange::ByteRange(byte_begin, byte_end);
+        // Use individual character indices for highlighting instead of byte range
+        // This allows each matched character to be highlighted individually
+        let matched_range = MatchRange::Chars(matched_range);
         
         Some(MatchResult {
             rank: self
