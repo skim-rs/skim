@@ -26,7 +26,6 @@ bitflags = "2.10.0"
 chrono = { workspace = true }
 clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { workspace = true, optional = true }
-crossbeam = { workspace = true }
 defer-drop = { workspace = true }
 derive_builder = { workspace = true }
 env_logger = { workspace = true, optional = true }

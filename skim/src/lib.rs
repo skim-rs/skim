@@ -6,21 +6,20 @@ use std::borrow::Cow;
 use std::env;
 use std::fmt::Display;
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::AtomicBool;
+use std::time::{Duration, Instant};
 
-use color_eyre::eyre;
-use color_eyre::eyre::OptionExt;
 use color_eyre::eyre::Result;
-use crossbeam::channel::{Receiver, Sender};
+use color_eyre::eyre::{self, OptionExt};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
 use ratatui::prelude::CrosstermBackend;
 use ratatui::style::Style;
-use ratatui::text::Line;
-use ratatui::text::Span;
+use ratatui::text::{Line, Span};
 use reader::Reader;
 use tokio::select;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -321,8 +320,8 @@ pub trait Selector {
 }
 
 //------------------------------------------------------------------------------
-pub type SkimItemSender = Sender<Arc<dyn SkimItem>>;
-pub type SkimItemReceiver = Receiver<Arc<dyn SkimItem>>;
+pub type SkimItemSender = UnboundedSender<Arc<dyn SkimItem>>;
+pub type SkimItemReceiver = UnboundedReceiver<Arc<dyn SkimItem>>;
 
 pub struct Skim {}
 
@@ -375,19 +374,32 @@ impl Skim {
             } else {
                 cmd.clone()
             };
-            let mut reader_control = reader.run(app.item_tx.clone(), &initial_cmd);
+            let (item_tx, mut item_rx) = unbounded_channel();
+            let mut reader_control = reader.run(item_tx.clone(), &initial_cmd);
 
             //------------------------------------------------------------------------------
             // model + previewer
-            // let _ = term.send_event(TermEvent::User(())); // interrupt the input thread
-            // let _ = input_thread.join();
 
-            // Start initial matcher so items are displayed as soon as they arrive
+            let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
+            let reader_done = Arc::new(AtomicBool::new(false));
+            let reader_done_clone = reader_done.clone();
+
+            let item_pool = app.item_pool.clone();
+            tokio::spawn(async move {
+                const BATCH: usize = 2048;
+                loop {
+                    let mut buf = Vec::with_capacity(BATCH);
+                    if item_rx.recv_many(&mut buf, BATCH).await > 0 {
+                        item_pool.append(buf);
+                        trace!("Got new items, len {}", item_pool.len());
+                    } else {
+                        reader_done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+            });
+
+            // Start matcher initially
             app.restart_matcher(true);
-
-            let mut reader_done = false;
-            let mut first_matcher = true;
-            let mut matcher_interval = tokio::time::interval(Duration::from_millis(50));
 
             loop {
                 select! {
@@ -398,8 +410,8 @@ impl Skim {
                         if let Event::Reload(new_cmd) = &evt {
                             // Kill the current reader
                             reader_control.kill();
-                            // Drain any items still in the channel from the old reader
-                            while app.item_rx.try_recv().is_ok() {}
+                            // TODO Drain any items still in the channel from the old reader
+                            // while item_rx.try_recv().is_ok() {}
                             // Clear items
                             app.item_pool.clear();
                             // Clear displayed items unless no_clear_if_empty is set
@@ -409,58 +421,28 @@ impl Skim {
                             }
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
-                            reader_control = reader.run(app.item_tx.clone(), new_cmd);
-                            reader_done = false;
+                            reader_control = reader.run(item_tx.clone(), &new_cmd);
+                            app.status.reading = true;
+                            reader_done.store(false, std::sync::atomic::Ordering::Relaxed);
                         }
-
                         if let Event::Key(k) = &evt {
                           final_key = k.to_owned();
                         } else {
                           final_event = evt.to_owned();
                         }
 
-                        if reader_control.is_done() && ! reader_done {
+                        if !reader_control.is_done() {
+                          app.reader_timer = Instant::now();
+                        } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
+                            reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
                             app.restart_matcher(true);
-                            reader_done = true;
-                            matcher_interval = tokio::time::interval(Duration::from_millis(100));
-                        } else if !reader_control.is_done() && first_matcher {
-                            matcher_interval = tokio::time::interval(Duration::from_millis(1000));
-                            first_matcher = false;
+                            app.status.reading = false;
                         }
                         app.handle_event(&mut tui, &evt)?;
                     }
                     _ = matcher_interval.tick() => {
-                      // Only restart if there's a pending request
-                      if app.pending_matcher_restart {
-                        app.pending_matcher_restart = false;
-                        app.restart_matcher(true);
-                      }
+                      app.restart_matcher(false);
                     }
-                }
-
-                // Process items in larger batches to improve performance
-                // Batch size of 2048 items significantly reduces overhead for large inputs
-                const BATCH_SIZE: usize = 2048;
-                let mut items = Vec::with_capacity(BATCH_SIZE);
-
-                // Process items in batches without collecting everything in memory
-                loop {
-                    let mut batch_count = 0;
-                    while batch_count < BATCH_SIZE {
-                        if let Ok(item) = app.item_rx.try_recv() {
-                            items.push(item);
-                            batch_count += 1;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    if items.is_empty() {
-                        break;
-                    }
-
-                    app.handle_items(items);
-                    items = Vec::with_capacity(BATCH_SIZE);
                 }
 
                 if app.should_quit {

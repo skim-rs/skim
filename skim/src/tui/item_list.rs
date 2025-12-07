@@ -105,7 +105,6 @@ impl ItemList {
     }
 
     fn cursor(&self) -> usize {
-        trace!("{:?}", self.selection);
         self.current
     }
 

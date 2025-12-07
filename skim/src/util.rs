@@ -30,13 +30,13 @@ fn escape_arg(a: &str) -> String {
 pub fn printf(
     pattern: String,
     delimiter: &Regex,
-    items: impl Iterator<Item = Arc<dyn SkimItem>>,
+    items: impl Iterator<Item = Arc<dyn SkimItem>> + std::clone::Clone,
     selected: Option<Arc<dyn SkimItem>>,
     query: &str,
     command_query: &str,
 ) -> String {
     let (item_text, field_text) = match selected {
-        Some(s) => (s.text().into_owned(), s.output().into_owned()),
+        Some(ref s) => (s.text().into_owned(), s.output().into_owned()),
         None => (String::default(), String::default()),
     };
     // Replace static fields first
@@ -44,10 +44,25 @@ pub fn printf(
 
     res = res.replace(
         "{+}",
-        &escape_arg(&items.map(|i| i.text().into_owned()).collect::<Vec<_>>().join(" ")),
+        &escape_arg(
+            &items
+                .clone()
+                .map(|i| i.text().into_owned())
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
     );
     res = res.replace("{q}", &escape_arg(query));
     res = res.replace("{cq}", &escape_arg(command_query));
+    if let Some(ref s) = selected {
+        res = res.replace("{n}", &format!("{}", &s.get_index()));
+    }
+    res = res.replace(
+        "{+n}",
+        &items
+            .map(|i| format!("'{}'", i.get_index()))
+            .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " "),
+    );
 
     let mut inside = false;
     let mut pattern = String::new();

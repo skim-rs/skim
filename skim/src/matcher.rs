@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::thread::{self, JoinHandle};
+use std::thread;
 
 use rayon::prelude::*;
 
@@ -17,7 +17,6 @@ pub struct MatcherControl {
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-    thread_matcher: Option<JoinHandle<()>>,
 }
 
 impl MatcherControl {
@@ -29,9 +28,8 @@ impl MatcherControl {
         self.matched.load(Ordering::Relaxed)
     }
 
-    pub fn kill(&self) {
+    pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-        // Note: Regular threads don't have abort(), they'll stop via the stopped flag
     }
 
     pub fn stopped(&self) -> bool {
@@ -46,12 +44,8 @@ impl MatcherControl {
 
 impl Drop for MatcherControl {
     fn drop(&mut self) {
-        // Signal the thread to stop
+        debug!("dropping matcher control");
         self.stopped.store(true, Ordering::Relaxed);
-        // Join the thread to prevent accumulation
-        if let Some(handle) = self.thread_matcher.take() {
-            let _ = handle.join();
-        }
     }
 }
 
@@ -93,7 +87,7 @@ impl Matcher {
         let matched_items = Arc::new(SpinLock::new(Vec::new()));
         let matched_items_clone = matched_items.clone();
 
-        let thread_matcher = thread::spawn(move || {
+        thread::spawn(move || {
             let _num_taken = item_pool.num_taken();
             let items = item_pool.take();
 
@@ -138,7 +132,6 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items_clone,
-            thread_matcher: Some(thread_matcher),
         }
     }
 }

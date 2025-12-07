@@ -196,7 +196,9 @@ impl ItemPool {
 
     pub fn reset(&self) {
         // lock to ensure consistency
+        debug!("reset");
         let _items = self.pool.lock();
+        debug!("locked");
         self.taken.store(0, Ordering::SeqCst);
     }
 

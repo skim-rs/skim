@@ -18,7 +18,6 @@ use super::header::Header;
 use super::item_list::ItemList;
 use super::statusline::StatusLine;
 use color_eyre::eyre::{Result, bail};
-use crossbeam::channel::{Receiver, Sender, unbounded};
 use crossterm::event::{KeyEvent, KeyModifiers};
 use defer_drop::DeferDrop;
 use input::Input;
@@ -39,8 +38,6 @@ pub struct App<'a> {
     pub matcher_control: MatcherControl,
     pub matcher: Matcher,
     pub yank_register: Cow<'a, str>,
-    pub item_rx: Receiver<Arc<dyn SkimItem>>,
-    pub item_tx: Sender<Arc<dyn SkimItem>>,
     pub last_matcher_restart: std::time::Instant,
     pub pending_matcher_restart: bool,
 
@@ -239,7 +236,6 @@ impl Widget for &mut App<'_> {
 
 impl Default for App<'_> {
     fn default() -> Self {
-        let (item_tx, item_rx) = unbounded();
         let theme = Arc::new(crate::theme::ColorTheme::default());
         let opts = SkimOptions::default();
         Self {
@@ -250,8 +246,6 @@ impl Default for App<'_> {
             item_list: ItemList::from_options(&opts, theme.clone()),
             item_pool: Arc::default(),
             theme,
-            item_rx,
-            item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
@@ -282,7 +276,6 @@ impl Default for App<'_> {
 
 impl<'a> App<'a> {
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
-        let (item_tx, item_rx) = unbounded();
         let mut input = Input::from_options(&options, theme.clone());
 
         // In interactive mode, use cmd_prompt instead of regular prompt
@@ -306,8 +299,6 @@ impl<'a> App<'a> {
             item_pool: Arc::default(),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
-            item_rx,
-            item_tx,
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(AndOrEngineFactory::new(
@@ -413,29 +404,21 @@ impl<'a> App<'a> {
         let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
-                // update status timing fields before rendering so spinner/indicators are current
-                self.status.time_since_read = self.reader_timer.elapsed();
-                self.status.time_since_match = self.matcher_timer.elapsed();
-                // reading state: true if there are items not yet taken by matcher
-                self.status.reading = self.item_pool.num_not_taken() != 0;
-                // matcher_running from control
-                self.status.matcher_running = !self.matcher_control.stopped();
-
                 // Always render to avoid freezing, but the render function itself can optimize
                 tui.get_frame();
                 tui.draw(|f| {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-
-                if self.items_just_updated {
-                    self.on_items_updated();
-                    self.items_just_updated = false;
-                }
             }
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
                 self.on_matcher_state_changed();
+                self.status.time_since_read = self.reader_timer.elapsed();
+                self.status.time_since_match = self.matcher_timer.elapsed();
+                self.status.reading = self.item_pool.num_not_taken() != 0;
+                self.status.matcher_running = !self.matcher_control.stopped();
+                self.on_items_updated();
             }
             Event::RunPreview => {
                 if let Some(preview_opt) = &self.options.preview
@@ -543,11 +526,6 @@ impl<'a> App<'a> {
                 }
                 self.on_selection_changed();
                 self.on_matcher_state_changed();
-            }
-            Event::NewItem(item) => {
-                self.item_pool.append(vec![item.clone()]);
-                self.restart_matcher(false);
-                trace!("Got new item, len {}", self.item_pool.len());
             }
             Event::Key(key) => {
                 for evt in self.handle_key(key) {
@@ -1076,7 +1054,7 @@ impl<'a> App<'a> {
 
         let matcher_stopped = self.matcher_control.stopped();
 
-        if force || (matcher_stopped && self.item_pool.num_not_taken() == 0) {
+        if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.matcher_control.kill();

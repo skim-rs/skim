@@ -17,7 +17,7 @@ use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
-use std::{env, io};
+use std::{env, io, usize};
 use thiserror::Error;
 
 use skim::prelude::*;
@@ -251,15 +251,18 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     // start
     let components_to_stop = Arc::new(AtomicUsize::new(0));
 
-    let stream_of_item = source.unwrap_or_else(|| {
+    let mut stream_of_item = source.unwrap_or_else(|| {
         let (ret, _control) = options.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
         ret
     });
 
     let mut num_matched = 0;
     let mut stdout_lock = std::io::stdout().lock();
-    stream_of_item
-        .into_iter()
+    let mut items = Vec::new();
+    stream_of_item.blocking_recv_many(&mut items, usize::MAX);
+
+    items
+        .iter()
         .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
         .for_each(|(item, _match_result)| {
             num_matched += 1;

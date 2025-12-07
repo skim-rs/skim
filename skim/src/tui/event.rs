@@ -1,12 +1,4 @@
-use std::sync::Arc;
-
 use crossterm::event::KeyEvent;
-
-use crate::SkimItem;
-// use std::sync::mpsc::{Receiver, Sender};
-
-// pub type EventReceiver = Receiver<(Key, Event)>;
-// pub type EventSender = Sender<(Key, Event)>;
 
 #[derive(Clone)]
 pub enum Event {
@@ -19,7 +11,6 @@ pub enum Event {
     PreviewReady(Vec<u8>),
     InvalidInput,
     Action(Action),
-    NewItem(Arc<dyn SkimItem>),
     ClearItems,
     Clear,
     Heartbeat,

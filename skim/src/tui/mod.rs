@@ -31,14 +31,15 @@ pub enum Direction {
     Right,
 }
 
-impl From<&str> for Direction {
-    fn from(value: &str) -> Self {
+impl TryFrom<&str> for Direction {
+    type Error = &'static str;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
-            "up" => Self::Up,
-            "down" => Self::Down,
-            "left" => Self::Left,
-            "right" => Self::Right,
-            _ => panic!("Unknown direction {value}"),
+            "up" => Ok(Self::Up),
+            "down" => Ok(Self::Down),
+            "left" => Ok(Self::Left),
+            "right" => Ok(Self::Right),
+            _ => Err("Unknown direction {value}"),
         }
     }
 }
