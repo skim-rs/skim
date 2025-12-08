@@ -267,11 +267,7 @@ impl ItemList {
             // Check if this span intersects with our visible range
             if span_end_char > shift_char_start && span_start_char < shift_char_end {
                 // Calculate which part of this span is visible
-                let visible_start = if span_start_char < shift_char_start {
-                    shift_char_start - span_start_char
-                } else {
-                    0
-                };
+                let visible_start = shift_char_start.saturating_sub(span_start_char);
 
                 let visible_end = if span_end_char > shift_char_end {
                     shift_char_end - span_start_char

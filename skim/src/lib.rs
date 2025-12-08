@@ -56,25 +56,20 @@ pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::tui::event::Action;
 
-/// Key binding configuration and parsing
 pub mod binds;
 mod engine;
-/// Field extraction and parsing utilities
 pub mod field;
+pub mod fuzzy_matcher;
 mod helper;
 pub mod item;
 mod matcher;
-/// Configuration options for skim
 pub mod options;
 mod output;
-/// Convenience re-exports of commonly used types
 pub mod prelude;
 pub mod reader;
 pub mod spinlock;
 mod theme;
-/// Tmux integration utilities
 pub mod tmux;
-/// Terminal UI components and rendering
 pub mod tui;
 mod util;
 
@@ -469,7 +464,7 @@ impl Skim {
 
             let item_pool = app.item_pool.clone();
             tokio::spawn(async move {
-                const BATCH: usize = 2048;
+                const BATCH: usize = 1 << 24;
                 loop {
                     let mut buf = Vec::with_capacity(BATCH);
                     if item_rx.recv_many(&mut buf, BATCH).await > 0 {
@@ -504,7 +499,7 @@ impl Skim {
                             }
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
-                            reader_control = reader.run(item_tx.clone(), &new_cmd);
+                            reader_control = reader.run(item_tx.clone(), new_cmd);
                             app.status.reading = true;
                             reader_done.store(false, std::sync::atomic::Ordering::Relaxed);
                         }
@@ -537,10 +532,7 @@ impl Skim {
         })?;
 
         // Extract final_key and is_abort from final_event
-        let is_abort = match &final_event {
-            Event::Action(Action::Accept(_)) => false,
-            _ => true,
-        };
+        let is_abort = !matches!(&final_event, Event::Action(Action::Accept(_)));
 
         Ok(SkimOutput {
             cmd: if app.options.interactive {

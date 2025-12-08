@@ -194,10 +194,10 @@ impl SkimItem for DefaultSkimItem {
                                     if let Some(bg) = context.style.bg {
                                         combined_style = combined_style.bg(bg);
                                     }
-                                    if let Some(fg) = context.style.fg {
-                                        if base_style.fg.is_none() {
-                                            combined_style = combined_style.fg(fg);
-                                        }
+                                    if let Some(fg) = context.style.fg
+                                        && base_style.fg.is_none()
+                                    {
+                                        combined_style = combined_style.fg(fg);
                                     }
                                     combined_style = combined_style.add_modifier(context.style.add_modifier);
                                     new_spans.push(Span::styled(highlighted_content.clone(), combined_style));
@@ -218,10 +218,10 @@ impl SkimItem for DefaultSkimItem {
                             if let Some(bg) = context.style.bg {
                                 combined_style = combined_style.bg(bg);
                             }
-                            if let Some(fg) = context.style.fg {
-                                if base_style.fg.is_none() {
-                                    combined_style = combined_style.fg(fg);
-                                }
+                            if let Some(fg) = context.style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_style = combined_style.fg(fg);
                             }
                             combined_style = combined_style.add_modifier(context.style.add_modifier);
                             new_spans.push(Span::styled(highlighted_content, combined_style));
@@ -264,10 +264,10 @@ impl SkimItem for DefaultSkimItem {
                             if let Some(bg) = context.style.bg {
                                 combined_style = combined_style.bg(bg);
                             }
-                            if let Some(fg) = context.style.fg {
-                                if base_style.fg.is_none() {
-                                    combined_style = combined_style.fg(fg);
-                                }
+                            if let Some(fg) = context.style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_style = combined_style.fg(fg);
                             }
                             combined_style = combined_style.add_modifier(context.style.add_modifier);
                             new_spans.push(Span::styled(highlighted, combined_style));
@@ -318,10 +318,10 @@ impl SkimItem for DefaultSkimItem {
                             if let Some(bg) = context.style.bg {
                                 combined_style = combined_style.bg(bg);
                             }
-                            if let Some(fg) = context.style.fg {
-                                if base_style.fg.is_none() {
-                                    combined_style = combined_style.fg(fg);
-                                }
+                            if let Some(fg) = context.style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_style = combined_style.fg(fg);
                             }
                             combined_style = combined_style.add_modifier(context.style.add_modifier);
                             new_spans.push(Span::styled(highlighted, combined_style));
@@ -405,12 +405,12 @@ pub fn strip_ansi(text: &str) -> (String, Vec<(usize, usize)>) {
                                 // BEL
                                 break;
                             }
-                            if c == '\x1b' {
-                                if let Some(&(_, '\\')) = chars.peek() {
-                                    chars.next(); // consume '\'
-                                    char_idx += 1;
-                                    break;
-                                }
+                            if c == '\x1b'
+                                && let Some(&(_, '\\')) = chars.peek()
+                            {
+                                chars.next(); // consume '\'
+                                char_idx += 1;
+                                break;
                             }
                         }
                     }

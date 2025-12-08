@@ -29,7 +29,6 @@ clap_complete = { workspace = true, optional = true }
 defer-drop = { workspace = true }
 derive_builder = { workspace = true }
 env_logger = { workspace = true, optional = true }
-fuzzy-matcher = { workspace = true }
 indexmap = { workspace = true }
 log = { workspace = true }
 nix = "0.30.1"
@@ -52,7 +51,9 @@ tokio-util = "0.7.17"
 thiserror = "2.0.17"
 tempfile = { workspace = true }
 crossterm = { version = "0.28.1", features = ["event-stream", "use-dev-tty", "libc"] } # TODO remove libc after update to 0.29
+thread_local = "1.1.9"
 
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger"]
+compact_matcher = []

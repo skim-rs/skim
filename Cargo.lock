@@ -683,15 +683,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fuzzy-matcher"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
-dependencies = [
- "thread_local",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1375,7 +1366,6 @@ dependencies = [
  "derive_builder",
  "env_logger",
  "futures",
- "fuzzy-matcher",
  "indexmap",
  "log",
  "nix",
@@ -1387,6 +1377,7 @@ dependencies = [
  "shlex",
  "tempfile",
  "thiserror 2.0.17",
+ "thread_local",
  "time",
  "timer",
  "tokio",

@@ -21,7 +21,7 @@ use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
-use std::{env, io, usize};
+use std::{env, io};
 use thiserror::Error;
 
 use skim::prelude::*;

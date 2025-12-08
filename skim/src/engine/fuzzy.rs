@@ -2,9 +2,9 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::clangd::ClangdMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
+use crate::fuzzy_matcher::FuzzyMatcher;
+use crate::fuzzy_matcher::clangd::ClangdMatcher;
+use crate::fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
@@ -60,7 +60,7 @@ impl FuzzyEngineBuilder {
 
     #[allow(deprecated)]
     pub fn build(self) -> FuzzyEngine {
-        use fuzzy_matcher::skim::SkimMatcher;
+        use crate::fuzzy_matcher::skim::SkimMatcher;
         let matcher: Box<dyn FuzzyMatcher> = match self.algorithm {
             FuzzyAlgorithm::SkimV1 => Box::new(SkimMatcher::default()),
             FuzzyAlgorithm::SkimV2 => {

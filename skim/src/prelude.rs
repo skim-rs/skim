@@ -4,6 +4,7 @@
 //! skim types and traits with a single `use skim::prelude::*;` statement.
 
 pub use crate::engine::{factory::*, fuzzy::FuzzyAlgorithm};
+pub use crate::fuzzy_matcher::skim::SkimMatcherV2;
 pub use crate::helper::item_reader::{SkimItemReader, SkimItemReaderOption};
 pub use crate::helper::selector::DefaultSkimSelector;
 pub use crate::options::{SkimOptions, SkimOptionsBuilder};
