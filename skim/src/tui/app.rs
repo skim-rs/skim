@@ -1140,7 +1140,7 @@ impl<'a> App<'a> {
         if now.duration_since(self.last_matcher_restart).as_millis() > DEBOUNCE_MS as u128 {
             self.restart_matcher(true);
         } else {
-          self.pending_matcher_restart = true;
+            self.pending_matcher_restart = true;
         }
     }
 }

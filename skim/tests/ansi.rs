@@ -19,15 +19,15 @@ fn test_ansi_flag_enabled() -> Result<()> {
 
     tmux.send_keys(&[Str("d")])?;
 
+    // This will make sure that no ansi codes are actually outputted
     tmux.until(|l| l.len() > 2 && l[2].starts_with("> red"))?;
 
     let colored_lines = tmux.capture_colored().unwrap();
 
-    // With --ansi flag, ANSI codes should be parsed and not visible as raw text
-    // Check that we don't see the raw ANSI escape sequences like \x1b[31m
     let full_output = colored_lines.join(" ");
     println!("{:?}", full_output);
-    assert!(full_output.contains("\u{1b}[31mre"));
+    // The color code is rerwritten by ansi-to-tui to a 256color one
+    assert!(full_output.contains("\u{1b}[38;5;1mre"));
 
     tmux.send_keys(&[Enter])
 }
@@ -78,7 +78,7 @@ fn test_ansi_matching_on_stripped_text() -> Result<()> {
     // Search for "green" - should only match the first line
     tmux.send_keys(&[Ctrl(&Key('u')), Str("green")])?;
 
-    tmux.until(|l| l.len() > 2 && l[2].contains("green"))?;
+    tmux.until(|l| l.len() == 3 && l[2].contains("green"))?;
 
     let lines = tmux.capture().unwrap();
     // Should only see one match now

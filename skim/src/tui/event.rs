@@ -162,7 +162,6 @@ pub enum Action {
     Yank,
 }
 
-
 /// Parses an action string into an Action enum
 #[rustfmt::skip]
 pub fn parse_action(raw_action: &str) -> Option<Action> {

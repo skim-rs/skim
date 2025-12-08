@@ -95,15 +95,12 @@ fn main() -> Result<()> {
 
 fn sk_main() -> Result<i32> {
     let mut opts = parse_args()?.build();
-    let log_target =  if let Some(ref log_file) = opts.log_file {
-      env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
+    let log_target = if let Some(ref log_file) = opts.log_file {
+        env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
     } else {
-      env_logger::Target::Stdout
+        env_logger::Target::Stdout
     };
-    env_logger::builder()
-        .target(log_target)
-        .format_timestamp_nanos()
-        .init();
+    env_logger::builder().target(log_target).format_timestamp_nanos().init();
     trace!("Command line: {:?}", std::env::args());
 
     // Handle shell completion generation if requested
