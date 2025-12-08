@@ -1,3 +1,7 @@
+//! Command-line interface for skim fuzzy finder.
+//!
+//! This binary provides the `sk` command-line tool for fuzzy finding and filtering.
+
 extern crate clap;
 extern crate env_logger;
 extern crate log;
@@ -66,7 +70,6 @@ impl From<clap::Error> for SkMainError {
 //------------------------------------------------------------------------------
 fn main() -> Result<()> {
     color_eyre::install()?;
-    env_logger::builder().format_timestamp_nanos().init();
 
     match sk_main() {
         Ok(exit_code) => std::process::exit(exit_code),
@@ -91,8 +94,17 @@ fn main() -> Result<()> {
 }
 
 fn sk_main() -> Result<i32> {
-    trace!("Command line: {:?}", std::env::args());
     let mut opts = parse_args()?.build();
+    let log_target =  if let Some(ref log_file) = opts.log_file {
+      env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
+    } else {
+      env_logger::Target::Stdout
+    };
+    env_logger::builder()
+        .target(log_target)
+        .format_timestamp_nanos()
+        .init();
+    trace!("Command line: {:?}", std::env::args());
 
     // Handle shell completion generation if requested
     if let Some(shell) = opts.shell {
@@ -206,7 +218,9 @@ fn write_history_to_file(
     Ok(())
 }
 
+/// Options specific to the binary/CLI mode
 #[derive(Builder)]
+#[allow(missing_docs)]
 pub struct BinOptions {
     filter: Option<String>,
     output_ending: String,
@@ -214,6 +228,7 @@ pub struct BinOptions {
     print_cmd: bool,
 }
 
+/// Runs skim in filter mode, matching items against a fixed query without interactive UI
 pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<SkimItemReceiver>) -> i32 {
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
         Ok("") | Err(_) => "find .".to_owned(),

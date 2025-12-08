@@ -12,6 +12,7 @@ static RE_AND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([^ |]+( +\| +[^ 
 static RE_OR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +\| +").unwrap());
 //------------------------------------------------------------------------------
 // Exact engine factory
+/// Factory for creating exact or fuzzy match engines based on configuration
 pub struct ExactOrFuzzyEngineFactory {
     exact_mode: bool,
     fuzzy_algorithm: FuzzyAlgorithm,
@@ -19,6 +20,7 @@ pub struct ExactOrFuzzyEngineFactory {
 }
 
 impl ExactOrFuzzyEngineFactory {
+    /// Creates a new builder with default settings
     pub fn builder() -> Self {
         Self {
             exact_mode: false,
@@ -27,21 +29,25 @@ impl ExactOrFuzzyEngineFactory {
         }
     }
 
+    /// Sets whether to use exact matching mode
     pub fn exact_mode(mut self, exact_mode: bool) -> Self {
         self.exact_mode = exact_mode;
         self
     }
 
+    /// Sets the fuzzy matching algorithm to use
     pub fn fuzzy_algorithm(mut self, fuzzy_algorithm: FuzzyAlgorithm) -> Self {
         self.fuzzy_algorithm = fuzzy_algorithm;
         self
     }
 
+    /// Sets the rank builder for scoring matches
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
         self
     }
 
+    /// Builds the factory (currently a no-op, returns self)
     pub fn build(self) -> Self {
         self
     }
@@ -129,11 +135,13 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
 }
 
 //------------------------------------------------------------------------------
+/// Factory for creating AND/OR composite match engines
 pub struct AndOrEngineFactory {
     inner: Box<dyn MatchEngineFactory>,
 }
 
 impl AndOrEngineFactory {
+    /// Creates a new AND/OR engine factory wrapping another factory
     pub fn new(factory: impl MatchEngineFactory + 'static) -> Self {
         Self {
             inner: Box::new(factory),
@@ -197,22 +205,26 @@ impl MatchEngineFactory for AndOrEngineFactory {
 }
 
 //------------------------------------------------------------------------------
+/// Factory for creating regex-based match engines
 pub struct RegexEngineFactory {
     rank_builder: Arc<RankBuilder>,
 }
 
 impl RegexEngineFactory {
+    /// Creates a new builder with default settings
     pub fn builder() -> Self {
         Self {
             rank_builder: Default::default(),
         }
     }
 
+    /// Sets the rank builder for scoring matches
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
         self
     }
 
+    /// Builds the factory (currently a no-op, returns self)
     pub fn build(self) -> Self {
         self
     }

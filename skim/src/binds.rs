@@ -1,3 +1,8 @@
+//! Key binding configuration and parsing.
+//!
+//! This module provides utilities for parsing and managing keyboard shortcuts
+//! and their associated actions in skim.
+
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -9,6 +14,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::tui::event::{self, Action};
 
+/// A map of key events to their associated actions
 #[derive(Clone)]
 pub struct KeyMap(HashMap<KeyEvent, Vec<Action>>);
 
@@ -37,6 +43,7 @@ impl Default for KeyMap {
     }
 }
 
+/// Returns the default key bindings for skim
 #[rustfmt::skip]
 pub fn get_default_key_map() -> KeyMap {
     let mut ret = HashMap::new();
@@ -215,6 +222,7 @@ pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
     Ok((key, parse_action_chain(action_chain)?))
 }
 
+/// Parses expect keys and adds them to the keymap with Accept actions
 pub fn parse_expect_keys<'a, T>(keymap: &mut KeyMap, keys: T) -> Result<()>
 where
     T: Iterator<Item = &'a str>,

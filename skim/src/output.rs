@@ -2,6 +2,7 @@ use crate::SkimItem;
 use crate::tui::Event;
 use std::sync::Arc;
 
+/// Output from running skim, containing the final selection and state
 pub struct SkimOutput {
     /// The final event that makes skim accept/quit.
     /// Was designed to determine if skim quit or accept.

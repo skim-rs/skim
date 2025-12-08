@@ -10,6 +10,7 @@ use std::ops::DerefMut;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
+/// A spin lock that uses busy-waiting instead of OS blocking
 #[derive(Default)]
 pub struct SpinLock<T: ?Sized> {
     locked: AtomicBool,
@@ -19,6 +20,7 @@ pub struct SpinLock<T: ?Sized> {
 unsafe impl<T: ?Sized + Send> Send for SpinLock<T> {}
 unsafe impl<T: ?Sized + Send> Sync for SpinLock<T> {}
 
+/// RAII guard for a spin lock, automatically releases the lock when dropped
 pub struct SpinLockGuard<'a, T: ?Sized + 'a> {
     // funny underscores due to how Deref/DerefMut currently work (they
     // disregard field privacy).
@@ -26,6 +28,7 @@ pub struct SpinLockGuard<'a, T: ?Sized + 'a> {
 }
 
 impl<'a, T: ?Sized + 'a> SpinLockGuard<'a, T> {
+    /// Creates a new guard for the given lock
     pub fn new(pool: &'a SpinLock<T>) -> SpinLockGuard<'a, T> {
         Self { __lock: pool }
     }
@@ -34,6 +37,7 @@ impl<'a, T: ?Sized + 'a> SpinLockGuard<'a, T> {
 unsafe impl<T: ?Sized + Sync> Sync for SpinLockGuard<'_, T> {}
 
 impl<T> SpinLock<T> {
+    /// Creates a new unlocked spin lock containing the given value
     pub fn new(t: T) -> SpinLock<T> {
         Self {
             locked: AtomicBool::new(false),
@@ -43,6 +47,7 @@ impl<T> SpinLock<T> {
 }
 
 impl<T: ?Sized> SpinLock<T> {
+    /// Acquires the lock, blocking the current thread until it succeeds
     pub fn lock(&self) -> SpinLockGuard<'_, T> {
         while self
             .locked

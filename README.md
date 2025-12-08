@@ -604,6 +604,8 @@ or have any ideas. Pull requests are warmly welcomed.
 
 # Troubleshooting
 
+To troubleshoot what's happening, you can set the environment variable `RUST_LOG` to either `debug` or even `trace`, and set `--log-file` to a path. You can then read those logs during or after the execution to better understand what's happening. Don't hesitate to add those logs to an issue if you need help.
+
 ## No line feed issues with nix, FreeBSD, termux
 
 If you encounter display issues like:

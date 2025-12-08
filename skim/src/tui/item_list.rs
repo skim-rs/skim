@@ -23,6 +23,7 @@ struct ProcessedItems {
     items: Vec<MatchedItem>,
 }
 
+/// Widget for displaying and managing the list of filtered items
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: HashSet<MatchedItem>,
@@ -108,16 +109,19 @@ impl ItemList {
         self.current
     }
 
-    /// Returns the count of items for status display
+    /// Returns the count of items for status display.
+    ///
     /// This may differ from items.len() when no_clear_if_empty is active and showing stale items
     pub fn count(&self) -> usize {
         if self.showing_stale_items { 0 } else { self.items.len() }
     }
 
+    /// Returns the currently selected item, if any
     pub fn selected(&self) -> Option<Arc<dyn SkimItem>> {
         self.items.get(self.cursor()).map(|x| x.item.clone())
     }
 
+    /// Appends new matched items to the list
     pub fn append(&mut self, items: &mut Vec<MatchedItem>) {
         self.items.append(items);
         self.showing_stale_items = false;
@@ -356,6 +360,7 @@ impl ItemList {
         }
     }
 
+    /// Toggles the selection state of the item at the given index
     pub fn toggle_at(&mut self, index: usize) {
         let item = self.items[index].clone();
         trace!("Toggled item {} at index {}", item.text(), index);
@@ -365,9 +370,11 @@ impl ItemList {
             self.selection.iter().map(|item| item.item.text()).collect::<Vec<_>>()
         );
     }
+    /// Toggles the selection state of the currently selected item
     pub fn toggle(&mut self) {
         self.toggle_at(self.cursor());
     }
+    /// Toggles the selection state of all items
     pub fn toggle_all(&mut self) {
         for item in self.items.clone() {
             self.toggle_item(&item);
@@ -385,14 +392,17 @@ impl ItemList {
         let item = self.items[index].clone();
         self.selection.insert(item);
     }
+    /// Selects all items
     pub fn select_all(&mut self) {
         for item in self.items.clone() {
             self.selection.insert(item.clone());
         }
     }
+    /// Clears all selections
     pub fn clear_selection(&mut self) {
         self.selection.clear();
     }
+    /// Clears all items from the list
     pub fn clear(&mut self) {
         self.items.clear();
         self.selection.clear();
@@ -400,6 +410,7 @@ impl ItemList {
         self.offset = 0;
         self.showing_stale_items = false;
     }
+    /// Scrolls the list by the given offset
     pub fn scroll_by(&mut self, offset: i32) {
         self.current = self
             .current
@@ -409,6 +420,7 @@ impl ItemList {
         debug!("Scrolled to {}", self.current);
         debug!("Selection: {:?}", self.selection);
     }
+    /// Selects the previous item in the list
     pub fn select_previous(&mut self) {
         self.current = self
             .current
@@ -416,6 +428,7 @@ impl ItemList {
             .min(self.items.len() - 1)
             .max(self.reserved);
     }
+    /// Selects the next item in the list
     pub fn select_next(&mut self) {
         self.current = self
             .current

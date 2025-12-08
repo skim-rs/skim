@@ -1,4 +1,5 @@
-/// helper for turn a BufRead into a skim stream
+//! Helper utilities for converting input sources into skim item streams.
+
 use std::env;
 use std::error::Error;
 use std::io::{BufRead, BufReader};
@@ -23,6 +24,7 @@ pub enum CollectorInput {
     Command(String),
 }
 
+/// Options for configuring how items are read and parsed
 #[derive(Debug)]
 pub struct SkimItemReaderOption {
     buf_size: usize,
@@ -49,6 +51,7 @@ impl Default for SkimItemReaderOption {
 }
 
 impl SkimItemReaderOption {
+    /// Creates reader options from skim options
     pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             buf_size: READ_BUFFER_SIZE,
@@ -65,26 +68,31 @@ impl SkimItemReaderOption {
         }
     }
 
+    /// Sets the buffer size for reading
     pub fn buf_size(mut self, buf_size: usize) -> Self {
         self.buf_size = buf_size;
         self
     }
 
+    /// Sets the line ending character (default: '\n')
     pub fn line_ending(mut self, line_ending: u8) -> Self {
         self.line_ending = line_ending;
         self
     }
 
+    /// Enables or disables ANSI color code parsing
     pub fn ansi(mut self, enable: bool) -> Self {
         self.use_ansi_color = enable;
         self
     }
 
+    /// Sets the field delimiter regex
     pub fn delimiter(mut self, delimiter: Regex) -> Self {
         self.delimiter = delimiter;
         self
     }
 
+    /// Sets the fields to display (transform) from the input
     pub fn with_nth<'a, T>(mut self, with_nth: T) -> Self
     where
         T: Iterator<Item = &'a str>,
@@ -93,11 +101,13 @@ impl SkimItemReaderOption {
         self
     }
 
+    /// Sets the transform fields directly
     pub fn transform_fields(mut self, transform_fields: Vec<FieldRange>) -> Self {
         self.transform_fields = transform_fields;
         self
     }
 
+    /// Sets the fields to use for matching
     pub fn nth<'a, T>(mut self, nth: T) -> Self
     where
         T: Iterator<Item = &'a str>,
@@ -106,11 +116,13 @@ impl SkimItemReaderOption {
         self
     }
 
+    /// Sets the matching fields directly
     pub fn matching_fields(mut self, matching_fields: Vec<FieldRange>) -> Self {
         self.matching_fields = matching_fields;
         self
     }
 
+    /// Enables reading null-terminated lines instead of newline-terminated
     pub fn read0(mut self, enable: bool) -> Self {
         if enable {
             self.line_ending = b'\0';
@@ -120,20 +132,24 @@ impl SkimItemReaderOption {
         self
     }
 
+    /// Sets whether to show command errors
     pub fn show_error(mut self, show_error: bool) -> Self {
         self.show_error = show_error;
         self
     }
 
+    /// Builds the options (currently a no-op, returns self)
     pub fn build(self) -> Self {
         self
     }
 
+    /// Returns true if no field transformations or ANSI parsing is needed
     pub fn is_simple(&self) -> bool {
         !self.use_ansi_color && self.matching_fields.is_empty() && self.transform_fields.is_empty()
     }
 }
 
+/// Reader for converting various input sources into streams of skim items
 pub struct SkimItemReader {
     option: Arc<SkimItemReaderOption>,
 }
@@ -147,12 +163,14 @@ impl Default for SkimItemReader {
 }
 
 impl SkimItemReader {
+    /// Creates a new item reader with the given options
     pub fn new(option: SkimItemReaderOption) -> Self {
         Self {
             option: Arc::new(option),
         }
     }
 
+    /// Sets the reader options
     pub fn option(mut self, option: SkimItemReaderOption) -> Self {
         self.option = Arc::new(option);
         self
@@ -160,6 +178,7 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
+    /// Converts a BufRead source into a stream of skim items
     pub fn of_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
         if self.option.is_simple() {
             self.raw_bufread(source)

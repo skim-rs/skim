@@ -51,3 +51,39 @@ fn test_ansi_flag_disabled() -> Result<()> {
 
     tmux.send_keys(&[Enter])
 }
+
+#[test]
+fn test_ansi_matching_on_stripped_text() -> Result<()> {
+    let tmux = TmuxController::new().unwrap();
+    let _outfile = tmux
+        .start_sk(
+            Some("echo -e '\\x1b[32mgreen\\x1b[0m text\\n\\x1b[31mred\\x1b[0m text\\nplain text'"),
+            &["--ansi"],
+        )
+        .unwrap();
+
+    tmux.until(|lines| lines.iter().any(|line| line.contains("plain")))?;
+
+    // Search for "text" - should match all three lines because matching is on stripped text
+    tmux.send_keys(&[Str("text")])?;
+
+    tmux.until(|l| l.len() > 2 && l.iter().filter(|line| line.contains("text")).count() >= 3)?;
+
+    // All three items should be visible
+    let lines = tmux.capture().unwrap();
+    assert!(lines.iter().any(|line| line.contains("green")));
+    assert!(lines.iter().any(|line| line.contains("red")));
+    assert!(lines.iter().any(|line| line.contains("plain")));
+
+    // Search for "green" - should only match the first line
+    tmux.send_keys(&[Ctrl(&Key('u')), Str("green")])?;
+
+    tmux.until(|l| l.len() > 2 && l[2].contains("green"))?;
+
+    let lines = tmux.capture().unwrap();
+    // Should only see one match now
+    let visible_items = lines.iter().filter(|line| line.contains("text")).count();
+    assert_eq!(visible_items, 1);
+
+    tmux.send_keys(&[Enter])
+}

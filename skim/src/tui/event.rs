@@ -1,100 +1,169 @@
 use crossterm::event::KeyEvent;
 
+/// Events that can occur during skim's execution
 #[derive(Clone)]
 pub enum Event {
+    /// Quit the application
     Quit,
+    /// An error occurred
     Error(String),
+    /// Close the application
     Close,
+    /// Timer tick event
     Tick,
+    /// Render the UI
     Render,
+    /// A key was pressed
     Key(KeyEvent),
+    /// Preview content is ready to display
     PreviewReady(Vec<u8>),
+    /// Invalid input received
     InvalidInput,
+    /// An action was triggered
     Action(Action),
+    /// Clear all items
     ClearItems,
+    /// Clear the screen
     Clear,
+    /// Heartbeat event
     Heartbeat,
+    /// Run the preview command
     RunPreview,
+    /// Redraw the screen
     Redraw,
+    /// Reload with a new command
     Reload(String),
 }
 
+/// Actions that can be performed in skim
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Action {
+    /// Abort and exit with error
     Abort,
+    /// Accept selection and exit with optional key
     Accept(Option<String>),
+    /// Add a character to the query
     AddChar(char),
+    /// Append to selection and select
     AppendAndSelect,
+    /// Move cursor backward one character
     BackwardChar,
+    /// Delete character before cursor
     BackwardDeleteChar,
+    /// Delete word before cursor
     BackwardKillWord,
+    /// Move cursor backward one word
     BackwardWord,
+    /// Move cursor to beginning of line
     BeginningOfLine,
+    /// Cancel current operation
     Cancel,
+    /// Clear the screen
     ClearScreen,
+    /// Delete character under cursor
     DeleteChar,
+    /// Delete character or exit if empty
     DeleteCharEOF,
+    /// Deselect all items
     DeselectAll,
+    /// Move selection down by N items
     Down(u16),
+    /// Move cursor to end of line
     EndOfLine,
+    /// Execute a command
     Execute(String),
+    /// Execute a command silently
     ExecuteSilent(String),
+    /// Move cursor forward one character
     ForwardChar,
+    /// Move cursor forward one word
     ForwardWord,
+    /// Execute action if query is empty
     IfQueryEmpty(String, Option<String>),
+    /// Execute action if query is not empty
     IfQueryNotEmpty(String, Option<String>),
+    /// Execute action if no items match
     IfNonMatched(String, Option<String>),
+    /// Ignore the action
     Ignore,
+    /// Delete from cursor to end of line
     KillLine,
+    /// Delete word after cursor
     KillWord,
+    /// Move to next history entry
     NextHistory,
+    /// Scroll down by half a page
     HalfPageDown(i32),
+    /// Scroll up by half a page
     HalfPageUp(i32),
+    /// Scroll down by a page
     PageDown(i32),
+    /// Scroll up by a page
     PageUp(i32),
+    /// Scroll preview up
     PreviewUp(i32),
+    /// Scroll preview down
     PreviewDown(i32),
+    /// Scroll preview left
     PreviewLeft(i32),
+    /// Scroll preview right
     PreviewRight(i32),
+    /// Scroll preview up by a page
     PreviewPageUp(i32),
+    /// Scroll preview down by a page
     PreviewPageDown(i32),
+    /// Move to previous history entry
     PreviousHistory,
+    /// Redraw the screen
     Redraw,
+    /// Reload with optional new command
     Reload(Option<String>),
+    /// Refresh the command
     RefreshCmd,
+    /// Refresh the preview
     RefreshPreview,
+    /// Restart the matcher
     RestartMatcher,
+    /// Rotate through matching modes
     RotateMode,
+    /// Scroll item list left
     ScrollLeft(i32),
+    /// Scroll item list right
     ScrollRight(i32),
+    /// Select all items
     SelectAll,
+    /// Select a specific row
     SelectRow(usize),
+    /// Select current item
     Select,
+    /// Toggle selection of current item
     Toggle,
+    /// Toggle selection of all items
     ToggleAll,
+    /// Toggle and move in
     ToggleIn,
+    /// Toggle interactive mode
     ToggleInteractive,
+    /// Toggle and move out
     ToggleOut,
+    /// Toggle preview visibility
     TogglePreview,
+    /// Toggle preview line wrapping
     TogglePreviewWrap,
+    /// Toggle sorting
     ToggleSort,
+    /// Discard line (unix-style)
     UnixLineDiscard,
+    /// Delete word backward (unix-style)
     UnixWordRubout,
+    /// Move selection up by N items
     Up(u16),
+    /// Yank (paste)
     Yank,
 }
 
-/// `Effect` is the effect of a text
-pub enum UpdateScreen {
-    Redraw,
-    DontRedraw,
-}
 
-pub trait EventHandler {
-    /// handle event, return whether
-    fn handle(&mut self, event: &Event) -> UpdateScreen;
-}
-
+/// Parses an action string into an Action enum
 #[rustfmt::skip]
 pub fn parse_action(raw_action: &str) -> Option<Action> {
   let parts = raw_action.split_once([':', '(', ')']);

@@ -11,13 +11,17 @@ use crate::{CaseMatching, MatchEngine};
 use crate::{MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
+/// Fuzzy matching algorithm to use
 #[derive(Debug, Copy, Clone, Default)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
+    /// Original skim fuzzy matching algorithm (v1)
     SkimV1,
+    /// Improved skim fuzzy matching algorithm (v2, default)
     #[default]
     SkimV2,
+    /// Clangd fuzzy matching algorithm
     Clangd,
 }
 

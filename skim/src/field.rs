@@ -1,3 +1,8 @@
+//! Field extraction and parsing utilities.
+//!
+//! This module provides utilities for parsing field ranges and extracting
+//! fields from text based on delimiters.
+
 use regex::Regex;
 use std::{
     cmp::{max, min},
@@ -7,15 +12,21 @@ use std::{
 static FIELD_RANGE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?P<left>-?\d+)?(?P<sep>\.\.)?(?P<right>-?\d+)?$").unwrap());
 
+/// Represents a range of fields to extract from text
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum FieldRange {
+    /// A single field at the given index
     Single(i32),
+    /// All fields from the start up to and including the given index
     LeftInf(i32),
+    /// All fields from the given index to the end
     RightInf(i32),
+    /// Fields between two indices (inclusive)
     Both(i32, i32),
 }
 
 impl FieldRange {
+    /// Parses a field range from a string (e.g., "1", "1..", "..10", "1..10")
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(range: &str) -> Option<FieldRange> {
         use self::FieldRange::*;
@@ -48,9 +59,10 @@ impl FieldRange {
         }
     }
 
-    // Parse FieldRange to index pair (left, right)
-    // e.g. 1..3 => (0, 4)
-    // note that field range is inclusive while the output index will exclude right end
+    /// Converts a field range to an index pair (left, right).
+    ///
+    /// For example, 1..3 => (0, 4). Note that field range is inclusive while
+    /// the output index will exclude the right end.
     pub fn to_index_pair(&self, length: usize) -> Option<(usize, usize)> {
         use self::FieldRange::*;
         match *self {
@@ -112,8 +124,10 @@ fn get_ranges_by_delimiter(delimiter: &Regex, text: &str) -> Vec<(usize, usize)>
     ranges
 }
 
-// e.g. delimiter = Regex::new(",").unwrap()
-// Note that this is differnt with `to_index_pair`, it uses delimiters like ".*?,"
+/// Extracts a substring from text based on a field range and delimiter.
+///
+/// For example, with delimiter = Regex::new(",").unwrap(), text "a,b,c", and field Single(2),
+/// this returns "b". Note that this is different from `to_index_pair`, it uses delimiters.
 pub fn get_string_by_field<'a>(delimiter: &Regex, text: &'a str, field: &FieldRange) -> Option<&'a str> {
     let ranges = get_ranges_by_delimiter(delimiter, text);
 
@@ -126,13 +140,15 @@ pub fn get_string_by_field<'a>(delimiter: &Regex, text: &'a str, field: &FieldRa
     }
 }
 
+/// Extracts a substring from text by parsing a range string and using a delimiter
 pub fn get_string_by_range<'a>(delimiter: &Regex, text: &'a str, range: &str) -> Option<&'a str> {
     FieldRange::from_str(range).and_then(|field| get_string_by_field(delimiter, text, &field))
 }
 
-// -> a vector of the matching fields (byte wise).
-// Given delimiter `,`, text: "a,b,c"
-// &[Single(2), LeftInf(2)] => [(2, 4), (0, 4)]
+/// Parses matching fields and returns a vector of byte ranges.
+///
+/// Given delimiter `,`, text: "a,b,c", and fields &[Single(2), LeftInf(2)],
+/// this returns [(2, 4), (0, 4)].
 pub fn parse_matching_fields(delimiter: &Regex, text: &str, fields: &[FieldRange]) -> Vec<(usize, usize)> {
     let ranges = get_ranges_by_delimiter(delimiter, text);
 

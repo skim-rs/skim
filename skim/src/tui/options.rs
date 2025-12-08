@@ -1,5 +1,6 @@
 use crate::tui::{Direction, Size};
 
+/// Layout configuration for the TUI
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum TuiLayout {
@@ -12,11 +13,16 @@ pub enum TuiLayout {
     ReverseList,
 }
 
+/// Configuration for the preview pane layout
 #[derive(Debug, Clone)]
 pub struct PreviewLayout {
+    /// Direction where preview pane is positioned
     pub direction: Direction,
+    /// Size of the preview pane
     pub size: Size,
+    /// Whether the preview pane is hidden
     pub hidden: bool,
+    /// Optional offset for preview position
     pub offset: Option<String>,
 }
 

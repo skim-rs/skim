@@ -16,11 +16,15 @@ use clap::ValueEnum;
 #[cfg(feature = "cli")]
 use clap::builder::PossibleValue;
 
+/// Display mode for the info/status line
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum InfoDisplay {
+    /// Display info in a separate line (default)
     #[default]
     Default,
+    /// Display info inline with the input
     Inline,
+    /// Hide the info display
     Hidden,
 }
 
@@ -46,24 +50,40 @@ const SPINNER_DURATION: u32 = 200;
 const SPINNERS_INLINE: [char; 2] = ['-', '<'];
 const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
+/// Status line widget for displaying search statistics and state
 #[derive(Clone)]
 pub struct StatusLine {
+    /// Total number of items
     pub total: usize,
+    /// Number of matched items
     pub matched: usize,
+    /// Number of processed items
     pub processed: usize,
+    /// Whether the matcher is currently running
     pub matcher_running: bool,
+    /// Whether multi-selection mode is enabled
     pub multi_selection: bool,
+    /// Number of selected items
     pub selected: usize,
+    /// Index of the current item
     pub current_item_idx: usize,
+    /// Horizontal scroll offset
     pub hscroll_offset: i64,
+    /// Whether the reader is currently reading items
     pub reading: bool,
+    /// Time elapsed since last read
     pub time_since_read: Duration,
+    /// Time elapsed since last match
     pub time_since_match: Duration,
+    /// Current matcher mode (e.g., "RE" for regex)
     pub matcher_mode: String,
+    /// Color theme
     pub theme: Arc<ColorTheme>,
+    /// Info display mode
     pub info: InfoDisplay,
+    /// Start time for calculating elapsed time
     pub start: Instant,
-    // show spinner flag controlled by App (debounced there)
+    /// Whether to show the spinner (controlled by App with debouncing)
     pub show_spinner: bool,
 }
 

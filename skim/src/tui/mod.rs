@@ -1,3 +1,9 @@
+//! Terminal UI components and rendering.
+//!
+//! This module provides the terminal user interface components for skim,
+//! including the application state, event handling, rendering widgets,
+//! and layout management.
+
 use std::num::ParseIntError;
 
 pub use app::App;
@@ -8,26 +14,40 @@ pub use widget::{SkimRender, SkimWidget};
 mod app;
 mod backend;
 pub use backend::Tui;
+/// Event handling and action definitions
 pub mod event;
+/// Header display components
 pub mod header;
 mod input;
+/// Item list display and management
 pub mod item_list;
+/// TUI-specific options and configuration
 pub mod options;
 mod preview;
+/// Status line display
 pub mod statusline;
+/// Widget rendering utilities
 pub mod widget;
 
+/// Represents a size value, either as a percentage or fixed value
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
+    /// Size as a percentage (0-100)
     Percent(u16),
+    /// Fixed size in terminal cells
     Fixed(u16),
 }
 
+/// Direction for movement or layout
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
 pub enum Direction {
+    /// Upward direction
     Up,
+    /// Downward direction
     Down,
+    /// Left direction
     Left,
+    /// Right direction
     Right,
 }
 
@@ -44,10 +64,13 @@ impl TryFrom<&str> for Direction {
     }
 }
 
+/// Error type for parsing size values
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum SizeParseError {
+    /// Error parsing the size string
     #[error("Error parsing {0}: {1:?}")]
     ParseError(String, ParseIntError),
+    /// Percentage value exceeds 100
     #[error("Invalid percentage {0}")]
     InvalidPercent(u16),
 }

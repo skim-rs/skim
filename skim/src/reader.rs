@@ -12,6 +12,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+/// Trait for collecting items from command output
 pub trait CommandCollector {
     /// execute the `cmd` and produce a
     /// - skim item producer
@@ -23,6 +24,7 @@ pub trait CommandCollector {
     fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, UnboundedSender<i32>);
 }
 
+/// Handle for controlling a running reader
 pub struct ReaderControl {
     tx_interrupt: UnboundedSender<i32>,
     tx_interrupt_cmd: Option<UnboundedSender<i32>>,
@@ -31,6 +33,7 @@ pub struct ReaderControl {
 }
 
 impl ReaderControl {
+    /// Kills the reader and waits for all components to stop
     pub fn kill(self) {
         debug!(
             "kill reader, components before: {}",
@@ -42,6 +45,7 @@ impl ReaderControl {
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
 
+    /// Takes all items collected so far
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
         let mut items = self.items.lock();
         let mut ret = Vec::with_capacity(items.len());
@@ -49,18 +53,21 @@ impl ReaderControl {
         ret
     }
 
+    /// Returns true if the reader has finished and no items remain
     pub fn is_done(&self) -> bool {
         let items = self.items.lock();
         self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
     }
 }
 
+/// Reader for streaming items from commands or other sources
 pub struct Reader {
     cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     rx_item: Option<SkimItemReceiver>,
 }
 
 impl Reader {
+    /// Creates a new reader from skim options
     pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             cmd_collector: options.cmd_collector.clone(),
@@ -68,11 +75,13 @@ impl Reader {
         }
     }
 
+    /// Sets the item source (if None, will use command collector)
     pub fn source(mut self, rx_item: Option<SkimItemReceiver>) -> Self {
         self.rx_item = rx_item;
         self
     }
 
+    /// Starts the reader and returns a control handle
     pub fn run(&mut self, app_tx: UnboundedSender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));

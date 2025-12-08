@@ -1,4 +1,6 @@
-//! header of the items
+//! Header display widget for skim's TUI.
+//!
+//! This module provides the header widget that displays static text above the item list.
 use crate::SkimOptions;
 use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
@@ -11,6 +13,7 @@ use ratatui::widgets::Widget;
 use std::cmp::max;
 use std::sync::Arc;
 
+/// Header widget for displaying static text above the item list
 #[derive(Clone)]
 pub struct Header {
     header: String,
@@ -29,6 +32,7 @@ impl Default for Header {
 }
 
 impl Header {
+    /// Sets the color theme for the header
     pub fn theme(mut self, theme: Arc<ColorTheme>) -> Self {
         self.theme = theme;
         self

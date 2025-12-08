@@ -17,18 +17,28 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Event, Size};
 
+/// Terminal user interface handler for skim
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>> {
+    /// The ratatui terminal instance
     pub terminal: ratatui::Terminal<B>,
+    /// Background task handle for event polling
     pub task: Option<JoinHandle<()>>,
+    /// Receiver for TUI events
     pub event_rx: UnboundedReceiver<Event>,
+    /// Sender for TUI events
     pub event_tx: UnboundedSender<Event>,
+    /// Frame rate for rendering (frames per second)
     pub frame_rate: f64,
+    /// Tick rate for updates (ticks per second)
     pub tick_rate: f64,
+    /// Token for cancelling background tasks
     pub cancellation_token: CancellationToken,
+    /// Whether running in fullscreen mode
     pub is_fullscreen: bool,
 }
 
 impl<B: Backend> Tui<B> {
+    /// Creates a new TUI with the specified backend and height
     pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
         let (is_fullscreen, viewport) = match height {
@@ -51,6 +61,7 @@ impl<B: Backend> Tui<B> {
             is_fullscreen,
         })
     }
+    /// Enters the TUI by enabling raw mode and starting event handling
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
         if self.is_fullscreen {
@@ -60,6 +71,7 @@ impl<B: Backend> Tui<B> {
         Ok(())
     }
 
+    /// Exits the TUI by stopping event handling and disabling raw mode
     pub fn exit(&mut self) -> Result<()> {
         self.stop()?;
         if crossterm::terminal::is_raw_mode_enabled()? {
@@ -69,13 +81,16 @@ impl<B: Backend> Tui<B> {
         }
         Ok(())
     }
+    /// Stops the TUI event loop
     pub fn stop(&self) -> Result<()> {
         self.cancel();
         Ok(())
     }
+    /// Cancels all background tasks
     pub fn cancel(&self) {
         self.cancellation_token.cancel();
     }
+    /// Starts the event loop for handling keyboard and timer events
     pub fn start(&mut self) {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);
@@ -117,6 +132,7 @@ impl<B: Backend> Tui<B> {
         }));
     }
 
+    /// Gets the next event from the event queue
     pub async fn next(&mut self) -> Option<Event> {
         self.event_rx.recv().await
     }

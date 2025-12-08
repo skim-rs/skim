@@ -44,7 +44,6 @@ impl MatcherControl {
 
 impl Drop for MatcherControl {
     fn drop(&mut self) {
-        debug!("dropping matcher control");
         self.stopped.store(true, Ordering::Relaxed);
     }
 }

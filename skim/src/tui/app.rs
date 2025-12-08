@@ -29,47 +29,71 @@ use ratatui::widgets::Widget;
 
 use super::{input, preview};
 
-// App state
+/// Application state for skim's TUI
 pub struct App<'a> {
+    /// Pool of items to be filtered
     pub item_pool: Arc<DeferDrop<ItemPool>>,
+    /// Whether the application should quit
     pub should_quit: bool,
 
+    /// Current cursor position (x, y)
     pub cursor_pos: (u16, u16),
+    /// Control handle for the matcher thread
     pub matcher_control: MatcherControl,
+    /// The matcher for filtering items
     pub matcher: Matcher,
+    /// Register for yank/paste operations
     pub yank_register: Cow<'a, str>,
+    /// Last time the matcher was restarted
     pub last_matcher_restart: std::time::Instant,
+    /// Whether a matcher restart is pending
     pub pending_matcher_restart: bool,
 
+    /// Input field widget
     pub input: Input,
+    /// Preview pane widget
     pub preview: Preview<'a>,
+    /// Header widget
     pub header: Header,
+    /// Status line widget
     pub status: StatusLine,
+    /// Item list widget
     pub item_list: ItemList,
+    /// Color theme
     pub theme: Arc<crate::theme::ColorTheme>,
 
+    /// Timer for tracking reader activity
     pub reader_timer: std::time::Instant,
+    /// Timer for tracking matcher activity
     pub matcher_timer: std::time::Instant,
 
-    // spinner visibility state for debounce/hysteresis
+    /// Spinner visibility state for debounce/hysteresis
     pub spinner_visible: bool,
+    /// Last time spinner visibility changed
     pub spinner_last_change: std::time::Instant,
 
-    // track when items were just updated to avoid unnecessary status updates
+    /// Track when items were just updated to avoid unnecessary status updates
     pub items_just_updated: bool,
 
-    // query history navigation
+    /// Query history navigation
     pub query_history: Vec<String>,
+    /// Current position in query history
     pub history_index: Option<usize>,
+    /// Saved input when navigating history
     pub saved_input: String,
 
-    // command history navigation (for interactive mode)
+    /// Command history navigation (for interactive mode)
     pub cmd_history: Vec<String>,
+    /// Current position in command history
     pub cmd_history_index: Option<usize>,
+    /// Saved command input when navigating history
     pub saved_cmd_input: String,
 
+    /// Skim configuration options
     pub options: SkimOptions,
+    /// Whether to show a border around the input field
     pub input_border: bool,
+    /// The command being executed
     pub cmd: String,
 }
 
@@ -275,6 +299,7 @@ impl Default for App<'_> {
 }
 
 impl<'a> App<'a> {
+    /// Creates a new App from skim options
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let mut input = Input::from_options(&options, theme.clone());
 
@@ -400,6 +425,7 @@ impl<'a> App<'a> {
         };
     }
 
+    /// Handles a TUI event and updates application state
     pub fn handle_event(&mut self, tui: &mut super::Tui, event: &Event) -> Result<()> {
         let prev_item = self.item_list.selected();
         match event {
@@ -551,6 +577,7 @@ impl<'a> App<'a> {
         }
         Ok(())
     }
+    /// Handles new items received from the reader
     pub fn handle_items(&mut self, items: Vec<Arc<dyn SkimItem>>) {
         self.item_pool.append(items);
         // Don't restart matcher immediately - use debounced restart instead
@@ -563,6 +590,7 @@ impl<'a> App<'a> {
         // Update status to reflect new pool state
         self.on_items_updated();
     }
+    /// Called when the selected item changes
     pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()> {
         tui.event_tx.send(Event::RunPreview)?;
 
@@ -1019,6 +1047,7 @@ impl<'a> App<'a> {
         Ok(Vec::default())
     }
 
+    /// Returns the selected items as results
     pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
         if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list
@@ -1053,10 +1082,14 @@ impl<'a> App<'a> {
         }
 
         let matcher_stopped = self.matcher_control.stopped();
-
-        if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
+        trace!(
+            "Should matcher restart ? force={force} stopped={matcher_stopped} item_pool_not_taken={}",
+            self.item_pool.num_not_taken()
+        );
+        if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
+            self.pending_matcher_restart = false;
             self.matcher_control.kill();
             let tx = self.item_list.tx.clone();
             self.item_pool.reset();
@@ -1100,15 +1133,14 @@ impl<'a> App<'a> {
 
     /// Restart matcher with debouncing to avoid excessive restarts during rapid typing
     fn restart_matcher_debounced(&mut self) {
-        const DEBOUNCE_MS: u64 = 250;
+        const DEBOUNCE_MS: u64 = 50;
         let now = std::time::Instant::now();
 
         // If enough time has passed since last restart, restart immediately
         if now.duration_since(self.last_matcher_restart).as_millis() > DEBOUNCE_MS as u128 {
             self.restart_matcher(true);
         } else {
-            // Otherwise, mark that we need to restart and let the periodic check handle it
-            self.pending_matcher_restart = true;
+          self.pending_matcher_restart = true;
         }
     }
 }

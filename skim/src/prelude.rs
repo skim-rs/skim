@@ -1,3 +1,8 @@
+//! Convenience re-exports of commonly used types.
+//!
+//! This module provides a convenient way to import all the commonly used
+//! skim types and traits with a single `use skim::prelude::*;` statement.
+
 pub use crate::engine::{factory::*, fuzzy::FuzzyAlgorithm};
 pub use crate::helper::item_reader::{SkimItemReader, SkimItemReaderOption};
 pub use crate::helper::selector::DefaultSkimSelector;

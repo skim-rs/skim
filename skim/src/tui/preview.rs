@@ -20,6 +20,7 @@ use std::sync::Arc;
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
 
+/// Callback function for generating preview content
 #[derive(Clone)]
 pub struct PreviewCallback {
     inner: Arc<PreviewCallbackFn>,

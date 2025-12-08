@@ -1,3 +1,29 @@
+//! Skim is a fuzzy finder library for Rust.
+//!
+//! It provides a fast and customizable way to filter and select items interactively,
+//! similar to fzf. Skim can be used as a library or as a command-line tool.
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use skim::prelude::*;
+//! use std::io::Cursor;
+//!
+//! let options = SkimOptionsBuilder::default()
+//!     .height(Some("50%"))
+//!     .multi(true)
+//!     .build()
+//!     .unwrap();
+//!
+//! let input = "awk\nbash\ncsh\ndash\nfish\nksh\nzsh";
+//! let item_reader = SkimItemReader::default();
+//! let items = item_reader.of_bufread(Cursor::new(input));
+//!
+//! let output = Skim::run_with(&options, Some(items)).unwrap();
+//! ```
+
+#![warn(missing_docs)]
+
 #[macro_use]
 extern crate log;
 
@@ -30,25 +56,34 @@ pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::tui::event::Action;
 
+/// Key binding configuration and parsing
 pub mod binds;
 mod engine;
+/// Field extraction and parsing utilities
 pub mod field;
 mod helper;
 pub mod item;
 mod matcher;
+/// Configuration options for skim
 pub mod options;
 mod output;
+/// Convenience re-exports of commonly used types
 pub mod prelude;
 pub mod reader;
 pub mod spinlock;
 mod theme;
+/// Tmux integration utilities
 pub mod tmux;
+/// Terminal UI components and rendering
 pub mod tui;
 mod util;
 
 //------------------------------------------------------------------------------
+/// Trait for downcasting to concrete types from trait objects
 pub trait AsAny {
+    /// Returns a reference to the value as `Any`
     fn as_any(&self) -> &dyn Any;
+    /// Returns a mutable reference to the value as `Any`
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -118,6 +153,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     }
 
     /// Get output text(after accept), default to `text()`
+    ///
     /// Note that this function is intended to be used by the caller of skim and will not be used by
     /// skim. And since skim will return the item back in `SkimOutput`, if string is not what you
     /// want, you could still use `downcast` to retain the pointer to the original struct.
@@ -125,7 +161,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
         self.text()
     }
 
-    /// we could limit the matching ranges of the `get_text` of the item.
+    /// Limit the matching ranges of the `get_text` of the item.
     /// providing (`start_byte`, `end_byte`) of the range
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
         None
@@ -155,23 +191,34 @@ impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
 //------------------------------------------------------------------------------
 // Display Context
 #[derive(Default, Debug)]
+/// Represents how a query matches an item
 pub enum Matches {
+    /// No matches
     #[default]
     None,
+    /// Matches at specific character indices
     CharIndices(Vec<usize>),
+    /// Matches in a character range (start, end)
     CharRange(usize, usize),
+    /// Matches in a byte range (start, end)
     ByteRange(usize, usize),
 }
 
 #[derive(Default)]
+/// Context information for displaying an item
 pub struct DisplayContext {
+    /// The match score for this item
     pub score: i32,
+    /// Where the query matched in the item
     pub matches: Matches,
+    /// The width of the container to display in
     pub container_width: usize,
+    /// The style to apply to matched portions
     pub style: Style,
 }
 
 impl DisplayContext {
+    /// Converts the context and text into a styled `Line` with highlighted matches
     pub fn to_line(self, cow: Cow<str>) -> Line {
         let text: String = cow.into_owned();
 
@@ -220,12 +267,19 @@ impl DisplayContext {
 //------------------------------------------------------------------------------
 // Preview Context
 
+/// Context information for generating item previews
 pub struct PreviewContext<'a> {
+    /// The current search query
     pub query: &'a str,
+    /// The current command query (for interactive mode)
     pub cmd_query: &'a str,
+    /// Width of the preview window
     pub width: usize,
+    /// Height of the preview window
     pub height: usize,
+    /// Index of the current item
     pub current_index: usize,
+    /// Text of the current selection
     pub current_selection: &'a str,
     /// selected item indices (may or may not include current item)
     pub selected_indices: &'a [usize],
@@ -236,13 +290,19 @@ pub struct PreviewContext<'a> {
 //------------------------------------------------------------------------------
 // Preview
 #[derive(Default, Copy, Clone, Debug)]
+/// Position and scroll information for preview display
 pub struct PreviewPosition {
+    /// Horizontal scroll position
     pub h_scroll: Size,
+    /// Horizontal offset
     pub h_offset: Size,
+    /// Vertical scroll position
     pub v_scroll: Size,
+    /// Vertical offset
     pub v_offset: Size,
 }
 
+/// Defines how an item should be previewed
 pub enum ItemPreview {
     /// execute the command and print the command's output
     Command(String),
@@ -250,8 +310,11 @@ pub enum ItemPreview {
     Text(String),
     /// Display the colored text(lines)
     AnsiText(String),
+    /// Execute a command and display output with position
     CommandWithPos(String, PreviewPosition),
+    /// Display text with position
     TextWithPos(String, PreviewPosition),
+    /// Display ANSI-colored text with position
     AnsiWithPos(String, PreviewPosition),
     /// Use global command settings to preview the item
     Global,
@@ -263,31 +326,42 @@ pub enum ItemPreview {
 #[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
+/// Case sensitivity mode for matching
 pub enum CaseMatching {
+    /// Case-sensitive matching
     Respect,
+    /// Case-insensitive matching
     Ignore,
+    /// Smart case: case-insensitive unless query contains uppercase
     #[default]
     Smart,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 #[allow(dead_code)]
+/// Represents the range of a match in an item
 pub enum MatchRange {
+    /// Range of bytes (start, end)
     ByteRange(usize, usize),
-    // range of bytes
-    Chars(Vec<usize>), // individual character indices matched
+    /// Individual character indices that matched
+    Chars(Vec<usize>),
 }
 
+/// Rank tuple used for sorting match results
 pub type Rank = [i32; 5];
 
 #[derive(Clone)]
+/// Result of matching a query against an item
 pub struct MatchResult {
+    /// The rank/score of this match
     pub rank: Rank,
+    /// The range where the match occurred
     pub matched_range: MatchRange,
 }
 
 impl MatchResult {
     #[must_use]
+    /// Converts the match range to character indices
     pub fn range_char_indices(&self, text: &str) -> Vec<usize> {
         match &self.matched_range {
             &MatchRange::ByteRange(start, end) => {
@@ -300,12 +374,17 @@ impl MatchResult {
     }
 }
 
+/// A matching engine that can match queries against items
 pub trait MatchEngine: Sync + Send + Display {
+    /// Matches an item against the query, returning a result if matched
     fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult>;
 }
 
+/// Factory for creating match engines
 pub trait MatchEngineFactory {
+    /// Creates a match engine with explicit case sensitivity
     fn create_engine_with_case(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine>;
+    /// Creates a match engine with default case sensitivity
     fn create_engine(&self, query: &str) -> Box<dyn MatchEngine> {
         self.create_engine_with_case(query, CaseMatching::default())
     }
@@ -316,13 +395,17 @@ pub trait MatchEngineFactory {
 
 /// A selector that determines whether an item should be "pre-selected" in multi-selection mode
 pub trait Selector {
+    /// Returns true if the item at the given index should be pre-selected
     fn should_select(&self, index: usize, item: &dyn SkimItem) -> bool;
 }
 
 //------------------------------------------------------------------------------
+/// Sender for streaming items to skim
 pub type SkimItemSender = UnboundedSender<Arc<dyn SkimItem>>;
+/// Receiver for streaming items to skim
 pub type SkimItemReceiver = UnboundedReceiver<Arc<dyn SkimItem>>;
 
+/// Main entry point for running skim
 pub struct Skim {}
 
 impl Skim {

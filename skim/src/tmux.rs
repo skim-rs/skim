@@ -1,3 +1,8 @@
+//! Tmux integration utilities.
+//!
+//! This module provides functionality for running skim within tmux panes,
+//! allowing skim to be used as a tmux popup or split pane.
+
 use std::{
     borrow::Cow,
     env,

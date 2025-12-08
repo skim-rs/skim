@@ -1,5 +1,7 @@
-//! An item is line of text that read from `find` command or stdin together with
-//! the internal states, such as selected or not
+//! Item representation and management.
+//!
+//! This module provides the core item types used by skim, including ranked items,
+//! item pools for efficient storage, and ranking criteria for sorting matches.
 use std::cmp::min;
 use std::default::Default;
 use std::hash::Hash;
@@ -17,6 +19,7 @@ use crate::{MatchRange, Rank, SkimItem};
 
 //------------------------------------------------------------------------------
 
+/// Builder for creating rank values based on configurable criteria
 #[derive(Debug)]
 pub struct RankBuilder {
     criterion: Vec<RankCriteria>,
@@ -31,6 +34,7 @@ impl Default for RankBuilder {
 }
 
 impl RankBuilder {
+    /// Creates a new rank builder with the given criteria
     pub fn new(mut criterion: Vec<RankCriteria>) -> Self {
         if !criterion.contains(&RankCriteria::Score) && !criterion.contains(&RankCriteria::NegScore) {
             criterion.insert(0, RankCriteria::Score);
@@ -71,11 +75,15 @@ impl RankBuilder {
 }
 
 //------------------------------------------------------------------------------
+/// An item that has been matched against a query
 #[derive(Clone)]
 pub struct MatchedItem {
+    /// The underlying skim item
     pub item: Arc<dyn SkimItem>,
+    /// The rank/score of this match
     pub rank: Rank,
-    pub matched_range: Option<MatchRange>, // range of chars that matched the pattern
+    /// Range of characters that matched the pattern
+    pub matched_range: Option<MatchRange>,
 }
 
 impl std::fmt::Debug for MatchedItem {
@@ -130,14 +138,18 @@ impl Ord for MatchedItem {
 //------------------------------------------------------------------------------
 const ITEM_POOL_CAPACITY: usize = 16384;
 
+/// Thread-safe pool for storing and managing items efficiently
 pub struct ItemPool {
+    /// Total number of items in the pool
     length: AtomicUsize,
+    /// The main pool of items
     pool: SpinLock<Vec<Arc<dyn SkimItem>>>,
-    /// number of items that was `take`n
+    /// Number of items that were taken
     taken: AtomicUsize,
 
-    /// reverse first N lines as header
+    /// Reserved first N lines as header
     reserved_items: SpinLock<Vec<Arc<dyn SkimItem>>>,
+    /// Number of lines to reserve as header
     lines_to_reserve: usize,
 }
 
@@ -154,6 +166,7 @@ impl Default for ItemPool {
 }
 
 impl ItemPool {
+    /// Creates a new empty item pool
     pub fn new() -> Self {
         Self {
             length: AtomicUsize::new(0),
@@ -164,27 +177,33 @@ impl ItemPool {
         }
     }
 
+    /// Sets the number of lines to reserve as header
     pub fn lines_to_reserve(mut self, lines_to_reserve: usize) -> Self {
         self.lines_to_reserve = lines_to_reserve;
         self
     }
 
+    /// Returns the total number of items in the pool
     pub fn len(&self) -> usize {
         self.length.load(Ordering::SeqCst)
     }
 
+    /// Returns true if the pool contains no items
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the number of items that have not been taken yet
     pub fn num_not_taken(&self) -> usize {
         self.length.load(Ordering::SeqCst) - self.taken.load(Ordering::SeqCst)
     }
 
+    /// Returns the number of items that have been taken
     pub fn num_taken(&self) -> usize {
         self.taken.load(Ordering::SeqCst)
     }
 
+    /// Clears all items from the pool and resets counters
     pub fn clear(&self) {
         let mut items = self.pool.lock();
         items.clear();
@@ -194,11 +213,11 @@ impl ItemPool {
         self.length.store(0, Ordering::SeqCst);
     }
 
+    /// Resets the taken counter without clearing items
     pub fn reset(&self) {
         // lock to ensure consistency
-        debug!("reset");
         let _items = self.pool.lock();
-        debug!("locked");
+
         self.taken.store(0, Ordering::SeqCst);
     }
 
@@ -228,18 +247,21 @@ impl ItemPool {
         pool.len()
     }
 
+    /// Takes items from the pool, returning a guard with new items since last take
     pub fn take(&self) -> ItemPoolGuard<'_, Arc<dyn SkimItem>> {
         let guard = self.pool.lock();
         let taken = self.taken.swap(guard.len(), Ordering::SeqCst);
         ItemPoolGuard { guard, start: taken }
     }
 
+    /// Returns a guard with the reserved header items
     pub fn reserved(&self) -> ItemPoolGuard<'_, Arc<dyn SkimItem>> {
         let guard = self.reserved_items.lock();
         ItemPoolGuard { guard, start: 0 }
     }
 }
 
+/// Guard for accessing a slice of items from the pool
 pub struct ItemPoolGuard<'a, T: Sized + 'a> {
     guard: SpinLockGuard<'a, Vec<T>>,
     start: usize,
@@ -254,17 +276,28 @@ impl<T: Sized> Deref for ItemPoolGuard<'_, T> {
 }
 
 //------------------------------------------------------------------------------
+/// Criteria for ranking and sorting matched items
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum RankCriteria {
+    /// Sort by match score (lower is better)
     Score,
+    /// Sort by match score (higher is better)
     NegScore,
+    /// Sort by beginning position of match
     Begin,
+    /// Sort by beginning position of match (reversed)
     NegBegin,
+    /// Sort by ending position of match
     End,
+    /// Sort by ending position of match (reversed)
     NegEnd,
+    /// Sort by item length
     Length,
+    /// Sort by item length (reversed)
     NegLength,
+    /// Sort by item index
     Index,
+    /// Sort by item index (reversed)
     NegIndex,
 }
 

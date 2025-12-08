@@ -1,3 +1,8 @@
+//! Configuration options for skim.
+//!
+//! This module provides the `SkimOptions` struct and builder for configuring
+//! all aspects of skim's behavior, including search, display, layout, and interaction settings.
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -839,6 +844,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
     pub tmux: Option<String>,
 
+    /// Pipe log output to a file
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub log_file: Option<String>,
+
     /// Reserved for later use
     #[cfg_attr(
         feature = "cli",
@@ -897,12 +906,16 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
     expect: String,
 
+    /// Command collector for reading items from commands
     #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
     pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
+    /// Query history entries loaded from history file
     #[cfg_attr(feature = "cli", clap(skip))]
     pub query_history: Vec<String>,
+    /// Command history entries loaded from cmd history file
     #[cfg_attr(feature = "cli", clap(skip))]
     pub cmd_history: Vec<String>,
+    /// Selector for pre-selecting items
     #[cfg_attr(feature = "cli", clap(skip))]
     pub selector: Option<Rc<dyn Selector>>,
     /// Preview Callback
@@ -983,6 +996,7 @@ impl Default for SkimOptions {
             #[cfg(feature = "cli")]
             shell: Default::default(),
             tmux: Default::default(),
+            log_file: Default::default(),
             extended: Default::default(),
             literal: Default::default(),
             cycle: Default::default(),
@@ -1005,12 +1019,14 @@ impl Default for SkimOptions {
 }
 
 impl SkimOptionsBuilder {
+    /// Builds the SkimOptions from the builder
     pub fn build(&mut self) -> Result<SkimOptions, SkimOptionsBuilderError> {
         self.final_build().map(|opts| opts.build())
     }
 }
 
 impl SkimOptions {
+    /// Finalizes the options by applying defaults and initializing components
     pub fn build(mut self) -> Self {
         if self.no_height {
             self.height = String::from("100%");
@@ -1039,6 +1055,7 @@ impl SkimOptions {
 
         self
     }
+    /// Initializes history from configured history files
     pub fn init_histories(&mut self) {
         if let Some(histfile) = &self.history_file {
             self.query_history.extend(read_file_lines(histfile).unwrap_or_default());
