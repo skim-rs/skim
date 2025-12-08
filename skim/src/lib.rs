@@ -464,7 +464,7 @@ impl Skim {
 
             let item_pool = app.item_pool.clone();
             tokio::spawn(async move {
-                const BATCH: usize = 1 << 24;
+                const BATCH: usize = 4096; // Smaller batches for more responsive updates
                 loop {
                     let mut buf = Vec::with_capacity(BATCH);
                     if item_rx.recv_many(&mut buf, BATCH).await > 0 {

@@ -231,15 +231,11 @@ impl ItemPool {
         let to_reserve = self.lines_to_reserve - header_items.len();
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
-            // Reserve capacity to reduce reallocations
-            header_items.reserve(to_reserve);
-            header_items.extend_from_slice(&items[..to_reserve]);
-            // Reserve capacity for remaining items
-            pool.reserve(items.len() - to_reserve);
-            pool.extend_from_slice(&items[to_reserve..]);
+            // Split items: first part goes to header, rest to main pool
+            let mut remaining = items.split_off(to_reserve);
+            header_items.append(&mut items);
+            pool.append(&mut remaining);
         } else {
-            // Reserve capacity before appending
-            pool.reserve(items.len());
             pool.append(&mut items);
         }
         self.length.store(pool.len(), Ordering::SeqCst);
@@ -247,17 +243,20 @@ impl ItemPool {
         pool.len()
     }
 
-    /// Takes items from the pool, returning a guard with new items since last take
-    pub fn take(&self) -> ItemPoolGuard<'_, Arc<dyn SkimItem>> {
+    /// Takes items from the pool, copying new items since last take and releasing lock immediately
+    pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
         let guard = self.pool.lock();
         let taken = self.taken.swap(guard.len(), Ordering::SeqCst);
-        ItemPoolGuard { guard, start: taken }
+        // Copy the new items out so we can release the lock immediately
+        let items = guard[taken..].to_vec();
+        drop(guard); // Explicitly release lock
+        items
     }
 
-    /// Returns a guard with the reserved header items
-    pub fn reserved(&self) -> ItemPoolGuard<'_, Arc<dyn SkimItem>> {
+    /// Returns a copy of the reserved header items
+    pub fn reserved(&self) -> Vec<Arc<dyn SkimItem>> {
         let guard = self.reserved_items.lock();
-        ItemPoolGuard { guard, start: 0 }
+        guard.clone()
     }
 }
 
