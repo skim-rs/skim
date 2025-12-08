@@ -23,8 +23,12 @@ _sk() {
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
 '-d+[Delimiter between fields]:DELIMITER:_default' \
 '--delimiter=[Delimiter between fields]:DELIMITER:_default' \
-'--algo=[Fuzzy matching algorithm]:ALGORITHM:(skim_v1 skim_v2 clangd)' \
-'--case=[Case sensitivity]:CASE:(respect ignore smart)' \
+'--algo=[Fuzzy matching algorithm]:ALGORITHM:((skim_v1\:"Original skim fuzzy matching algorithm (v1)"
+skim_v2\:"Improved skim fuzzy matching algorithm (v2, default)"
+clangd\:"Clangd fuzzy matching algorithm"))' \
+'--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
+ignore\:"Case-insensitive matching"
+smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
 '-b+[Comma separated list of bindings]:BIND:_default' \
 '--bind=[Comma separated list of bindings]:BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
@@ -62,6 +66,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--filter=[Query for filter mode]:FILTER:_default' \
 '--shell=[Generate shell completion script]:SHELL:(bash elvish fish powershell zsh)' \
 '--tmux=[Run in a tmux popup]' \
+'--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
 '--expect=[Deprecated, kept for compatibility purposes]:EXPECT:_default' \

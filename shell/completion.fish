@@ -12,12 +12,12 @@ index\t''
 complete -c sk -s n -l nth -d 'Fields to be matched' -r
 complete -c sk -l with-nth -d 'Fields to be transformed' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
-complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t''
-skim_v2\t''
-clangd\t''"
-complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t''
-ignore\t''
-smart\t''"
+complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t'Original skim fuzzy matching algorithm (v1)'
+skim_v2\t'Improved skim fuzzy matching algorithm (v2, default)'
+clangd\t'Clangd fuzzy matching algorithm'"
+complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
+ignore\t'Case-insensitive matching'
+smart\t'Smart case: case-insensitive unless query contains uppercase'"
 complete -c sk -s b -l bind -d 'Comma separated list of bindings' -r
 complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode' -r
 complete -c sk -s I -d 'Replace replstr with the selected item in commands' -r
@@ -56,6 +56,7 @@ fish\t''
 powershell\t''
 zsh\t''"
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
+complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r
 complete -c sk -l jump-labels -d 'Reserved for later use' -r
 complete -c sk -l expect -d 'Deprecated, kept for compatibility purposes' -r
