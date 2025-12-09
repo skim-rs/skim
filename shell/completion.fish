@@ -59,7 +59,7 @@ complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r
 complete -c sk -l jump-labels -d 'Reserved for later use' -r
-complete -c sk -l expect -d 'Deprecated, kept for compatibility purposes' -r
+complete -c sk -l expect -d 'Deprecated, kept for compatibility purposes. See accept() bind instead' -r
 complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
 complete -c sk -s e -l exact -d 'Run in exact mode'

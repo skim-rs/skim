@@ -29,8 +29,8 @@ clangd\:"Clangd fuzzy matching algorithm"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
-'-b+[Comma separated list of bindings]:BIND:_default' \
-'--bind=[Comma separated list of bindings]:BIND:_default' \
+'*-b+[Comma separated list of bindings]' \
+'*--bind=[Comma separated list of bindings]' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '--cmd=[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
@@ -69,7 +69,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
-'--expect=[Deprecated, kept for compatibility purposes]:EXPECT:_default' \
+'--expect=[Deprecated, kept for compatibility purposes. See accept() bind instead]:EXPECT:_default' \
 '--tac[Show results in reverse order]' \
 '--no-sort[Do not sort the results]' \
 '-e[Run in exact mode]' \

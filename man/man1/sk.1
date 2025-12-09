@@ -181,7 +181,7 @@ smart: Smart case: case\-insensitive unless query contains uppercase
 .RE
 .SH INTERFACE
 .TP
-\fB\-b\fR, \fB\-\-bind\fR \fI<BIND>\fR [default: ]
+\fB\-b\fR, \fB\-\-bind\fR [\fI<BIND>...\fR] [default: ]
 Comma separated list of bindings
 
 You can customize key bindings of sk with `\-\-bind` option which takes a  comma\-separated  list  of
@@ -734,6 +734,6 @@ Pipe log output to a file
 .SH DEPRECATED
 .TP
 \fB\-\-expect\fR \fI<EXPECT>\fR [default: ]
-Deprecated, kept for compatibility purposes
+Deprecated, kept for compatibility purposes. See accept() bind instead
 .SH VERSION
 v0.20.5
