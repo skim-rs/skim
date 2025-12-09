@@ -1033,7 +1033,6 @@ impl SkimOptionsBuilder {
 impl SkimOptions {
     /// Finalizes the options by applying defaults and initializing components
     pub fn build(mut self) -> Self {
-
         if self.no_height {
             self.height = String::from("100%");
         }
