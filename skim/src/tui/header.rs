@@ -12,12 +12,12 @@ use ratatui::widgets::Paragraph;
 use ratatui::widgets::Widget;
 use std::cmp::max;
 use std::sync::Arc;
+use unicode_width::UnicodeWidthChar;
 
 /// Header widget for displaying static text above the item list
 #[derive(Clone)]
 pub struct Header {
     header: String,
-    tabstop: String,
     theme: Arc<ColorTheme>,
 }
 
@@ -25,7 +25,6 @@ impl Default for Header {
     fn default() -> Self {
         Self {
             header: Default::default(),
-            tabstop: String::from_utf8(vec![b' '; 8]).unwrap(),
             theme: Arc::new(*DEFAULT_THEME),
         }
     }
@@ -37,13 +36,41 @@ impl Header {
         self.theme = theme;
         self
     }
+
+
 }
+
+/// Expands tab characters to spaces based on tabstop width and current position
+fn apply_tabstop(text: &str, tabstop: usize) -> String {
+    let mut result = String::new();
+    let mut current_width = 0;
+
+    for ch in text.chars() {
+        if ch == '\t' {
+            let tab_width = tabstop - (current_width % tabstop);
+            result.push_str(&" ".repeat(tab_width));
+            current_width += tab_width;
+        } else {
+            result.push(ch);
+            current_width += ch.width_cjk().unwrap_or(0);
+        }
+    }
+
+    result
+}
+
+
 
 impl SkimWidget for Header {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        let tabstop = max(1, options.tabstop);
+        let header = options.header.clone().unwrap_or_default();
+        
+        // Expand tabs once during initialization
+        let expanded_header = apply_tabstop(&header, tabstop);
+        
         Self {
-            tabstop: String::from_utf8(vec![b' '; max(1, options.tabstop)]).unwrap(),
-            header: options.header.clone().unwrap_or_default(),
+            header: expanded_header,
             theme,
         }
     }
@@ -57,7 +84,7 @@ impl SkimWidget for Header {
             panic!("screen height is too small to fit the header");
         }
 
-        Paragraph::new(self.header.as_str().replace('\t', &self.tabstop)).render(area, buf); // TODO use actual tabstop
+        Paragraph::new(self.header.as_str()).render(area, buf);
 
         SkimRender::default()
     }
