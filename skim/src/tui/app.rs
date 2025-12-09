@@ -454,7 +454,11 @@ impl<'a> App<'a> {
                     let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
                     let ctx = PreviewContext {
                         query: &self.input.value,
-                        cmd_query: &self.input.value, // TODO handle mode
+                        cmd_query: if self.options.interactive {
+                            &self.input.value
+                        } else {
+                            self.options.cmd_query.as_deref().unwrap_or(&self.input.value)
+                        },
                         width: self.preview.cols as usize,
                         height: self.preview.rows as usize,
                         current_index: self.item_list.selected().map(|i| i.get_index()).unwrap_or_default(),
@@ -485,8 +489,8 @@ impl<'a> App<'a> {
                             ),
                         ),
                         ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
-                        ItemPreview::CommandWithPos(cmd, _preview_position) => {
-                            // TODO: Implement preview with position
+                        ItemPreview::CommandWithPos(cmd, preview_position) => {
+                            // Execute command and apply position after content is ready
                             self.preview.run(
                                 tui,
                                 &printf(
@@ -497,15 +501,33 @@ impl<'a> App<'a> {
                                     &self.input,
                                     &self.input,
                                 ),
-                            )
+                            );
+                            // Apply position offsets
+                            let v_scroll = match preview_position.v_scroll {
+                                crate::tui::Size::Fixed(n) => n,
+                                crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
+                            };
+                            let v_offset = match preview_position.v_offset {
+                                crate::tui::Size::Fixed(n) => n,
+                                crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
+                            };
+                            self.preview.scroll_y = v_scroll.saturating_add(v_offset);
+
+                            let h_scroll = match preview_position.h_scroll {
+                                crate::tui::Size::Fixed(n) => n,
+                                crate::tui::Size::Percent(p) => (self.preview.cols as u32 * p as u32 / 100) as u16,
+                            };
+                            let h_offset = match preview_position.h_offset {
+                                crate::tui::Size::Fixed(n) => n,
+                                crate::tui::Size::Percent(p) => (self.preview.cols as u32 * p as u32 / 100) as u16,
+                            };
+                            self.preview.scroll_x = h_scroll.saturating_add(h_offset);
                         }
-                        ItemPreview::TextWithPos(t, _preview_position) => {
-                            // TODO: Implement text preview with position
-                            self.preview.content(t.bytes().collect())?
+                        ItemPreview::TextWithPos(t, preview_position) => {
+                            self.preview.content_with_position(t.bytes().collect(), preview_position)?
                         }
-                        ItemPreview::AnsiWithPos(t, _preview_position) => {
-                            // TODO: Implement ANSI text preview with position
-                            self.preview.content(t.bytes().collect())?
+                        ItemPreview::AnsiWithPos(t, preview_position) => {
+                            self.preview.content_with_position(t.bytes().collect(), preview_position)?
                         }
                         ItemPreview::Global => {
                             self.preview.run(
@@ -599,7 +621,7 @@ impl<'a> App<'a> {
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         debug!("key event: {:?}", key);
 
-        if let Some(act) = &self.options.bind.get(key) {
+        if let Some(act) = &self.options.keymap.get(key) {
             debug!("{act:?}");
             return act.iter().map(|a| Event::Action(a.clone())).collect();
         }
@@ -955,7 +977,11 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::Reload(self.cmd.clone())]);
             }
             RefreshCmd => {
-                // TODO: Implement command refresh
+                // Refresh the command (reload in interactive mode)
+                if self.options.interactive {
+                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                }
             }
             RefreshPreview => {
                 return Ok(vec![Event::RunPreview]);
@@ -964,13 +990,26 @@ impl<'a> App<'a> {
                 self.restart_matcher(true);
             }
             RotateMode => {
-                // TODO: Implement mode rotation
+                // Cycle through modes: fuzzy -> exact -> regex -> fuzzy
+                if self.options.regex {
+                    // regex -> fuzzy
+                    self.options.regex = false;
+                    self.options.exact = false;
+                } else if self.options.exact {
+                    // exact -> regex
+                    self.options.exact = false;
+                    self.options.regex = true;
+                } else {
+                    // fuzzy -> exact
+                    self.options.exact = true;
+                }
+                self.restart_matcher(true);
             }
-            ScrollLeft(_n) => {
-                // TODO: Implement horizontal scrolling left
+            ScrollLeft(n) => {
+                self.item_list.manual_hscroll = (self.item_list.manual_hscroll - *n).max(0);
             }
-            ScrollRight(_n) => {
-                // TODO: Implement horizontal scrolling right
+            ScrollRight(n) => {
+                self.item_list.manual_hscroll = self.item_list.manual_hscroll.saturating_add(*n);
             }
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
@@ -1002,10 +1041,11 @@ impl<'a> App<'a> {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
             }
             TogglePreviewWrap => {
-                // TODO: Implement preview wrap toggle
+                self.preview.wrap = !self.preview.wrap;
             }
             ToggleSort => {
-                // TODO: Implement sort toggle
+                self.options.no_sort = !self.options.no_sort;
+                self.restart_matcher(true);
             }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();

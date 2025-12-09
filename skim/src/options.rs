@@ -457,9 +457,9 @@ pub struct SkimOptions {
     /// is equal to ‘delete-char/eof‘.
     #[cfg_attr(
         feature = "cli",
-        arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "")
+        arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "", num_args=0..)
     )]
-    pub bind: KeyMap,
+    pub bind: Vec<String>,
 
     /// Enable multiple selection
     ///
@@ -902,7 +902,7 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub phony: bool,
 
-    /// Deprecated, kept for compatibility purposes
+    /// Deprecated, kept for compatibility purposes. See accept() bind instead.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
     expect: String,
 
@@ -926,6 +926,10 @@ pub struct SkimOptions {
     /// and return a Vec<String> with the lines to display in UTF-8
     #[cfg_attr(feature = "cli", clap(skip))]
     pub preview_fn: Option<PreviewCallback>,
+
+    /// The internal (parsed) keymap
+    #[cfg_attr(feature = "cli", clap(skip))]
+    pub keymap: KeyMap,
 }
 
 impl Default for SkimOptions {
@@ -942,7 +946,7 @@ impl Default for SkimOptions {
             regex: Default::default(),
             algorithm: Default::default(),
             case: Default::default(),
-            bind: KeyMap::default(),
+            bind: Default::default(),
             multi: Default::default(),
             no_multi: Default::default(),
             no_mouse: Default::default(),
@@ -1014,6 +1018,7 @@ impl Default for SkimOptions {
             cmd_history: Default::default(),
             selector: Default::default(),
             preview_fn: Default::default(),
+            keymap: Default::default(),
         }
     }
 }
@@ -1028,20 +1033,29 @@ impl SkimOptionsBuilder {
 impl SkimOptions {
     /// Finalizes the options by applying defaults and initializing components
     pub fn build(mut self) -> Self {
+        debug!("Building opts");
+
         if self.no_height {
             self.height = String::from("100%");
         }
+
+        self.keymap = self.bind.iter().fold(KeyMap::default(), |mut res, part| {
+            debug!("Adding {part} to the keymap");
+            res.add_keymaps(part.split(','));
+            debug!("Keymap is now {res:?}");
+            return res;
+        });
 
         if self.reverse {
             self.layout = TuiLayout::Reverse
         }
         if self.history_file.is_some() || self.cmd_history_file.is_some() {
             self.init_histories();
-            self.bind.insert(
+            self.keymap.insert(
                 KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL),
                 vec![Action::PreviousHistory],
             );
-            self.bind.insert(
+            self.keymap.insert(
                 KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL),
                 vec![Action::NextHistory],
             );

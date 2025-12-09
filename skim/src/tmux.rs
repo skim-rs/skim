@@ -239,7 +239,10 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let skim_output = SkimOutput {
         final_event,
         is_abort,
-        final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()), // TODO
+        final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()), 
+        // Note: In tmux mode, the actual final key is not available since skim runs in a separate
+        // tmux popup process. Only the output text is captured. Use --expect with --bind to capture
+        // specific accept keys in the output if needed.
         query: query_str.to_string(),
         cmd: command_str.to_string(),
         selected_items: output_lines,

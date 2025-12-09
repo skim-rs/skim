@@ -45,6 +45,7 @@ pub struct ItemList {
     no_clear_if_empty: bool,
     interactive: bool,         // Whether we're in interactive mode
     showing_stale_items: bool, // True when displaying old items due to no_clear_if_empty
+    pub(crate) manual_hscroll: i32, // Manual horizontal scroll offset for ScrollLeft/ScrollRight
 }
 
 impl Default for ItemList {
@@ -79,6 +80,7 @@ impl Default for ItemList {
             no_clear_if_empty: false,
             interactive: false,
             showing_stale_items: false,
+            manual_hscroll: 0,
         }
     }
 }
@@ -163,7 +165,7 @@ impl ItemList {
             return (0, full_width, false, false);
         };
 
-        let shift = if self.no_hscroll {
+        let base_shift = if self.no_hscroll {
             // No horizontal scroll: always start from beginning
             0
         } else if match_start_char == 0 && match_end_char == 0 {
@@ -225,6 +227,17 @@ impl ItemList {
                 desired_shift.min(max_shift)
             }
         };
+
+        // Apply manual horizontal scroll offset
+        let shift = if self.manual_hscroll >= 0 {
+            (base_shift as i32 + self.manual_hscroll).max(0) as usize
+        } else {
+            base_shift.saturating_sub((-self.manual_hscroll) as usize)
+        };
+
+        // Clamp shift to valid range
+        let max_shift = full_width.saturating_sub(available_width);
+        let shift = shift.min(max_shift);
 
         let has_left_overflow = shift > 0;
         let has_right_overflow = shift + available_width < full_width;
@@ -523,6 +536,7 @@ impl SkimWidget for ItemList {
             no_clear_if_empty,
             interactive,
             showing_stale_items: false,
+            manual_hscroll: 0,
             items: Default::default(),
             selection: Default::default(),
             offset: Default::default(),

@@ -15,8 +15,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::tui::event::{self, Action};
 
 /// A map of key events to their associated actions
-#[derive(Clone)]
-pub struct KeyMap(HashMap<KeyEvent, Vec<Action>>);
+#[derive(Clone, Debug)]
+pub struct KeyMap(pub HashMap<KeyEvent, Vec<Action>>);
 
 impl Deref for KeyMap {
     type Target = HashMap<KeyEvent, Vec<Action>>;
@@ -40,6 +40,33 @@ impl From<&str> for KeyMap {
 impl Default for KeyMap {
     fn default() -> Self {
         get_default_key_map()
+    }
+}
+
+impl KeyMap {
+  /// Adds keymaps from the source, parsing them using parse_keymap
+  pub fn add_keymaps<'a, T>(&mut self, source: T)
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        for map in source {
+            if !self.is_empty() {
+                if let Ok((key, action_chain)) = parse_keymap(map) {
+                    self.bind(key, action_chain)
+                        .unwrap_or_else(|err| debug!("Failed to bind key {map}: {err}"));
+                } else {
+                    debug!("Failed to parse key: {map}");
+                }
+            }
+        }
+    }
+    fn bind(&mut self, key: &str, action_chain: Vec<Action>) -> Result<()> {
+        let key = parse_key(key)?;
+
+        // remove the key for existing keymap;
+        let _ = self.remove(&key);
+        self.entry(key).or_insert(action_chain);
+        Ok(())
     }
 }
 
@@ -162,32 +189,14 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
     Ok(KeyEvent::new(keycode, mods))
 }
 
-/// Parses the key and creates the binding in the KeyMap
-pub fn bind(keymap: &mut KeyMap, key: &str, action_chain: Vec<Action>) -> Result<()> {
-    let key = parse_key(key)?;
-
-    // remove the key for existing keymap;
-    let _ = keymap.remove(&key);
-    keymap.entry(key).or_insert(action_chain);
-    Ok(())
-}
-
 /// Parse an iterator of keymaps into a KeyMap
 pub fn parse_keymaps<'a, T>(maps: T) -> KeyMap
 where
     T: Iterator<Item = &'a str>,
 {
-    let mut keymap = get_default_key_map();
-    for map in maps {
-        if !map.is_empty() {
-            if let Ok((key, action_chain)) = parse_keymap(map) {
-                bind(&mut keymap, key, action_chain).unwrap_or_else(|err| debug!("Failed to bind key {map}: {err}"));
-            } else {
-                debug!("Failed to parse key: {map}");
-            }
-        }
-    }
-    keymap
+    let mut res = KeyMap::default();
+    res.add_keymaps(maps);
+    res
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions
@@ -220,15 +229,4 @@ pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
         .ok_or(eyre!("Failed to parse {} as key and action", key_action))?;
     debug!("parsed key_action: {:?}: {:?}", key, action_chain);
     Ok((key, parse_action_chain(action_chain)?))
-}
-
-/// Parses expect keys and adds them to the keymap with Accept actions
-pub fn parse_expect_keys<'a, T>(keymap: &mut KeyMap, keys: T) -> Result<()>
-where
-    T: Iterator<Item = &'a str>,
-{
-    for key in keys {
-        bind(keymap, key, vec![Action::Accept(Some(key.to_string()))])?;
-    }
-    Ok(())
 }

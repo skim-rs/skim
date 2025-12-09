@@ -54,6 +54,7 @@ pub struct Preview<'a> {
     pub theme: Arc<ColorTheme>,
     pub border: bool,
     pub direction: Direction,
+    pub wrap: bool,
 }
 
 impl Default for Preview<'_> {
@@ -69,17 +70,43 @@ impl Default for Preview<'_> {
             theme: Arc::new(ColorTheme::default()),
             border: false,
             direction: Direction::Right,
+            wrap: false,
         }
     }
 }
 
 impl Preview<'_> {
+    /// Convert a Size value to an actual offset based on preview dimensions
+    fn size_to_offset(&self, size: super::Size, is_vertical: bool) -> u16 {
+        match size {
+            super::Size::Fixed(n) => n,
+            super::Size::Percent(p) => {
+                let dimension = if is_vertical { self.rows } else { self.cols };
+                (dimension as u32 * p as u32 / 100) as u16
+            }
+        }
+    }
+
     pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
         let text = content.to_owned().into_text()?;
         self.content = text;
         // Reset scroll when content changes
         self.scroll_y = 0;
         self.scroll_x = 0;
+        Ok(())
+    }
+
+    pub fn content_with_position(&mut self, content: Vec<u8>, position: crate::PreviewPosition) -> Result<()> {
+        let text = content.to_owned().into_text()?;
+        self.content = text;
+        // Apply position offsets
+        let v_scroll = self.size_to_offset(position.v_scroll, true);
+        let v_offset = self.size_to_offset(position.v_offset, true);
+        self.scroll_y = v_scroll.saturating_add(v_offset);
+        
+        let h_scroll = self.size_to_offset(position.h_scroll, false);
+        let h_offset = self.size_to_offset(position.h_offset, false);
+        self.scroll_x = h_scroll.saturating_add(h_offset);
         Ok(())
     }
 
@@ -171,6 +198,11 @@ impl<'a> SkimWidget for Preview<'a> {
 
         // Create paragraph with optional block
         let mut paragraph = Paragraph::new(self.content.clone()).scroll((self.scroll_y, self.scroll_x));
+        
+        // Enable wrapping if wrap is true
+        if self.wrap {
+            paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });
+        }
         let mut block = Block::new()
             .style(self.theme.normal())
             .border_style(self.theme.border());
