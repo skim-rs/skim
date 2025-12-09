@@ -805,7 +805,7 @@ pub struct SkimOptions {
 
     /// Pre-select the items separated by newline character
     ///
-    /// Exemple: 'item1\nitem2'
+    /// Example: 'item1\nitem2'
     #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Scripting"))]
     pub pre_select_items: String,
 
