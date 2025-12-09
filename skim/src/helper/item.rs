@@ -45,7 +45,7 @@ pub struct DefaultSkimItem {
 impl DefaultSkimItem {
     pub fn new(
         orig_text: String,
-        ansi_enabled: bool, // TODO
+        ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
         delimiter: &Regex,

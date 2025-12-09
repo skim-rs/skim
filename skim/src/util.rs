@@ -70,7 +70,7 @@ pub fn printf(
     for c in res.chars() {
         if inside {
             if c == '}' {
-                let range = FieldRange::from_str(&pattern).unwrap(); // TODO
+                let range = FieldRange::from_str(&pattern).unwrap();
                 let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap();
                 replaced.push_str(&escape_arg(replacement));
 

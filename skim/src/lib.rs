@@ -488,8 +488,6 @@ impl Skim {
                         if let Event::Reload(new_cmd) = &evt {
                             // Kill the current reader
                             reader_control.kill();
-                            // TODO Drain any items still in the channel from the old reader
-                            // while item_rx.try_recv().is_ok() {}
                             // Clear items
                             app.item_pool.clear();
                             // Clear displayed items unless no_clear_if_empty is set
