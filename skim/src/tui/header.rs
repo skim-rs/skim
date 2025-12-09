@@ -36,8 +36,6 @@ impl Header {
         self.theme = theme;
         self
     }
-
-
 }
 
 /// Expands tab characters to spaces based on tabstop width and current position
@@ -59,16 +57,14 @@ fn apply_tabstop(text: &str, tabstop: usize) -> String {
     result
 }
 
-
-
 impl SkimWidget for Header {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
         let tabstop = max(1, options.tabstop);
         let header = options.header.clone().unwrap_or_default();
-        
+
         // Expand tabs once during initialization
         let expanded_header = apply_tabstop(&header, tabstop);
-        
+
         Self {
             header: expanded_header,
             theme,

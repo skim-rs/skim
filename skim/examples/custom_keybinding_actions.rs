@@ -19,7 +19,7 @@ fn main() {
     // `delete` and `create` are arbitrary keywords used for this example.
     let options = SkimOptionsBuilder::default()
         .multi(true)
-        .bind("bs:abort,Enter:accept".into())
+        .bind(vec!["bs:abort".into(), "enter:accept".into()])
         .build()
         .unwrap();
 

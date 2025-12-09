@@ -43,8 +43,8 @@ pub struct ItemList {
     selector: Option<Rc<dyn Selector>>,
     pre_select_target: usize, // How many items we want to pre-select
     no_clear_if_empty: bool,
-    interactive: bool,         // Whether we're in interactive mode
-    showing_stale_items: bool, // True when displaying old items due to no_clear_if_empty
+    interactive: bool,              // Whether we're in interactive mode
+    showing_stale_items: bool,      // True when displaying old items due to no_clear_if_empty
     pub(crate) manual_hscroll: i32, // Manual horizontal scroll offset for ScrollLeft/ScrollRight
 }
 

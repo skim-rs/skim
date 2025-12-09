@@ -523,12 +523,12 @@ impl<'a> App<'a> {
                             };
                             self.preview.scroll_x = h_scroll.saturating_add(h_offset);
                         }
-                        ItemPreview::TextWithPos(t, preview_position) => {
-                            self.preview.content_with_position(t.bytes().collect(), preview_position)?
-                        }
-                        ItemPreview::AnsiWithPos(t, preview_position) => {
-                            self.preview.content_with_position(t.bytes().collect(), preview_position)?
-                        }
+                        ItemPreview::TextWithPos(t, preview_position) => self
+                            .preview
+                            .content_with_position(t.bytes().collect(), preview_position)?,
+                        ItemPreview::AnsiWithPos(t, preview_position) => self
+                            .preview
+                            .content_with_position(t.bytes().collect(), preview_position)?,
                         ItemPreview::Global => {
                             self.preview.run(
                                 tui,

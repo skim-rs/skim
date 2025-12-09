@@ -1043,7 +1043,7 @@ impl SkimOptions {
             debug!("Adding {part} to the keymap");
             res.add_keymaps(part.split(','));
             debug!("Keymap is now {res:?}");
-            return res;
+            res
         });
 
         if self.reverse {

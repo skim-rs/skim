@@ -44,8 +44,8 @@ impl Default for KeyMap {
 }
 
 impl KeyMap {
-  /// Adds keymaps from the source, parsing them using parse_keymap
-  pub fn add_keymaps<'a, T>(&mut self, source: T)
+    /// Adds keymaps from the source, parsing them using parse_keymap
+    pub fn add_keymaps<'a, T>(&mut self, source: T)
     where
         T: Iterator<Item = &'a str>,
     {

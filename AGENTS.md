@@ -22,7 +22,6 @@
 
 ## Project Structure
 - Core functionality in `skim/src/`
-- UI toolkit in `skim-tuikit/`
 - Common utilities in `skim-common/`
 - Task automation in `xtask/`
 

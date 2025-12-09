@@ -31,9 +31,7 @@
     "common": {
       "skip-github-release": true
     },
-    "tuikit": {
-      "skip-github-release": true
-    },
+
     "shell": {
       "release-type": "simple",
       "skip-github-release": true,

@@ -103,7 +103,7 @@ impl Preview<'_> {
         let v_scroll = self.size_to_offset(position.v_scroll, true);
         let v_offset = self.size_to_offset(position.v_offset, true);
         self.scroll_y = v_scroll.saturating_add(v_offset);
-        
+
         let h_scroll = self.size_to_offset(position.h_scroll, false);
         let h_offset = self.size_to_offset(position.h_offset, false);
         self.scroll_x = h_scroll.saturating_add(h_offset);
@@ -198,7 +198,7 @@ impl<'a> SkimWidget for Preview<'a> {
 
         // Create paragraph with optional block
         let mut paragraph = Paragraph::new(self.content.clone()).scroll((self.scroll_y, self.scroll_x));
-        
+
         // Enable wrapping if wrap is true
         if self.wrap {
             paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });

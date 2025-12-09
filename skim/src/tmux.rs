@@ -239,7 +239,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let skim_output = SkimOutput {
         final_event,
         is_abort,
-        final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()), 
+        final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
         // Note: In tmux mode, the actual final key is not available since skim runs in a separate
         // tmux popup process. Only the output text is captured. Use --expect with --bind to capture
         // specific accept keys in the output if needed.
