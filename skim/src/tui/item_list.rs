@@ -229,15 +229,23 @@ impl ItemList {
         };
 
         // Apply manual horizontal scroll offset
-        let shift = if self.manual_hscroll >= 0 {
-            (base_shift as i32 + self.manual_hscroll).max(0) as usize
+        // manual_hscroll can be positive (scroll right) or negative (scroll left)
+        // final_shift = base_shift + manual_hscroll
+        let proposed_shift = (base_shift as i32 + self.manual_hscroll).max(0) as usize;
+        debug!("calc_hscroll: manual_hscroll={}, base_shift={}, proposed_shift={}", 
+               self.manual_hscroll, base_shift, proposed_shift);
+        
+        // Only clamp if the text is actually wider than the container
+        // This allows skip_to_pattern to work even for short text
+        let shift = if full_width > available_width {
+            let max_shift = full_width.saturating_sub(available_width);
+            proposed_shift.min(max_shift)
         } else {
-            base_shift.saturating_sub((-self.manual_hscroll) as usize)
+            proposed_shift
         };
 
-        // Clamp shift to valid range
-        let max_shift = full_width.saturating_sub(available_width);
-        let shift = shift.min(max_shift);
+        debug!("calc_hscroll: final shift={}, full_width={}, available_width={}", 
+               shift, full_width, available_width);
 
         let has_left_overflow = shift > 0;
         let has_right_overflow = shift + available_width < full_width;

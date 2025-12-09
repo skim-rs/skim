@@ -876,9 +876,23 @@ fn opt_ansi_null() -> Result<()> {
 
 #[test]
 fn opt_skip_to_pattern() -> Result<()> {
-    let (tmux, _) = setup("a/b/c", &["--skip-to-pattern", "'[^/]*$'"])?;
+    let (tmux, _) = setup(
+        "a/b/c",
+        &[
+            "--skip-to-pattern",
+            "'[^/]*$'",
+            "--bind",
+            "ctrl-a:scroll-left",
+            "--bind",
+            "ctrl-x:scroll-right",
+        ],
+    )?;
 
-    tmux.until(|l| l.len() > 2 && l[2] == "> ..c")
+    tmux.until(|l| l.len() > 2 && l[2].starts_with("> ..c"))?;
+    tmux.send_keys(&[Ctrl(&Key('a'))])?;
+    tmux.until(|l| l.len() > 2 && l[2].starts_with("> ../c"))?;
+    tmux.send_keys(&[Ctrl(&Key('x'))])?;
+    tmux.until(|l| l.len() > 2 && l[2].starts_with("> ..c"))
 }
 
 #[test]
