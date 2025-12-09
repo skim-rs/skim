@@ -1033,16 +1033,13 @@ impl SkimOptionsBuilder {
 impl SkimOptions {
     /// Finalizes the options by applying defaults and initializing components
     pub fn build(mut self) -> Self {
-        debug!("Building opts");
 
         if self.no_height {
             self.height = String::from("100%");
         }
 
         self.keymap = self.bind.iter().fold(KeyMap::default(), |mut res, part| {
-            debug!("Adding {part} to the keymap");
             res.add_keymaps(part.split(','));
-            debug!("Keymap is now {res:?}");
             res
         });
 

@@ -1006,12 +1006,10 @@ impl<'a> App<'a> {
                 self.restart_matcher(true);
             }
             ScrollLeft(n) => {
-                self.item_list.manual_hscroll = self.item_list.manual_hscroll - *n;
-                debug!("ScrollLeft: manual_hscroll = {}", self.item_list.manual_hscroll);
+                self.item_list.manual_hscroll -= *n;
             }
             ScrollRight(n) => {
                 self.item_list.manual_hscroll = self.item_list.manual_hscroll.saturating_add(*n);
-                debug!("ScrollRight: manual_hscroll = {}", self.item_list.manual_hscroll);
             }
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
