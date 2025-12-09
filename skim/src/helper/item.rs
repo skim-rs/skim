@@ -33,7 +33,7 @@ pub struct DefaultSkimItem {
     /// A mapping of positions from stripped text to original text.
     /// Each element is (byte_position, char_position) in the original raw text.
     /// Will be empty if ansi is disabled.
-    ansi_info: Vec<(usize, usize)>,
+    ansi_info: Option<Vec<(usize, usize)>>,
 
     // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
     #[allow(clippy::box_collection)]
@@ -81,9 +81,9 @@ impl DefaultSkimItem {
         };
         let (stripped_text, ansi_info) = if ansi_enabled {
             let (stripped, info) = strip_ansi(&text);
-            (Some(stripped), info)
+            (Some(stripped), Some(info))
         } else {
-            (None, Vec::new())
+            (None, None)
         };
 
         let matching_ranges = if !matching_fields.is_empty() {
@@ -147,7 +147,7 @@ impl SkimItem for DefaultSkimItem {
 
     fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
         // If we have ANSI info, we need to handle ANSI codes properly and map matches
-        if !self.ansi_info.is_empty() {
+        if self.ansi_info.is_some() {
             // Parse the ANSI text using ansi-to-tui to get proper styled spans
             let text_bytes = self.text.as_bytes().to_vec();
             let parsed_text = match text_bytes.into_text() {
@@ -560,7 +560,7 @@ mod test {
         assert_eq!(item.text(), "green text");
 
         // Verify we have ANSI info
-        assert!(!item.ansi_info.is_empty());
+        assert!(item.ansi_info.is_some());
 
         // Create a match context as if we matched "text" (positions 6-10 in stripped string)
         let context = DisplayContext {
@@ -794,7 +794,7 @@ mod test {
 
         // Verify the stripped_text and ansi_info are populated correctly
         assert!(item.stripped_text.is_some());
-        assert!(!item.ansi_info.is_empty());
+        assert!(item.ansi_info.is_some());
         assert_eq!(item.stripped_text.as_ref().unwrap(), "green_text");
     }
 }

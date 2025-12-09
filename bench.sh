@@ -4,20 +4,18 @@
 # This measures how fast skim can ingest items and display matched results
 
 set -e
+export SHELL="/bin/sh"
+unset HISTFILE
 
 # Parse arguments
 BINARY_PATH=${1:-"./target/release/sk"}
 NUM_ITEMS=${2:-1000000}
 QUERY=${3:-"test"}
 
-echo "=== Skim Ingestion + Matching Benchmark (Interactive Mode) ==="
-echo "Binary: $BINARY_PATH"
-echo "Items: $NUM_ITEMS"
-echo "Query: '$QUERY'"
-echo ""
+echo "=== Skim Ingestion + Matching Benchmark ==="
+echo "Binary: $BINARY_PATH | Items: $NUM_ITEMS | Query: '$QUERY'"
 
 # Generate test data
-echo "Generating $NUM_ITEMS test items..."
 TMP_FILE=$(mktemp)
 STATUS_FILE=$(mktemp)
 SESSION_NAME="skim_bench_$$"
@@ -45,9 +43,6 @@ awk -v num="$NUM_ITEMS" 'BEGIN {
     }
 }' > "$TMP_FILE"
 
-echo "Running skim benchmark in tmux..."
-echo ""
-
 # Create a new tmux session in the background
 tmux new-session -s "$SESSION_NAME" -d
 
@@ -72,8 +67,6 @@ for i in 1 2 3 4 5; do
 done
 
 if [ -n "$SK_PID" ]; then
-    echo "Found skim process (PID: $SK_PID) - monitoring resources..."
-
     # Start background monitoring of CPU and RAM
     MONITOR_LOG="/tmp/skim-monitor-$SK_PID.log"
     rm -f "$MONITOR_LOG"
@@ -100,12 +93,10 @@ if [ -n "$SK_PID" ]; then
     ) &
     MONITOR_PID=$!
 else
-    echo "Warning: Could not find skim process - resource monitoring disabled"
     MONITOR_PID=""
 fi
 
 # Monitor for matcher completion by checking status line
-echo "Waiting for matching to complete..."
 COMPLETED=0
 MATCHED_COUNT=0
 TOTAL_INGESTED=0
@@ -129,15 +120,9 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
             MATCHED_COUNT=$(echo "$STATUS_LINE" | cut -d'/' -f1)
             TOTAL_INGESTED=$(echo "$STATUS_LINE" | cut -d'/' -f2)
             
-            # Print progress every few seconds
-            if [ $((ELAPSED % 5)) -eq 0 ]; then
-                echo "Progress: $MATCHED_COUNT matched, $TOTAL_INGESTED ingested (target: $NUM_ITEMS)"
-            fi
-            
             # Check if ingestion is complete
             if [ "$TOTAL_INGESTED" = "$NUM_ITEMS" ]; then
                 COMPLETED=1
-                echo "Ingestion complete: $TOTAL_INGESTED items"
                 break
             fi
         fi
@@ -183,7 +168,3 @@ if [ -n "$PEAK_MEM" ] && [ "$PEAK_MEM" -gt 0 ]; then
     echo "Peak memory usage: $((PEAK_MEM / 1024)) MB"
     echo "Peak CPU usage: ${PEAK_CPU}%"
 fi
-echo ""
-echo "To test with different parameters:"
-echo "  $0 <binary_path> <num_items> <query>"
-echo "Example: $0 ./target/release/sk 500000 pattern"
