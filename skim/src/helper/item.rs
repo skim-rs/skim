@@ -69,15 +69,11 @@ impl DefaultSkimItem {
                 (Some(orig_text), transformed)
             }
             (true, false) => {
-                let transformed = parse_transform_fields(
-                    delimiter,
-                    &orig_text.replace(char::from_u32(27).unwrap(), "?"),
-                    trans_fields,
-                );
+                let transformed = parse_transform_fields(delimiter, &escape_ansi(&orig_text), trans_fields);
                 (Some(orig_text), transformed)
             }
             (false, true) => (None, orig_text),
-            (false, false) => (None, orig_text.replace(char::from_u32(27).unwrap(), "?")),
+            (false, false) => (None, escape_ansi(&orig_text)),
         };
         let (stripped_text, ansi_info) = if ansi_enabled {
             let (stripped, info) = strip_ansi(&text);
@@ -436,6 +432,14 @@ pub fn strip_ansi(text: &str) -> (String, Vec<(usize, usize)>) {
     }
 
     (result, index_mapping)
+}
+
+/// Replace the ANSI ESC code by a ?
+///
+/// Unsafe: bytes are parsed back from the original string or b'?'
+/// No risk associated
+fn escape_ansi(raw: &str) -> String {
+    unsafe { String::from_utf8_unchecked(raw.bytes().map(|b| if b == 27 { b'?' } else { b }).collect()) }
 }
 
 #[cfg(test)]

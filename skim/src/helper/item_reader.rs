@@ -60,9 +60,13 @@ impl SkimItemReaderOption {
             transform_fields: options
                 .with_nth
                 .iter()
-                .filter_map(|f| FieldRange::from_str(f))
+                .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
                 .collect(),
-            matching_fields: options.nth.iter().filter_map(|f| FieldRange::from_str(f)).collect(),
+            matching_fields: options
+                .nth
+                .iter()
+                .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
+                .collect(),
             delimiter: options.delimiter.clone(),
             show_error: options.show_cmd_error,
         }
