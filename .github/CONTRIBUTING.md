@@ -1,28 +1,23 @@
-# contributor guide
+# Contributor Guide
 
 ## Running tests
 
-The unit tests are simply run with `cargo test`.
+All tests can be run by using [cargo-nextest](https://nexte.st/), which can be installed using `cargo install nextest` of following the instructions on the website.
+You will need `tmux` to run the integration tests.
 
-The E2E tests can be ran in a docker container:
-1. Build the image: `docker build . -t skim-e2e -f e2e.dockerfile`
-2. Run the tests: `docker run --rm -it skim-e2e`
+You can then run `cargo nextest run --release`, which should automatically build a release binary, run the unit tests and the integration tests.
+Note: you can run the tests without `--release`, but expect more flaky tests since the timings will be looser. I would advise testing manually any debug test failure if you have doubts.
 
-However, if you want to run the E2E tests on your host, you need  `tmux` & `zsh` installed, and then run:
-```bash
-cargo build --release
-tmux new-session -d -s skim_e2e
-cargo e2e -j8
-```
+## Submitting code
 
-The end-to-end test will use tmux to run skim, send keys and capture its output.
+To avoid using up CI minutes uselessly, make sure that :
+- You run `cargo clippy` and `cargo fmt` before pushing any code to an open PR.
+- Your PR's title respects [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-## GPT/chatbot
+Not respecting these guidelines could end up consuming all our minutes and preventing us from testing and releasing any new code until the end of the month.
 
-Though we tolereate GPT-assisted dev (e.g. github copilot),
-    it is accepted but will be judged as strictly as human-only coding:
-- Please avoid generating PRs, PRs comments and issue with a chatbot.
- Please avoid generating PRs, PR comments, and issues with a chatbot.
-- do not submit code which you don't understand.
- Avoid submitting code you do not fully understand.
- Additionally, extensive refactoring is discouraged as it takes significant time for maintainers to review.
+## Vibe Coding guidelines
+
+Any code generated partially or completely using LLMs will be treated the same way as if you wrote it yourself.
+
+This means that you are expected to understand if fully and are responsible for it.
