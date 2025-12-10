@@ -1,11 +1,11 @@
 use std::{rc::Rc, sync::Arc};
 
+use indexmap::IndexSet;
 use ratatui::widgets::{Clear, List, ListDirection, ListState, StatefulWidget, Widget};
 use ratatui::{
     style::Modifier,
     text::{Line, Span},
 };
-use indexmap::IndexSet;
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_width::UnicodeWidthStr;
