@@ -5,7 +5,7 @@
 - Run: `cargo run [--release]`
 - Test (all): `cargo nextest`
 - Test (single): `cargo nextest test_name`
-- E2E tests: `cargo nextest --tests` (will need tmux under the hood)
+- Integration/E2E tests: `cargo nextest --tests` (will need tmux under the hood)
 - Lint: `cargo clippy`
 - Format: `cargo fmt` (check only: `cargo fmt --check`)
 

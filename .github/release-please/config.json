@@ -25,9 +25,7 @@
     "xtask": {
       "skip-github-release": true
     },
-    "e2e": {
-      "skip-github-release": true
-    },
+
     "common": {
       "skip-github-release": true
     },

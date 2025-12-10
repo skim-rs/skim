@@ -24,7 +24,6 @@ changelog_include = [
 	"plugin",
 	"bin",
 	"xtask",
-	"e2e"
 ]
 changelog_path = "./CHANGELOG.md"
 changelog_update = true
@@ -49,7 +48,6 @@ git_tag_enable = true
 git_tag_name = "common-v{{ version }}"
 
 [[package]]
-name = "e2e"
 release = false
 publish = false
 [[package]]

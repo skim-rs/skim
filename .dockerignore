@@ -4,3 +4,5 @@ bin/
 plugin/
 man/
 shell/
+*.md
+install
