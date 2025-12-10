@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.6](https://github.com/skim-rs/skim/compare/v0.20.5...v0.20.6) - 2025-12-10
+
 ## [0.20.5](https://github.com/skim-rs/skim/compare/v0.20.4...v0.20.5) - 2025-08-09
 
 ### <!-- 1 -->🐛 Bug Fixes
