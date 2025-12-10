@@ -70,9 +70,9 @@ fn tiebreak_end() -> Result<()> {
 #[test]
 fn tiebreak_neg_end() -> Result<()> {
     let tmux = setup("aba\\nb\\nc\\naaba\\nac", "-end,score")?;
-    tmux.until(|l| l.len() > 2 && l[2].starts_with("> a"))?;
+    tmux.until(|l| l.len() == 7 && l[2].starts_with("> a"))?;
     tmux.send_keys(&[Str("ba")])?;
-    tmux.until(|l| l.len() > 2 && l[2].starts_with("> aaba"))
+    tmux.until(|l| l.len() == 4 && l[2].starts_with("> aaba"))
 }
 
 #[test]

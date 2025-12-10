@@ -898,10 +898,12 @@ fn opt_skip_to_pattern() -> Result<()> {
 #[test]
 fn opt_multi() -> Result<()> {
     let (tmux, outfile) = setup("a\\nb\\nc", &["--multi"])?;
-    tmux.until(|l| l.len() > 4)?;
+    tmux.until(|l| l.len() == 5)?;
 
-    tmux.send_keys(&[BTab, BTab])?;
-    tmux.until(|l| l.len() > 3 && l[2] == " >a" && l[3] == " >b")?;
+    tmux.send_keys(&[BTab])?;
+    tmux.until(|l| l[2] == " >a" && l[3] == "> b")?;
+    tmux.send_keys(&[BTab])?;
+    tmux.until(|l| l[2] == " >a" && l[3] == " >b" && l[4] == "> c")?;
     tmux.send_keys(&[Enter])?;
 
     tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() == 2)?;

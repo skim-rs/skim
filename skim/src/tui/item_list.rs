@@ -1,10 +1,11 @@
-use std::{collections::HashSet, rc::Rc, sync::Arc};
+use std::{rc::Rc, sync::Arc};
 
 use ratatui::widgets::{Clear, List, ListDirection, ListState, StatefulWidget, Widget};
 use ratatui::{
     style::Modifier,
     text::{Line, Span},
 };
+use indexmap::IndexSet;
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_width::UnicodeWidthStr;
@@ -26,7 +27,7 @@ struct ProcessedItems {
 /// Widget for displaying and managing the list of filtered items
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
-    pub(crate) selection: HashSet<MatchedItem>,
+    pub(crate) selection: IndexSet<MatchedItem>,
     pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
     processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
@@ -375,7 +376,7 @@ impl ItemList {
     /// Render the item list using the theme colors.
     pub fn toggle_item(&mut self, item: &MatchedItem) {
         if self.selection.contains(item) {
-            self.selection.remove(item);
+            self.selection.shift_remove(item);
         } else {
             self.selection.insert(item.clone());
         }

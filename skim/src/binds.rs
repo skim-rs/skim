@@ -80,6 +80,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE), vec![Action::PageUp(1)]);
     ret.insert(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE), vec![Action::PageUp(1)]);
     ret.insert(KeyEvent::new(KeyCode::End, KeyModifiers::NONE), vec![Action::EndOfLine]);
+    ret.insert(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE), vec![Action::BeginningOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE), vec![Action::DeleteChar]);
     ret.insert(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE), vec![Action::Toggle, Action::Down(1)]);
     ret.insert(KeyEvent::new(KeyCode::BackTab, KeyModifiers::all()), vec![Action::Toggle, Action::Up(1)]);
