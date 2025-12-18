@@ -34,16 +34,13 @@ fn test_ansi_flag_enabled() -> Result<()> {
 
 #[test]
 fn test_ansi_flag_disabled() -> Result<()> {
-    let tmux = TmuxController::new().unwrap();
-    let _outfile = tmux
-        .start_sk(
-            Some("echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'"),
-            &[],
-        )
-        .unwrap();
+    let tmux = TmuxController::new()?;
+    let _outfile = tmux.start_sk(
+        Some("echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'"),
+        &[],
+    )?;
 
-    tmux.until(|lines| lines.iter().any(|line| line.contains("plain")))
-        .unwrap();
+    tmux.until(|lines| lines.iter().any(|line| line.contains("plain")))?;
 
     tmux.send_keys(&[Str("red")])?;
 

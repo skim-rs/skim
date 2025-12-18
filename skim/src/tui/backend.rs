@@ -79,6 +79,13 @@ impl<B: Backend> Tui<B> {
             crossterm::execute!(std::io::stderr(), LeaveAlternateScreen, cursor::Show)?;
             crossterm::terminal::disable_raw_mode()?;
         }
+        // When using the inline layout, we want to remove all previous output
+        //  -> reset cursor at the top of the drawing area
+        if !self.is_fullscreen {
+            let area = self.get_frame().area();
+            let orig = ratatui::layout::Position { x: area.x, y: area.y };
+            self.set_cursor_position(orig)?;
+        };
         Ok(())
     }
     /// Stops the TUI event loop

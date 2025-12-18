@@ -23,6 +23,7 @@ fn bind_execute_0_results() -> Result<()> {
     tmux.until(|l| l[0] != ">")?;
 
     let output = tmux.output(&outfile)?;
+    println!("Output: {output:?}");
     assert_eq!(output[0], "foo");
 
     Ok(())
@@ -38,6 +39,7 @@ fn bind_execute_0_results_noref() -> Result<()> {
     tmux.until(|l| l[0] != ">")?;
 
     let output = tmux.output(&outfile)?;
+    println!("Output: {output:?}");
     assert_eq!(output[0], "foo");
 
     Ok(())

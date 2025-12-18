@@ -14,11 +14,6 @@ type IndexType = usize;
 #[cfg(not(feature = "compact_matcher"))]
 type ScoreType = i64;
 
-#[cfg(feature = "compact_matcher")]
-type IndexType = u32;
-#[cfg(feature = "compact_matcher")]
-type ScoreType = i32;
-
 /// Trait for fuzzy matching text patterns against choices
 pub trait FuzzyMatcher: Send + Sync {
     /// fuzzy match choice with pattern, and return the score & matched indices of characters

@@ -215,6 +215,7 @@ impl TmuxController {
         }
     }
 
+    /// Capture skim output without ANSI sequences
     pub fn output(&self, outfile: &str) -> Result<Vec<String>> {
         wait(|| {
             if Path::new(outfile).exists() {
