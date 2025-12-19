@@ -603,6 +603,21 @@ pub struct SkimOptions {
 
     //  --- Display ---
     /// Parse ANSI color codes in input strings
+    ///
+    /// When using skim as a library, this has no effect and ansi parsing should
+    /// be enabled by manually injecting a cmd_collector like so:
+    /// ```rust
+    /// use skim::prelude::*;
+    /// use skim::reader::CommandCollector;
+    ///
+    /// let _options = SkimOptionsBuilder::default()
+    ///   .cmd(ls --color)
+    ///   .cmd_collector(Rc::new(RefCell::new(SkimItemReader::new(
+    ///     SkimItemReaderOption::default().ansi(true),
+    ///     ))) as Rc<RefCell<dyn CommandCollector>>)
+    ///   .build()
+    ///   .unwrap()
+    /// ```
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub ansi: bool,
 

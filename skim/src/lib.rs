@@ -419,8 +419,6 @@ impl Skim {
     ///
     /// Panics if the tui fails to initilize
     pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
-        // let min_height = Skim::parse_height_string(&options.min_height);
-
         let height = Size::try_from(options.height.as_str())?;
         let backend = CrosstermBackend::new(std::io::stderr());
         let mut tui = tui::Tui::new_with_height(backend, height)?;

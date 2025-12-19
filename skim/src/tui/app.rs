@@ -1133,10 +1133,6 @@ impl<'a> App<'a> {
         }
 
         let matcher_stopped = self.matcher_control.stopped();
-        trace!(
-            "Should matcher restart ? force={force} stopped={matcher_stopped} item_pool_not_taken={}",
-            self.item_pool.num_not_taken()
-        );
         if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
