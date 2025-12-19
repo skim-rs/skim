@@ -3,12 +3,16 @@
 //! This module provides a convenient way to import all the commonly used
 //! skim types and traits with a single `use skim::prelude::*;` statement.
 
-pub use crate::engine::{factory::*, fuzzy::FuzzyAlgorithm};
+pub use crate::engine::{
+    factory::*,
+    fuzzy::{FuzzyAlgorithm, FuzzyEngine},
+};
 pub use crate::fuzzy_matcher::skim::SkimMatcherV2;
 pub use crate::helper::item_reader::{SkimItemReader, SkimItemReaderOption};
 pub use crate::helper::selector::DefaultSkimSelector;
 pub use crate::options::{SkimOptions, SkimOptionsBuilder};
 pub use crate::output::SkimOutput;
+pub use crate::reader::CommandCollector;
 pub use crate::tui::{Event, PreviewCallback};
 pub use crate::*;
 pub use std::borrow::Cow;

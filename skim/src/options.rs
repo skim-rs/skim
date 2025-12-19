@@ -608,7 +608,6 @@ pub struct SkimOptions {
     /// be enabled by manually injecting a cmd_collector like so:
     /// ```rust
     /// use skim::prelude::*;
-    /// use skim::reader::CommandCollector;
     ///
     /// let _options = SkimOptionsBuilder::default()
     ///   .cmd(ls --color)

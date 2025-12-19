@@ -91,6 +91,7 @@ impl FuzzyEngineBuilder {
     }
 }
 
+/// The fuzzy matching engine
 pub struct FuzzyEngine {
     query: String,
     matcher: Box<dyn FuzzyMatcher>,
@@ -98,6 +99,7 @@ pub struct FuzzyEngine {
 }
 
 impl FuzzyEngine {
+    /// Returns a default builder for chaining
     pub fn builder() -> FuzzyEngineBuilder {
         FuzzyEngineBuilder::default()
     }
