@@ -904,7 +904,7 @@ pub struct SkimOptions {
 
     /// Deprecated, kept for compatibility purposes. See accept() bind instead.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
-    expect: String,
+    pub expect: String,
 
     /// Command collector for reading items from commands
     #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
