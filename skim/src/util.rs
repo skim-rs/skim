@@ -36,7 +36,7 @@ pub fn printf(
     command_query: &str,
 ) -> String {
     let (item_text, field_text) = match selected {
-        Some(ref s) => (s.text().into_owned(), s.output().into_owned()),
+        Some(ref s) => (s.output().into_owned(), s.output().into_owned()),
         None => (String::default(), String::default()),
     };
     // Replace static fields first
@@ -47,7 +47,7 @@ pub fn printf(
         &escape_arg(
             &items
                 .clone()
-                .map(|i| i.text().into_owned())
+                .map(|i| i.output().into_owned())
                 .collect::<Vec<_>>()
                 .join(" "),
         ),

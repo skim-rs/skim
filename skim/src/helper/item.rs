@@ -63,7 +63,7 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let (orig_text, text) = match (using_transform_fields, ansi_enabled) {
+        let (mut orig_text, mut text) = match (using_transform_fields, ansi_enabled) {
             (true, true) => {
                 let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
                 (Some(orig_text), transformed)
@@ -75,6 +75,17 @@ impl DefaultSkimItem {
             (false, true) => (None, orig_text),
             (false, false) => (None, escape_ansi(&orig_text)),
         };
+
+        // Strip null bytes from text used for display and matching
+        // Null bytes are control characters that cause rendering issues (zero-width)
+        // They are preserved in orig_text for output
+        if text.contains('\0') {
+            // If we don't have orig_text yet, save it before modifying text
+            if orig_text.is_none() {
+                orig_text = Some(text.clone());
+            }
+            text = text.replace('\0', "");
+        }
         let (stripped_text, ansi_info) = if ansi_enabled {
             let (stripped, info) = strip_ansi(&text);
             (Some(stripped), Some(info))

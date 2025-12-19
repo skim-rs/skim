@@ -36,3 +36,24 @@ fn issue_361_literal_space_invert() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn issue_547_null_match() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    tmux.send_keys(&[Str("set +o histexpand"), Enter])?;
+    tmux.start_sk(Some("echo -e \"\\0Test Test Test\""), &["-q", "Test"])?;
+
+    tmux.until(|l| l[0].starts_with(">"))?;
+    tmux.until(|l| l[2].starts_with("> Test Test Test"))?;
+
+    let out = tmux.capture_colored()?;
+    println!("out {out:?}");
+    assert!(
+        out.len() > 2
+            && out[2].starts_with(
+                "\u{1b}[1m\u{1b}[38;5;168m\u{1b}[48;5;236m>\u{1b}[0m \u{1b}[38;5;151m\u{1b}[48;5;236mTest"
+            )
+    );
+
+    Ok(())
+}
