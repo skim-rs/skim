@@ -449,6 +449,18 @@ impl ItemList {
             .min(self.items.len() - 1)
             .max(self.reserved);
     }
+    /// Jump to the first selectable item (respecting reserved header lines)
+    pub fn jump_to_first(&mut self) {
+        if self.items.len() > self.reserved {
+            self.current = self.reserved;
+        }
+    }
+    /// Jump to the last item in the list
+    pub fn jump_to_last(&mut self) {
+        if !self.items.is_empty() {
+            self.current = self.items.len() - 1;
+        }
+    }
 }
 
 impl SkimWidget for ItemList {

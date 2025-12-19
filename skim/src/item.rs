@@ -151,6 +151,8 @@ pub struct ItemPool {
     reserved_items: SpinLock<Vec<Arc<dyn SkimItem>>>,
     /// Number of lines to reserve as header
     lines_to_reserve: usize,
+    /// Reverse the order of items (--tac flag)
+    tac: bool,
 }
 
 impl Default for ItemPool {
@@ -161,6 +163,7 @@ impl Default for ItemPool {
             taken: AtomicUsize::new(0),
             reserved_items: SpinLock::new(Vec::new()),
             lines_to_reserve: 0,
+            tac: false,
         }
     }
 }
@@ -168,19 +171,19 @@ impl Default for ItemPool {
 impl ItemPool {
     /// Creates a new empty item pool
     pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates a new item pool from skim options
+    pub fn from_options(options: &crate::SkimOptions) -> Self {
         Self {
             length: AtomicUsize::new(0),
             pool: SpinLock::new(Vec::with_capacity(ITEM_POOL_CAPACITY)),
             taken: AtomicUsize::new(0),
             reserved_items: SpinLock::new(Vec::new()),
-            lines_to_reserve: 0,
+            lines_to_reserve: options.header_lines,
+            tac: options.tac,
         }
-    }
-
-    /// Sets the number of lines to reserve as header
-    pub fn lines_to_reserve(mut self, lines_to_reserve: usize) -> Self {
-        self.lines_to_reserve = lines_to_reserve;
-        self
     }
 
     /// Returns the total number of items in the pool
@@ -232,11 +235,26 @@ impl ItemPool {
         if to_reserve > 0 {
             let to_reserve = min(to_reserve, items.len());
             // Split items: first part goes to header, rest to main pool
-            let mut remaining = items.split_off(to_reserve);
-            header_items.append(&mut items);
-            pool.append(&mut remaining);
+            let remaining = items.split_off(to_reserve);
+
+            // Header items are always in input order, regardless of tac
+            header_items.extend(items);
+
+            if self.tac {
+                // For --tac, prepend non-header items (newest items go to front)
+                for item in remaining.into_iter() {
+                    pool.insert(0, item);
+                }
+            } else {
+                pool.extend(remaining);
+            }
+        } else if self.tac {
+            // For --tac, prepend items (newest items go to front)
+            for item in items.into_iter() {
+                pool.insert(0, item);
+            }
         } else {
-            pool.append(&mut items);
+            pool.extend(items);
         }
         self.length.store(pool.len(), Ordering::SeqCst);
         trace!("item pool, done append {len} items, total: {}", pool.len());

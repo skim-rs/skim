@@ -977,3 +977,29 @@ fn opt_accept_arg() -> Result<()> {
     assert_eq!(output[1], "hello");
     Ok(())
 }
+
+#[test]
+fn opt_tac() -> Result<()> {
+    let (tmux, _) = setup("a\\nb", &["--tac"])?;
+    tmux.until(|l| l[1].starts_with("  2/2"))?;
+    tmux.until(|l| l[2].starts_with("> b") && l[3].contains("a"))?;
+    Ok(())
+}
+
+#[test]
+fn opt_tac_with_header_lines() -> Result<()> {
+    let (tmux, _) = setup("a\\nb\\nc\\nd\\ne", &["--tac", "--header-lines", "2"])?;
+
+    // Should have 3 selectable items (c, d, e reversed to e, d, c)
+    // The count shows matched/total: 3 matched out of 3 selectable (5 total items with 2 headers)
+    tmux.until(|l| l[1].starts_with("  5/3"))?;
+
+    // Headers should be first 2 items from input (a, b) in original order
+    tmux.until(|l| l.len() > 3 && l[2].trim() == "a" && !l[2].starts_with(">"))?;
+    tmux.until(|l| l.len() > 3 && l[3].trim() == "b" && !l[3].starts_with(">"))?;
+
+    // First selectable item should be 'e' (last from input, first in reversed order)
+    tmux.until(|l| l.len() > 4 && l[4].starts_with("> e"))?;
+
+    Ok(())
+}

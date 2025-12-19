@@ -545,7 +545,7 @@ impl Skim {
             final_key,
             query: app.input.to_string(),
             is_abort,
-            selected_items: if is_abort { Vec::new() } else { app.results() },
+            selected_items: app.results(),
         })
     }
 }

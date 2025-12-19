@@ -101,3 +101,67 @@ fn bind_reload_cmd() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn bind_first_last() -> Result<()> {
+    let tmux = setup(
+        "1\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10",
+        &["--bind", "'ctrl-f:first,ctrl-l:last'"],
+    )?;
+
+    // Wait for items to load
+    tmux.until(|l| l.len() > 10)?;
+
+    // Jump to first item (1)
+    tmux.send_keys(&[Ctrl(&Key('f'))])?;
+    tmux.until(|l| l.iter().any(|line| line == "> 1"))?;
+
+    // Jump to last item (10)
+    tmux.send_keys(&[Ctrl(&Key('l'))])?;
+    tmux.until(|l| l.iter().any(|line| line == "> 10"))?;
+
+    // Jump back to first item (1)
+    tmux.send_keys(&[Ctrl(&Key('f'))])?;
+    tmux.until(|l| l.iter().any(|line| line == "> 1"))?;
+
+    Ok(())
+}
+
+#[test]
+fn bind_top_alias() -> Result<()> {
+    let tmux = setup(
+        "1\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10",
+        &["--bind", "'ctrl-t:top,ctrl-l:last'"],
+    )?;
+
+    // Wait for items to load
+    tmux.until(|l| l.len() > 10)?;
+
+    // Jump to last item (10)
+    tmux.send_keys(&[Ctrl(&Key('l'))])?;
+    tmux.until(|l| l.iter().any(|line| line == "> 10"))?;
+
+    // Jump to top (first) item (1) using 'top' alias
+    tmux.send_keys(&[Ctrl(&Key('t'))])?;
+    tmux.until(|l| l.iter().any(|line| line == "> 1"))?;
+
+    Ok(())
+}
+
+#[test]
+fn bind_change() -> Result<()> {
+    let tmux = setup(
+        "1\\n12\\n13\\n14\\n15\\n16\\n17\\n18\\n19\\n10",
+        &["--bind", "'change:first'"],
+    )?;
+    // Wait for items to load
+    tmux.until(|l| l.len() > 10)?;
+
+    tmux.send_keys(&[Up, Up])?;
+
+    tmux.until(|l| l.iter().any(|x| x.starts_with("> 13")))?;
+    tmux.send_keys(&[Key('1')])?;
+    tmux.until(|l| l[2].starts_with("> 1"))?;
+
+    Ok(())
+}

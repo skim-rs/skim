@@ -76,6 +76,8 @@ pub enum Action {
     Execute(String),
     /// Execute a command silently
     ExecuteSilent(String),
+    /// Jump to first item in list
+    First,
     /// Move cursor forward one character
     ForwardChar,
     /// Move cursor forward one word
@@ -92,6 +94,8 @@ pub enum Action {
     KillLine,
     /// Delete word after cursor
     KillWord,
+    /// Jump to last item in list
+    Last,
     /// Move to next history entry
     NextHistory,
     /// Scroll down by half a page
@@ -154,6 +158,8 @@ pub enum Action {
     TogglePreviewWrap,
     /// Toggle sorting
     ToggleSort,
+    /// Jump to first item in list (alias for First)
+    Top,
     /// Discard line (unix-style)
     UnixLineDiscard,
     /// Delete word backward (unix-style)
@@ -221,11 +227,13 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
           "end-of-line"          =>   Some(Action::EndOfLine),
           "execute"              =>   Some(Action::Execute(arg.expect("execute event should have argument"))),
           "execute-silent"       =>   Some(Action::ExecuteSilent(arg.expect("execute-silent event should have argument"))),
+          "first"                =>   Some(Action::First),
           "forward-char"         =>   Some(Action::ForwardChar),
           "forward-word"         =>   Some(Action::ForwardWord),
           "ignore"               =>   Some(Action::Ignore),
           "kill-line"            =>   Some(Action::KillLine),
           "kill-word"            =>   Some(Action::KillWord),
+          "last"                 =>   Some(Action::Last),
           "next-history"         =>   Some(Action::NextHistory),
           "half-page-down"       =>   Some(Action::HalfPageDown(arg.and_then(|s|s.parse().ok()).unwrap_or(1))),
           "half-page-up"         =>   Some(Action::HalfPageUp(arg.and_then(|s|s.parse().ok()).unwrap_or(1))),
@@ -252,6 +260,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
           "toggle-preview"       =>   Some(Action::TogglePreview),
           "toggle-preview-wrap"  =>   Some(Action::TogglePreviewWrap),
           "toggle-sort"          =>   Some(Action::ToggleSort),
+          "top"                  =>   Some(Action::Top),
           "unix-line-discard"    =>   Some(Action::UnixLineDiscard),
           "unix-word-rubout"     =>   Some(Action::UnixWordRubout),
           "up"                   =>   Some(Action::Up(arg.and_then(|s|s.parse().ok()).unwrap_or(1))),

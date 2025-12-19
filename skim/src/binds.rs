@@ -183,6 +183,7 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             "end" => KeyCode::End,
             "pgup" | "page-up" => KeyCode::PageUp,
             "pgdown" | "page-down" => KeyCode::PageDown,
+            "change" => KeyCode::F(255),
             s => return Err(eyre!("Unknown key {}", s)),
         }
     }

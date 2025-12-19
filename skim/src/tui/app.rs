@@ -18,7 +18,7 @@ use super::header::Header;
 use super::item_list::ItemList;
 use super::statusline::StatusLine;
 use color_eyre::eyre::{Result, bail};
-use crossterm::event::{KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
@@ -328,7 +328,7 @@ impl<'a> App<'a> {
             preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
             status: StatusLine::from_options(&options, theme.clone()),
-            item_pool: Arc::default(),
+            item_pool: Arc::new(DeferDrop::new(ItemPool::from_options(&options))),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             should_quit: false,
@@ -431,6 +431,20 @@ impl<'a> App<'a> {
         } else {
             String::new()
         };
+    }
+
+    /// Call when query changes (e.g., AddChar, BackwardDeleteChar, etc.)
+    fn on_query_changed(&mut self) -> Result<Vec<Event>> {
+        // In interactive mode with --cmd, execute the command with {} substitution
+        if self.options.interactive && self.options.cmd.is_some() {
+            let expanded_cmd = self.expand_cmd(&self.cmd);
+            return Ok(vec![Event::Reload(expanded_cmd)]);
+        }
+        self.restart_matcher_debounced();
+        Ok(vec![
+            Event::Key(KeyEvent::new(KeyCode::F(255), KeyModifiers::NONE)), // Send F255 which is the change bind
+            Event::RunPreview,
+        ])
     }
 
     /// Handles a TUI event and updates application state
@@ -668,13 +682,7 @@ impl<'a> App<'a> {
             }
             AddChar(c) => {
                 self.input.insert(*c);
-                // In interactive mode with --cmd, execute the command with {} substitution
-                if self.options.interactive && self.options.cmd.is_some() {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             AppendAndSelect => {
                 let value = self.input.value.clone();
@@ -694,22 +702,12 @@ impl<'a> App<'a> {
             }
             BackwardDeleteChar => {
                 self.input.delete(-1);
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             BackwardKillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             BackwardWord => {
                 self.input.move_cursor_backward_word();
@@ -729,21 +727,11 @@ impl<'a> App<'a> {
             }
             DeleteChar => {
                 self.input.delete(0);
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             DeleteCharEOF => {
                 self.input.delete(0);
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             DeselectAll => {
                 self.item_list.selection = Default::default();
@@ -784,6 +772,11 @@ impl<'a> App<'a> {
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
                 let _ = command.spawn();
+            }
+            First | Top => {
+                // Jump to first item (considering reserved items)
+                self.item_list.jump_to_first();
+                return Ok(vec![Event::RunPreview]);
             }
             ForwardChar => {
                 self.input.move_cursor(1);
@@ -834,11 +827,11 @@ impl<'a> App<'a> {
             KillWord => {
                 let deleted = Cow::Owned(self.input.delete_forward_word());
                 self.yank(deleted);
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
+                return self.on_query_changed();
+            }
+            Last => {
+                // Jump to last item
+                self.item_list.jump_to_last();
                 return Ok(vec![Event::RunPreview]);
             }
             NextHistory => {
@@ -1060,21 +1053,11 @@ impl<'a> App<'a> {
             }
             UnixLineDiscard => {
                 self.input.delete_to_beginning();
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             UnixWordRubout => {
                 self.input.delete_backward_to_whitespace();
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             Up(n) => {
                 use ratatui::widgets::ListDirection::*;
@@ -1087,12 +1070,7 @@ impl<'a> App<'a> {
             Yank => {
                 // Insert from yank register at cursor position
                 self.input.insert_str(&self.yank_register);
-                if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
-                }
-                self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
         }
         Ok(Vec::default())
@@ -1150,10 +1128,28 @@ impl<'a> App<'a> {
             } else {
                 &self.input
             };
-            self.matcher_control = self.matcher.run(query, self.item_pool.clone(), move |matches| {
+            let item_pool = self.item_pool.clone();
+            self.matcher_control = self.matcher.run(query, item_pool.clone(), move |matches| {
                 let m = matches.lock();
                 debug!("Got {} results from matcher, sending to item list...", m.len());
-                let _ = tx.send(m.clone());
+
+                // Prepend reserved header items to the matched results
+                let reserved_items = item_pool.reserved();
+                let mut all_items = Vec::with_capacity(reserved_items.len() + m.len());
+
+                // Add reserved items as MatchedItems with min rank (always at top, unmatched)
+                for item in reserved_items {
+                    all_items.push(MatchedItem {
+                        item,
+                        rank: [i32::MIN, 0, 0, 0, 0],
+                        matched_range: None,
+                    });
+                }
+
+                // Add matched items
+                all_items.extend_from_slice(&m);
+
+                let _ = tx.send(all_items);
             });
         }
     }

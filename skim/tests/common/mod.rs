@@ -53,6 +53,8 @@ pub enum Keys<'a> {
     Left,
     Right,
     BSpace,
+    Up,
+    Down,
 }
 
 impl Display for Keys<'_> {
@@ -69,6 +71,8 @@ impl Display for Keys<'_> {
             Left => write!(f, "Left"),
             Right => write!(f, "Right"),
             BSpace => write!(f, "BSpace"),
+            Up => write!(f, "Up"),
+            Down => write!(f, "Down"),
         }
     }
 }
