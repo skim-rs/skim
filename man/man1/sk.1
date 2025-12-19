@@ -539,7 +539,6 @@ Parse ANSI color codes in input strings
 When using skim as a library, this has no effect and ansi parsing should be enabled by manually injecting a cmd_collector like so:
 
   use skim::prelude::*;
-  use skim::reader::CommandCollector;
   
   let _options = SkimOptionsBuilder::default()
     .cmd(ls \-\-color)
