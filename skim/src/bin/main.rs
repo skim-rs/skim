@@ -272,15 +272,25 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     let mut num_matched = 0;
     let mut stdout_lock = std::io::stdout().lock();
     let mut items = Vec::new();
-    stream_of_item.blocking_recv_many(&mut items, usize::MAX);
 
-    items
+    // Collect all items from the stream until the channel is closed
+    while let Some(item) = stream_of_item.blocking_recv() {
+        items.push(item);
+    }
+
+    let mut matched_items: Vec<_> = items
         .iter()
         .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
-        .for_each(|(item, _match_result)| {
-            num_matched += 1;
-            let _ = write!(stdout_lock, "{}{}", item.output(), bin_option.output_ending);
-        });
+        .collect();
+
+    if options.tac {
+        matched_items.reverse();
+    }
+
+    matched_items.iter().for_each(|(item, _match_result)| {
+        num_matched += 1;
+        let _ = write!(stdout_lock, "{}{}", item.output(), bin_option.output_ending);
+    });
 
     i32::from(num_matched == 0)
 }
