@@ -1,4 +1,4 @@
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, MouseEvent};
 
 /// Events that can occur during skim's execution
 #[derive(Clone)]
@@ -15,6 +15,8 @@ pub enum Event {
     Render,
     /// A key was pressed
     Key(KeyEvent),
+    /// A mouse event occurred
+    Mouse(MouseEvent),
     /// Preview content is ready to display
     PreviewReady(Vec<u8>),
     /// Invalid input received

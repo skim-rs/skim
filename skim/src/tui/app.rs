@@ -18,7 +18,7 @@ use super::header::Header;
 use super::item_list::ItemList;
 use super::statusline::StatusLine;
 use color_eyre::eyre::{Result, bail};
-use crossterm::event::{KeyEvent, KeyModifiers};
+use crossterm::event::{KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
@@ -95,6 +95,8 @@ pub struct App<'a> {
     pub input_border: bool,
     /// The command being executed
     pub cmd: String,
+    /// Preview area rectangle for mouse event handling
+    pub preview_area: Option<Rect>,
 }
 
 impl Widget for &mut App<'_> {
@@ -229,6 +231,7 @@ impl Widget for &mut App<'_> {
         // Render preview if enabled
         if let Some(preview_area) = preview_area_opt {
             // Preview was already split at the root level (left/right)
+            self.preview_area = Some(preview_area);
             self.preview.render(preview_area, buf);
         } else if self.options.preview.is_some() && !self.options.preview_window.hidden {
             // Preview needs to be split from list area (up/down)
@@ -250,7 +253,10 @@ impl Widget for &mut App<'_> {
                 }
                 _ => unreachable!(),
             };
+            self.preview_area = Some(preview_area);
             self.preview.render(preview_area, buf);
+        } else {
+            self.preview_area = None;
         }
         self.items_just_updated = self.item_list.render(list_area, buf).items_updated;
 
@@ -294,6 +300,7 @@ impl Default for App<'_> {
             options: SkimOptions::default(),
             input_border: false,
             cmd: String::new(),
+            preview_area: None,
         }
     }
 }
@@ -353,6 +360,7 @@ impl<'a> App<'a> {
             options,
             input_border: false,
             cmd,
+            preview_area: None,
         }
     }
 }
@@ -582,6 +590,9 @@ impl<'a> App<'a> {
             }
             Event::Redraw => {
                 tui.clear()?;
+            }
+            Event::Mouse(mouse_event) => {
+                self.handle_mouse(mouse_event, tui)?;
             }
             _ => (),
         };
@@ -1182,5 +1193,52 @@ impl<'a> App<'a> {
         } else {
             self.pending_matcher_restart = true;
         }
+    }
+
+    /// Handle mouse events
+    fn handle_mouse(&mut self, mouse_event: &MouseEvent, tui: &mut super::Tui) -> Result<()> {
+        let mouse_pos = ratatui::layout::Position {
+            x: mouse_event.column,
+            y: mouse_event.row,
+        };
+
+        match mouse_event.kind {
+            MouseEventKind::ScrollUp => {
+                // Check if mouse is over preview area
+                if let Some(preview_area) = self.preview_area
+                    && preview_area.contains(mouse_pos)
+                {
+                    // Scroll preview up
+                    for evt in self.handle_action(&Action::PreviewUp(3))? {
+                        tui.event_tx.send(evt)?;
+                    }
+                    return Ok(());
+                }
+                // Otherwise scroll item list up
+                for evt in self.handle_action(&Action::Up(1))? {
+                    tui.event_tx.send(evt)?;
+                }
+            }
+            MouseEventKind::ScrollDown => {
+                // Check if mouse is over preview area
+                if let Some(preview_area) = self.preview_area
+                    && preview_area.contains(mouse_pos)
+                {
+                    // Scroll preview down
+                    for evt in self.handle_action(&Action::PreviewDown(3))? {
+                        tui.event_tx.send(evt)?;
+                    }
+                    return Ok(());
+                }
+                // Otherwise scroll item list down
+                for evt in self.handle_action(&Action::Down(1))? {
+                    tui.event_tx.send(evt)?;
+                }
+            }
+            _ => {
+                // Ignore other mouse events for now
+            }
+        }
+        Ok(())
     }
 }

@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use color_eyre::eyre::{Context, Result};
 use crossterm::cursor;
-use crossterm::event::KeyEventKind;
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyEventKind};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::prelude::Backend;
@@ -64,6 +64,7 @@ impl<B: Backend> Tui<B> {
     /// Enters the TUI by enabling raw mode and starting event handling
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
+        crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
@@ -76,7 +77,12 @@ impl<B: Backend> Tui<B> {
         self.stop()?;
         if crossterm::terminal::is_raw_mode_enabled()? {
             self.flush()?;
-            crossterm::execute!(std::io::stderr(), LeaveAlternateScreen, cursor::Show)?;
+            crossterm::execute!(
+                std::io::stderr(),
+                DisableMouseCapture,
+                LeaveAlternateScreen,
+                cursor::Show
+            )?;
             crossterm::terminal::disable_raw_mode()?;
         }
         // When using the inline layout, we want to remove all previous output
@@ -121,6 +127,9 @@ impl<B: Backend> Tui<B> {
                           if key.kind == KeyEventKind::Press {
                             _ = _event_tx.send(Event::Key(key));
                           }
+                        }
+                        Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
+                          _ = _event_tx.send(Event::Mouse(mouse));
                         }
                         Some(Err(e)) => {
                           _ = _event_tx.send(Event::Error(e.to_string()));
