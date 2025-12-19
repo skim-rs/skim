@@ -136,38 +136,12 @@ function! s:default_layout()
         \ : { 'down': '~40%' }
 endfunction
 
-function! skim#install()
-  if s:is_win && !has('win32unix')
-    let script = s:base_dir.'/install.ps1'
-    if !filereadable(script)
-      throw script.' not found'
-    endif
-    let script = 'powershell -ExecutionPolicy Bypass -file ' . script
-  else
-    let script = s:base_dir.'/install'
-    if !executable(script)
-      throw script.' not found'
-    endif
-    let script .= ' --bin'
-  endif
-
-  call s:warn('Running skim installer ...')
-  call system(script)
-  if v:shell_error
-    throw 'Failed to download skim: '.script
-  endif
-endfunction
-
 function! skim#exec()
   if !exists('s:exec')
     if executable(s:skim_rs)
       let s:exec = s:skim_rs
     elseif executable('sk')
       let s:exec = 'sk'
-    elseif input('skim executable not found. Download binary? (y/n) ') =~? '^y'
-      redraw
-      call skim#install()
-      return skim#exec()
     else
       redraw
       throw 'skim executable not found'

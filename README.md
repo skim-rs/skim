@@ -113,8 +113,10 @@ interface for running commands.
 
 Via vim-plug (recommended):
 
+Install skim, then :
+
 ```vim
-Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
+Plug 'skim-rs/skim'
 ```
 
 
