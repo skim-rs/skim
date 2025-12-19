@@ -535,6 +535,20 @@ Set prompt in command mode
 .TP
 \fB\-\-ansi\fR
 Parse ANSI color codes in input strings
+
+When using skim as a library, this has no effect and ansi parsing should be enabled by manually injecting a cmd_collector like so:
+
+  use skim::prelude::*;
+  use skim::reader::CommandCollector;
+  
+  let _options = SkimOptionsBuilder::default()
+    .cmd(ls \-\-color)
+    .cmd_collector(Rc::new(RefCell::new(SkimItemReader::new(
+      SkimItemReaderOption::default().ansi(true),
+      ))) as Rc<RefCell<dyn CommandCollector>>)
+    .build()
+    .unwrap()
+
 .TP
 \fB\-\-tabstop\fR \fI<TABSTOP>\fR [default: 8]
 Number of spaces that make up a tab
