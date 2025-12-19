@@ -8,8 +8,13 @@ use std::{
     env,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::{Command, Stdio},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     thread,
+    time::Duration,
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -117,14 +122,22 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut stdin_reader = BufReader::new(std::io::stdin());
     let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
+    let stop_reading = Arc::new(AtomicBool::new(false));
     let stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to file");
 
         let stdin_f = std::fs::File::create(tmp_stdin.clone())
             .unwrap_or_else(|e| panic!("Failed to create stdin file {}: {}", tmp_stdin.clone().display(), e));
         let mut stdin_writer = BufWriter::new(stdin_f);
+        let stop_flag = Arc::clone(&stop_reading);
         Some(thread::spawn(move || {
             loop {
+                // Check if we should stop reading
+                if stop_flag.load(Ordering::Relaxed) {
+                    debug!("Stop signal received, exiting stdin reader thread");
+                    break;
+                }
+
                 let mut buf = vec![];
                 match stdin_reader.read_until(line_ending, &mut buf) {
                     Ok(0) => break,
@@ -135,6 +148,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                     Err(e) => panic!("Failed to read from stdin: {}", e),
                 }
             }
+            // Ensure all buffered data is written to the file
+            let _ = stdin_writer.flush();
         }))
     } else {
         None
@@ -201,8 +216,23 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .status()
         .unwrap_or_else(|e| panic!("Tmux invocation failed with {e}"));
 
-    if let Some(h) = stdin_handle {
-        h.join().unwrap_or(());
+    // Signal the stdin thread to stop and wait for it to exit
+    if let Some(handle) = stdin_handle {
+        stop_reading.store(true, Ordering::Relaxed);
+        debug!("Signaled stdin thread to stop");
+
+        // Use a channel-based timeout since JoinHandle doesn't have join_timeout
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let _ = tx.send(handle.join());
+        });
+
+        // Give the thread a short time to finish gracefully
+        // If it's blocked on read, this will timeout and the thread will be dropped
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(_) => debug!("Stdin thread exited cleanly"),
+            Err(_) => debug!("Stdin thread did not exit within timeout, dropping handle"),
+        }
     }
 
     let output_ending = if opts.print0 { "\0" } else { "\n" };
