@@ -5,12 +5,12 @@ use std::sync::Arc;
 
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::matcher::{Matcher, MatcherControl};
-use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory};
+use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
 use crate::util::{self, printf};
-use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
+use crate::{ItemPreview, MatchEngineFactory, PreviewContext, SkimItem, SkimOptions};
 
 use super::Event;
 use super::event::Action;
@@ -320,8 +320,21 @@ impl<'a> App<'a> {
             }
         }
 
+        let engine_factory: Rc<dyn MatchEngineFactory> = if options.regex {
+            Rc::new(RegexEngineFactory::builder())
+        } else {
+            let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
+            log::debug!("Creating matcher for algo {:?}", options.algorithm);
+            let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
+                .fuzzy_algorithm(options.algorithm)
+                .exact_mode(options.exact)
+                .rank_builder(rank_builder)
+                .build();
+            Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+        };
+
         // Create RankBuilder from tiebreak options
-        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
+        let matcher = Matcher::builder(engine_factory).case(options.case).build();
 
         Self {
             input,
@@ -333,14 +346,7 @@ impl<'a> App<'a> {
             theme,
             should_quit: false,
             cursor_pos: (0, 0),
-            matcher: Matcher::builder(Rc::new(AndOrEngineFactory::new(
-                ExactOrFuzzyEngineFactory::builder()
-                    .rank_builder(rank_builder)
-                    .exact_mode(options.exact)
-                    .build(),
-            )))
-            .case(options.case)
-            .build(),
+            matcher,
             yank_register: Cow::default(),
             matcher_control: MatcherControl::default(),
             reader_timer: std::time::Instant::now(),

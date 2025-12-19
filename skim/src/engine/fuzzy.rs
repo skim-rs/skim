@@ -62,7 +62,10 @@ impl FuzzyEngineBuilder {
     pub fn build(self) -> FuzzyEngine {
         use crate::fuzzy_matcher::skim::SkimMatcher;
         let matcher: Box<dyn FuzzyMatcher> = match self.algorithm {
-            FuzzyAlgorithm::SkimV1 => Box::new(SkimMatcher::default()),
+            FuzzyAlgorithm::SkimV1 => {
+                debug!("Initialized SkimV1 algorithm");
+                Box::new(SkimMatcher::default())
+            }
             FuzzyAlgorithm::SkimV2 => {
                 let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
                 let matcher = match self.case {
@@ -70,6 +73,7 @@ impl FuzzyEngineBuilder {
                     CaseMatching::Ignore => matcher.ignore_case(),
                     CaseMatching::Smart => matcher.smart_case(),
                 };
+                debug!("Initialized SkimV2 algorithm");
                 Box::new(matcher)
             }
             FuzzyAlgorithm::Clangd => {
@@ -79,6 +83,7 @@ impl FuzzyEngineBuilder {
                     CaseMatching::Ignore => matcher.ignore_case(),
                     CaseMatching::Smart => matcher.smart_case(),
                 };
+                debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
         };
