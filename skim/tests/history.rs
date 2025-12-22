@@ -11,7 +11,7 @@ use std::path::Path;
 
 #[test]
 fn query_history() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let histfile = tmux.tempfile()?;
 
     File::create(&histfile)?.write(b"a\nb\nc")?;
@@ -52,7 +52,7 @@ fn query_history() -> Result<()> {
 
 #[test]
 fn cmd_history() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let histfile = tmux.tempfile()?;
 
     File::create(&histfile)?.write(b"a\nb\nc")?;

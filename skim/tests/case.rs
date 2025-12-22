@@ -1,86 +1,57 @@
 #[allow(dead_code)]
+#[macro_use]
 mod common;
 
 use common::Keys::*;
 use common::TmuxController;
 use std::io::Result;
 
-fn setup(case: &str) -> Result<TmuxController> {
-    let tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some(&format!("echo -n -e 'aBcDeF'")), &["--case", case])?;
-    tmux.until(|l| l[0].starts_with(">"))?;
-    Ok(tmux)
-}
+sk_test!(case_smart_lower, "aBcDeF", &["--case", "smart"], @dsl {
+  @ keys Str("abc");
+  @ line 1 contains("1/1");
+});
 
-#[test]
-fn case_smart_lower() -> Result<()> {
-    let tmux = setup("smart")?;
+sk_test!(case_smart_exact, "aBcDeF", &["--case", "smart"], @dsl {
+  @ keys Str("aBc");
+  @ line 1 contains("1/1");
+});
 
-    tmux.send_keys(&[Str("abc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))
-}
-#[test]
-fn case_smart_exact() -> Result<()> {
-    let tmux = setup("smart")?;
+sk_test!(case_smart_no_match, "aBcDeF", &["--case", "smart"], @dsl {
+  @ keys Str("Abc");
+  @ line 1 contains("0/1");
+});
 
-    tmux.send_keys(&[Str("aBc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))
-}
-#[test]
-fn case_smart_no_match() -> Result<()> {
-    let tmux = setup("smart")?;
+sk_test!(case_ignore_lower, "aBcDeF", &["--case", "ignore"], @dsl {
+  @ keys Str("abc");
+  @ line 1 contains("1/1");
+});
 
-    tmux.send_keys(&[Str("Abc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("0/1"))
-}
+sk_test!(case_ignore_exact, "aBcDeF", &["--case", "ignore"], @dsl {
+  @ keys Str("aBc");
+  @ line 1 contains("1/1");
+});
 
-#[test]
-fn case_ignore_lower() -> Result<()> {
-    let tmux = setup("ignore")?;
+sk_test!(case_ignore_different, "aBcDeF", &["--case", "ignore"], @dsl {
+  @ keys Str("Abc");
+  @ line 1 contains("1/1");
+});
 
-    tmux.send_keys(&[Str("abc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))
-}
-#[test]
-fn case_ignore_exact() -> Result<()> {
-    let tmux = setup("ignore")?;
+sk_test!(case_ignore_no_match, "aBcDeF", &["--case", "ignore"], @dsl {
+  @ keys Str("z");
+  @ line 1 contains("0/1");
+});
 
-    tmux.send_keys(&[Str("aBc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))
-}
-#[test]
-fn case_ignore_different() -> Result<()> {
-    let tmux = setup("ignore")?;
+sk_test!(case_respect_lower, "aBcDeF", &["--case", "respect"], @dsl {
+  @ keys Str("abc");
+  @ line 1 contains("0/1");
+});
 
-    tmux.send_keys(&[Str("Abc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))
-}
-#[test]
-fn case_ignore_no_match() -> Result<()> {
-    let tmux = setup("ignore")?;
+sk_test!(case_respect_exact, "aBcDeF", &["--case", "respect"], @dsl {
+  @ keys Str("aBc");
+  @ line 1 contains("1/1");
+});
 
-    tmux.send_keys(&[Str("z")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("0/1"))
-}
-
-#[test]
-fn case_respect_lower() -> Result<()> {
-    let tmux = setup("respect")?;
-
-    tmux.send_keys(&[Str("abc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("0/1"))
-}
-#[test]
-fn case_respect_exact() -> Result<()> {
-    let tmux = setup("respect")?;
-
-    tmux.send_keys(&[Str("aBc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))
-}
-#[test]
-fn case_respect_no_match() -> Result<()> {
-    let tmux = setup("respect")?;
-
-    tmux.send_keys(&[Str("Abc")])?;
-    tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("0/1"))
-}
+sk_test!(case_respect_no_match, "aBcDeF", &["--case", "respect"], @dsl {
+  @ keys Str("Abc");
+  @ line 1 contains("0/1");
+});

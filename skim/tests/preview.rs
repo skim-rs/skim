@@ -6,7 +6,7 @@ use std::io::Result;
 
 #[test]
 fn preview_preserve_quotes() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(Some("echo \"'\\\"ABC\\\"'\""), &["--preview", "\"echo X{}X\""])?;
 
     tmux.until(|l| l[l.len() - 1].contains("X'\"ABC\"'X"))
@@ -14,7 +14,7 @@ fn preview_preserve_quotes() -> Result<()> {
 
 #[test]
 fn preview_nul_char() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne 'a\\0b'"),
         &["--preview", "'echo -en \"{}\" | hexdump -C'"],
@@ -25,7 +25,7 @@ fn preview_nul_char() -> Result<()> {
 
 #[test]
 fn preview_window_left() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne 'a\\nb'"),
         &["--preview", "'seq 1000'", "--preview-window", "left"],
@@ -37,7 +37,7 @@ fn preview_window_left() -> Result<()> {
 
 #[test]
 fn preview_window_down() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne 'a\\nb'"),
         &["--preview", "'seq 1000'", "--preview-window", "down"],
@@ -48,7 +48,7 @@ fn preview_window_down() -> Result<()> {
 
 #[test]
 fn preview_window_up() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne 'a\\nb'"),
         &["--preview", "'seq 1000'", "--preview-window", "up"],
@@ -60,7 +60,7 @@ fn preview_window_up() -> Result<()> {
 
 #[test]
 fn preview_offset_fixed() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne 'a\\nb'"),
         &["--preview", "'seq 1000'", "--preview-window", "left:+123"],
@@ -72,7 +72,7 @@ fn preview_offset_fixed() -> Result<()> {
 }
 #[test]
 fn preview_offset_expr() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne '123 321'"),
         &["--preview", "'seq 1000'", "--preview-window", "left:+{2}"],
@@ -84,7 +84,7 @@ fn preview_offset_expr() -> Result<()> {
 }
 #[test]
 fn preview_offset_fiexd_and_expr() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne '123 321'"),
         &["--preview", "'seq 1000'", "--preview-window", "left:+{2}-2"],

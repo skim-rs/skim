@@ -6,7 +6,7 @@ use common::TmuxController;
 use std::io::Result;
 
 fn setup(input: &str, tiebreak: &str) -> Result<TmuxController> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some(&format!("echo -en '{input}'")),
         &[&format!("--tiebreak='{tiebreak}'")],

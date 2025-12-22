@@ -1,34 +1,23 @@
 #[allow(dead_code)]
+#[macro_use]
 mod common;
 
 use common::Keys::*;
 use common::TmuxController;
 use std::io::Result;
 
-#[test]
-fn issue_359_multi_regex_unicode() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    tmux.start_sk(Some("echo 'ああa'"), &["--regex", "-q", "'a'"])?;
-    tmux.until(|l| l[0] == "> a")?;
+sk_test!(issue_359_multi_regex_unicode, @cmd "echo 'ああa'", &["--regex", "-q", "'a'"], @dsl {
+  @ line 0 == "> a";
+  @ line 2 == "> ああa";
+});
 
-    tmux.until(|l| l.len() > 2 && l[2] == "> ああa")?;
-
-    Ok(())
-}
-
-#[test]
-fn issue_361_literal_space_control() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    tmux.start_sk(Some("echo -ne 'foo  bar\\nfoo bar'"), &["-q", "'foo\\ bar'"])?;
-    tmux.until(|l| l.len() == 4 && l[0].starts_with(">"))?;
-    // The foo bar with a single space should have a better score
-    tmux.until(|l| l.len() > 2 && l[2] == "> foo bar")?;
-
-    Ok(())
-}
+sk_test!(issue_361_literal_space_control, @cmd "echo -ne 'foo  bar\\nfoo bar'", &["-q", "'foo\\ bar'"], @dsl {
+  @ lines |l| (l.len() == 4 && l[0].starts_with(">"));
+  @ line 2 == "> foo bar";
+});
 #[test]
 fn issue_361_literal_space_invert() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.send_keys(&[Str("set +o histexpand"), Enter])?;
     tmux.start_sk(Some("echo -ne 'foo bar\\nfoo  bar'"), &["-q", "'!foo\\ bar'"])?;
     tmux.until(|l| l[0].starts_with(">"))?;
@@ -39,7 +28,7 @@ fn issue_361_literal_space_invert() -> Result<()> {
 
 #[test]
 fn issue_547_null_match() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.send_keys(&[Str("set +o histexpand"), Enter])?;
     tmux.start_sk(Some("echo -e \"\\0Test Test Test\""), &["-q", "Test"])?;
 

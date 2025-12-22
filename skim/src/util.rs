@@ -70,9 +70,12 @@ pub fn printf(
     for c in res.chars() {
         if inside {
             if c == '}' {
-                let range = FieldRange::from_str(&pattern).unwrap();
-                let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap();
-                replaced.push_str(&escape_arg(replacement));
+                if let Some(range) = FieldRange::from_str(&pattern) {
+                    let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap_or_default();
+                    replaced.push_str(&escape_arg(replacement));
+                } else {
+                    replaced += &pattern;
+                }
 
                 pattern = String::new();
                 inside = false;

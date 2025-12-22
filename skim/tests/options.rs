@@ -9,16 +9,16 @@ use std::thread::sleep;
 use std::time::Duration;
 use tempfile::NamedTempFile;
 
-fn setup(input: &str, opts: &[&str]) -> Result<(TmuxController, String)> {
-    let tmux = TmuxController::new()?;
-    let outfile = tmux.start_sk(Some(&format!("echo -n -e '{input}'")), opts)?;
+fn setup(input: &str, opts: &[&str]) -> Result<TmuxController> {
+    let mut tmux = TmuxController::new()?;
+    tmux.start_sk(Some(&format!("echo -n -e '{input}'")), opts)?;
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
-    Ok((tmux, outfile))
+    Ok(tmux)
 }
 
 #[test]
 fn opt_read0() -> Result<()> {
-    let (tmux, _) = setup("a\\0b\\0c", &["--read0"])?;
+    let tmux = setup("a\\0b\\0c", &["--read0"])?;
 
     tmux.until(|l| l.len() > 1 && l[1].starts_with("  3/3"))?;
 
@@ -32,14 +32,14 @@ fn opt_read0() -> Result<()> {
 
 #[test]
 fn opt_print0() -> Result<()> {
-    let (tmux, outfile) = setup("a\\nb\\nc", &["-m", "--print0"])?;
+    let tmux = setup("a\\nb\\nc", &["-m", "--print0"])?;
     tmux.until(|l| l.len() > 4)?;
     tmux.send_keys(&[BTab, BTab, Enter])?;
     tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
 
-    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() == 1)?;
+    tmux.until(|_| tmux.output().unwrap_or_default().len() == 1)?;
 
-    let lines = tmux.output(&outfile)?;
+    let lines = tmux.output()?;
     assert_eq!(lines, vec!["a\0b\0"]);
 
     Ok(())
@@ -47,7 +47,7 @@ fn opt_print0() -> Result<()> {
 
 #[test]
 fn opt_with_nth_preview() -> Result<()> {
-    let (tmux, _) = setup(
+    let tmux = setup(
         "f1,f2,f3,f4",
         &["--delimiter", ",", "--with-nth", "2..", "--preview", "'echo X{1}Y'"],
     )?;
@@ -59,7 +59,7 @@ fn opt_with_nth_preview() -> Result<()> {
 
 #[test]
 fn opt_min_query_length() -> Result<()> {
-    let (tmux, _) = setup("line1\\nline2\\nline3", &["--min-query-length", "3"])?;
+    let tmux = setup("line1\\nline2\\nline3", &["--min-query-length", "3"])?;
 
     // With empty query, no results should be shown
     let lines = tmux.capture()?;
@@ -87,7 +87,7 @@ fn opt_min_query_length_interactive() -> Result<()> {
     // focusing on the regular (non-command) mode which is working correctly
 
     // Part 1: Test with query length BELOW min-query-length
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(
         Some("echo -e 'aaa\\nbbb\\nccc'"),
         &["-i", "--min-query-length", "2", "--cmd-query", "a"],
@@ -105,7 +105,7 @@ fn opt_min_query_length_interactive() -> Result<()> {
     );
 
     // Part 2: Test with query length MEETING min-query-length
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(
         Some("echo -e 'aaa\\nbbb\\nccc'"),
         &["-i", "--min-query-length", "2", "--cmd-query", "aa"],
@@ -131,7 +131,7 @@ fn opt_min_query_length_interactive_cmd_mode() -> Result<()> {
     // Command mode is when query starts with ":"
 
     // Test command mode with query length MEETING min-query-length
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(
         Some("echo -e 'aaa\\nbbb\\nccc'"),
         &["-i", "--min-query-length", "2", "--cmd-query", ":bb"],
@@ -148,7 +148,7 @@ fn opt_min_query_length_interactive_cmd_mode() -> Result<()> {
 
 #[test]
 fn opt_with_nth_1() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "1"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "1"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f1,")?;
 
@@ -156,7 +156,7 @@ fn opt_with_nth_1() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_2() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f2,")?;
 
@@ -164,7 +164,7 @@ fn opt_with_nth_2() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_4() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "4"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "4"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f4")?;
 
@@ -172,7 +172,7 @@ fn opt_with_nth_4() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_oob() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "5"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "5"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == ">")?;
 
@@ -180,7 +180,7 @@ fn opt_with_nth_oob() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_neg_1() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-1"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-1"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f4")?;
 
@@ -188,7 +188,7 @@ fn opt_with_nth_neg_1() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_neg_2() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-2"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-2"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f3,")?;
 
@@ -196,7 +196,7 @@ fn opt_with_nth_neg_2() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_neg_4() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-4"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-4"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f1,")?;
 
@@ -204,7 +204,7 @@ fn opt_with_nth_neg_4() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_neg_oob() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-5"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-5"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == ">")?;
 
@@ -212,7 +212,7 @@ fn opt_with_nth_neg_oob() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_range_to_end() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2.."])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2.."])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f2,f3,f4")?;
 
@@ -220,7 +220,7 @@ fn opt_with_nth_range_to_end() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_range_from_start() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "..3"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "..3"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f1,f2,f3,")?;
 
@@ -228,7 +228,7 @@ fn opt_with_nth_range_from_start() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_range_closed() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..3"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..3"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == "> f2,f3,")?;
 
@@ -236,7 +236,7 @@ fn opt_with_nth_range_closed() -> Result<()> {
 }
 #[test]
 fn opt_with_nth_range_dec() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "3..2"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "3..2"])?;
 
     tmux.until(|l| l.len() > 2 && l[2] == ">")?;
 
@@ -245,7 +245,7 @@ fn opt_with_nth_range_dec() -> Result<()> {
 
 #[test]
 fn opt_nth_1() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "1"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "1"])?;
 
     tmux.send_keys(&[Str("1")])?;
     tmux.until(|l| l[0] == "> 1")?;
@@ -263,7 +263,7 @@ fn opt_nth_1() -> Result<()> {
 }
 #[test]
 fn opt_nth_2() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2"])?;
 
     tmux.send_keys(&[Str("2")])?;
     tmux.until(|l| l.len() > 0 && l[0] == "> 2")?;
@@ -281,7 +281,7 @@ fn opt_nth_2() -> Result<()> {
 }
 #[test]
 fn opt_nth_4() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "4"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "4"])?;
 
     tmux.send_keys(&[Str("4")])?;
     tmux.until(|l| l.len() > 0 && l[0] == "> 4")?;
@@ -299,7 +299,7 @@ fn opt_nth_4() -> Result<()> {
 }
 #[test]
 fn opt_nth_oob() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "5"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "5"])?;
 
     tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))?;
     tmux.until(|l| l.len() > 2 && l[2] == "> f1,f2,f3,f4")?;
@@ -312,7 +312,7 @@ fn opt_nth_oob() -> Result<()> {
 }
 #[test]
 fn opt_nth_neg_1() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-1"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-1"])?;
 
     tmux.send_keys(&[Str("4")])?;
     tmux.until(|l| l[0] == "> 4")?;
@@ -330,7 +330,7 @@ fn opt_nth_neg_1() -> Result<()> {
 }
 #[test]
 fn opt_nth_neg_2() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-2"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-2"])?;
 
     tmux.send_keys(&[Str("3")])?;
     tmux.until(|l| l[0] == "> 3")?;
@@ -348,7 +348,7 @@ fn opt_nth_neg_2() -> Result<()> {
 }
 #[test]
 fn opt_nth_neg_4() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-4"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-4"])?;
 
     tmux.send_keys(&[Str("1")])?;
     tmux.until(|l| l.len() > 0 && l[0] == "> 1")?;
@@ -366,7 +366,7 @@ fn opt_nth_neg_4() -> Result<()> {
 }
 #[test]
 fn opt_nth_neg_oob() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-5"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth=-5"])?;
 
     tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))?;
     tmux.until(|l| l.len() > 2 && l[2] == "> f1,f2,f3,f4")?;
@@ -379,7 +379,7 @@ fn opt_nth_neg_oob() -> Result<()> {
 }
 #[test]
 fn opt_nth_range_to_end() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2.."])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2.."])?;
 
     tmux.send_keys(&[Str("3")])?;
     tmux.until(|l| l.len() > 0 && l[0] == "> 3")?;
@@ -397,7 +397,7 @@ fn opt_nth_range_to_end() -> Result<()> {
 }
 #[test]
 fn opt_nth_range_from_start() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "..3"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "..3"])?;
 
     tmux.send_keys(&[Str("1")])?;
     tmux.until(|l| l.len() > 0 && l[0] == "> 1")?;
@@ -415,7 +415,7 @@ fn opt_nth_range_from_start() -> Result<()> {
 }
 #[test]
 fn opt_nth_range_closed() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2..3"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2..3"])?;
 
     tmux.send_keys(&[Str("2")])?;
     tmux.until(|l| l.len() > 0 && l[0] == "> 2")?;
@@ -447,7 +447,7 @@ fn opt_nth_range_closed() -> Result<()> {
 }
 #[test]
 fn opt_nth_range_dec() -> Result<()> {
-    let (tmux, _) = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "3..2"])?;
+    let tmux = setup("f1,f2,f3,f4", &["--delimiter", ",", "--nth", "3..2"])?;
 
     tmux.until(|l| l.len() > 1 && l[1].trim().starts_with("1/1"))?;
     tmux.until(|l| l.len() > 2 && l[2] == "> f1,f2,f3,f4")?;
@@ -461,17 +461,17 @@ fn opt_nth_range_dec() -> Result<()> {
 
 #[test]
 fn opt_print_query() -> Result<()> {
-    let (tmux, outfile) = setup("10\\n20\\n30", &["-q", "2", "--print-query"])?;
+    let tmux = setup("10\\n20\\n30", &["-q", "2", "--print-query"])?;
     tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| l.len() > 0 && !l[0].starts_with(">"))?;
 
     tmux.until(|_| {
-        let out = tmux.output(&outfile).unwrap_or_default();
+        let out = tmux.output().unwrap_or_default();
         println!("Out: {out:?}");
         out.len() > 1
     })?;
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output()?;
 
     assert_eq!(output[0], "20");
     assert_eq!(output[1], "2");
@@ -480,17 +480,17 @@ fn opt_print_query() -> Result<()> {
 }
 #[test]
 fn opt_print_cmd() -> Result<()> {
-    let (tmux, outfile) = setup("1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"])?;
+    let tmux = setup("1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"])?;
     tmux.until(|l| l.len() > 4 && l[0].starts_with(">"))?;
     tmux.until(|l| l.len() > 2 && l[2] == "> 1")?;
     tmux.send_keys(&[Enter])?;
 
     tmux.until(|_| {
-        let out = tmux.output(&outfile).unwrap_or_default();
+        let out = tmux.output().unwrap_or_default();
         println!("Out: {out:?}");
         out.len() > 1
     })?;
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output()?;
 
     assert_eq!(output[0], "1");
     assert_eq!(output[1], "cmd");
@@ -499,7 +499,7 @@ fn opt_print_cmd() -> Result<()> {
 }
 #[test]
 fn opt_print_cmd_and_query() -> Result<()> {
-    let (tmux, outfile) = setup(
+    let tmux = setup(
         "10\\n20\\n30",
         &["--cmd-query", "cmd", "--print-cmd", "-q", "2", "--print-query"],
     )?;
@@ -507,11 +507,11 @@ fn opt_print_cmd_and_query() -> Result<()> {
     tmux.until(|l| l.len() > 2 && l[2] == "> 20")?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|_| {
-        let out = tmux.output(&outfile).unwrap_or_default();
+        let out = tmux.output().unwrap_or_default();
         println!("Out: {out:?}");
         out.len() > 2
     })?;
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output()?;
 
     assert_eq!(output[0], "20");
     assert_eq!(output[1], "cmd");
@@ -522,13 +522,13 @@ fn opt_print_cmd_and_query() -> Result<()> {
 
 #[test]
 fn opt_hscroll_begin() -> Result<()> {
-    let (tmux, _) = setup(&format!("b{}", &["a"; 1000].join("")), &["-q", "b"])?;
+    let tmux = setup(&format!("b{}", &["a"; 1000].join("")), &["-q", "b"])?;
 
     tmux.until(|l| l.len() > 2 && l[2].ends_with(".."))
 }
 #[test]
 fn opt_hscroll_middle() -> Result<()> {
-    let (tmux, _) = setup(
+    let tmux = setup(
         &format!("{}b{}", &["a"; 1000].join(""), &["a"; 1000].join("")),
         &["-q", "b"],
     )?;
@@ -538,14 +538,14 @@ fn opt_hscroll_middle() -> Result<()> {
 }
 #[test]
 fn opt_hscroll_end() -> Result<()> {
-    let (tmux, _) = setup(&format!("{}b", &["a"; 1000].join("")), &["-q", "b"])?;
+    let tmux = setup(&format!("{}b", &["a"; 1000].join("")), &["-q", "b"])?;
 
     tmux.until(|l| l.len() > 2 && l[2].starts_with("> .."))
 }
 
 #[test]
 fn opt_no_hscroll() -> Result<()> {
-    let (tmux, _) = setup(&format!("{}b", &["a"; 1000].join("")), &["-q", "b", "--no-hscroll"])?;
+    let tmux = setup(&format!("{}b", &["a"; 1000].join("")), &["-q", "b", "--no-hscroll"])?;
 
     tmux.until(|l| l.len() > 2 && !l[2].starts_with("> .."))?;
     tmux.until(|l| l.len() > 2 && l[2].ends_with(".."))
@@ -553,26 +553,26 @@ fn opt_no_hscroll() -> Result<()> {
 
 #[test]
 fn opt_tabstop_default() -> Result<()> {
-    let (tmux, _) = setup("a\\tb", &[])?;
+    let tmux = setup("a\\tb", &[])?;
 
     tmux.until(|l| l.len() > 2 && l[2].trim() == "> a       b")
 }
 #[test]
 fn opt_tabstop_1() -> Result<()> {
-    let (tmux, _) = setup("a\\tb", &["--tabstop", "1"])?;
+    let tmux = setup("a\\tb", &["--tabstop", "1"])?;
 
     tmux.until(|l| l.len() > 2 && l[2].trim() == "> a b")
 }
 #[test]
 fn opt_tabstop_3() -> Result<()> {
-    let (tmux, _) = setup("aa\\tb", &["--tabstop", "3"])?;
+    let tmux = setup("aa\\tb", &["--tabstop", "3"])?;
 
     tmux.until(|l| l.len() > 2 && l[2].trim() == "> aa b")
 }
 
 #[test]
 fn opt_info_control() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &[])?;
+    let tmux = setup("a\\nb\\nc", &[])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
     tmux.until(|l| l.len() > 1 && l[1].starts_with("  3/3") && l[1].ends_with("0/0"))?;
@@ -582,7 +582,7 @@ fn opt_info_control() -> Result<()> {
 }
 #[test]
 fn opt_info_default() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--info", "default"])?;
+    let tmux = setup("a\\nb\\nc", &["--info", "default"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
     tmux.until(|l| l.len() > 1 && l[1].starts_with("  3/3") && l[1].ends_with("0/0"))?;
@@ -592,7 +592,7 @@ fn opt_info_default() -> Result<()> {
 }
 #[test]
 fn opt_no_info() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--no-info"])?;
+    let tmux = setup("a\\nb\\nc", &["--no-info"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
     tmux.until(|_| tmux.capture().unwrap_or_default().len() > 1)?;
@@ -606,7 +606,7 @@ fn opt_no_info() -> Result<()> {
 }
 #[test]
 fn opt_info_hidden() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--info", "hidden"])?;
+    let tmux = setup("a\\nb\\nc", &["--info", "hidden"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
 
@@ -620,7 +620,7 @@ fn opt_info_hidden() -> Result<()> {
 }
 #[test]
 fn opt_info_inline() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--info", "inline"])?;
+    let tmux = setup("a\\nb\\nc", &["--info", "inline"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">   < 3/3") && l[0].ends_with("0/0"))?;
 
@@ -629,7 +629,7 @@ fn opt_info_inline() -> Result<()> {
 }
 #[test]
 fn opt_inline_info() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--inline-info"])?;
+    let tmux = setup("a\\nb\\nc", &["--inline-info"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with(">   < 3/3") && l[0].ends_with("0/0"))?;
 
@@ -639,19 +639,19 @@ fn opt_inline_info() -> Result<()> {
 
 #[test]
 fn opt_header_only() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--header", "test_header"])?;
+    let tmux = setup("a\\nb\\nc", &["--header", "test_header"])?;
 
     tmux.until(|l| l.len() > 2 && l[2].trim() == "test_header")
 }
 #[test]
 fn opt_header_inline_info() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--header", "test_header", "--inline-info"])?;
+    let tmux = setup("a\\nb\\nc", &["--header", "test_header", "--inline-info"])?;
 
     tmux.until(|l| l.len() > 1 && l[1].trim() == "test_header")
 }
 #[test]
 fn opt_header_reverse() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -e -n 'a\\nb\\nc'"),
         &["--header", "test_header", "--reverse"],
@@ -663,7 +663,7 @@ fn opt_header_reverse() -> Result<()> {
 }
 #[test]
 fn opt_header_reverse_inline_info() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -e -n 'a\\nb\\nc'"),
         &["--header", "test_header", "--reverse", "--inline-info"],
@@ -676,14 +676,14 @@ fn opt_header_reverse_inline_info() -> Result<()> {
 
 #[test]
 fn opt_header_lines_1() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--header-lines", "1"])?;
+    let tmux = setup("a\\nb\\nc", &["--header-lines", "1"])?;
 
     tmux.until(|l| l.len() > 2 && !l[2].starts_with(">") && l[2].trim() == "a")?;
     tmux.until(|l| l.len() > 3 && l[3].starts_with(">"))
 }
 #[test]
 fn opt_header_lines_all() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--header-lines", "4"])?;
+    let tmux = setup("a\\nb\\nc\\nd\\ne", &["--header-lines", "2"])?;
 
     tmux.until(|l| l.len() > 4)?;
     tmux.until(|l| l[2].trim() == "a")?;
@@ -694,13 +694,13 @@ fn opt_header_lines_all() -> Result<()> {
 }
 #[test]
 fn opt_header_lines_inline_info() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["--header-lines", "1", "--inline-info"])?;
+    let tmux = setup("a\\nb\\nc", &["--header-lines", "1", "--inline-info"])?;
 
     tmux.until(|l| l.len() > 1 && !l[1].starts_with(">") && l[1].trim() == "a")
 }
 #[test]
 fn opt_header_lines_reverse() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(Some("echo -e -n 'a\\nb\\nc'"), &["--header-lines", "1", "--reverse"])?;
 
     tmux.until(|l| l.len() > 0 && l[l.len() - 1].starts_with(">"))?;
@@ -710,7 +710,7 @@ fn opt_header_lines_reverse() -> Result<()> {
 }
 #[test]
 fn opt_header_lines_reverse_inline_info() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -e -n 'a\\nb\\nc'"),
         &["--header-lines", "1", "--reverse", "--inline-info"],
@@ -802,7 +802,7 @@ fn opt_multiple_flags_basic() -> Result<()> {
 }
 #[test]
 fn opt_multiple_flags_prompt() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(None, &["--prompt a", "--prompt b", "-p c"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with("c"))?;
@@ -811,7 +811,7 @@ fn opt_multiple_flags_prompt() -> Result<()> {
 }
 #[test]
 fn opt_multiple_flags_cmd_prompt() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(None, &["-i", "--cmd-prompt a", "--cmd-prompt c"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with("c"))?;
@@ -820,7 +820,7 @@ fn opt_multiple_flags_cmd_prompt() -> Result<()> {
 }
 #[test]
 fn opt_multiple_flags_cmd_query() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(None, &["-i", "--cmd-query a", "--cmd-query b"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with("c> b"))?;
@@ -829,7 +829,7 @@ fn opt_multiple_flags_cmd_query() -> Result<()> {
 }
 #[test]
 fn opt_multiple_flags_interactive() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(None, &["-i", "--interactive", "--interactive"])?;
 
     tmux.until(|l| l.len() > 0 && l[0].starts_with("c>"))?;
@@ -838,7 +838,7 @@ fn opt_multiple_flags_interactive() -> Result<()> {
 }
 #[test]
 fn opt_multiple_flags_reverse() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(None, &["--reverse", "--reverse"])?;
 
     tmux.until(|l| l.len() > 0 && l[l.len() - 1].starts_with(">"))?;
@@ -848,27 +848,27 @@ fn opt_multiple_flags_reverse() -> Result<()> {
 
 #[test]
 fn opt_multiple_flags_combined_nth() -> Result<()> {
-    let (tmux, _) = setup("a b c\\nd e f", &["--nth 1,2"])?;
+    let tmux = setup("a b c\\nd e f", &["--nth 1,2"])?;
 
     tmux.send_keys(&[Key('c')])?;
     tmux.until(|l| l.len() > 1 && l[1].contains("0/2"))
 }
 #[test]
 fn opt_multiple_flags_combined_with_nth() -> Result<()> {
-    let (tmux, _) = setup("a b c\\nd e f", &["--with-nth 1,2"])?;
+    let tmux = setup("a b c\\nd e f", &["--with-nth 1,2"])?;
 
     tmux.until(|l| l.len() > 3 && l[2].ends_with("a b") && l[3].ends_with("d e"))
 }
 
 #[test]
 fn opt_ansi_null() -> Result<()> {
-    let (tmux, outfile) = setup("a\\0b", &["--ansi"])?;
+    let tmux = setup("a\\0b", &["--ansi"])?;
 
     tmux.until(|l| l.len() > 1 && l[1].starts_with("  1/1"))?;
 
     tmux.send_keys(&[Enter])?;
 
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output()?;
     println!("{:?}", output[0].as_bytes());
     assert_eq!(output[0].as_bytes(), &[97, 0, 98]);
     Ok(())
@@ -876,7 +876,7 @@ fn opt_ansi_null() -> Result<()> {
 
 #[test]
 fn opt_skip_to_pattern() -> Result<()> {
-    let (tmux, _) = setup(
+    let tmux = setup(
         "a/b/c",
         &[
             "--skip-to-pattern",
@@ -897,7 +897,7 @@ fn opt_skip_to_pattern() -> Result<()> {
 
 #[test]
 fn opt_multi() -> Result<()> {
-    let (tmux, outfile) = setup("a\\nb\\nc", &["--multi"])?;
+    let tmux = setup("a\\nb\\nc", &["--multi"])?;
     tmux.until(|l| l.len() == 5)?;
 
     tmux.send_keys(&[BTab])?;
@@ -906,8 +906,8 @@ fn opt_multi() -> Result<()> {
     tmux.until(|l| l[2] == " >a" && l[3] == " >b" && l[4] == "> c")?;
     tmux.send_keys(&[Enter])?;
 
-    tmux.until(|_| tmux.output(&outfile).unwrap_or_default().len() == 2)?;
-    let output = tmux.output(&outfile)?;
+    tmux.until(|_| tmux.output().unwrap_or_default().len() == 2)?;
+    let output = tmux.output()?;
 
     assert_eq!(output, &["b", "a"]);
 
@@ -916,19 +916,19 @@ fn opt_multi() -> Result<()> {
 
 #[test]
 fn opt_pre_select_n() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["-m", "--pre-select-n", "2"])?;
+    let tmux = setup("a\\nb\\nc", &["-m", "--pre-select-n", "2"])?;
     tmux.until(|l| l.len() > 3 && l[2] == ">>a" && l[3] == " >b")
 }
 
 #[test]
 fn opt_pre_select_items() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["-m", "--pre-select-items", "$'b\\nc'"])?;
+    let tmux = setup("a\\nb\\nc", &["-m", "--pre-select-items", "$'b\\nc'"])?;
     tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")
 }
 
 #[test]
 fn opt_pre_select_pat() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc", &["-m", "--pre-select-pat", "'[b|c]'"])?;
+    let tmux = setup("a\\nb\\nc", &["-m", "--pre-select-pat", "'[b|c]'"])?;
     tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")
 }
 
@@ -936,7 +936,7 @@ fn opt_pre_select_pat() -> Result<()> {
 fn opt_pre_select_file() -> Result<()> {
     let mut pre_select_file = NamedTempFile::new()?;
     pre_select_file.write(b"b\nc")?;
-    let (tmux, _) = setup(
+    let tmux = setup(
         "a\\nb\\nc",
         &["-m", "--pre-select-file", pre_select_file.path().to_str().unwrap()],
     )?;
@@ -945,7 +945,7 @@ fn opt_pre_select_file() -> Result<()> {
 
 #[test]
 fn opt_no_clear_if_empty() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     tmux.start_sk(
         Some("echo -ne 'a\\nb\\nc'"),
         &["-i", "--no-clear-if-empty", "-c", "'echo -ne {}'"],
@@ -966,12 +966,12 @@ fn opt_no_clear_if_empty() -> Result<()> {
 
 #[test]
 fn opt_accept_arg() -> Result<()> {
-    let (tmux, outfile) = setup("a\\nb", &["--bind", "ctrl-a:accept:hello"])?;
+    let tmux = setup("a\\nb", &["--bind", "ctrl-a:accept:hello"])?;
     tmux.until(|l| l[1].starts_with("  2/2"))?;
     println!("{:?}", tmux.capture()?);
     tmux.send_keys(&[Ctrl(&Key('a'))])?;
 
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output()?;
     println!("{output:?}");
     assert_eq!(output[0], "a");
     assert_eq!(output[1], "hello");
@@ -980,7 +980,7 @@ fn opt_accept_arg() -> Result<()> {
 
 #[test]
 fn opt_tac() -> Result<()> {
-    let (tmux, _) = setup("a\\nb", &["--tac"])?;
+    let tmux = setup("a\\nb", &["--tac"])?;
     tmux.until(|l| l[1].starts_with("  2/2"))?;
     tmux.until(|l| l[2].starts_with("> b") && l[3].contains("a"))?;
     Ok(())
@@ -988,7 +988,7 @@ fn opt_tac() -> Result<()> {
 
 #[test]
 fn opt_tac_with_header_lines() -> Result<()> {
-    let (tmux, _) = setup("a\\nb\\nc\\nd\\ne", &["--tac", "--header-lines", "2"])?;
+    let tmux = setup("a\\nb\\nc\\nd\\ne", &["--tac", "--header-lines", "2"])?;
 
     // Should have 3 selectable items (c, d, e reversed to e, d, c)
     // The count shows matched/total: 3 matched out of 3 selectable (5 total items with 2 headers)

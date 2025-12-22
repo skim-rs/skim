@@ -6,8 +6,8 @@ use common::TmuxController;
 
 #[test]
 fn test_highlight_match() {
-    let tmux = TmuxController::new().unwrap();
-    let outfile = tmux
+    let mut tmux = TmuxController::new().unwrap();
+    let _outfile = tmux
         .start_sk(
             Some("echo -e 'apple\\nbanana\\ngrape'"),
             &["--color=matched:9,current_match:1"],
@@ -57,14 +57,14 @@ fn test_highlight_match() {
     );
 
     tmux.send_keys(&[Enter]).unwrap();
-    let output = tmux.output(&outfile).unwrap();
+    let output = tmux.output().unwrap();
     assert_eq!(output, &["apple"]);
 }
 
 #[test]
 fn test_highlight_split_match() {
-    let tmux = TmuxController::new().unwrap();
-    let outfile = tmux
+    let mut tmux = TmuxController::new().unwrap();
+    let _outfile = tmux
         .start_sk(
             Some("echo -e 'apple\\nbanana\\ngrape'"),
             &["--color=matched:9,current_match:1"],
@@ -123,6 +123,6 @@ fn test_highlight_split_match() {
     );
 
     tmux.send_keys(&[Enter]).unwrap();
-    let output = tmux.output(&outfile).unwrap();
+    let output = tmux.output().unwrap();
     assert_eq!(output, &["banana"]);
 }

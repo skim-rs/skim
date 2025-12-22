@@ -43,7 +43,7 @@ fn get_tmux_cmd(outfile: &str) -> Result<String> {
 
 #[test]
 fn tmux_vanilla() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.start_sk(None, &["--tmux"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
@@ -56,7 +56,7 @@ fn tmux_vanilla() -> Result<()> {
 }
 #[test]
 fn tmux_stdin() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.start_sk(Some("ls"), &["--tmux"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
@@ -69,7 +69,7 @@ fn tmux_stdin() -> Result<()> {
 
 #[test]
 fn tmux_quote_bash() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.send_keys(&[Str("export SHELL=/bin/bash"), Enter])?;
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
@@ -83,7 +83,7 @@ fn tmux_quote_bash() -> Result<()> {
 }
 #[test]
 fn tmux_quote_zsh() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.send_keys(&[Str("export SHELL=/bin/zsh"), Enter])?;
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
@@ -98,7 +98,7 @@ fn tmux_quote_zsh() -> Result<()> {
 }
 #[test]
 fn tmux_quote_sh() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.send_keys(&[Str("export SHELL=/bin/sh"), Enter])?;
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
@@ -112,7 +112,7 @@ fn tmux_quote_sh() -> Result<()> {
 }
 #[test]
 fn tmux_quote_fish() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.send_keys(&[Str("export SHELL=/bin/sh"), Enter])?;
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;

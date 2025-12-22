@@ -763,12 +763,20 @@ impl<'a> App<'a> {
                 if in_raw_mode {
                     crossterm::terminal::disable_raw_mode()?;
                 }
-                crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen)?;
+                crossterm::execute!(
+                    std::io::stderr(),
+                    crossterm::terminal::LeaveAlternateScreen,
+                    crossterm::event::DisableMouseCapture
+                )?;
                 let _ = command.spawn().and_then(|mut c| c.wait());
                 if in_raw_mode {
                     crossterm::terminal::enable_raw_mode()?;
                 }
-                crossterm::execute!(std::io::stderr(), crossterm::terminal::EnterAlternateScreen)?;
+                crossterm::execute!(
+                    std::io::stderr(),
+                    crossterm::terminal::EnterAlternateScreen,
+                    crossterm::event::EnableMouseCapture
+                )?;
                 return Ok(vec![Event::Redraw]);
             }
             ExecuteSilent(cmd) => {
@@ -1165,19 +1173,14 @@ impl<'a> App<'a> {
     }
 
     fn expand_cmd(&self, cmd: &str) -> String {
-        if self.options.interactive {
-            // In interactive mode, only {} makes sense - expand it with typed input
-            cmd.replace("{}", &self.input.value)
-        } else {
-            util::printf(
-                cmd.to_string(),
-                &self.options.delimiter,
-                self.item_list.items.iter().map(|x| x.item.clone()),
-                self.item_list.selected(),
-                &self.input.value,
-                &self.input.value,
-            )
-        }
+        util::printf(
+            cmd.to_string(),
+            &self.options.delimiter,
+            self.item_list.items.iter().map(|x| x.item.clone()),
+            self.item_list.selected(),
+            &self.input.value,
+            &self.input.value,
+        )
     }
 
     /// Restart matcher with debouncing to avoid excessive restarts during rapid typing

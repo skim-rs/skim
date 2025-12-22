@@ -5,7 +5,7 @@ use common::{Keys::*, TmuxController};
 use std::io::Result;
 
 fn setup() -> Result<TmuxController> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(None, &["-q", "'foo bar foo-bar'"]);
     tmux.until(|l| l[0].starts_with(">"))?;
     Ok(tmux)
@@ -13,7 +13,7 @@ fn setup() -> Result<TmuxController> {
 
 #[test]
 fn keys_basic() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Str("99")])?;
@@ -192,7 +192,7 @@ fn keys_alt_bspace() -> Result<()> {
 //
 #[test]
 fn keys_ctrl_k() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Ctrl(&Key('k'))])?;
@@ -204,7 +204,7 @@ fn keys_ctrl_k() -> Result<()> {
 
 #[test]
 fn keys_tab() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Ctrl(&Key('k'))])?;
@@ -220,7 +220,7 @@ fn keys_tab() -> Result<()> {
 
 #[test]
 fn keys_btab() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[BTab])?;
@@ -232,23 +232,23 @@ fn keys_btab() -> Result<()> {
 
 #[test]
 fn keys_enter() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let outfile = tmux.start_sk(Some("seq 1 100000"), &[])?;
+    let mut tmux = TmuxController::new()?;
+    let _outfile = tmux.start_sk(Some("seq 1 100000"), &[])?;
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Enter])?;
     tmux.until(|l| !l[0].starts_with(">"))?;
-    let res = tmux.output(&outfile)?;
+    let res = tmux.output()?;
     assert_eq!(res[0], "1");
     Ok(())
 }
 #[test]
 fn keys_ctrl_m() -> Result<()> {
-    let tmux = TmuxController::new()?;
-    let outfile = tmux.start_sk(Some("seq 1 100000"), &[])?;
+    let mut tmux = TmuxController::new()?;
+    let _outfile = tmux.start_sk(Some("seq 1 100000"), &[])?;
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     tmux.send_keys(&[Ctrl(&Key('m'))])?;
     tmux.until(|l| !l[0].starts_with(">"))?;
-    let res = tmux.output(&outfile)?;
+    let res = tmux.output()?;
     assert_eq!(res[0], "1");
     Ok(())
 }

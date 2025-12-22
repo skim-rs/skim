@@ -6,7 +6,7 @@ use std::io::Result;
 
 #[test]
 fn vanilla() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
     let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
     tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
     let lines = tmux.capture()?;
@@ -33,7 +33,7 @@ fn default_command() -> Result<()> {
     tmux.send_keys(&[Keys::Enter])?;
     tmux.until(|l| !l[0].starts_with(">"))?;
 
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output_from(&outfile)?;
 
     assert_eq!(output[0], "hello");
 
@@ -48,7 +48,7 @@ fn version_long() -> Result<()> {
     let sk_cmd = sk(&outfile, &["--version"]);
     tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
 
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output_from(&outfile)?;
 
     assert!(output[0].starts_with("sk "));
 
@@ -63,7 +63,7 @@ fn version_short() -> Result<()> {
     let sk_cmd = sk(&outfile, &["-V"]);
     tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
 
-    let output = tmux.output(&outfile)?;
+    let output = tmux.output_from(&outfile)?;
 
     assert!(output[0].starts_with("sk "));
 
@@ -72,7 +72,7 @@ fn version_short() -> Result<()> {
 
 #[test]
 fn interactive_mode_command_execution() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let mut tmux = TmuxController::new()?;
 
     // Start interactive mode with a command that uses {} placeholder
     let _ = tmux.start_sk(None, &["-i", "--cmd=\"echo 'foo {}'\""])?;
