@@ -7,37 +7,37 @@ use common::TmuxController;
 use common::sk;
 use std::io::Result;
 
-sk_test!(bind_execute_0_results, "", &["--bind", "'ctrl-f:execute(echo foo{})'"], @dsl {
-  @ line 0 == ">";
-  @ keys Ctrl(&Key('f')), Enter;
-  @ line 0 != ">";
+sk_test!(bind_execute_0_results, "", &["--bind", "'ctrl-f:execute(echo foo{})'"], {
+  @capture[0] eq(">");
+  @keys Ctrl(&Key('f')), Enter;
+  @capture[0] ne(">");
 
-  @ out 0 == "foo";
+  @output[0] eq("foo");
 });
 
-sk_test!(bind_execute_0_results_noref, "", &["--bind", "'ctrl-f:execute(echo foo)'"], @dsl {
-  @ line 0 == ">";
-  @ keys Ctrl(&Key('f')), Enter;
-  @ line 0 != ">";
+sk_test!(bind_execute_0_results_noref, "", &["--bind", "'ctrl-f:execute(echo foo)'"], {
+  @capture[0] eq(">");
+  @keys Ctrl(&Key('f')), Enter;
+  @capture[0] ne(">");
 
-  @ out 0 == "foo";
+  @output[0] eq("foo");
 });
 
-sk_test!(bind_if_non_matched, "a\\nb", &["--bind", "'enter:if-non-matched(backward-delete-char)'", "-q", "ab"], @dsl {
-  @ line 0 starts_with(">");
-  @ line 0 starts_with("> ab");
+sk_test!(bind_if_non_matched, "a\\nb", &["--bind", "'enter:if-non-matched(backward-delete-char)'", "-q", "ab"], {
+  @capture[0] starts_with(">");
+  @capture[0] starts_with("> ab");
 
-  @ keys Enter;
-  @ line 0 == "> a";
-  @ line 2 == "> a";
+  @keys Enter;
+  @capture[0] eq("> a");
+  @capture[2] eq("> a");
 
-  @ keys Enter, Key('c');
-  @ line 0 starts_with("> ac");
+  @keys Enter, Key('c');
+  @capture[0] starts_with("> ac");
 });
 
-sk_test!(bind_append_and_select, "a\\n\\nb\\nc", &["-m", "--bind", "'ctrl-f:append-and-select'"], @dsl {
-  @ keys Str("xyz"), Ctrl(&Key('f'));
-  @ line 2 == ">>xyz";
+sk_test!(bind_append_and_select, "a\\n\\nb\\nc", &["-m", "--bind", "'ctrl-f:append-and-select'"], {
+  @keys Str("xyz"), Ctrl(&Key('f'));
+  @capture[2] eq(">>xyz");
 });
 
 #[test]
@@ -56,41 +56,41 @@ fn bind_reload_no_arg() -> Result<()> {
     Ok(())
 }
 
-sk_test!(bind_reload_cmd, "a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello)'"], @dsl {
-  @ line 2 == "> a";
-  @ keys Ctrl(&Key('a'));
-  @ line 2 == "> hello";
+sk_test!(bind_reload_cmd, "a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello)'"], {
+  @capture[2] eq("> a");
+  @keys Ctrl(&Key('a'));
+  @capture[2] eq("> hello");
 });
 
-sk_test!(bind_first_last, @cmd "seq 1 10", &["--bind", "'ctrl-f:first,ctrl-l:last'"], @dsl {
-  @ lines |l| (l.len() > 10);
+sk_test!(bind_first_last, @cmd "seq 1 10", &["--bind", "'ctrl-f:first,ctrl-l:last'"], {
+  @lines |l| (l.len() > 10);
 
-  @ keys Ctrl(&Key('f'));
-  @ lines |l| (l.iter().any(|line| line == "> 1"));
+  @keys Ctrl(&Key('f'));
+  @lines |l| (l.iter().any(|line| line == "> 1"));
 
-  @ keys Ctrl(&Key('l'));
-  @ lines |l| (l.iter().any(|line| line == "> 10"));
+  @keys Ctrl(&Key('l'));
+  @lines |l| (l.iter().any(|line| line == "> 10"));
 
-  @ keys Ctrl(&Key('f'));
-  @ lines |l| (l.iter().any(|line| line == "> 1"));
+  @keys Ctrl(&Key('f'));
+  @lines |l| (l.iter().any(|line| line == "> 1"));
 });
 
-sk_test!(bind_top_alias, @cmd "seq 1 10", &["--bind", "'ctrl-t:top,ctrl-l:last'"], @dsl {
-  @ lines |l| (l.len() > 10);
+sk_test!(bind_top_alias, @cmd "seq 1 10", &["--bind", "'ctrl-t:top,ctrl-l:last'"], {
+  @lines |l| (l.len() > 10);
 
-  @ keys Ctrl(&Key('l'));
-  @ lines |l| (l.iter().any(|line| line == "> 10"));
+  @keys Ctrl(&Key('l'));
+  @lines |l| (l.iter().any(|line| line == "> 10"));
 
-  @ keys Ctrl(&Key('t'));
-  @ lines |l| (l.iter().any(|line| line == "> 1"));
+  @keys Ctrl(&Key('t'));
+  @lines |l| (l.iter().any(|line| line == "> 1"));
 });
 
-sk_test!(bind_change, @cmd "printf '1\\n12\\n13\\n14\\n15\\n16\\n17\\n18\\n19\\n10'", &["--bind", "'change:first'"], @dsl {
-  @ lines |l| (l.len() > 10);
+sk_test!(bind_change, @cmd "printf '1\\n12\\n13\\n14\\n15\\n16\\n17\\n18\\n19\\n10'", &["--bind", "'change:first'"], {
+  @lines |l| (l.len() > 10);
 
-  @ keys Up, Up;
-  @ lines |l| (l.iter().any(|x| x.starts_with("> 13")));
+  @keys Up, Up;
+  @lines |l| (l.iter().any(|x| x.starts_with("> 13")));
 
-  @ keys Key('1');
-  @ lines |l| (l.iter().any(|x| x.starts_with("> 1")));
+  @keys Key('1');
+  @lines |l| (l.iter().any(|x| x.starts_with("> 1")));
 });

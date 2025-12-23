@@ -1,23 +1,17 @@
 #[allow(dead_code)]
+#[macro_use]
 mod common;
 
 use common::{Keys, TmuxController, sk};
 use std::io::Result;
 
-#[test]
-fn vanilla() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
-    let _ = tmux.start_sk(Some("seq 1 100000"), &[]);
-    tmux.until(|l| l[0].starts_with(">") && l[1].starts_with("  100000"))?;
-    let lines = tmux.capture()?;
-    assert_eq!(lines[3], "  2");
-    assert_eq!(lines[2], "> 1");
-    assert!(lines[1].starts_with("  100000/100000"));
-    assert!(lines[1].ends_with("0/0"));
-    assert_eq!(lines[0], ">");
-
-    Ok(())
-}
+sk_test!(vanilla, @cmd "seq 1 100000", &[], {
+  @capture[0] eq(">");
+  @capture[1] starts_with("  100000");
+  @capture[1] ends_with("0/0");
+  @capture[2] eq("> 1");
+  @capture[3] eq("  2");
+});
 
 #[test]
 fn default_command() -> Result<()> {
@@ -40,54 +34,22 @@ fn default_command() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn version_long() -> Result<()> {
-    let tmux = TmuxController::new()?;
+sk_test!(version_long, "", &["--version"], {
+  @output[0] starts_with("sk ");
+});
+sk_test!(version_short, "", &["-V"], {
+  @output[0] starts_with("sk ");
+});
 
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &["--version"]);
-    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
+sk_test!(interactive_mode_command_execution, "", &["-i", "--cmd=\"echo 'foo {q}'\""], {
+  @capture[0] starts_with("c>");
+  @capture[2] starts_with("> foo");
 
-    let output = tmux.output_from(&outfile)?;
+  @keys Keys::Str("bar");
+  @capture[0] starts_with("c> bar");
+  @capture[2] starts_with("> foo bar");
 
-    assert!(output[0].starts_with("sk "));
-
-    Ok(())
-}
-
-#[test]
-fn version_short() -> Result<()> {
-    let tmux = TmuxController::new()?;
-
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &["-V"]);
-    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
-
-    let output = tmux.output_from(&outfile)?;
-
-    assert!(output[0].starts_with("sk "));
-
-    Ok(())
-}
-
-#[test]
-fn interactive_mode_command_execution() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
-
-    // Start interactive mode with a command that uses {} placeholder
-    let _ = tmux.start_sk(None, &["-i", "--cmd=\"echo 'foo {}'\""])?;
-    tmux.until(|l| l.len() > 0 && l[0].starts_with("c>"))?;
-    tmux.until(|l| l.len() > 2 && l[2].starts_with("> foo"))?;
-
-    // Type "bar" - the command "echo 'foo bar'" should execute and show "foo bar"
-    tmux.send_keys(&[Keys::Str("bar")])?;
-    tmux.until(|l| l.len() > 0 && l[0] == "c> bar")?;
-    tmux.until(|l| l.len() > 2 && l[2].starts_with("> foo bar"))?;
-
-    // Type more - command re-executes with new substitution
-    tmux.send_keys(&[Keys::Str("baz")])?;
-    tmux.until(|l| l.len() > 0 && l[0] == "c> barbaz")?;
-    tmux.until(|l| l.len() > 2 && l[2].starts_with("> foo barbaz"))?;
-
-    Ok(())
-}
+  @keys Keys::Str("baz");
+  @capture[0] starts_with("c> barbaz");
+  @capture[2] starts_with("> foo barbaz");
+});

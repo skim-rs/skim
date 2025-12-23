@@ -3,8 +3,6 @@
 mod common;
 
 use common::Keys::*;
-use common::TmuxController;
-use std::io::Result;
 
 sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &["--ansi"], tmux => {
     tmux.until(|lines| lines.iter().any(|line| line.contains("plain")))?;
@@ -22,14 +20,14 @@ sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\
     tmux.send_keys(&[Enter])?;
 });
 
-sk_test!(test_ansi_flag_disabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &[], @dsl {
-    @ lines |l| (l.iter().any(|line| line.contains("plain")));
+sk_test!(test_ansi_flag_disabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &[], {
+    @lines |l| (l.iter().any(|line| line.contains("plain")));
 
-    @ keys Str("red");
+    @keys Str("red");
 
-    @ line 2 == "> ?[31mred?[0m";
+    @capture[2] eq("> ?[31mred?[0m");
 
-    @ keys Enter;
+    @keys Enter;
 });
 
 sk_test!(test_ansi_matching_on_stripped_text, @cmd "echo -e '\\x1b[32mgreen\\x1b[0m text\\n\\x1b[31mred\\x1b[0m text\\nplain text'", &["--ansi"], tmux => {
