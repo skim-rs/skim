@@ -137,7 +137,7 @@ fn sk_main() -> Result<i32> {
         crate::tmux::run_with(&opts)
     } else {
         // read from pipe or command
-        let rx_item = if io::stdin().is_terminal() {
+        let rx_item = if io::stdin().is_terminal() || (opts.interactive && opts.cmd.is_some()) {
             None
         } else {
             let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));

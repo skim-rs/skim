@@ -1172,7 +1172,9 @@ impl<'a> App<'a> {
         self.yank_register = contents;
     }
 
-    fn expand_cmd(&self, cmd: &str) -> String {
+    /// Expand placeholders in a command string with current app state.
+    /// Replaces {}, {q}, {cq}, {n}, {+}, {+n}, and field patterns.
+    pub fn expand_cmd(&self, cmd: &str) -> String {
         util::printf(
             cmd.to_string(),
             &self.options.delimiter,

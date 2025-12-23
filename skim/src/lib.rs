@@ -444,12 +444,19 @@ impl Skim {
 
             //------------------------------------------------------------------------------
             // reader
-            // In interactive mode, expand {} with initial query (empty or from --query)
+            // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
             let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
-                cmd.replace("{}", &app.input.value)
+                let expanded = app.expand_cmd(&cmd);
+                log::debug!(
+                    "Interactive mode: initial_cmd = {:?} (from template {:?})",
+                    expanded,
+                    cmd
+                );
+                expanded
             } else {
                 cmd.clone()
             };
+            log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
             let (item_tx, mut item_rx) = unbounded_channel();
             let mut reader_control = reader.run(item_tx.clone(), &initial_cmd);
 

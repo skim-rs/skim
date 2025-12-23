@@ -74,7 +74,7 @@ pub fn printf(
                     let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap_or_default();
                     replaced.push_str(&escape_arg(replacement));
                 } else {
-                    replaced += &pattern;
+                    log::warn!("Failed to build field range from {pattern}");
                 }
 
                 pattern = String::new();
