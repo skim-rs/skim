@@ -18,17 +18,10 @@ sk_test!(issue_361_literal_space_invert, "foo  bar\\nfoo bar", &["-q", "'!foo\\ 
   @capture[2] eq("> foo  bar");
 });
 
-sk_test!(issue_547_null_match, "\\0Test Test Test", &[], tmux => {
-  tmux.send_keys(&[crate::common::Keys::Str("Test")])?;
-  tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
-  tmux.until(|l| l.len() > 2 && l[2].starts_with("> Test Test Test"))?;
+sk_test!(issue_547_null_match, "\\0Test Test Test", &[], {
+  @keys crate::common::Keys::Str("Test");
+  @capture[0] starts_with(">");
+  @capture[2] starts_with("> Test Test Test");
 
-  let out = tmux.capture_colored()?;
-  println!("out {out:?}");
-  assert!(
-      out.len() > 2
-          && out[2].starts_with(
-              "\u{1b}[1m\u{1b}[38;5;168m\u{1b}[48;5;236m>\u{1b}[0m \u{1b}[38;5;151m\u{1b}[48;5;236mTest"
-          )
-  );
+  @capture_colored[2] starts_with("\u{1b}[1m\u{1b}[38;5;168m\u{1b}[48;5;236m>\u{1b}[0m \u{1b}[38;5;151m\u{1b}[48;5;236mTest");
 });

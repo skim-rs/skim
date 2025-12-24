@@ -29,11 +29,11 @@ pub fn sk(outfile: &str, opts: &[&str]) -> String {
     )
 }
 
-fn wait<F, T>(pred: F) -> Result<T>
+pub fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..1000 {
+    for _ in 1..200 {
         if let Ok(t) = pred() {
             return Ok(t);
         }
@@ -306,22 +306,27 @@ impl Drop for TmuxController {
 //   @capture[1] trim().starts_with("3/3");   // Wait until capture[1].trim().starts_with("3/3")
 //   @capture[-1] eq("foo");                  // Wait until last line == "foo"
 //   @capture[*] contains("bar");             // Wait until any line contains "bar"
+//   @output[0] eq("result");                 // Wait until output[0] == "result"
+//   @output[-1] eq("last");                  // Wait until output[-1] (last line) == "last"
+//   @output[*] starts_with("prefix");        // Wait until any output line starts with "prefix"
+//   @capture_colored[0] contains("\x1b");    // Wait until colored capture contains ANSI
 //   @lines |l| (l.len() > 5);                // Complex assertion with closure
 //   @keys Enter, Tab;                        // Send multiple keys
-//   @output[0] eq("result");                 // Assert output[0] == "result"
-//   @output[-1] eq("last");                  // Assert output[-1] (last line) == "last"
-//   @output[*] starts_with("prefix");        // Assert any output line starts with "prefix"
 //   @dbg;                                    // Debug print current capture
 // });
+//
+// NOTE: All methods use wait() for consistent retry behavior. Any TmuxController
+//       method that takes no args and returns Result<Vec<String>> can be used:
+//       capture, output, capture_colored, etc.
 //
 // EXAMPLES
 // --------
 //
-// Example 1: Simple test with echo input
+// Example 1: Simple test with echo input (all methods wait/retry)
 //   sk_test!(simple, "a\\nb\\nc", &[], {
-//     @capture[0] eq(">");
+//     @capture[0] eq(">");        // Waits until condition is met
 //     @keys Enter;
-//     @output[0] eq("a");
+//     @output[0] eq("a");          // Waits until output is available
 //   });
 //
 // Example 2: Using command input with @cmd
@@ -401,14 +406,23 @@ impl Drop for TmuxController {
 //     @output[*] starts_with("b");    // Any output line starts with "b"
 //   });
 //
+// Example 9: Using capture_colored for ANSI escape sequences
+//   sk_test!(ansi_test, @cmd "echo -e '\\x1b[31mred\\x1b[0m'", &["--ansi"], {
+//     @capture[*] contains("red");
+//     @capture_colored[*] contains("\x1b[31m");  // Check for ANSI codes
+//     @keys Enter;
+//   });
+//
 // DSL COMMAND REFERENCE
 // ---------------------
-// @capture[N] method_chain    Wait until capture[N].method_chain is true
-// @capture[-N] method_chain   Wait until capture[-N].method_chain is true (negative index)
-// @capture[*] method_chain    Wait until any line matches (uses .iter().any())
-// @output[N] method_chain     Assert output[N].method_chain is true
-// @output[-N] method_chain    Assert output[-N].method_chain is true (negative index)
-// @output[*] method_chain     Assert any output line matches (uses .iter().any())
+// @METHOD[N] method_chain     Wait until METHOD[N].method_chain is true (N = line number)
+// @METHOD[-N] method_chain    Wait until METHOD[-N].method_chain is true (negative index)
+// @METHOD[*] method_chain     Wait until any line matches (uses .iter().any())
+//   where METHOD is any TmuxController method returning Result<Vec<String>>:
+//     - capture: Wait until condition is true
+//     - output: Wait until condition is true
+//     - capture_colored: Wait until condition is true on colored capture
+//   All methods use wait() for consistent retry behavior
 // @lines |l| (expr)           Call tmux.until(|l| expr)? with closure
 // @keys key1, key2            Send keys (automatically adds ?)
 // @dbg                        Debug print current capture
@@ -421,6 +435,8 @@ impl Drop for TmuxController {
 // - Method chains support any String/&str method: eq(), starts_with(), contains(), trim(), etc.
 // - You can chain methods: trim().starts_with("foo")
 // - Negative indices work like Python: -1 is last element, -2 is second-to-last, etc.
+// - ALL methods use wait() with retry logic - no immediate assertions
+// - wait() retries every 10ms for up to 10 seconds before timing out
 //
 #[allow(unused_macros)]
 macro_rules! sk_test {
@@ -483,150 +499,115 @@ macro_rules! sk_test {
     // Token processing rules
     (@expand $tmux:ident; ) => {};
 
-    // @capture[*] - check if any line matches (uses .iter().any())
-    (@expand $tmux:ident; @ capture [ * ] $($rest:tt)*) => {
-        sk_test!(@capture_any_collect $tmux, [] ; $($rest)*);
+    // Generic method patterns - works with any TmuxController method
+    // @method[*] - check if any line matches (uses .iter().any())
+    (@expand $tmux:ident; @ $method:ident [ * ] $($rest:tt)*) => {
+        sk_test!(@method_any_collect $tmux, $method, [] ; $($rest)*);
     };
 
-    // @capture[idx] - TT munching approach to collect method chain
-    // @capture[-idx] for negative index - supports arbitrary method chains (must come before positive)
-    (@expand $tmux:ident; @ capture [ - $idx:literal ] $($rest:tt)*) => {
-        sk_test!(@capture_neg_collect $tmux, $idx, [] ; $($rest)*);
+    // @method[-idx] for negative index - supports arbitrary method chains (must come before positive)
+    (@expand $tmux:ident; @ $method:ident [ - $idx:literal ] $($rest:tt)*) => {
+        sk_test!(@method_neg_collect $tmux, $method, $idx, [] ; $($rest)*);
     };
 
-    // @capture[idx] for positive index - supports arbitrary method chains
-    (@expand $tmux:ident; @ capture [ $idx:literal ] $($rest:tt)*) => {
-        sk_test!(@capture_collect $tmux, $idx, [] ; $($rest)*);
+    // @method[idx] for positive index - supports arbitrary method chains
+    (@expand $tmux:ident; @ $method:ident [ $idx:literal ] $($rest:tt)*) => {
+        sk_test!(@method_pos_collect $tmux, $method, $idx, [] ; $($rest)*);
     };
 
-    // Collect tokens until semicolon for @capture
-    (@capture_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; ; $($rest:tt)*) => {
+    // Collect tokens until semicolon for positive index - dispatches to wait or assert
+    (@method_pos_collect $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*] ; ; $($rest:tt)*) => {
+        sk_test!(@method_pos_dispatch $tmux, $method, $idx, [$($methods)*]);
+        sk_test!(@expand $tmux; $($rest)*);
+    };
+    (@method_pos_collect $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
+        sk_test!(@method_pos_collect $tmux, $method, $idx, [$($methods)* $next] ; $($rest)*);
+    };
+
+    // Dispatch for positive index - all methods use wait()
+    (@method_pos_dispatch $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*]) => {
         {
-            if $tmux.until(|l| l.len() > $idx && l[$idx].$($methods)*).is_err() {
-                let lines = $tmux.capture().unwrap_or_default();
+            if crate::common::wait(|| {
+                let lines = $tmux.$method()?;
+                if lines.len() > $idx && lines[$idx].$($methods)* {
+                    Ok(true)
+                } else {
+                    Err(std::io::Error::new(std::io::ErrorKind::Other, "condition not met"))
+                }
+            }).is_err() {
+                let lines = $tmux.$method().unwrap_or_default();
                 let actual = if lines.len() > $idx { &lines[$idx] } else { "<no line>" };
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
-                    format!("Timed out waiting for capture[{}].{}, got: {}", $idx, stringify!($($methods)*), actual)
+                    format!("Timed out waiting for {}[{}].{}, got: {}", stringify!($method), $idx, stringify!($($methods)*), actual)
                 ));
             }
         }
-        sk_test!(@expand $tmux; $($rest)*);
-    };
-    (@capture_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
-        sk_test!(@capture_collect $tmux, $idx, [$($methods)* $next] ; $($rest)*);
     };
 
-    // Collect tokens until semicolon for @capture[*] any
-    (@capture_any_collect $tmux:ident, [$($methods:tt)*] ; ; $($rest:tt)*) => {
-        {
-            if $tmux.until(|l| l.iter().any(|line| line.$($methods)*)).is_err() {
-                let lines = $tmux.capture().unwrap_or_default();
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    format!("Timed out waiting for capture[*] any line matching .{}, got: {:?}", stringify!($($methods)*), lines)
-                ));
-            }
-        }
+    // Collect tokens until semicolon for negative index - dispatches to wait or assert
+    (@method_neg_collect $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*] ; ; $($rest:tt)*) => {
+        sk_test!(@method_neg_dispatch $tmux, $method, $idx, [$($methods)*]);
         sk_test!(@expand $tmux; $($rest)*);
     };
-    (@capture_any_collect $tmux:ident, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
-        sk_test!(@capture_any_collect $tmux, [$($methods)* $next] ; $($rest)*);
+    (@method_neg_collect $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
+        sk_test!(@method_neg_collect $tmux, $method, $idx, [$($methods)* $next] ; $($rest)*);
     };
 
-    // Collect tokens until semicolon for @capture negative
-    (@capture_neg_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; ; $($rest:tt)*) => {
+    // Dispatch for negative index - all methods use wait()
+    (@method_neg_dispatch $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*]) => {
         {
-            if $tmux.until(|l| {
-                l.len() >= $idx && {
-                    let actual_idx = l.len() - $idx;
-                    l[actual_idx].$($methods)*
+            if crate::common::wait(|| {
+                let lines = $tmux.$method()?;
+                if lines.len() >= $idx {
+                    let actual_idx = lines.len() - $idx;
+                    if lines[actual_idx].$($methods)* {
+                        Ok(true)
+                    } else {
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, "condition not met"))
+                    }
+                } else {
+                    Err(std::io::Error::new(std::io::ErrorKind::Other, "not enough lines"))
                 }
             }).is_err() {
-                let lines = $tmux.capture().unwrap_or_default();
+                let lines = $tmux.$method().unwrap_or_default();
                 let actual_idx = lines.len().saturating_sub($idx);
                 let actual = if lines.len() >= $idx { &lines[actual_idx] } else { "<no line>" };
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
-                    format!("Timed out waiting for capture[-{}].{}, got: {}", $idx, stringify!($($methods)*), actual)
+                    format!("Timed out waiting for {}[-{}].{}, got: {}", stringify!($method), $idx, stringify!($($methods)*), actual)
                 ));
             }
         }
+    };
+
+    // Collect tokens until semicolon for wildcard [*] - dispatches to wait or assert
+    (@method_any_collect $tmux:ident, $method:ident, [$($methods:tt)*] ; ; $($rest:tt)*) => {
+        sk_test!(@method_any_dispatch $tmux, $method, [$($methods)*]);
         sk_test!(@expand $tmux; $($rest)*);
     };
-    (@capture_neg_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
-        sk_test!(@capture_neg_collect $tmux, $idx, [$($methods)* $next] ; $($rest)*);
+    (@method_any_collect $tmux:ident, $method:ident, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
+        sk_test!(@method_any_collect $tmux, $method, [$($methods)* $next] ; $($rest)*);
     };
 
-    // @output[*] - check if any line matches (uses .iter().any())
-    (@expand $tmux:ident; @ output [ * ] $($rest:tt)*) => {
-        sk_test!(@output_any_collect $tmux, [] ; $($rest)*);
-    };
-
-    // @output[idx] - TT munching approach
-    // @output[-idx] for negative index - supports arbitrary method chains (must come before positive)
-    (@expand $tmux:ident; @ output [ - $idx:literal ] $($rest:tt)*) => {
-        sk_test!(@output_neg_collect $tmux, $idx, [] ; $($rest)*);
-    };
-
-    // @output[idx] for positive index - supports arbitrary method chains
-    (@expand $tmux:ident; @ output [ $idx:literal ] $($rest:tt)*) => {
-        sk_test!(@output_collect $tmux, $idx, [] ; $($rest)*);
-    };
-
-    // Collect tokens until semicolon for @output
-    (@output_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; ; $($rest:tt)*) => {
+    // Dispatch for wildcard - all methods use wait()
+    (@method_any_dispatch $tmux:ident, $method:ident, [$($methods:tt)*]) => {
         {
-            let output = $tmux.output()?;
-            assert!(
-                output.len() > $idx && output[$idx].$($methods)*,
-                "Output line [{}] failed condition .{}, got: {:?}",
-                $idx,
-                stringify!($($methods)*),
-                output.get($idx)
-            );
+            if crate::common::wait(|| {
+                let lines = $tmux.$method()?;
+                if lines.iter().any(|line| line.$($methods)*) {
+                    Ok(true)
+                } else {
+                    Err(std::io::Error::new(std::io::ErrorKind::Other, "condition not met"))
+                }
+            }).is_err() {
+                let lines = $tmux.$method().unwrap_or_default();
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!("Timed out waiting for {}[*] any line matching .{}, got: {:?}", stringify!($method), stringify!($($methods)*), lines)
+                ));
+            }
         }
-        sk_test!(@expand $tmux; $($rest)*);
-    };
-    (@output_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
-        sk_test!(@output_collect $tmux, $idx, [$($methods)* $next] ; $($rest)*);
-    };
-
-    // Collect tokens until semicolon for @output[*] any
-    (@output_any_collect $tmux:ident, [$($methods:tt)*] ; ; $($rest:tt)*) => {
-        {
-            let output = $tmux.output()?;
-            assert!(
-                output.iter().any(|line| line.$($methods)*),
-                "Output no line matched condition .{}, got: {:?}",
-                stringify!($($methods)*),
-                output
-            );
-        }
-        sk_test!(@expand $tmux; $($rest)*);
-    };
-    (@output_any_collect $tmux:ident, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
-        sk_test!(@output_any_collect $tmux, [$($methods)* $next] ; $($rest)*);
-    };
-
-    // Collect tokens until semicolon for @output negative
-    (@output_neg_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; ; $($rest:tt)*) => {
-        {
-            let output = $tmux.output()?;
-            let actual_idx = output.len().saturating_sub($idx);
-            assert!(
-                output.len() >= $idx && output[actual_idx].$($methods)*,
-                "Output line [-{}] (actual index {}) failed condition .{}, got: {:?}",
-                $idx,
-                actual_idx,
-                stringify!($($methods)*),
-                output.get(actual_idx)
-            );
-        }
-        sk_test!(@expand $tmux; $($rest)*);
-    };
-    (@output_neg_collect $tmux:ident, $idx:expr, [$($methods:tt)*] ; $next:tt $($rest:tt)*) => {
-        sk_test!(@output_neg_collect $tmux, $idx, [$($methods)* $next] ; $($rest)*);
     };
 
     // @lines command for tmux.until with closure

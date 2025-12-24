@@ -874,28 +874,17 @@ impl<'a> App<'a> {
                             self.input.value = saved_input.clone();
                             self.input.move_cursor_to(self.input.value.len() as u16);
                             *history_index = None;
-                            if !self.options.interactive {
-                                self.restart_matcher_debounced();
-                            }
                         } else {
                             // Move forward in history (toward more recent)
                             let new_idx = idx + 1;
                             self.input.value = history[new_idx].clone();
                             self.input.move_cursor_to(self.input.value.len() as u16);
                             *history_index = Some(new_idx);
-                            if !self.options.interactive {
-                                self.restart_matcher_debounced();
-                            }
                         }
                     }
                 }
 
-                // In interactive mode, execute the command to update results
-                if self.options.interactive {
-                    let cmd = self.input.value.clone();
-                    return Ok(vec![Event::Reload(cmd)]);
-                }
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
@@ -959,9 +948,6 @@ impl<'a> App<'a> {
                         self.input.value = history[new_idx].clone();
                         self.input.move_cursor_to(self.input.value.len() as u16);
                         *history_index = Some(new_idx);
-                        if !self.options.interactive {
-                            self.restart_matcher_debounced();
-                        }
                     }
                     Some(idx) => {
                         if idx > 0 {
@@ -970,20 +956,12 @@ impl<'a> App<'a> {
                             self.input.value = history[new_idx].clone();
                             self.input.move_cursor_to(self.input.value.len() as u16);
                             *history_index = Some(new_idx);
-                            if !self.options.interactive {
-                                self.restart_matcher_debounced();
-                            }
                         }
                         // else: already at oldest, do nothing
                     }
                 }
 
-                // In interactive mode, execute the command to update results
-                if self.options.interactive {
-                    let cmd = self.input.value.clone();
-                    return Ok(vec![Event::Reload(cmd)]);
-                }
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {

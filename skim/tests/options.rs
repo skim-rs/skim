@@ -30,33 +30,35 @@ sk_test!(opt_print0, "a\\nb\\nc", &["-m", "--print0"], {
 });
 
 sk_test!(opt_with_nth_preview, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..", "--preview", "'echo X{1}Y'"], {
-  @lines |l| (l.iter().any(|s| s.contains("Xf1Y")));
+  @capture[*] contains("Xf1Y");
 });
 
 sk_test!(opt_min_query_length, "line1\\nline2\\nline3", &["--min-query-length", "3"], {
   // With empty query, no results should be shown
-  @lines |l| (!l.iter().any(|s| s.contains("line")));
+  @capture[1] contains("0/3");
 
   @keys Str("li");
   @capture[0] starts_with("> li");
-  @lines |l| (!l.iter().any(|s| s.contains("line")));
+  @capture[1] contains("0/3");
 
   @keys Key('n');
   @capture[0] starts_with("> lin");
-  @lines |l| (l.iter().any(|s| s.contains("line")));
+  @capture[1] contains("3/3");
+  @capture[*] contains("line");
 });
 
 sk_test!(opt_min_query_length_interactive, "line1\\nline2\\nline3", &["--min-query-length", "3", "-i"], {
   // With empty query, no results should be shown
-  @lines |l| (!l.iter().any(|s| s.contains("line")));
+  @capture[1] contains("0/3");
 
   @keys Str("li");
   @capture[0] starts_with("c> li");
-  @lines |l| (!l.iter().any(|s| s.contains("line")));
+  @capture[1] contains("0/3");
 
   @keys Key('n');
   @capture[0] starts_with("c> lin");
-  @lines |l| (l.iter().any(|s| s.contains("line")));
+  @capture[1] contains("3/3");
+  @capture[*] contains("line");
 });
 
 sk_test!(opt_with_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "1"], {
