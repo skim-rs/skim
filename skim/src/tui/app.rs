@@ -453,6 +453,105 @@ impl<'a> App<'a> {
         ])
     }
 
+    fn run_preview(&mut self, tui: &mut super::Tui) -> Result<()> {
+        if let Some(preview_opt) = &self.options.preview
+            && let Some(item) = self.item_list.selected()
+        {
+            let selection: Vec<_> = self.item_list.selection.iter().map(|i| i.text().into_owned()).collect();
+            let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
+            let ctx = PreviewContext {
+                query: &self.input.value,
+                cmd_query: if self.options.interactive {
+                    &self.input.value
+                } else {
+                    self.options.cmd_query.as_deref().unwrap_or(&self.input.value)
+                },
+                width: self.preview.cols as usize,
+                height: self.preview.rows as usize,
+                current_index: self.item_list.selected().map(|i| i.get_index()).unwrap_or_default(),
+                current_selection: &self
+                    .item_list
+                    .selected()
+                    .map(|i| i.text().into_owned())
+                    .unwrap_or_default(),
+                selected_indices: &self
+                    .item_list
+                    .selection
+                    .iter()
+                    .map(|v| v.get_index())
+                    .collect::<Vec<_>>(),
+                selections: &selection_str,
+            };
+            let preview = item.preview(ctx);
+            match preview {
+                ItemPreview::Command(cmd) => self.preview.run(
+                    tui,
+                    &printf(
+                        cmd,
+                        &self.options.delimiter,
+                        self.item_list.selection.iter().map(|m| m.item.clone()),
+                        self.item_list.selected(),
+                        &self.input,
+                        &self.input,
+                    ),
+                ),
+                ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
+                ItemPreview::CommandWithPos(cmd, preview_position) => {
+                    // Execute command and apply position after content is ready
+                    self.preview.run(
+                        tui,
+                        &printf(
+                            cmd.to_string(),
+                            &self.options.delimiter,
+                            self.item_list.selection.iter().map(|m| m.item.clone()),
+                            self.item_list.selected(),
+                            &self.input,
+                            &self.input,
+                        ),
+                    );
+                    // Apply position offsets
+                    let v_scroll = match preview_position.v_scroll {
+                        crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
+                    };
+                    let v_offset = match preview_position.v_offset {
+                        crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
+                    };
+                    self.preview.scroll_y = v_scroll.saturating_add(v_offset);
+
+                    let h_scroll = match preview_position.h_scroll {
+                        crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Percent(p) => (self.preview.cols as u32 * p as u32 / 100) as u16,
+                    };
+                    let h_offset = match preview_position.h_offset {
+                        crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Percent(p) => (self.preview.cols as u32 * p as u32 / 100) as u16,
+                    };
+                    self.preview.scroll_x = h_scroll.saturating_add(h_offset);
+                }
+                ItemPreview::TextWithPos(t, preview_position) => self
+                    .preview
+                    .content_with_position(t.bytes().collect(), preview_position)?,
+                ItemPreview::AnsiWithPos(t, preview_position) => self
+                    .preview
+                    .content_with_position(t.bytes().collect(), preview_position)?,
+                ItemPreview::Global => self.preview.run(
+                    tui,
+                    &printf(
+                        preview_opt.to_string(),
+                        &self.options.delimiter,
+                        self.item_list.selection.iter().map(|m| m.item.clone()),
+                        self.item_list.selected(),
+                        &self.input,
+                        &self.input,
+                    ),
+                ),
+            }
+        }
+        Ok(())
+    }
+
     /// Handles a TUI event and updates application state
     pub fn handle_event(&mut self, tui: &mut super::Tui, event: &Event) -> Result<()> {
         let prev_item = self.item_list.selected();
@@ -475,103 +574,7 @@ impl<'a> App<'a> {
                 self.on_items_updated();
             }
             Event::RunPreview => {
-                if let Some(preview_opt) = &self.options.preview
-                    && let Some(item) = self.item_list.selected()
-                {
-                    let selection: Vec<_> = self.item_list.selection.iter().map(|i| i.text().into_owned()).collect();
-                    let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
-                    let ctx = PreviewContext {
-                        query: &self.input.value,
-                        cmd_query: if self.options.interactive {
-                            &self.input.value
-                        } else {
-                            self.options.cmd_query.as_deref().unwrap_or(&self.input.value)
-                        },
-                        width: self.preview.cols as usize,
-                        height: self.preview.rows as usize,
-                        current_index: self.item_list.selected().map(|i| i.get_index()).unwrap_or_default(),
-                        current_selection: &self
-                            .item_list
-                            .selected()
-                            .map(|i| i.text().into_owned())
-                            .unwrap_or_default(),
-                        selected_indices: &self
-                            .item_list
-                            .selection
-                            .iter()
-                            .map(|v| v.get_index())
-                            .collect::<Vec<_>>(),
-                        selections: &selection_str,
-                    };
-                    let preview = item.preview(ctx);
-                    match preview {
-                        ItemPreview::Command(cmd) => self.preview.run(
-                            tui,
-                            &printf(
-                                cmd,
-                                &self.options.delimiter,
-                                self.item_list.selection.iter().map(|m| m.item.clone()),
-                                self.item_list.selected(),
-                                &self.input,
-                                &self.input,
-                            ),
-                        ),
-                        ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
-                        ItemPreview::CommandWithPos(cmd, preview_position) => {
-                            // Execute command and apply position after content is ready
-                            self.preview.run(
-                                tui,
-                                &printf(
-                                    cmd.to_string(),
-                                    &self.options.delimiter,
-                                    self.item_list.selection.iter().map(|m| m.item.clone()),
-                                    self.item_list.selected(),
-                                    &self.input,
-                                    &self.input,
-                                ),
-                            );
-                            // Apply position offsets
-                            let v_scroll = match preview_position.v_scroll {
-                                crate::tui::Size::Fixed(n) => n,
-                                crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
-                            };
-                            let v_offset = match preview_position.v_offset {
-                                crate::tui::Size::Fixed(n) => n,
-                                crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
-                            };
-                            self.preview.scroll_y = v_scroll.saturating_add(v_offset);
-
-                            let h_scroll = match preview_position.h_scroll {
-                                crate::tui::Size::Fixed(n) => n,
-                                crate::tui::Size::Percent(p) => (self.preview.cols as u32 * p as u32 / 100) as u16,
-                            };
-                            let h_offset = match preview_position.h_offset {
-                                crate::tui::Size::Fixed(n) => n,
-                                crate::tui::Size::Percent(p) => (self.preview.cols as u32 * p as u32 / 100) as u16,
-                            };
-                            self.preview.scroll_x = h_scroll.saturating_add(h_offset);
-                        }
-                        ItemPreview::TextWithPos(t, preview_position) => self
-                            .preview
-                            .content_with_position(t.bytes().collect(), preview_position)?,
-                        ItemPreview::AnsiWithPos(t, preview_position) => self
-                            .preview
-                            .content_with_position(t.bytes().collect(), preview_position)?,
-                        ItemPreview::Global => {
-                            self.preview.run(
-                                tui,
-                                &printf(
-                                    preview_opt.to_string(),
-                                    &self.options.delimiter,
-                                    self.item_list.selection.iter().map(|m| m.item.clone()),
-                                    self.item_list.selected(),
-                                    &self.input,
-                                    &self.input,
-                                ),
-                            );
-                        }
-                    };
-                }
+                self.run_preview(tui)?;
             }
             Event::Clear => {
                 tui.clear()?;
