@@ -76,16 +76,21 @@ impl DefaultSkimItem {
             (false, false) => (None, escape_ansi(&orig_text)),
         };
 
+        // Keep track of whether we have null bytes for special handling
+        let has_null_bytes = text.contains('\0');
+
+        // Preserve original text with null bytes for output if needed
+        if has_null_bytes && orig_text.is_none() {
+            orig_text = Some(text.clone());
+        }
+
         // Strip null bytes from text used for display and matching
         // Null bytes are control characters that cause rendering issues (zero-width)
         // They are preserved in orig_text for output
-        if text.contains('\0') {
-            // If we don't have orig_text yet, save it before modifying text
-            if orig_text.is_none() {
-                orig_text = Some(text.clone());
-            }
+        if has_null_bytes {
             text = text.replace('\0', "");
         }
+
         let (stripped_text, ansi_info) = if ansi_enabled {
             let (stripped, info) = strip_ansi(&text);
             (Some(stripped), Some(info))
@@ -93,6 +98,8 @@ impl DefaultSkimItem {
             (None, None)
         };
 
+        // Calculate matching ranges on text WITHOUT null bytes (after stripping)
+        // This ensures the byte positions match the actual text used for matching
         let matching_ranges = if !matching_fields.is_empty() {
             // Use stripped text for matching ranges when ANSI is enabled
             let text_for_matching = if ansi_enabled {
@@ -100,18 +107,48 @@ impl DefaultSkimItem {
             } else {
                 &text
             };
-            Some(Box::new(parse_matching_fields(
-                delimiter,
-                text_for_matching,
-                matching_fields,
-            )))
+
+            // Parse the original text with null bytes to determine field boundaries
+            // Then extract those fields, strip null bytes, and recalculate positions
+            let orig_text_for_fields = if has_null_bytes {
+                orig_text.as_ref().unwrap()
+            } else {
+                text_for_matching
+            };
+
+            if has_null_bytes {
+                // Extract each field from the original text (with null bytes)
+                // then strip null bytes and build new ranges in the cleaned text
+                let mut adjusted_ranges = Vec::new();
+
+                for field in matching_fields {
+                    // Get the field text from original (with null bytes)
+                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, orig_text_for_fields, field)
+                    {
+                        // Strip null bytes from this field
+                        let cleaned_field = field_text.replace('\0', "");
+
+                        // Find this cleaned field in the cleaned full text
+                        if let Some(pos) = text_for_matching.find(&cleaned_field) {
+                            adjusted_ranges.push((pos, pos + cleaned_field.len()));
+                        }
+                    }
+                }
+                Some(Box::new(adjusted_ranges))
+            } else {
+                Some(Box::new(parse_matching_fields(
+                    delimiter,
+                    text_for_matching,
+                    matching_fields,
+                )))
+            }
         } else {
             None
         };
 
         DefaultSkimItem {
-            orig_text,
             text,
+            orig_text,
             stripped_text,
             ansi_info,
             matching_ranges,
@@ -811,5 +848,41 @@ mod test {
         assert!(item.stripped_text.is_some());
         assert!(item.ansi_info.is_some());
         assert_eq!(item.stripped_text.as_ref().unwrap(), "green_text");
+    }
+
+    #[test]
+    fn test_null_delimiter_with_matching_fields() {
+        use crate::SkimItem;
+        use crate::field::FieldRange;
+        use regex::Regex;
+
+        // Test with null byte delimiter and matching_fields
+        let delimiter = Regex::new("\x00").unwrap();
+        let text = "a\x00b\x00c";
+
+        // Create item with matching field 2
+        let item = DefaultSkimItem::new(
+            text.to_string(),
+            false,                    // no ansi
+            &[],                      // no transform fields
+            &[FieldRange::Single(2)], // match field 2
+            &delimiter,
+            0,
+        );
+
+        // text() should return text with null bytes stripped for display
+        assert_eq!(item.text(), "abc");
+
+        // get_matching_ranges should return the range for field 2 in the stripped text
+        let ranges = item.get_matching_ranges().expect("Should have matching ranges");
+        assert_eq!(ranges.len(), 1, "Should have one matching range");
+
+        // Field 2 is "b" which is at position 1 in the stripped text "abc"
+        assert_eq!(ranges[0], (1, 2), "Field 2 should be at position 1-2 in stripped text");
+
+        // Verify the substring matches what we expect
+        let stripped_text = item.text();
+        let field_text = &stripped_text[ranges[0].0..ranges[0].1];
+        assert_eq!(field_text, "b", "Field text should be 'b'");
     }
 }

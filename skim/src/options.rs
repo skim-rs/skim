@@ -18,8 +18,14 @@ use crate::tui::PreviewCallback;
 use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
 use crate::tui::statusline::InfoDisplay;
-use crate::util::read_file_lines;
+use crate::util::{read_file_lines, unescape_delimiter};
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
+
+/// Custom value parser for delimiter that handles escape sequences
+fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
+    let unescaped = unescape_delimiter(s);
+    Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {}", e))
+}
 
 /// sk - fuzzy finder in Rust
 ///
@@ -179,10 +185,10 @@ pub struct SkimOptions {
 
     /// Delimiter between fields
     ///
-    /// In regex format, default to AWK-style
+    /// In regex format, default to AWK-style. Escape sequences like \x00, \t, \n are supported.
     #[cfg_attr(
         feature = "cli",
-        arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search")
+        arg(short, long, default_value = r"[\t\n ]+", value_parser = parse_delimiter_value, help_heading = "Search")
     )]
     pub delimiter: Regex,
 
@@ -955,7 +961,7 @@ impl Default for SkimOptions {
             tiebreak: vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End],
             nth: Default::default(),
             with_nth: Default::default(),
-            delimiter: regex::Regex::new(r"[\t\n ]+").unwrap(),
+            delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             exact: Default::default(),
             regex: Default::default(),
             algorithm: Default::default(),

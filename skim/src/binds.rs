@@ -153,7 +153,7 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             }
         }
     }
-    let key = parts.last().unwrap_or(&"").to_string();
+    let key = parts.last().unwrap_or(&"").to_string().to_lowercase();
 
     let keycode: KeyCode;
     if key.len() == 1 {

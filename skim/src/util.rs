@@ -7,6 +7,72 @@ use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
 use std::sync::Arc;
 
+/// Unescape a delimiter string to handle escape sequences like \x00, \t, \n, etc.
+///
+/// Supported escape sequences:
+/// - `\x00` - `\xff`: hexadecimal byte values
+/// - `\t`: tab
+/// - `\n`: newline
+/// - `\r`: carriage return
+/// - `\\`: backslash
+///
+/// # Examples
+///
+/// ```
+/// use skim::util::unescape_delimiter;
+///
+/// assert_eq!(unescape_delimiter(r"\x00"), "\0");
+/// assert_eq!(unescape_delimiter(r"\t"), "\t");
+/// assert_eq!(unescape_delimiter(r"\n"), "\n");
+/// assert_eq!(unescape_delimiter(r"\\"), "\\");
+/// ```
+pub fn unescape_delimiter(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars();
+
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('x') => {
+                    // Handle \xNN hex escape
+                    let hex: String = chars.by_ref().take(2).collect();
+                    if hex.len() == 2 {
+                        if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                            // For null byte and other non-UTF8 safe bytes, we need to handle carefully
+                            // Regex works with strings, so we push the byte as a char
+                            result.push(byte as char);
+                        } else {
+                            // Invalid hex, keep as literal
+                            result.push('\\');
+                            result.push('x');
+                            result.push_str(&hex);
+                        }
+                    } else {
+                        // Not enough hex digits
+                        result.push('\\');
+                        result.push('x');
+                        result.push_str(&hex);
+                    }
+                }
+                Some('t') => result.push('\t'),
+                Some('n') => result.push('\n'),
+                Some('r') => result.push('\r'),
+                Some('\\') => result.push('\\'),
+                Some(other) => {
+                    // Unknown escape, keep both backslash and character
+                    result.push('\\');
+                    result.push(other);
+                }
+                None => result.push('\\'),
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
+}
+
 pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
     let file = File::open(filename)?;
     let ret = BufReader::new(file).lines().collect();
@@ -97,6 +163,40 @@ mod test {
     use super::*;
     use crate::SkimItem;
     use regex::Regex;
+
+    #[test]
+    fn test_unescape_delimiter() {
+        assert_eq!(unescape_delimiter(r"\x00"), "\0");
+        assert_eq!(unescape_delimiter(r"\t"), "\t");
+        assert_eq!(unescape_delimiter(r"\n"), "\n");
+        assert_eq!(unescape_delimiter(r"\r"), "\r");
+        assert_eq!(unescape_delimiter(r"\\"), "\\");
+        assert_eq!(unescape_delimiter(r"\x09"), "\t");
+        assert_eq!(unescape_delimiter(r"\x0a"), "\n");
+        assert_eq!(unescape_delimiter(r"foo\x00bar"), "foo\0bar");
+        assert_eq!(unescape_delimiter(r"[\t\n ]+"), "[\t\n ]+");
+        // Invalid escape sequences should be kept as-is
+        assert_eq!(unescape_delimiter(r"\xGG"), r"\xGG");
+        assert_eq!(unescape_delimiter(r"\x0"), r"\x0");
+    }
+
+    #[test]
+    fn test_regex_null_byte_matching() {
+        use regex::Regex;
+
+        // Test that Regex can match null bytes
+        let delimiter = unescape_delimiter(r"\x00");
+        let re = Regex::new(&delimiter).unwrap();
+        let text = "a\x00b\x00c";
+
+        let matches: Vec<_> = re.find_iter(text).collect();
+        assert_eq!(matches.len(), 2, "Should find 2 null byte delimiters");
+        assert_eq!(matches[0].start(), 1);
+        assert_eq!(matches[0].end(), 2);
+        assert_eq!(matches[1].start(), 3);
+        assert_eq!(matches[1].end(), 4);
+    }
+
     #[test]
     fn test_printf() {
         let pattern = String::from("[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq}");

@@ -325,6 +325,31 @@ mod test {
     }
 
     use super::*;
+
+    #[test]
+    fn test_null_delimiter() {
+        // Test with null byte delimiter
+        let re = Regex::new("\x00").unwrap();
+        let text = "a\x00b\x00c";
+
+        // Test field extraction
+        assert_eq!(get_string_by_field(&re, text, &Single(1)), Some("a"));
+        assert_eq!(get_string_by_field(&re, text, &Single(2)), Some("b"));
+        assert_eq!(get_string_by_field(&re, text, &Single(3)), Some("c"));
+
+        // Test matching fields - ranges include the delimiter after the field
+        // text bytes: a(0), \0(1), b(2), \0(3), c(4)
+        // Field 2 is "b" at byte 2, range includes delimiter at byte 3, so (2, 4)
+        assert_eq!(parse_matching_fields(&re, text, &[Single(2)]), vec![(2, 4)]);
+
+        // Field 1 is "a" at byte 0, range includes delimiter at byte 1, so (0, 2)
+        // Field 3 is "c" at byte 4, no delimiter after it, so (4, 5)
+        assert_eq!(
+            parse_matching_fields(&re, text, &[Single(1), Single(3)]),
+            vec![(0, 2), (4, 5)]
+        );
+    }
+
     #[test]
     fn test_get_string_by_field() {
         // delimiter is ","
