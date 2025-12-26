@@ -136,7 +136,7 @@ See nth for the details
 \fB\-d\fR, \fB\-\-delimiter\fR \fI<DELIMITER>\fR [default: [\\t\\n ]+]
 Delimiter between fields
 
-In regex format, default to AWK\-style
+In regex format, default to AWK\-style. Escape sequences like \\x00, \\t, \\n are supported.
 .TP
 \fB\-e\fR, \fB\-\-exact\fR
 Run in exact mode
@@ -279,6 +279,8 @@ key binding expressions. Each key binding expression follows the following forma
 
 * backward\-delete\-char: ctrl\-h  bspace
 
+* backward\-delete\-char/eof:
+
 * backward\-kill\-word: alt\-bs
 
 * backward\-word: alt\-b   shift\-left
@@ -289,7 +291,7 @@ key binding expressions. Each key binding expression follows the following forma
 
 * delete\-char: del
 
-* delete\-charEOF: ctrl\-d
+* delete\-char/eof: ctrl\-d
 
 * deselect\-all:
 
