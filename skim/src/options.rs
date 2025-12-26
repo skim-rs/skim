@@ -324,6 +324,8 @@ pub struct SkimOptions {
     ///
     /// * backward-delete-char: ctrl-h  bspace
     ///
+    /// * backward-delete-char/eof:
+    ///
     /// * backward-kill-word: alt-bs
     ///
     /// * backward-word: alt-b   shift-left
@@ -334,7 +336,7 @@ pub struct SkimOptions {
     ///
     /// * delete-char: del
     ///
-    /// * delete-charEOF: ctrl-d
+    /// * delete-char/eof: ctrl-d
     ///
     /// * deselect-all:
     ///

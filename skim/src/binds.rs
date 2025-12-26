@@ -220,7 +220,11 @@ pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
             actions.push(act);
         }
     }
-    Ok(actions)
+    if actions.is_empty() {
+        Err(eyre!("Empty action chain or unknown action `{}`", action_chain))
+    } else {
+        Ok(actions)
+    }
 }
 
 /// Parse a single keymap and return the key and action(s)

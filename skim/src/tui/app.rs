@@ -713,6 +713,15 @@ impl<'a> App<'a> {
                 self.input.delete(-1);
                 return self.on_query_changed();
             }
+            BackwardDeleteCharEof => {
+                if self.input.is_empty() {
+                    self.should_quit = true;
+                    return Ok(vec![]);
+                } else {
+                    self.input.delete(-1);
+                    return self.on_query_changed();
+                }
+            }
             BackwardKillWord => {
                 let deleted = Cow::Owned(self.input.delete_backward_word());
                 self.yank(deleted);
@@ -739,8 +748,13 @@ impl<'a> App<'a> {
                 return self.on_query_changed();
             }
             DeleteCharEOF => {
-                self.input.delete(0);
-                return self.on_query_changed();
+                if self.input.is_empty() {
+                    self.should_quit = true;
+                    return Ok(vec![]);
+                } else {
+                    self.input.delete(0);
+                    return self.on_query_changed();
+                }
             }
             DeselectAll => {
                 self.item_list.selection = Default::default();
