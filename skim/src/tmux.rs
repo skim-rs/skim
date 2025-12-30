@@ -18,6 +18,8 @@ use std::{
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use nix::sys::stat::Mode;
+use nix::unistd::mkfifo;
 use rand::{Rng, distr::Alphanumeric};
 use which::which;
 
@@ -124,13 +126,24 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     let stop_reading = Arc::new(AtomicBool::new(false));
     let stdin_handle = if has_piped_input {
-        debug!("Reading stdin and piping to file");
+        debug!("Reading stdin and piping to fifo");
 
-        let stdin_f = std::fs::File::create(tmp_stdin.clone())
-            .unwrap_or_else(|e| panic!("Failed to create stdin file {}: {}", tmp_stdin.clone().display(), e));
-        let mut stdin_writer = BufWriter::new(stdin_f);
+        // Create a named pipe (FIFO)
+        // This allows the nested skim to continuously read as data arrives
+        let stdin_path_str = tmp_stdin
+            .to_str()
+            .unwrap_or_else(|| panic!("Failed to convert stdin path to string"));
+        mkfifo(stdin_path_str, Mode::S_IRUSR | Mode::S_IWUSR)
+            .unwrap_or_else(|e| panic!("Failed to create fifo {}: {}", tmp_stdin.display(), e));
+
+        let tmp_stdin_clone = tmp_stdin.clone();
         let stop_flag = Arc::clone(&stop_reading);
         Some(thread::spawn(move || {
+            debug!("Opening fifo for writing (may block until reader starts)");
+            let stdin_f = std::fs::File::create(tmp_stdin_clone.clone())
+                .unwrap_or_else(|e| panic!("Failed to open fifo {}: {}", tmp_stdin_clone.display(), e));
+            debug!("Fifo opened for writing");
+            let mut stdin_writer = BufWriter::new(stdin_f);
             loop {
                 // Check if we should stop reading
                 if stop_flag.load(Ordering::Relaxed) {
