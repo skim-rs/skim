@@ -423,6 +423,7 @@ impl Skim {
                           final_event = evt.to_owned();
                         }
 
+                        // Check reader status and update
                         if !reader_control.is_done() {
                           app.reader_timer = Instant::now();
                         } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {

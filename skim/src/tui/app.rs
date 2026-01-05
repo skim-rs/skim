@@ -3,14 +3,14 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::item::{ItemPool, MatchedItem, RankBuilder};
+use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
-use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
+use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
 use crate::util::{self, printf};
-use crate::{ItemPreview, MatchEngineFactory, PreviewContext, SkimItem, SkimOptions};
+use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
 use super::Event;
 use super::event::Action;
@@ -67,8 +67,6 @@ pub struct App<'a> {
     /// Timer for tracking matcher activity
     pub matcher_timer: std::time::Instant,
 
-    /// Spinner visibility state for debounce/hysteresis
-    pub spinner_visible: bool,
     /// Last time spinner visibility changed
     pub spinner_last_change: std::time::Instant,
 
@@ -191,38 +189,6 @@ impl Widget for &mut App<'_> {
                     unreachable!()
                 }
             };
-            // compute spinner debounce/hysteresis and set status.show_spinner before rendering it
-            {
-                // matcher debounce (ms) and hide grace (ms) — keep in sync with statusline settings
-                // Increased values to reduce blinking when matcher toggles frequently.
-                const MATCHER_DEBOUNCE_MS: u128 = 300;
-                const HIDE_GRACE_MS: u128 = 600;
-                let matcher_running = !self.matcher_control.stopped();
-                let time_since_match = self.matcher_timer.elapsed();
-                let time_since_read = self.reader_timer.elapsed();
-
-                let matcher_ready = matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS;
-                let reader_ready = self.item_pool.num_not_taken() != 0 && time_since_read.as_millis() > 50;
-
-                let desired = matcher_ready || reader_ready;
-                let now = std::time::Instant::now();
-
-                if desired && !self.spinner_visible {
-                    // turn on immediately
-                    self.spinner_visible = true;
-                    self.spinner_last_change = now;
-                } else if !desired && self.spinner_visible {
-                    // only hide after grace period
-                    if now.duration_since(self.spinner_last_change).as_millis() >= HIDE_GRACE_MS {
-                        self.spinner_visible = false;
-                        self.spinner_last_change = now;
-                    }
-                }
-
-                // propagate to status for rendering
-                self.status.show_spinner = self.spinner_visible;
-            }
-
             self.status.render(status_area, buf);
         }
         self.input.border = self.input_border;
@@ -288,7 +254,6 @@ impl Default for App<'_> {
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
             // spinner initial state
-            spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
             query_history: Vec::new(),
@@ -320,22 +285,6 @@ impl<'a> App<'a> {
             }
         }
 
-        let engine_factory: Rc<dyn MatchEngineFactory> = if options.regex {
-            Rc::new(RegexEngineFactory::builder())
-        } else {
-            let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
-            log::debug!("Creating matcher for algo {:?}", options.algorithm);
-            let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
-                .fuzzy_algorithm(options.algorithm)
-                .exact_mode(options.exact)
-                .rank_builder(rank_builder)
-                .build();
-            Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
-        };
-
-        // Create RankBuilder from tiebreak options
-        let matcher = Matcher::builder(engine_factory).case(options.case).build();
-
         Self {
             input,
             preview: Preview::from_options(&options, theme.clone()),
@@ -346,7 +295,7 @@ impl<'a> App<'a> {
             theme,
             should_quit: false,
             cursor_pos: (0, 0),
-            matcher,
+            matcher: Matcher::from_options(&options),
             yank_register: Cow::default(),
             matcher_control: MatcherControl::default(),
             reader_timer: std::time::Instant::now(),
@@ -354,7 +303,6 @@ impl<'a> App<'a> {
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
             // spinner initial state
-            spinner_visible: false,
             spinner_last_change: std::time::Instant::now(),
             items_just_updated: false,
             query_history: options.query_history.clone(),
@@ -567,10 +515,30 @@ impl<'a> App<'a> {
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
                 self.on_matcher_state_changed();
+
+                // Update status & spinner
                 self.status.time_since_read = self.reader_timer.elapsed();
                 self.status.time_since_match = self.matcher_timer.elapsed();
                 self.status.reading = self.item_pool.num_not_taken() != 0;
                 self.status.matcher_running = !self.matcher_control.stopped();
+
+                const MATCHER_DEBOUNCE_MS: u128 = 300;
+                const READER_DEBOUNCE_MS: u128 = 50;
+                const HIDE_GRACE_MS: u128 = 600;
+
+                let matcher_running = !self.matcher_control.stopped();
+                let time_since_match = self.matcher_timer.elapsed();
+                let time_since_read = self.reader_timer.elapsed();
+
+                let matcher_ready = matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS;
+                let reader_ready =
+                    self.item_pool.num_not_taken() != 0 && time_since_read.as_millis() > READER_DEBOUNCE_MS;
+
+                let desired = matcher_ready || reader_ready;
+
+                if desired || self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
+                    self.toggle_spinner();
+                }
                 self.on_items_updated();
             }
             Event::RunPreview => {
@@ -624,7 +592,7 @@ impl<'a> App<'a> {
         let new_item = self.item_list.selected();
         if let Some(new) = new_item {
             if let Some(prev) = prev_item {
-                if prev.text() != new.text() {
+                if prev.text() != new.text() || prev.get_index() != new.get_index() {
                     self.on_item_changed(tui)?;
                 }
             } else {
@@ -1016,10 +984,11 @@ impl<'a> App<'a> {
                     // fuzzy -> exact
                     self.options.exact = true;
                 }
+                self.matcher = Matcher::from_options(&self.options);
                 self.restart_matcher(true);
             }
             ScrollLeft(n) => {
-                self.item_list.manual_hscroll -= *n;
+                self.item_list.manual_hscroll = self.item_list.manual_hscroll.saturating_sub(*n);
             }
             ScrollRight(n) => {
                 self.item_list.manual_hscroll = self.item_list.manual_hscroll.saturating_add(*n);
@@ -1238,5 +1207,9 @@ impl<'a> App<'a> {
             }
         }
         Ok(())
+    }
+    fn toggle_spinner(&mut self) {
+        self.status.show_spinner = !self.status.show_spinner;
+        self.spinner_last_change = std::time::Instant::now();
     }
 }

@@ -50,13 +50,11 @@ impl KeyMap {
         T: Iterator<Item = &'a str>,
     {
         for map in source {
-            if !self.is_empty() {
-                if let Ok((key, action_chain)) = parse_keymap(map) {
-                    self.bind(key, action_chain)
-                        .unwrap_or_else(|err| debug!("Failed to bind key {map}: {err}"));
-                } else {
-                    debug!("Failed to parse key: {map}");
-                }
+            if let Ok((key, action_chain)) = parse_keymap(map) {
+                self.bind(key, action_chain)
+                    .unwrap_or_else(|err| debug!("Failed to bind key {map}: {err}"));
+            } else {
+                debug!("Failed to parse key: {map}");
             }
         }
     }
@@ -78,7 +76,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE), vec![Action::Down(1)]);
     ret.insert(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE), vec![Action::Up(1)]);
     ret.insert(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE), vec![Action::PageUp(1)]);
-    ret.insert(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE), vec![Action::PageUp(1)]);
+    ret.insert(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE), vec![Action::PageDown(1)]);
     ret.insert(KeyEvent::new(KeyCode::End, KeyModifiers::NONE), vec![Action::EndOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE), vec![Action::BeginningOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE), vec![Action::DeleteChar]);
@@ -229,6 +227,9 @@ pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
 
 /// Parse a single keymap and return the key and action(s)
 pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
+    if key_action.is_empty() {
+        return Err(eyre!("Got an empty keybind, skipping"));
+    }
     debug!("got key_action: {:?}", key_action);
     let (key, action_chain) = key_action
         .split_once(':')

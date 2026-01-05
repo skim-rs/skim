@@ -51,14 +51,8 @@ pub struct ItemList {
 
 impl Default for ItemList {
     fn default() -> Self {
-        let (tx, rx) = unbounded_channel();
+        let (tx, _rx) = unbounded_channel();
         let processed_items = Arc::new(SpinLock::new(None));
-
-        // Spawn background processing thread
-        let processed_items_clone = processed_items.clone();
-        std::thread::spawn(move || {
-            Self::process_items_task(rx, processed_items_clone);
-        });
 
         Self {
             tx,
@@ -364,20 +358,11 @@ impl ItemList {
         result
     }
 
-    /// Render the item list using the theme colors.
-    pub fn toggle_item(&mut self, item: &MatchedItem) {
-        if self.selection.contains(item) {
-            self.selection.shift_remove(item);
-        } else {
-            self.selection.insert(item.clone());
-        }
-    }
-
     /// Toggles the selection state of the item at the given index
     pub fn toggle_at(&mut self, index: usize) {
-        let item = self.items[index].clone();
+        let item = &self.items[index];
         trace!("Toggled item {} at index {}", item.text(), index);
-        self.toggle_item(&item);
+        toggle_item(&mut self.selection, item);
         trace!(
             "Selection is now {:#?}",
             self.selection.iter().map(|item| item.item.text()).collect::<Vec<_>>()
@@ -389,8 +374,8 @@ impl ItemList {
     }
     /// Toggles the selection state of all items
     pub fn toggle_all(&mut self) {
-        for item in self.items.clone() {
-            self.toggle_item(&item);
+        for item in &self.items {
+            toggle_item(&mut self.selection, item);
         }
     }
 
@@ -709,5 +694,13 @@ impl SkimWidget for ItemList {
             &mut ListState::default().with_selected(Some(this.current.saturating_sub(this.offset))),
         );
         SkimRender { items_updated }
+    }
+}
+
+fn toggle_item(sel: &mut IndexSet<MatchedItem>, item: &MatchedItem) {
+    if sel.contains(item) {
+        sel.shift_remove(item);
+    } else {
+        sel.insert(item.clone());
     }
 }

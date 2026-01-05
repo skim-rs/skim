@@ -20,7 +20,7 @@ To avoid using up CI minutes uselessly, make sure that :
 
 Not respecting these guidelines could end up consuming all our minutes and preventing us from testing and releasing any new code until the end of the month.
 
-Note: a git pre-commit hook is available in .githooks/pre-commit which will make the clippy & fmt checks. To use it, run git config core.hooksPath ".githooks".
+Note: a git pre-commit hook is available in .githooks/pre-commit which will make the clippy & fmt checks. To use it, run `git config core.hooksPath ".githooks"`.
 
 ## Vibe Coding guidelines
 

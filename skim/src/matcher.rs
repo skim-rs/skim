@@ -4,9 +4,10 @@ use std::thread;
 
 use rayon::prelude::*;
 
-use crate::item::{ItemPool, MatchedItem};
+use crate::item::{ItemPool, MatchedItem, RankBuilder};
+use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::spinlock::SpinLock;
-use crate::{CaseMatching, MatchEngineFactory};
+use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
 use defer_drop::DeferDrop;
 use std::rc::Rc;
 
@@ -69,6 +70,23 @@ impl Matcher {
 
     pub fn build(self) -> Self {
         self
+    }
+
+    pub fn from_options(options: &SkimOptions) -> Self {
+        let engine_factory: Rc<dyn MatchEngineFactory> = if options.regex {
+            Rc::new(RegexEngineFactory::builder())
+        } else {
+            let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
+            log::debug!("Creating matcher for algo {:?}", options.algorithm);
+            let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
+                .fuzzy_algorithm(options.algorithm)
+                .exact_mode(options.exact)
+                .rank_builder(rank_builder)
+                .build();
+            Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+        };
+
+        Matcher::builder(engine_factory).case(options.case).build()
     }
 
     pub fn run<C>(&self, query: &str, item_pool: Arc<DeferDrop<ItemPool>>, callback: C) -> MatcherControl

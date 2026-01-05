@@ -146,7 +146,7 @@ impl Preview<'_> {
         let mut shell_cmd = Command::new("/bin/sh");
         shell_cmd
             .env("ROWS", self.rows.to_string())
-            .env("COLUMS", self.cols.to_string())
+            .env("COLUMNS", self.cols.to_string())
             .env("PAGER", "")
             .arg("-c")
             .arg(cmd);

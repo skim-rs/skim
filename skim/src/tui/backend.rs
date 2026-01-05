@@ -1,4 +1,5 @@
 use std::ops::{Deref, DerefMut};
+use std::sync::Once;
 
 use color_eyre::eyre::{Context, Result};
 use crossterm::cursor;
@@ -7,7 +8,6 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
-use tokio;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -16,6 +16,10 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use super::{Event, Size};
+
+const TICK_RATE: f64 = 12.;
+const FRAME_RATE: f64 = 12.;
+static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>> {
@@ -55,8 +59,8 @@ impl<B: Backend> Tui<B> {
             task: None,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            frame_rate: 12.0,
-            tick_rate: 12.0,
+            frame_rate: FRAME_RATE,
+            tick_rate: TICK_RATE,
             cancellation_token: CancellationToken::default(),
             is_fullscreen,
         })
@@ -74,7 +78,7 @@ impl<B: Backend> Tui<B> {
 
     /// Exits the TUI by stopping event handling and disabling raw mode
     pub fn exit(&mut self) -> Result<()> {
-        self.stop()?;
+        self.stop();
         if crossterm::terminal::is_raw_mode_enabled()? {
             self.flush()?;
             crossterm::execute!(
@@ -95,9 +99,9 @@ impl<B: Backend> Tui<B> {
         Ok(())
     }
     /// Stops the TUI event loop
-    pub fn stop(&self) -> Result<()> {
+    /// Equivalent to self.cancel()
+    pub fn stop(&self) {
         self.cancel();
-        Ok(())
     }
     /// Cancels all background tasks
     pub fn cancel(&self) {
@@ -107,8 +111,11 @@ impl<B: Backend> Tui<B> {
     pub fn start(&mut self) {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);
-        let _event_tx = self.event_tx.clone();
-        let _cancellation_token = self.cancellation_token.clone();
+        let event_tx_clone = self.event_tx.clone();
+        let cancellation_token_clone = self.cancellation_token.clone();
+        if self.task.is_some() {
+            self.cancel();
+        }
         self.task = Some(tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);
@@ -118,30 +125,30 @@ impl<B: Backend> Tui<B> {
                 let render_delay = render_interval.tick();
                 let crossterm_event = reader.next().fuse();
                 tokio::select! {
-                    _ = _cancellation_token.cancelled() => {
+                    _ = cancellation_token_clone.cancelled() => {
                         break;
                     }
                     maybe_event = crossterm_event => {
                       match maybe_event {
                         Some(Ok(crossterm::event::Event::Key(key))) => {
                           if key.kind == KeyEventKind::Press {
-                            _ = _event_tx.send(Event::Key(key));
+                            _ = event_tx_clone.send(Event::Key(key));
                           }
                         }
                         Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
-                          _ = _event_tx.send(Event::Mouse(mouse));
+                          _ = event_tx_clone.send(Event::Mouse(mouse));
                         }
                         Some(Err(e)) => {
-                          _ = _event_tx.send(Event::Error(e.to_string()));
+                          _ = event_tx_clone.send(Event::Error(e.to_string()));
                         }
                         None | Some(Ok(_)) => {},
                       }
                     },
                     _ = tick_delay => {
-                        _ = _event_tx.send(Event::Heartbeat);
+                        _ = event_tx_clone.send(Event::Heartbeat);
                     },
                     _ = render_delay => {
-                        _ = _event_tx.send(Event::Render);
+                        _ = event_tx_clone.send(Event::Render);
                     },
                 }
             }
@@ -175,9 +182,11 @@ impl<B: Backend> Drop for Tui<B> {
 }
 
 fn set_panic_hook() {
-    let hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        ratatui::restore(); // ignore any errors as we are already failing
-        hook(panic_info);
-    }));
+    PANIC_HOOK_SET.call_once(|| {
+        let hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            ratatui::restore(); // ignore any errors as we are already failing
+            hook(panic_info);
+        }));
+    });
 }
