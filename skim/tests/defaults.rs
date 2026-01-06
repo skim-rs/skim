@@ -53,3 +53,13 @@ sk_test!(interactive_mode_command_execution, "", &["-i", "--cmd=\"echo 'foo {q}'
   @capture[0] starts_with("c> barbaz");
   @capture[2] starts_with("> foo barbaz");
 });
+
+sk_test!(unicode_input, "", &["-q", "󰬈󰬉󰬊"], {
+    @capture[0] starts_with("> 󰬈󰬉󰬊");
+    @keys Keys::Key('|');
+    @capture[0] starts_with("> 󰬈󰬉󰬊|");
+    @keys Keys::Left, Keys::Left, Keys::Key('|');
+    @capture[0] starts_with("> 󰬈󰬉|󰬊|");
+    @keys Keys::Key('󰬈');
+    @capture[0] starts_with("> 󰬈󰬉|󰬈󰬊|");
+});

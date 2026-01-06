@@ -29,11 +29,20 @@ impl Default for Input {
 impl Input {
     pub fn insert(&mut self, c: char) {
         self.value.insert(self.cursor_pos.into(), c);
-        self.move_cursor(1);
+        // unwrap: len_utf8 < 4
+        self.move_cursor(c.len_utf8().try_into().unwrap());
     }
     pub fn insert_str(&mut self, s: &str) {
         self.value.insert_str(self.cursor_pos as usize, s);
-        self.move_cursor(s.len() as i32);
+        self.move_cursor(
+            s.chars()
+                .count()
+                .try_into()
+                .expect("Failed to fit inserted str len into an i32"),
+        );
+    }
+    fn nchars(&self) -> usize {
+        self.value.chars().count()
     }
     pub fn delete(&mut self, offset: i32) -> Option<char> {
         if self.value.is_empty() {
@@ -52,10 +61,35 @@ impl Input {
         Some(ch)
     }
     pub fn move_cursor(&mut self, offset: i32) {
-        self.move_cursor_to((self.cursor_pos as i32 + offset) as u16)
+        if offset == 0 {
+            return;
+        }
+        if offset < 0 {
+            self.move_cursor_to(
+                self.value
+                    .floor_char_boundary((self.cursor_pos as i32 + offset) as usize) as u16,
+            );
+        } else {
+            self.move_cursor_to(
+                self.value
+                    .ceil_char_boundary((self.cursor_pos as i32 + offset) as usize) as u16,
+            );
+        }
     }
     pub fn move_cursor_to(&mut self, pos: u16) {
-        self.cursor_pos = u16::clamp(pos, 0, self.value.len() as u16);
+        if self.value.is_char_boundary(pos as usize) {
+            self.cursor_pos = u16::clamp(pos, 0, self.value.len() as u16);
+        } else {
+            warn!("Invalid cursor pos");
+        }
+    }
+    pub fn move_to_end(&mut self) {
+        self.move_cursor_to(
+            self.value
+                .len()
+                .try_into()
+                .expect("Failed to fit input len into an u16"),
+        )
     }
 
     /// Check if a character is a word character (alphanumeric only)
@@ -68,7 +102,7 @@ impl Input {
         let mut pos = start_pos;
 
         // Skip any non-word characters
-        while pos < self.value.len() {
+        while pos < self.nchars() {
             let ch = self.value.chars().nth(pos).unwrap();
             if Self::is_word_char(ch) {
                 break;
@@ -77,7 +111,7 @@ impl Input {
         }
 
         // Skip to the end of the word
-        while pos < self.value.len() {
+        while pos < self.nchars() {
             let ch = self.value.chars().nth(pos).unwrap();
             if !Self::is_word_char(ch) {
                 break;
@@ -93,7 +127,7 @@ impl Input {
         let mut pos = start_pos;
 
         // Skip any whitespace
-        while pos < self.value.len() {
+        while pos < self.nchars() {
             let ch = self.value.chars().nth(pos).unwrap();
             if !ch.is_whitespace() {
                 break;
@@ -102,7 +136,7 @@ impl Input {
         }
 
         // Skip to the end of the non-whitespace sequence (includes punctuation)
-        while pos < self.value.len() {
+        while pos < self.nchars() {
             let ch = self.value.chars().nth(pos).unwrap();
             if ch.is_whitespace() {
                 break;
@@ -230,7 +264,9 @@ impl Input {
         deleted
     }
     pub fn cursor_pos(&self) -> u16 {
-        self.cursor_pos + self.prompt.chars().count() as u16
+        (self.value[..(self.cursor_pos as usize)].chars().count() + self.prompt.chars().count())
+            .try_into()
+            .expect("Failed to fit cursor char into an u16")
     }
 }
 

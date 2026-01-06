@@ -101,7 +101,7 @@ impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let status_area;
         let input_area;
-        let input_len = (self.input.len() + 2 + self.options.prompt.chars().count()) as u16;
+        let input_len = (self.input.chars().count() + 2 + self.options.prompt.chars().count()) as u16;
         let remaining_height = 1
             + (self.options.header.as_ref().and(Some(1)).unwrap_or(0))
             + if self.options.info == InfoDisplay::Default {
@@ -281,7 +281,7 @@ impl<'a> App<'a> {
             // In interactive mode, use cmd_query if provided
             if let Some(ref cmd_query) = options.cmd_query {
                 input.value = cmd_query.clone();
-                input.cursor_pos = cmd_query.len() as u16;
+                input.move_to_end();
             }
         }
 
@@ -737,7 +737,7 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::RunPreview]);
             }
             EndOfLine => {
-                self.input.move_cursor_to(self.input.len() as u16);
+                self.input.move_to_end();
             }
             Execute(cmd) => {
                 let mut command = Command::new("sh");
@@ -857,13 +857,13 @@ impl<'a> App<'a> {
                         if idx + 1 >= history.len() {
                             // Move to most recent (restore saved input)
                             self.input.value = saved_input.clone();
-                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            self.input.move_to_end();
                             *history_index = None;
                         } else {
                             // Move forward in history (toward more recent)
                             let new_idx = idx + 1;
                             self.input.value = history[new_idx].clone();
-                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            self.input.move_to_end();
                             *history_index = Some(new_idx);
                         }
                     }
@@ -931,7 +931,7 @@ impl<'a> App<'a> {
                         *saved_input = self.input.value.clone();
                         let new_idx = history.len() - 1;
                         self.input.value = history[new_idx].clone();
-                        self.input.move_cursor_to(self.input.value.len() as u16);
+                        self.input.move_to_end();
                         *history_index = Some(new_idx);
                     }
                     Some(idx) => {
@@ -939,7 +939,7 @@ impl<'a> App<'a> {
                             // Move backward in history (toward older entries)
                             let new_idx = idx - 1;
                             self.input.value = history[new_idx].clone();
-                            self.input.move_cursor_to(self.input.value.len() as u16);
+                            self.input.move_to_end();
                             *history_index = Some(new_idx);
                         }
                         // else: already at oldest, do nothing
