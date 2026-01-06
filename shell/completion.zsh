@@ -88,7 +88,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--no-clear[Do not clear screen on exit]' \
 '--show-cmd-error[Show error message if command fails]' \
 '--reverse[Shorthand for reverse layout]' \
-'--no-height[Disable height feature]' \
+'--no-height[Disable height (force full screen)]' \
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
@@ -103,6 +103,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '-0[Automatically exit when no match is left]' \
 '--exit-0[Automatically exit when no match is left]' \
 '--sync[Synchronous search for multi-staged filtering]' \
+'--man[Generate man page and output it to stdout]' \
 '-x[Reserved for later use]' \
 '--extended[Reserved for later use]' \
 '--literal[Reserved for later use]' \
