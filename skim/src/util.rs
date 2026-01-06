@@ -7,6 +7,7 @@ use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
 use std::sync::Arc;
 
+#[cfg(feature = "cli")]
 /// Unescape a delimiter string to handle escape sequences like \x00, \t, \n, etc.
 ///
 /// Supported escape sequences:

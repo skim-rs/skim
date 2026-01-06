@@ -18,12 +18,13 @@ use crate::tui::PreviewCallback;
 use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
 use crate::tui::statusline::InfoDisplay;
-use crate::util::{read_file_lines, unescape_delimiter};
+use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 
+#[cfg(feature = "cli")]
 /// Custom value parser for delimiter that handles escape sequences
 fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
-    let unescaped = unescape_delimiter(s);
+    let unescaped = crate::util::unescape_delimiter(s);
     Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {}", e))
 }
 
@@ -1048,8 +1049,6 @@ impl Default for SkimOptions {
             pre_select_items: Default::default(),
             pre_select_file: Default::default(),
             filter: Default::default(),
-            #[cfg(feature = "cli")]
-            shell: Default::default(),
             tmux: Default::default(),
             log_file: Default::default(),
             extended: Default::default(),
@@ -1070,6 +1069,9 @@ impl Default for SkimOptions {
             selector: Default::default(),
             preview_fn: Default::default(),
             keymap: Default::default(),
+            #[cfg(feature = "cli")]
+            shell: Default::default(),
+            #[cfg(feature = "cli")]
             man: false,
         }
     }
