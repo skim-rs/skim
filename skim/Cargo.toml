@@ -26,6 +26,7 @@ bitflags = "2.10.0"
 chrono = { workspace = true }
 clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { workspace = true, optional = true }
+clap_mangen = { workspace = true, optional = true }
 defer-drop = { workspace = true }
 derive_builder = { workspace = true }
 env_logger = { workspace = true, optional = true }
@@ -55,5 +56,5 @@ thread_local = "1.1.9"
 
 [features]
 default = ["cli"]
-cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger"]
+cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
 compact_matcher = []

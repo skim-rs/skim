@@ -142,6 +142,7 @@ pub struct SkimOptions {
             value_enum,
             value_delimiter = ',',
             help_heading = "Search",
+            allow_hyphen_values = true,
             verbatim_doc_comment
         )
     )]
@@ -169,7 +170,8 @@ pub struct SkimOptions {
             default_value = "",
             help_heading = "Search",
             verbatim_doc_comment,
-            value_delimiter = ','
+            value_delimiter = ',',
+            allow_hyphen_values = true,
         )
     )]
     pub nth: Vec<String>,
@@ -318,6 +320,8 @@ pub struct SkimOptions {
     ///
     /// * accept(...): enter *the argument will be printed when the binding is triggered*
     ///
+    /// * append-and-select(c): append c to the query
+    ///
     /// * append-and-select:
     ///
     /// * backward-char: ctrl-b  left
@@ -388,9 +392,17 @@ pub struct SkimOptions {
     ///
     /// * previous-history: ctrl-p with `--history` or `--cmd-history`
     ///
+    /// * redraw:
+    ///
+    /// * refresh-cmd:
+    ///
+    /// * refresh-preview:
+    ///
     /// * reload(...):
     ///
     /// * select-all:
+    ///
+    /// * select-row:
     ///
     /// * toggle:
     ///
@@ -399,6 +411,8 @@ pub struct SkimOptions {
     /// * toggle+down: ctrl-i  tab
     ///
     /// * toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
+    ///
+    /// * toggle-interactive:
     ///
     /// * toggle-out: (--layout=reverse ? toggle+down:  toggle+up)
     ///
@@ -409,6 +423,8 @@ pub struct SkimOptions {
     /// * toggle-sort:
     ///
     /// * toggle+up: btab    shift-tab
+    ///
+    /// * top:
     ///
     /// * unix-line-discard: ctrl-u
     ///
@@ -571,7 +587,7 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, default_value = "100%", help_heading = "Layout"))]
     pub height: String,
 
-    /// Disable height feature
+    /// Disable height (force full screen)
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
     pub no_height: bool,
 
@@ -765,7 +781,15 @@ pub struct SkimOptions {
     ///               sk --delimiter : \
     ///                   --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
     ///                   --preview-window +{2}-/2
-    #[cfg_attr(feature = "cli", arg(long, default_value = "right:50%", help_heading = "Preview"))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long,
+            default_value = "right:50%",
+            help_heading = "Preview",
+            allow_hyphen_values = true
+        )
+    )]
     pub preview_window: PreviewLayout,
 
     //  --- Scripting ---
@@ -855,6 +879,11 @@ pub struct SkimOptions {
         arg(long, value_name = "SHELL", help_heading = "Scripting", value_enum)
     )]
     pub shell: Option<clap_complete::Shell>,
+
+    /// Generate man page and output it to stdout
+    #[cfg(feature = "cli")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub man: bool,
 
     /// Run in a tmux popup
     ///
@@ -1041,6 +1070,7 @@ impl Default for SkimOptions {
             selector: Default::default(),
             preview_fn: Default::default(),
             keymap: Default::default(),
+            man: false,
         }
     }
 }

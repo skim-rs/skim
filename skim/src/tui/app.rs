@@ -329,6 +329,7 @@ impl<'a> App<'a> {
         let substituted = printf(
             expr.to_string(),
             &self.options.delimiter,
+            &self.options.replstr,
             self.item_list.selection.iter().map(|m| m.item.clone()),
             self.item_list.selected(),
             &self.input.value,
@@ -437,6 +438,7 @@ impl<'a> App<'a> {
                     &printf(
                         cmd,
                         &self.options.delimiter,
+                        &self.options.replstr,
                         self.item_list.selection.iter().map(|m| m.item.clone()),
                         self.item_list.selected(),
                         &self.input,
@@ -451,6 +453,7 @@ impl<'a> App<'a> {
                         &printf(
                             cmd.to_string(),
                             &self.options.delimiter,
+                            &self.options.replstr,
                             self.item_list.selection.iter().map(|m| m.item.clone()),
                             self.item_list.selected(),
                             &self.input,
@@ -489,6 +492,7 @@ impl<'a> App<'a> {
                     &printf(
                         preview_opt.to_string(),
                         &self.options.delimiter,
+                        &self.options.replstr,
                         self.item_list.selection.iter().map(|m| m.item.clone()),
                         self.item_list.selected(),
                         &self.input,
@@ -715,7 +719,7 @@ impl<'a> App<'a> {
                 self.input.delete(0);
                 return self.on_query_changed();
             }
-            DeleteCharEOF => {
+            DeleteCharEof => {
                 if self.input.is_empty() {
                     self.should_quit = true;
                     return Ok(vec![]);
@@ -1138,10 +1142,18 @@ impl<'a> App<'a> {
 
     /// Expand placeholders in a command string with current app state.
     /// Replaces {}, {q}, {cq}, {n}, {+}, {+n}, and field patterns.
+    ///
+    /// Note: in command mode, the replstr is replaced by the current query
     pub fn expand_cmd(&self, cmd: &str) -> String {
+        let cmd_to_expand = if self.options.interactive {
+            cmd.replace(&self.options.replstr, "{cq}")
+        } else {
+            cmd.to_string()
+        };
         util::printf(
-            cmd.to_string(),
+            cmd_to_expand,
             &self.options.delimiter,
+            &self.options.replstr,
             self.item_list.items.iter().map(|x| x.item.clone()),
             self.item_list.selected(),
             &self.input.value,

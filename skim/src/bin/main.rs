@@ -69,8 +69,30 @@ impl From<clap::Error> for SkMainError {
 //------------------------------------------------------------------------------
 fn main() -> Result<()> {
     color_eyre::install()?;
+    let mut opts = parse_args()?;
+    let log_target = if let Some(ref log_file) = opts.log_file {
+        env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
+    } else {
+        env_logger::Target::Stdout
+    };
+    env_logger::builder().target(log_target).format_timestamp_nanos().init();
+    // Build the options after setting the log target
+    opts = opts.build();
+    trace!("Command line: {:?}", std::env::args());
 
-    match sk_main() {
+    // Shell completion scripts
+    if let Some(shell) = opts.shell {
+        // Generate completion script directly to stdout
+        clap_complete::generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
+        return Ok(());
+    }
+    // Man page
+    if opts.man {
+        clap_mangen::Man::new(SkimOptions::command()).render(&mut std::io::stdout())?;
+        return Ok(());
+    }
+
+    match sk_main(opts) {
         Ok(exit_code) => std::process::exit(exit_code),
         Err(err) => {
             // if downstream pipe is closed, exit silently, see PR#279
@@ -92,25 +114,7 @@ fn main() -> Result<()> {
     }
 }
 
-fn sk_main() -> Result<i32> {
-    let mut opts = parse_args()?;
-    let log_target = if let Some(ref log_file) = opts.log_file {
-        env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
-    } else {
-        env_logger::Target::Stdout
-    };
-    env_logger::builder().target(log_target).format_timestamp_nanos().init();
-    // Build the options after setting the log target
-    opts = opts.build();
-    trace!("Command line: {:?}", std::env::args());
-
-    // Handle shell completion generation if requested
-    if let Some(shell) = opts.shell {
-        // Generate completion script directly to stdout
-        clap_complete::generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
-        return Ok(0);
-    }
-
+fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     let reader_opts = SkimItemReaderOption::from_options(&opts);
     let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
     opts.cmd_collector = cmd_collector.clone() as Rc<RefCell<dyn CommandCollector>>;

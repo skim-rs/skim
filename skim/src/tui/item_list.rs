@@ -8,7 +8,7 @@ use ratatui::{
 };
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     DisplayContext, MatchRange, Selector, SkimItem, SkimOptions,
@@ -325,7 +325,7 @@ impl ItemList {
                 let ch_width = if ch == '\t' {
                     self.tabstop - (current_width % self.tabstop)
                 } else {
-                    ch.to_string().width_cjk()
+                    ch.width_cjk().unwrap_or_default()
                 };
 
                 if current_width >= target_width {
@@ -360,6 +360,9 @@ impl ItemList {
 
     /// Toggles the selection state of the item at the given index
     pub fn toggle_at(&mut self, index: usize) {
+        if self.items.is_empty() {
+            return;
+        }
         let item = &self.items[index];
         trace!("Toggled item {} at index {}", item.text(), index);
         toggle_item(&mut self.selection, item);
@@ -413,25 +416,21 @@ impl ItemList {
         self.current = self
             .current
             .saturating_add_signed(offset as isize)
-            .min(self.items.len() - 1)
+            .min(self.items.len().saturating_sub(1))
             .max(self.reserved);
         debug!("Scrolled to {}", self.current);
         debug!("Selection: {:?}", self.selection);
     }
     /// Selects the previous item in the list
     pub fn select_previous(&mut self) {
-        self.current = self
-            .current
-            .saturating_sub(1)
-            .min(self.items.len() - 1)
-            .max(self.reserved);
+        self.current = self.current.min(self.items.len()).saturating_sub(1).max(self.reserved);
     }
     /// Selects the next item in the list
     pub fn select_next(&mut self) {
         self.current = self
             .current
             .saturating_add(1)
-            .min(self.items.len() - 1)
+            .min(self.items.len().saturating_sub(1))
             .max(self.reserved);
     }
     /// Jump to the first selectable item (respecting reserved header lines)
@@ -443,7 +442,7 @@ impl ItemList {
     /// Jump to the last item in the list
     pub fn jump_to_last(&mut self) {
         if !self.items.is_empty() {
-            self.current = self.items.len() - 1;
+            self.current = self.items.len().saturating_sub(1);
         }
     }
 }

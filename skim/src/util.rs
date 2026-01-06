@@ -96,6 +96,7 @@ fn escape_arg(a: &str) -> String {
 pub fn printf(
     pattern: String,
     delimiter: &Regex,
+    replstr: &str,
     items: impl Iterator<Item = Arc<dyn SkimItem>> + std::clone::Clone,
     selected: Option<Arc<dyn SkimItem>>,
     query: &str,
@@ -106,7 +107,7 @@ pub fn printf(
         None => (String::default(), String::default()),
     };
     // Replace static fields first
-    let mut res = pattern.replace("{}", &escape_arg(&item_text));
+    let mut res = pattern.replace(replstr, &escape_arg(&item_text));
 
     res = res.replace(
         "{+}",
@@ -136,7 +137,9 @@ pub fn printf(
     for c in res.chars() {
         if inside {
             if c == '}' {
-                if let Some(range) = FieldRange::from_str(&pattern) {
+                if pattern.is_empty() {
+                    replaced.push_str("{}");
+                } else if let Some(range) = FieldRange::from_str(&pattern) {
                     let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap_or_default();
                     replaced.push_str(&escape_arg(replacement));
                 } else {
@@ -211,6 +214,7 @@ mod test {
             printf(
                 pattern,
                 &delimiter,
+                "{}",
                 items.iter().map(|x| x.clone()),
                 Some(Arc::new("item 2")),
                 "query",

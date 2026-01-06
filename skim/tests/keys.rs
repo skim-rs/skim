@@ -179,3 +179,12 @@ sk_test!(keys_ctrl_m, @cmd "seq 1 100000", &[], {
     @capture[0] ne(">");
     @output[0] eq("1");
 });
+
+sk_test!(keys_tab_empty, "", &[], {
+    @capture[0] starts_with(">");
+    @keys Tab;
+    @capture[0] starts_with(">");
+    @keys Key('a');
+    @capture[0] starts_with("> a");
+
+});

@@ -576,7 +576,7 @@ sk_test!(opt_pre_select_file, "a\\nb\\nc", &[], tmux => {
   tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")?;
 });
 
-sk_test!(opt_no_clear_if_empty, @cmd "echo -ne 'a\\nb\\nc'", &["-i", "--no-clear-if-empty", "-c", "'echo -ne {q}'"], {
+sk_test!(opt_no_clear_if_empty, @cmd "echo -ne 'a\\nb\\nc'", &["-i", "--no-clear-if-empty", "-c", "'echo -ne {}'"], {
   @capture[0] trim().eq("c>");
 
   @keys Str("xxxx");
@@ -613,4 +613,11 @@ sk_test!(opt_tac_with_header_lines, "a\\nb\\nc\\nd\\ne", &["--tac", "--header-li
 
   // First selectable item should be 'e' (last from input, first in reversed order)
   @capture[4] starts_with("> e");
+});
+
+sk_test!(opt_replstr, "", &["-I", "..", "-i", "-c", "'echo foo {} ..'"], {
+    @capture[0] starts_with("c>");
+    @capture[2] starts_with("> foo {}");
+    @keys Key('a');
+    @capture[2] starts_with("> foo {} a");
 });

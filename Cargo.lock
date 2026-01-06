@@ -1360,6 +1360,7 @@ dependencies = [
  "chrono",
  "clap",
  "clap_complete",
+ "clap_mangen",
  "color-eyre",
  "crossterm",
  "defer-drop",

@@ -142,7 +142,7 @@ impl Preview<'_> {
 
     pub fn run(&mut self, tui: &mut Tui, cmd: &str) {
         self.cmd = cmd.to_string();
-        let _event_tx = tui.event_tx.clone();
+        let event_tx_clone = tui.event_tx.clone();
         let mut shell_cmd = Command::new("/bin/sh");
         shell_cmd
             .env("ROWS", self.rows.to_string())
@@ -164,11 +164,11 @@ impl Preview<'_> {
             let out = try_out.unwrap();
 
             if out.status.success() {
-                _event_tx
+                event_tx_clone
                     .send(Event::PreviewReady(out.stdout))
                     .unwrap_or_else(|e| println!("Failed on success: {e}"));
             } else {
-                _event_tx
+                event_tx_clone
                     .send(Event::PreviewReady(out.stderr))
                     .unwrap_or_else(|e| println!("Failed on error: {e}"));
                 // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
