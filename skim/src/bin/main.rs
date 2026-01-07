@@ -68,8 +68,10 @@ impl From<clap::Error> for SkMainError {
 
 //------------------------------------------------------------------------------
 fn main() -> Result<()> {
+    let mut opts = parse_args().unwrap_or_else(|e| {
+        e.exit();
+    });
     color_eyre::install()?;
-    let mut opts = parse_args()?;
     let log_target = if let Some(ref log_file) = opts.log_file {
         env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
     } else {
