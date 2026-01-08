@@ -955,7 +955,7 @@ impl<'a> App<'a> {
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
                 self.item_list.clear_selection();
-                return Ok(vec![Event::Reload(s.clone())]);
+                return Ok(vec![Event::Reload(self.expand_cmd(s))]);
             }
             Reload(None) => {
                 self.item_list.clear_selection();

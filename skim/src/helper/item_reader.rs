@@ -246,9 +246,10 @@ impl SkimItemReader {
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
     ) -> (UnboundedReceiver<Arc<dyn SkimItem>>, UnboundedSender<i32>) {
+        let send_error = self.option.show_error;
         let (command, mut source) = match input {
             CollectorInput::Pipe(pipe) => (None, pipe),
-            CollectorInput::Command(cmd) => get_command_output(&cmd).expect("command not found"),
+            CollectorInput::Command(cmd) => get_command_output(&cmd, send_error).expect("command not found"),
         };
 
         let (tx_interrupt, mut rx_interrupt) = unbounded_channel();
@@ -258,7 +259,6 @@ impl SkimItemReader {
         let started_clone = started.clone();
         let components_to_stop_clone = components_to_stop.clone();
         let tx_item_clone = tx_item.clone();
-        let send_error = self.option.show_error;
         // listening to close signal and kill command if needed
         thread::spawn(move || {
             debug!("collector: command killer start");
@@ -277,6 +277,7 @@ impl SkimItemReader {
                         .map(|os| os.map(|s| !s.success()).unwrap_or(true))
                         .unwrap_or(false);
                     if has_error {
+                        trace!("collector: sending error");
                         let output = child.wait_with_output().expect("could not retrieve error message");
                         for line in String::from_utf8_lossy(&output.stderr).lines() {
                             let _ = tx_item_clone.send(Arc::new(line.to_string()));
@@ -314,7 +315,7 @@ impl SkimItemReader {
                         if buffer.ends_with(b"\r\n") {
                             buffer.pop();
                             buffer.pop();
-                        } else if buffer.ends_with(b"\n") || buffer.ends_with(b"\0") {
+                        } else if buffer.ends_with(&[option.line_ending]) {
                             buffer.pop();
                         }
 
@@ -340,7 +341,9 @@ impl SkimItemReader {
                         }
                         line_idx += 1;
                     }
-                    Err(_err) => {} // String not UTF8 or other error, skip.
+                    Err(err) => {
+                        trace!("Got {err:?} when reading from command collector, skipping");
+                    } // String not UTF8 or other error, skip.
                 }
             }
 
@@ -365,19 +368,17 @@ impl CommandCollector for SkimItemReader {
 
 type CommandOutput = (Option<Child>, Box<dyn BufRead + Send>);
 
-fn get_command_output(cmd: &str) -> Result<CommandOutput, Box<dyn Error>> {
+fn get_command_output(cmd: &str, send_error: bool) -> Result<CommandOutput, Box<dyn Error>> {
     let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
-    let mut command: Child = Command::new(shell)
-        .arg("-c")
-        .arg(cmd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+    let (reader, writer) = std::io::pipe()?;
+    let mut sh = Command::new(shell);
+    let command = sh.arg("-c").arg(cmd).stdout(writer.try_clone()?);
+    if send_error {
+        trace!("redirecting stderr to the output");
+        command.stderr(writer);
+    } else {
+        command.stderr(Stdio::null());
+    }
 
-    let stdout = command
-        .stdout
-        .take()
-        .ok_or_else(|| "command output: unwrap failed".to_owned())?;
-
-    Ok((Some(command), Box::new(BufReader::new(stdout))))
+    Ok((command.spawn().ok(), Box::new(BufReader::new(reader))))
 }

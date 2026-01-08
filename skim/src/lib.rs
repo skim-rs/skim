@@ -402,6 +402,7 @@ impl Skim {
 
                         // Handle reload event
                         if let Event::Reload(new_cmd) = &evt {
+                            debug!("reloading with cmd {new_cmd}");
                             // Kill the current reader
                             reader_control.kill();
                             // Clear items
