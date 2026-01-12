@@ -1,3 +1,7 @@
+//! Command-line interface for skim fuzzy finder.
+//!
+//! This binary provides the `sk` command-line tool for fuzzy finding and filtering.
+
 extern crate clap;
 extern crate env_logger;
 extern crate log;
@@ -5,13 +9,19 @@ extern crate shlex;
 extern crate skim;
 extern crate time;
 
+use crate::Event;
 use clap::{CommandFactory, Error, Parser};
-use clap_complete::generate;
-
+use color_eyre::Result;
+use color_eyre::eyre::eyre;
 use derive_builder::Builder;
+use log::trace;
+use skim::item::RankBuilder;
+use skim::reader::CommandCollector;
+use skim::tui::event::Action;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};
+use thiserror::Error;
 
 use skim::prelude::*;
 
@@ -33,34 +43,14 @@ fn parse_args() -> Result<SkimOptions, Error> {
         args.push(arg);
     }
 
-    Ok(SkimOptions::try_parse_from(args)?.build())
+    SkimOptions::try_parse_from(args)
 }
 
-//------------------------------------------------------------------------------
-fn main() {
-    use SkMainError::{ArgError, IoError};
-
-    env_logger::builder().format_timestamp_nanos().init();
-    match sk_main() {
-        Ok(exit_code) => std::process::exit(exit_code),
-        Err(err) => {
-            // if downstream pipe is closed, exit silently, see PR#279
-            match err {
-                IoError(e) => {
-                    if e.kind() == std::io::ErrorKind::BrokenPipe {
-                        std::process::exit(0)
-                    } else {
-                        std::process::exit(2)
-                    }
-                }
-                ArgError(e) => e.exit(),
-            }
-        }
-    }
-}
-
+#[derive(Error, Debug)]
 enum SkMainError {
+    #[error("I/O error {0:?}")]
     IoError(std::io::Error),
+    #[error("Argument error {0:?}")]
     ArgError(clap::Error),
 }
 
@@ -76,25 +66,68 @@ impl From<clap::Error> for SkMainError {
     }
 }
 
-fn sk_main() -> Result<i32, SkMainError> {
-    let mut opts = parse_args()?;
+//------------------------------------------------------------------------------
+fn main() -> Result<()> {
+    let mut opts = parse_args().unwrap_or_else(|e| {
+        e.exit();
+    });
+    color_eyre::install()?;
+    let log_target = if let Some(ref log_file) = opts.log_file {
+        env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
+    } else {
+        env_logger::Target::Stdout
+    };
+    env_logger::builder().target(log_target).format_timestamp_nanos().init();
+    // Build the options after setting the log target
+    opts = opts.build();
+    trace!("Command line: {:?}", std::env::args());
 
-    // Handle shell completion generation if requested
+    // Shell completion scripts
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
-        generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
-        return Ok(0);
+        clap_complete::generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
+        return Ok(());
+    }
+    // Man page
+    if opts.man {
+        clap_mangen::Man::new(SkimOptions::command()).render(&mut std::io::stdout())?;
+        return Ok(());
     }
 
-    let reader_opts = SkimItemReaderOption::default()
-        .ansi(opts.ansi)
-        .delimiter(&opts.delimiter)
-        .with_nth(opts.with_nth.iter().map(String::as_str))
-        .nth(opts.nth.iter().map(String::as_str))
-        .read0(opts.read0)
-        .show_error(opts.show_cmd_error);
+    match sk_main(opts) {
+        Ok(exit_code) => std::process::exit(exit_code),
+        Err(err) => {
+            // if downstream pipe is closed, exit silently, see PR#279
+            match err.downcast_ref::<SkMainError>() {
+                Some(SkMainError::IoError(e)) => {
+                    if e.kind() == std::io::ErrorKind::BrokenPipe {
+                        std::process::exit(0)
+                    } else {
+                        Err(eyre!(err))
+                    }
+                }
+                Some(SkMainError::ArgError(e)) => e.exit(),
+                None => match err.downcast_ref::<clap::error::Error>() {
+                    Some(e) => e.exit(),
+                    None => Err(eyre!(err)),
+                },
+            }
+        }
+    }
+}
+
+fn sk_main(mut opts: SkimOptions) -> Result<i32> {
+    let reader_opts = SkimItemReaderOption::from_options(&opts);
     let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
-    opts.cmd_collector = cmd_collector.clone();
+    opts.cmd_collector = cmd_collector.clone() as Rc<RefCell<dyn CommandCollector>>;
+
+    let cmd_history = opts.cmd_history.clone();
+    let cmd_history_size = opts.cmd_history_size;
+    let cmd_history_file = opts.cmd_history_file.clone();
+
+    let query_history = opts.query_history.clone();
+    let history_size = opts.history_size;
+    let history_file = opts.history_file.clone();
     //------------------------------------------------------------------------------
     let bin_options = BinOptions {
         filter: opts.filter.clone(),
@@ -110,7 +143,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         crate::tmux::run_with(&opts)
     } else {
         // read from pipe or command
-        let rx_item = if io::stdin().is_terminal() {
+        let rx_item = if io::stdin().is_terminal() || (opts.interactive && opts.cmd.is_some()) {
             None
         } else {
             let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
@@ -120,7 +153,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         if opts.filter.is_some() {
             return Ok(filter(&bin_options, &opts, rx_item));
         }
-        Skim::run_with(&opts, rx_item)
+        Some(Skim::run_with(opts, rx_item)?)
     }) else {
         return Ok(135);
     };
@@ -138,7 +171,7 @@ fn sk_main() -> Result<i32, SkMainError> {
         print!("{}{}", result.cmd, bin_options.output_ending);
     }
 
-    if let Event::EvActAccept(Some(accept_key)) = result.final_event {
+    if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
         print!("{}{}", accept_key, bin_options.output_ending);
     }
 
@@ -150,14 +183,14 @@ fn sk_main() -> Result<i32, SkMainError> {
 
     //------------------------------------------------------------------------------
     // write the history with latest item
-    if let Some(file) = opts.history_file {
-        let limit = opts.history_size;
-        write_history_to_file(&opts.query_history, &result.query, limit, &file)?;
+    if let Some(file) = history_file {
+        let limit = history_size;
+        write_history_to_file(&query_history, &result.query, limit, &file)?;
     }
 
-    if let Some(file) = opts.cmd_history_file {
-        let limit = opts.cmd_history_size;
-        write_history_to_file(&opts.cmd_history, &result.cmd, limit, &file)?;
+    if let Some(file) = cmd_history_file {
+        let limit = cmd_history_size;
+        write_history_to_file(&cmd_history, &result.cmd, limit, &file)?;
     }
 
     Ok(i32::from(result.selected_items.is_empty()))
@@ -189,7 +222,9 @@ fn write_history_to_file(
     Ok(())
 }
 
+/// Options specific to the binary/CLI mode
 #[derive(Builder)]
+#[allow(missing_docs)]
 pub struct BinOptions {
     filter: Option<String>,
     output_ending: String,
@@ -197,6 +232,7 @@ pub struct BinOptions {
     print_cmd: bool,
 }
 
+/// Runs skim in filter mode, matching items against a fixed query without interactive UI
 pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<SkimItemReceiver>) -> i32 {
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
         Ok("") | Err(_) => "find .".to_owned(),
@@ -219,9 +255,11 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     let engine_factory: Box<dyn MatchEngineFactory> = if options.regex {
         Box::new(RegexEngineFactory::builder())
     } else {
+        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
         let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
             .fuzzy_algorithm(options.algorithm)
             .exact_mode(options.exact)
+            .rank_builder(rank_builder)
             .build();
         Box::new(AndOrEngineFactory::new(fuzzy_engine_factory))
     };
@@ -232,20 +270,33 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     // start
     let components_to_stop = Arc::new(AtomicUsize::new(0));
 
-    let stream_of_item = source.unwrap_or_else(|| {
+    let mut stream_of_item = source.unwrap_or_else(|| {
         let (ret, _control) = options.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
         ret
     });
 
     let mut num_matched = 0;
     let mut stdout_lock = std::io::stdout().lock();
-    stream_of_item
-        .into_iter()
+    let mut items = Vec::new();
+
+    // Collect all items from the stream until the channel is closed
+    while let Some(item) = stream_of_item.blocking_recv() {
+        items.push(item);
+    }
+
+    let mut matched_items: Vec<_> = items
+        .iter()
         .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
-        .for_each(|(item, _match_result)| {
-            num_matched += 1;
-            let _ = write!(stdout_lock, "{}{}", item.output(), bin_option.output_ending);
-        });
+        .collect();
+
+    if options.tac {
+        matched_items.reverse();
+    }
+
+    matched_items.iter().for_each(|(item, _match_result)| {
+        num_matched += 1;
+        let _ = write!(stdout_lock, "{}{}", item.output(), bin_option.output_ending);
+    });
 
     i32::from(num_matched == 0)
 }

@@ -7,7 +7,7 @@ struct BasicSkimItem {
 }
 
 impl SkimItem for BasicSkimItem {
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.value)
     }
 }
@@ -29,7 +29,7 @@ impl CommandCollector for BasicCmdCollector {
     }
 }
 
-pub fn main() {
+fn main() {
     let cmd_collector = BasicCmdCollector {
         items: vec![String::from("foo"), String::from("bar"), String::from("baz")],
     };
@@ -38,7 +38,7 @@ pub fn main() {
         .build()
         .unwrap();
 
-    let selected_items = Skim::run_with(&options, None)
+    let selected_items = Skim::run_with(options, None)
         .map(|out| out.selected_items)
         .unwrap_or_default();
 

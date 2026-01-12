@@ -1,19 +1,32 @@
+//! Tmux integration utilities.
+//!
+//! This module provides functionality for running skim within tmux panes,
+//! allowing skim to be used as a tmux popup or split pane.
+
 use std::{
     borrow::Cow,
     env,
-    fs::File,
-    io::{BufRead as _, BufReader, IsTerminal as _, Write as _},
+    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::{Command, Stdio},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
     thread,
+    time::Duration,
 };
 
-use nix::{sys::stat, unistd::mkfifo};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use nix::sys::stat::Mode;
+use nix::unistd::mkfifo;
 use rand::{Rng, distr::Alphanumeric};
-use skim_tuikit::key::Key;
 use which::which;
 
-use crate::{SkimItem, SkimOptions, SkimOutput, event::Event};
+use crate::{
+    SkimItem, SkimOptions, SkimOutput,
+    tui::{Event, event::Action},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 enum TmuxWindowDir {
@@ -111,17 +124,33 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut stdin_reader = BufReader::new(std::io::stdin());
     let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
-    let t_tmp_stdin = temp_dir.join("stdin");
+    let stop_reading = Arc::new(AtomicBool::new(false));
     let stdin_handle = if has_piped_input {
-        debug!("Reading stdin and piping to file");
+        debug!("Reading stdin and piping to fifo");
 
-        mkfifo(&tmp_stdin, stat::Mode::S_IRWXU)
-            .unwrap_or_else(|e| panic!("Failed to create stdin pipe {}: {}", tmp_stdin.clone().display(), e));
+        // Create a named pipe (FIFO)
+        // This allows the nested skim to continuously read as data arrives
+        let stdin_path_str = tmp_stdin
+            .to_str()
+            .unwrap_or_else(|| panic!("Failed to convert stdin path to string"));
+        mkfifo(stdin_path_str, Mode::S_IRUSR | Mode::S_IWUSR)
+            .unwrap_or_else(|e| panic!("Failed to create fifo {}: {}", tmp_stdin.display(), e));
+
+        let tmp_stdin_clone = tmp_stdin.clone();
+        let stop_flag = Arc::clone(&stop_reading);
         Some(thread::spawn(move || {
-            let mut stdin_writer = File::create(&t_tmp_stdin)
-                .unwrap_or_else(|e| panic!("Failed to open stdin pipe {}: {}", t_tmp_stdin.clone().display(), e));
-
+            debug!("Opening fifo for writing (may block until reader starts)");
+            let stdin_f = std::fs::File::create(tmp_stdin_clone.clone())
+                .unwrap_or_else(|e| panic!("Failed to open fifo {}: {}", tmp_stdin_clone.display(), e));
+            debug!("Fifo opened for writing");
+            let mut stdin_writer = BufWriter::new(stdin_f);
             loop {
+                // Check if we should stop reading
+                if stop_flag.load(Ordering::Relaxed) {
+                    debug!("Stop signal received, exiting stdin reader thread");
+                    break;
+                }
+
                 let mut buf = vec![];
                 match stdin_reader.read_until(line_ending, &mut buf) {
                     Ok(0) => break,
@@ -129,9 +158,11 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                         debug!("Read {n} bytes from stdin");
                         stdin_writer.write_all(&buf).unwrap();
                     }
-                    Err(e) => panic!("Failed to read from stdin: {e}"),
+                    Err(e) => panic!("Failed to read from stdin: {}", e),
                 }
             }
+            // Ensure all buffered data is written to the file
+            let _ = stdin_writer.flush();
         }))
     } else {
         None
@@ -198,8 +229,23 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .status()
         .unwrap_or_else(|e| panic!("Tmux invocation failed with {e}"));
 
-    if let Some(h) = stdin_handle {
-        h.join().unwrap_or(());
+    // Signal the stdin thread to stop and wait for it to exit
+    if let Some(handle) = stdin_handle {
+        stop_reading.store(true, Ordering::Relaxed);
+        debug!("Signaled stdin thread to stop");
+
+        // Use a channel-based timeout since JoinHandle doesn't have join_timeout
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let _ = tx.send(handle.join());
+        });
+
+        // Give the thread a short time to finish gracefully
+        // If it's blocked on read, this will timeout and the thread will be dropped
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(_) => debug!("Stdin thread exited cleanly"),
+            Err(_) => debug!("Stdin thread did not exit within timeout, dropping handle"),
+        }
     }
 
     let output_ending = if opts.print0 { "\0" } else { "\n" };
@@ -228,15 +274,18 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     let is_abort = !status.success();
     let final_event = match is_abort {
-        true => Event::EvActAbort,
-        false => Event::EvActAccept(None), // if --expect or --bind accept(key) are used,
-                                           // the key is technically returned in the selected_items
+        true => Event::Action(Action::Abort),
+        false => Event::Action(Action::Accept(None)), // if --bind accept(key) is used,
+                                                      // the key is technically returned in the selected_items
     };
 
     let skim_output = SkimOutput {
         final_event,
         is_abort,
-        final_key: Key::Null,
+        final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        // Note: In tmux mode, the actual final key is not available since skim runs in a separate
+        // tmux popup process. Only the output text is captured. Use --expect with --bind to capture
+        // specific accept keys in the output if needed.
         query: query_str.to_string(),
         cmd: command_str.to_string(),
         selected_items: output_lines,

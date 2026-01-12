@@ -11,7 +11,7 @@ struct Item {
 }
 
 impl SkimItem for Item {
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.text)
     }
 
@@ -56,7 +56,7 @@ pub fn main() {
 
     drop(tx);
 
-    let selected_items = Skim::run_with(&options, Some(rx))
+    let selected_items = Skim::run_with(options, Some(rx))
         .map(|out| out.selected_items)
         .unwrap_or_default()
         .iter()

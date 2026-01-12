@@ -11,6 +11,9 @@
   <a href="https://discord.gg/23PuxttufP">
     <img alt="Skim Discord" src="https://img.shields.io/discord/1031830957432504361?label=&color=7389d8&labelColor=6a7ec2&logoColor=ffffff&logo=discord" />
   </a>
+  <a href="https://ratatui.rs">
+    <img alt="Built with Ratatui" src="https://ratatui.rs/built-with-ratatui/badge.svg" />
+  </a>
 </p>
 
 > Life is short, skim!
@@ -52,7 +55,6 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
       + [How does it work?](#how-does-it-work-1)
    * [Fields support](#fields-support)
    * [Use as a library](#use-as-a-library)
-   * [Tuikit](#tuikit)
 - [FAQ](#faq)
    * [How to ignore files?](#how-to-ignore-files)
    * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
@@ -66,8 +68,7 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
 The skim project contains several components:
 
 1. `sk` executable - the core program
-2. `sk-tmux` - a script for launching `sk` in a tmux pane
-3. Vim/Nvim plugin - to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
+2. Vim/Nvim plugin - to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
 
 ## Package Managers
 
@@ -114,8 +115,10 @@ interface for running commands.
 
 Via vim-plug (recommended):
 
+Install skim, then :
+
 ```vim
-Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
+Plug 'skim-rs/skim'
 ```
 
 
@@ -544,12 +547,6 @@ so that you could deal with strings or files easily.
 
 Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
 
-## Tuikit
-
-`tuikit` is the TUI framework used in `skim`. It is available from the library as `skim::tuikit`.
-
-Check [the README](./skim-tuikit/README.md) for more details.
-
 # FAQ
 
 ## How to ignore files?
@@ -602,6 +599,8 @@ The goal is to keep `skim` as feature-full as `fzf` is, but the command flags mi
 or have any ideas. Pull requests are warmly welcomed.
 
 # Troubleshooting
+
+To troubleshoot what's happening, you can set the environment variable `RUST_LOG` to either `debug` or even `trace`, and set `--log-file` to a path. You can then read those logs during or after the execution to better understand what's happening. Don't hesitate to add those logs to an issue if you need help.
 
 ## No line feed issues with nix, FreeBSD, termux
 

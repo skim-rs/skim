@@ -2,22 +2,26 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::clangd::ClangdMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
+use crate::fuzzy_matcher::FuzzyMatcher;
+use crate::fuzzy_matcher::clangd::ClangdMatcher;
+use crate::fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
 use crate::{MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
+/// Fuzzy matching algorithm to use
 #[derive(Debug, Copy, Clone, Default)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
+    /// Original skim fuzzy matching algorithm (v1)
     SkimV1,
+    /// Improved skim fuzzy matching algorithm (v2, default)
     #[default]
     SkimV2,
+    /// Clangd fuzzy matching algorithm
     Clangd,
 }
 
@@ -56,9 +60,12 @@ impl FuzzyEngineBuilder {
 
     #[allow(deprecated)]
     pub fn build(self) -> FuzzyEngine {
-        use fuzzy_matcher::skim::SkimMatcher;
+        use crate::fuzzy_matcher::skim::SkimMatcher;
         let matcher: Box<dyn FuzzyMatcher> = match self.algorithm {
-            FuzzyAlgorithm::SkimV1 => Box::new(SkimMatcher::default()),
+            FuzzyAlgorithm::SkimV1 => {
+                debug!("Initialized SkimV1 algorithm");
+                Box::new(SkimMatcher::default())
+            }
             FuzzyAlgorithm::SkimV2 => {
                 let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
                 let matcher = match self.case {
@@ -66,6 +73,7 @@ impl FuzzyEngineBuilder {
                     CaseMatching::Ignore => matcher.ignore_case(),
                     CaseMatching::Smart => matcher.smart_case(),
                 };
+                debug!("Initialized SkimV2 algorithm");
                 Box::new(matcher)
             }
             FuzzyAlgorithm::Clangd => {
@@ -75,6 +83,7 @@ impl FuzzyEngineBuilder {
                     CaseMatching::Ignore => matcher.ignore_case(),
                     CaseMatching::Smart => matcher.smart_case(),
                 };
+                debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
         };
@@ -87,6 +96,7 @@ impl FuzzyEngineBuilder {
     }
 }
 
+/// The fuzzy matching engine
 pub struct FuzzyEngine {
     query: String,
     matcher: Box<dyn FuzzyMatcher>,
@@ -94,6 +104,7 @@ pub struct FuzzyEngine {
 }
 
 impl FuzzyEngine {
+    /// Returns a default builder for chaining
     pub fn builder() -> FuzzyEngineBuilder {
         FuzzyEngineBuilder::default()
     }
@@ -141,11 +152,16 @@ impl MatchEngine for FuzzyEngine {
         let end = *matched_range.last().unwrap_or(&0);
 
         let item_len = item_text.len();
+
+        // Use individual character indices for highlighting instead of byte range
+        // This allows each matched character to be highlighted individually
+        let matched_range = MatchRange::Chars(matched_range);
+
         Some(MatchResult {
             rank: self
                 .rank_builder
                 .build_rank(score as i32, begin, end, item_len, item.get_index()),
-            matched_range: MatchRange::Chars(matched_range),
+            matched_range,
         })
     }
 }

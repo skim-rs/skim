@@ -1,8 +1,9 @@
 //! Handle the color theme
-use std::{env, sync::LazyLock};
+use std::sync::LazyLock;
+
+use ratatui::style::{Color, Modifier, Style};
 
 use crate::options::SkimOptions;
-use skim_tuikit::prelude::*;
 
 pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 
@@ -18,23 +19,23 @@ pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark2
 /// +----------------+
 /// </pre>
 #[rustfmt::skip]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct ColorTheme {
     fg:                   Color,
     bg:                   Color,
-    normal_effect:        Effect,
+    normal_effect:        Modifier,
     matched:              Color,
     matched_bg:           Color,
-    matched_effect:       Effect,
+    matched_effect:       Modifier,
     current:              Color,
     current_bg:           Color,
-    current_effect:       Effect,
+    current_effect:       Modifier,
     current_match:        Color,
     current_match_bg:     Color,
-    current_match_effect: Effect,
+    current_match_effect: Modifier,
     query_fg:             Color,
     query_bg:             Color,
-    query_effect:         Effect,
+    query_effect:         Modifier,
     spinner:              Color,
     info:                 Color,
     prompt:               Color,
@@ -52,7 +53,8 @@ impl ColorTheme {
         if let Some(color) = options.color.clone() {
             ColorTheme::from_options(&color)
         } else {
-            match env::var_os("NO_COLOR") {
+            // Check for NO_COLOR environment variable
+            match std::env::var_os("NO_COLOR") {
                 Some(no_color) if !no_color.is_empty() => ColorTheme::none(),
                 _ => ColorTheme::dark256(),
             }
@@ -61,112 +63,112 @@ impl ColorTheme {
 
     fn none() -> Self {
         ColorTheme {
-            fg:                   Color::Default,
-            bg:                   Color::Default,
-            normal_effect:        Effect::empty(),
-            matched:              Color::Default,
-            matched_bg:           Color::Default,
-            matched_effect:       Effect::empty(),
-            current:              Color::Default,
-            current_bg:           Color::Default,
-            current_effect:       Effect::empty(),
-            current_match:        Color::Default,
-            current_match_bg:     Color::Default,
-            current_match_effect: Effect::empty(),
-            query_fg:             Color::Default,
-            query_bg:             Color::Default,
-            query_effect:         Effect::empty(),
-            spinner:              Color::Default,
-            info:                 Color::Default,
-            prompt:               Color::Default,
-            cursor:               Color::Default,
-            selected:             Color::Default,
-            header:               Color::Default,
-            border:               Color::Default,
+            fg:                   Color::Reset,
+            bg:                   Color::Reset,
+            normal_effect:        Modifier::empty(),
+            matched:              Color::Reset,
+            matched_bg:           Color::Reset,
+            matched_effect:       Modifier::empty(),
+            current:              Color::Reset,
+            current_bg:           Color::Reset,
+            current_effect:       Modifier::empty(),
+            current_match:        Color::Reset,
+            current_match_bg:     Color::Reset,
+            current_match_effect: Modifier::empty(),
+            query_fg:             Color::Reset,
+            query_bg:             Color::Reset,
+            query_effect:         Modifier::empty(),
+            spinner:              Color::Reset,
+            info:                 Color::Reset,
+            prompt:               Color::Reset,
+            cursor:               Color::Reset,
+            selected:             Color::Reset,
+            header:               Color::Reset,
+            border:               Color::Reset,
         }
     }
 
     fn bw() -> Self {
         ColorTheme {
-            matched_effect:       Effect::UNDERLINE,
-            current_effect:       Effect::REVERSE,
-            current_match_effect: Effect::UNDERLINE | Effect::REVERSE,
+            matched_effect:       Modifier::UNDERLINED,
+            current_effect:       Modifier::REVERSED,
+            current_match_effect: Modifier::UNDERLINED | Modifier::REVERSED,
             ..ColorTheme::none()
         }
     }
 
     fn default16() -> Self {
         ColorTheme {
-            matched:          Color::GREEN,
-            matched_bg:       Color::BLACK,
-            current:          Color::YELLOW,
-            current_bg:       Color::BLACK,
-            current_match:    Color::GREEN,
-            current_match_bg: Color::BLACK,
-            spinner:          Color::GREEN,
-            info:             Color::WHITE,
-            prompt:           Color::BLUE,
-            cursor:           Color::RED,
-            selected:         Color::MAGENTA,
-            header:           Color::CYAN,
-            border:           Color::LIGHT_BLACK,
+            matched:          Color::Green,
+            matched_bg:       Color::Black,
+            current:          Color::Yellow,
+            current_bg:       Color::Black,
+            current_match:    Color::Green,
+            current_match_bg: Color::Black,
+            spinner:          Color::Green,
+            info:             Color::White,
+            prompt:           Color::Blue,
+            cursor:           Color::Red,
+            selected:         Color::Magenta,
+            header:           Color::Cyan,
+            border:           Color::Black,
             ..ColorTheme::none()
         }
     }
 
     fn dark256() -> Self {
         ColorTheme {
-            matched:          Color::AnsiValue(108),
-            matched_bg:       Color::AnsiValue(0),
-            current:          Color::AnsiValue(254),
-            current_bg:       Color::AnsiValue(236),
-            current_match:    Color::AnsiValue(151),
-            current_match_bg: Color::AnsiValue(236),
-            spinner:          Color::AnsiValue(148),
-            info:             Color::AnsiValue(144),
-            prompt:           Color::AnsiValue(110),
-            cursor:           Color::AnsiValue(161),
-            selected:         Color::AnsiValue(168),
-            header:           Color::AnsiValue(109),
-            border:           Color::AnsiValue(59),
+            matched:          Color::Indexed(108),
+            matched_bg:       Color::Indexed(0),
+            current:          Color::Indexed(254),
+            current_bg:       Color::Indexed(236),
+            current_match:    Color::Indexed(151),
+            current_match_bg: Color::Indexed(236),
+            spinner:          Color::Indexed(148),
+            info:             Color::Indexed(144),
+            prompt:           Color::Indexed(110),
+            cursor:           Color::Indexed(161),
+            selected:         Color::Indexed(168),
+            header:           Color::Indexed(109),
+            border:           Color::Indexed(59),
             ..ColorTheme::none()
         }
     }
 
     fn molokai256() -> Self {
         ColorTheme {
-            matched:          Color::AnsiValue(234),
-            matched_bg:       Color::AnsiValue(186),
-            current:          Color::AnsiValue(254),
-            current_bg:       Color::AnsiValue(236),
-            current_match:    Color::AnsiValue(234),
-            current_match_bg: Color::AnsiValue(186),
-            spinner:          Color::AnsiValue(148),
-            info:             Color::AnsiValue(144),
-            prompt:           Color::AnsiValue(110),
-            cursor:           Color::AnsiValue(161),
-            selected:         Color::AnsiValue(168),
-            header:           Color::AnsiValue(109),
-            border:           Color::AnsiValue(59),
+            matched:          Color::Indexed(234),
+            matched_bg:       Color::Indexed(186),
+            current:          Color::Indexed(254),
+            current_bg:       Color::Indexed(236),
+            current_match:    Color::Indexed(234),
+            current_match_bg: Color::Indexed(186),
+            spinner:          Color::Indexed(148),
+            info:             Color::Indexed(144),
+            prompt:           Color::Indexed(110),
+            cursor:           Color::Indexed(161),
+            selected:         Color::Indexed(168),
+            header:           Color::Indexed(109),
+            border:           Color::Indexed(59),
             ..ColorTheme::none()
         }
     }
 
     fn light256() -> Self {
         ColorTheme {
-            matched:          Color::AnsiValue(0),
-            matched_bg:       Color::AnsiValue(220),
-            current:          Color::AnsiValue(237),
-            current_bg:       Color::AnsiValue(251),
-            current_match:    Color::AnsiValue(66),
-            current_match_bg: Color::AnsiValue(251),
-            spinner:          Color::AnsiValue(65),
-            info:             Color::AnsiValue(101),
-            prompt:           Color::AnsiValue(25),
-            cursor:           Color::AnsiValue(161),
-            selected:         Color::AnsiValue(168),
-            header:           Color::AnsiValue(31),
-            border:           Color::AnsiValue(145),
+            matched:          Color::Indexed(0),
+            matched_bg:       Color::Indexed(220),
+            current:          Color::Indexed(237),
+            current_bg:       Color::Indexed(251),
+            current_match:    Color::Indexed(66),
+            current_match_bg: Color::Indexed(251),
+            spinner:          Color::Indexed(65),
+            info:             Color::Indexed(101),
+            prompt:           Color::Indexed(25),
+            cursor:           Color::Indexed(161),
+            selected:         Color::Indexed(168),
+            header:           Color::Indexed(31),
+            border:           Color::Indexed(145),
             ..ColorTheme::none()
         }
     }
@@ -182,7 +184,7 @@ impl ColorTheme {
                     "light"    => ColorTheme::light256(),
                     "16"       => ColorTheme::default16(),
                     "bw"       => ColorTheme::bw(),
-                    "none" | "empty"    => ColorTheme::none(),
+                    "none" | "empty" => ColorTheme::none(),
                     "dark" | "default" | _ => ColorTheme::dark256(),
                 };
                 continue;
@@ -196,8 +198,8 @@ impl ColorTheme {
                 Color::Rgb(r, g, b)
             } else {
                 color[1].parse::<u8>()
-                    .map(Color::AnsiValue)
-                    .unwrap_or(Color::Default)
+                    .map(Color::Indexed)
+                    .unwrap_or(Color::Reset)
             };
 
             match color[0] {
@@ -224,99 +226,87 @@ impl ColorTheme {
         theme
     }
 
-    pub fn normal(&self) -> Attr {
-        Attr {
-            fg: self.fg,
-            bg: self.bg,
-            effect: self.normal_effect,
-        }
+    pub fn normal(&self) -> Style {
+        Style::new()
+            .fg(self.fg)
+            .bg(self.bg)
+            .add_modifier(self.normal_effect)
     }
 
-    pub fn matched(&self) -> Attr {
-        Attr {
-            fg: self.matched,
-            bg: self.matched_bg,
-            effect: self.matched_effect,
-        }
+    pub fn matched(&self) -> Style {
+        Style::new()
+            .fg(self.matched)
+            .bg(self.matched_bg)
+            .add_modifier(self.matched_effect)
     }
 
-    pub fn current(&self) -> Attr {
-        Attr {
-            fg: self.current,
-            bg: self.current_bg,
-            effect: self.current_effect,
-        }
+    pub fn current(&self) -> Style {
+        Style::new()
+            .fg(self.current)
+            .bg(self.current_bg)
+            .add_modifier(self.current_effect)
     }
 
-    pub fn current_match(&self) -> Attr {
-        Attr {
-            fg: self.current_match,
-            bg: self.current_match_bg,
-            effect: self.current_match_effect,
-        }
+    pub fn current_match(&self) -> Style {
+        Style::new()
+            .fg(self.current_match)
+            .bg(self.current_match_bg)
+            .add_modifier(self.current_match_effect)
     }
 
-    pub fn query(&self) -> Attr {
-        Attr {
-            fg: self.query_fg,
-            bg: self.query_bg,
-            effect: self.query_effect,
-        }
+    pub fn query(&self) -> Style {
+        Style::new()
+            .fg(self.query_fg)
+            .bg(self.query_bg)
+            .add_modifier(self.query_effect)
     }
 
-    pub fn spinner(&self) -> Attr {
-        Attr {
-            fg: self.spinner,
-            bg: self.bg,
-            effect: Effect::BOLD,
-        }
+    pub fn spinner(&self) -> Style {
+        Style::new()
+            .fg(self.spinner)
+            .bg(self.bg)
+            .add_modifier(Modifier::BOLD)
     }
 
-    pub fn info(&self) -> Attr {
-        Attr {
-            fg: self.info,
-            bg: self.bg,
-            effect: Effect::empty(),
-        }
+    pub fn info(&self) -> Style {
+        Style::new()
+            .fg(self.info)
+            .bg(self.bg)
+            .add_modifier(Modifier::empty())
     }
 
-    pub fn prompt(&self) -> Attr {
-        Attr {
-            fg: self.prompt,
-            bg: self.bg,
-            effect: Effect::empty(),
-        }
+    pub fn prompt(&self) -> Style {
+        Style::new()
+            .fg(self.prompt)
+            .bg(self.bg)
+            .add_modifier(Modifier::empty())
     }
 
-    pub fn cursor(&self) -> Attr {
-        Attr {
-            fg: self.cursor,
-            bg: self.current_bg,
-            effect: Effect::empty(),
-        }
+    pub fn cursor(&self) -> Style {
+        Style::new()
+            .fg(self.cursor)
+            .bg(self.current_bg)
+            .add_modifier(Modifier::empty())
     }
 
-    pub fn selected(&self) -> Attr {
-        Attr {
-            fg: self.selected,
-            bg: self.current_bg,
-            effect: Effect::empty(),
-        }
+    pub fn selected(&self) -> Style {
+        Style::new()
+            .fg(self.selected)
+            .bg(self.current_bg)
+            .add_modifier(Modifier::empty())
     }
 
-    pub fn header(&self) -> Attr {
-        Attr {
-            fg: self.header,
-            bg: self.bg,
-            effect: Effect::empty(),
-        }
+    pub fn header(&self) -> Style {
+        Style::new()
+            .fg(self.header)
+            .bg(self.bg)
+            .add_modifier(Modifier::empty())
     }
 
-    pub fn border(&self) -> Attr {
-        Attr {
-            fg: self.border,
-            bg: self.bg,
-            effect: Effect::empty(),
-        }
+    pub fn border(&self) -> Style {
+        Style::new()
+            .fg(self.border)
+            .bg(self.bg)
+            .add_modifier(Modifier::empty())
     }
 }

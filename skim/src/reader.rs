@@ -1,19 +1,18 @@
 //! Reader is used for reading items from datasource (e.g. stdin or command output)
 //!
 //! After reading in a line, reader will save an item into the pool(items)
-use crate::global::mark_new_run;
+use tokio::select;
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
-use crossbeam::channel::{Sender, bounded, select};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::thread;
 
-const CHANNEL_SIZE: usize = 1024;
-
+/// Trait for collecting items from command output
 pub trait CommandCollector {
     /// execute the `cmd` and produce a
     /// - skim item producer
@@ -22,17 +21,19 @@ pub trait CommandCollector {
     /// Internally, the command collector may start several threads(components), the collector
     /// should add `1` on every thread creation and sub `1` on thread termination. reader would use
     /// this information to determine whether the collector had stopped or not.
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>);
+    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, UnboundedSender<i32>);
 }
 
+/// Handle for controlling a running reader
 pub struct ReaderControl {
-    tx_interrupt: Sender<i32>,
-    tx_interrupt_cmd: Option<Sender<i32>>,
+    tx_interrupt: UnboundedSender<i32>,
+    tx_interrupt_cmd: Option<UnboundedSender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 }
 
 impl ReaderControl {
+    /// Kills the reader and waits for all components to stop
     pub fn kill(self) {
         debug!(
             "kill reader, components before: {}",
@@ -44,6 +45,7 @@ impl ReaderControl {
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
 
+    /// Takes all items collected so far
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
         let mut items = self.items.lock();
         let mut ret = Vec::with_capacity(items.len());
@@ -51,36 +53,38 @@ impl ReaderControl {
         ret
     }
 
+    /// Returns true if the reader has finished and no items remain
     pub fn is_done(&self) -> bool {
         let items = self.items.lock();
         self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
     }
 }
 
+/// Reader for streaming items from commands or other sources
 pub struct Reader {
     cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     rx_item: Option<SkimItemReceiver>,
 }
 
 impl Reader {
-    pub fn with_options(options: &SkimOptions) -> Self {
+    /// Creates a new reader from skim options
+    pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             cmd_collector: options.cmd_collector.clone(),
             rx_item: None,
         }
     }
 
+    /// Sets the item source (if None, will use command collector)
     pub fn source(mut self, rx_item: Option<SkimItemReceiver>) -> Self {
         self.rx_item = rx_item;
         self
     }
 
-    pub fn run(&mut self, cmd: &str) -> ReaderControl {
-        mark_new_run(cmd);
-
+    /// Starts the reader and returns a control handle
+    pub fn run(&mut self, app_tx: UnboundedSender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));
-        let items_clone = items.clone();
 
         let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
             let components_to_stop_clone = components_to_stop.clone();
@@ -89,7 +93,7 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, items_clone);
+        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, app_tx);
 
         ReaderControl {
             tx_interrupt,
@@ -102,28 +106,29 @@ impl Reader {
 
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
-    rx_item: SkimItemReceiver,
-    items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
-) -> Sender<i32> {
-    let (tx_interrupt, rx_interrupt) = bounded(CHANNEL_SIZE);
+    mut rx_item: SkimItemReceiver,
+    app_tx: UnboundedSender<Arc<dyn SkimItem>>,
+) -> UnboundedSender<i32> {
+    let (tx_interrupt, mut rx_interrupt) = unbounded_channel();
 
     let started = Arc::new(AtomicBool::new(false));
     let started_clone = started.clone();
-    thread::spawn(move || {
+    tokio::spawn(async move {
         debug!("reader: collect_item start");
         components_to_stop.fetch_add(1, Ordering::SeqCst);
         started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
         loop {
             select! {
-                recv(rx_item) -> new_item => match new_item {
-                    Ok(item) => {
-                        let mut vec = items.lock();
-                        vec.push(item);
-                    }
-                    Err(_) => break,
-                },
-                recv(rx_interrupt) -> _msg => break,
+                new_item = rx_item.recv() => {
+                    match new_item {
+                      Some(item) => {
+                          let _ = app_tx.send(item);
+                      }
+                      None => break,
+                  }
+                }
+                _ = rx_interrupt.recv() => break,
             }
         }
 

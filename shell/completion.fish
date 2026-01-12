@@ -1,5 +1,5 @@
 complete -c sk -l min-query-length -d 'Minimum query length to start showing results' -r
-complete -c sk -s t -l tiebreak -d 'Comma-separated list of sort criteria to apply when the scores are tied' -r -f -a "score\t''
+complete -c sk -s t -l tiebreak -d 'Comma-separated list of sort criteria to apply when the scores are tied.' -r -f -a "score\t''
 -score\t''
 begin\t''
 -begin\t''
@@ -12,20 +12,20 @@ index\t''
 complete -c sk -s n -l nth -d 'Fields to be matched' -r
 complete -c sk -l with-nth -d 'Fields to be transformed' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
-complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t''
-skim_v2\t''
-clangd\t''"
-complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t''
-ignore\t''
-smart\t''"
+complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t'Original skim fuzzy matching algorithm (v1)'
+skim_v2\t'Improved skim fuzzy matching algorithm (v2, default)'
+clangd\t'Clangd fuzzy matching algorithm'"
+complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
+ignore\t'Case-insensitive matching'
+smart\t'Smart case: case-insensitive unless query contains uppercase'"
 complete -c sk -s b -l bind -d 'Comma separated list of bindings' -r
 complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode' -r
 complete -c sk -s I -d 'Replace replstr with the selected item in commands' -r
 complete -c sk -l color -d 'Set color theme' -r
 complete -c sk -l skip-to-pattern -d 'Show the matched pattern at the line start' -r
-complete -c sk -l layout -d 'Set layout' -r -f -a "default\t''
-reverse\t''
-reverse-list\t''"
+complete -c sk -l layout -d 'Set layout' -r -f -a "default\t'Display from the bottom of the screen'
+reverse\t'Display from the top of the screen'
+reverse-list\t'Display from the top of the screen, prompt at the bottom'"
 complete -c sk -l height -d 'Height of skim\'s window' -r
 complete -c sk -l min-height -d 'Minimum height of skim\'s window' -r
 complete -c sk -l margin -d 'Screen margin' -r
@@ -45,7 +45,6 @@ complete -c sk -l preview -d 'Preview command' -r
 complete -c sk -l preview-window -d 'Preview window layout' -r
 complete -c sk -s q -l query -d 'Initial query' -r
 complete -c sk -l cmd-query -d 'Initial query in interactive mode' -r
-complete -c sk -l expect -d '[Deprecated: Use --bind=<key>:accept(<key>) instead] Comma separated list of keys used to complete skim' -r
 complete -c sk -l pre-select-n -d 'Pre-select the first n items in multi-selection mode' -r
 complete -c sk -l pre-select-pat -d 'Pre-select the matched items in multi-selection mode' -r
 complete -c sk -l pre-select-items -d 'Pre-select the items separated by newline character' -r
@@ -57,9 +56,10 @@ fish\t''
 powershell\t''
 zsh\t''"
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
+complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r
 complete -c sk -l jump-labels -d 'Reserved for later use' -r
-complete -c sk -l border -d 'Reserved for later use' -r
+complete -c sk -l expect -d 'Deprecated, kept for compatibility purposes. See accept() bind instead' -r
 complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
 complete -c sk -s e -l exact -d 'Run in exact mode'
@@ -75,10 +75,11 @@ complete -c sk -l no-clear-start -d 'Do not clear items on start'
 complete -c sk -l no-clear -d 'Do not clear screen on exit'
 complete -c sk -l show-cmd-error -d 'Show error message if command fails'
 complete -c sk -l reverse -d 'Shorthand for reverse layout'
-complete -c sk -l no-height -d 'Disable height feature'
+complete -c sk -l no-height -d 'Disable height (force full screen)'
 complete -c sk -l ansi -d 'Parse ANSI color codes in input strings'
 complete -c sk -l no-info -d 'Alias for --info=hidden'
 complete -c sk -l inline-info -d 'Alias for --info=inline'
+complete -c sk -l border -d 'Draw borders around the UI components'
 complete -c sk -l read0 -d 'Read input delimited by ASCII NUL(\\0) characters'
 complete -c sk -l print0 -d 'Print output delimited by ASCII NUL(\\0) characters'
 complete -c sk -l print-query -d 'Print the query as the first line'
@@ -87,6 +88,7 @@ complete -c sk -l print-score -d 'Print the command as the first line (after pri
 complete -c sk -s 1 -l select-1 -d 'Automatically select the match if there is only one'
 complete -c sk -s 0 -l exit-0 -d 'Automatically exit when no match is left'
 complete -c sk -l sync -d 'Synchronous search for multi-staged filtering'
+complete -c sk -l man -d 'Generate man page and output it to stdout'
 complete -c sk -s x -l extended -d 'Reserved for later use'
 complete -c sk -l literal -d 'Reserved for later use'
 complete -c sk -l cycle -d 'Reserved for later use'

@@ -1,0 +1,13 @@
+experimental = ["setup-scripts"]
+
+[scripts.setup.stop-tmux]
+command = "sh -c 'tmux kill-session -t skim_e2e || true'"
+[scripts.setup.start-tmux]
+command = "tmux new-session -d -s skim_e2e"
+
+[profile.default]
+fail-fast = false
+retries = 9
+[[profile.default.scripts]]
+platform = "cfg(unix)"
+setup = ["stop-tmux", "start-tmux"]

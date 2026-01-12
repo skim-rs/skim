@@ -25,15 +25,11 @@
     "xtask": {
       "skip-github-release": true
     },
-    "e2e": {
-      "skip-github-release": true
-    },
+
     "common": {
       "skip-github-release": true
     },
-    "tuikit": {
-      "skip-github-release": true
-    },
+
     "shell": {
       "release-type": "simple",
       "skip-github-release": true,

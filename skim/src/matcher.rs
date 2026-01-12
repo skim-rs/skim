@@ -1,23 +1,23 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
-use std::thread::JoinHandle;
 
 use rayon::prelude::*;
 
-use crate::item::{ItemPool, MatchedItem};
+use crate::item::{ItemPool, MatchedItem, RankBuilder};
+use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::spinlock::SpinLock;
-use crate::{CaseMatching, MatchEngineFactory};
+use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
 use defer_drop::DeferDrop;
 use std::rc::Rc;
 
 //==============================================================================
+#[derive(Default)]
 pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-    thread_matcher: JoinHandle<()>,
 }
 
 impl MatcherControl {
@@ -29,18 +29,23 @@ impl MatcherControl {
         self.matched.load(Ordering::Relaxed)
     }
 
-    pub fn kill(self) {
+    pub fn kill(&mut self) {
         self.stopped.store(true, Ordering::Relaxed);
-        let _ = self.thread_matcher.join();
     }
 
     pub fn stopped(&self) -> bool {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    pub fn into_items(self) -> Arc<SpinLock<Vec<MatchedItem>>> {
-        while !self.stopped.load(Ordering::Relaxed) {}
-        self.items
+    pub fn items(&self) -> Arc<SpinLock<Vec<MatchedItem>>> {
+        while !self.stopped() {}
+        self.items.clone()
+    }
+}
+
+impl Drop for MatcherControl {
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::Relaxed);
     }
 }
 
@@ -67,6 +72,23 @@ impl Matcher {
         self
     }
 
+    pub fn from_options(options: &SkimOptions) -> Self {
+        let engine_factory: Rc<dyn MatchEngineFactory> = if options.regex {
+            Rc::new(RegexEngineFactory::builder())
+        } else {
+            let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
+            log::debug!("Creating matcher for algo {:?}", options.algorithm);
+            let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
+                .fuzzy_algorithm(options.algorithm)
+                .exact_mode(options.exact)
+                .rank_builder(rank_builder)
+                .build();
+            Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+        };
+
+        Matcher::builder(engine_factory).case(options.case).build()
+    }
+
     pub fn run<C>(&self, query: &str, item_pool: Arc<DeferDrop<ItemPool>>, callback: C) -> MatcherControl
     where
         C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
@@ -82,7 +104,7 @@ impl Matcher {
         let matched_items = Arc::new(SpinLock::new(Vec::new()));
         let matched_items_clone = matched_items.clone();
 
-        let thread_matcher = thread::spawn(move || {
+        thread::spawn(move || {
             let _num_taken = item_pool.num_taken();
             let items = item_pool.take();
 
@@ -95,17 +117,16 @@ impl Matcher {
                 .into_par_iter()
                 .enumerate()
                 .filter_map(|(_, item)| {
-                    let item_idx = item.get_index();
                     processed.fetch_add(1, Ordering::Relaxed);
                     if stopped.load(Ordering::Relaxed) {
                         Some(Err("matcher killed"))
                     } else if let Some(match_result) = matcher_engine.match_item(item.clone()) {
                         matched.fetch_add(1, Ordering::Relaxed);
+                        // item is Arc but we get &Arc from iterator, so one clone is needed
                         Some(Ok(MatchedItem {
                             item: item.clone(),
                             rank: match_result.rank,
                             matched_range: Some(match_result.matched_range),
-                            item_idx: item_idx as u32,
                         }))
                     } else {
                         None
@@ -128,7 +149,6 @@ impl Matcher {
             matched: matched_clone,
             processed: processed_clone,
             items: matched_items_clone,
-            thread_matcher,
         }
     }
 }

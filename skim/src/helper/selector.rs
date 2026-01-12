@@ -4,6 +4,7 @@ use regex::Regex;
 
 use crate::{Selector, SkimItem};
 
+/// Default implementation of the selector trait for pre-selecting items
 #[derive(Debug, Default)]
 pub struct DefaultSkimSelector {
     first_n: usize,
@@ -12,12 +13,14 @@ pub struct DefaultSkimSelector {
 }
 
 impl DefaultSkimSelector {
+    /// Selects the first N items
     pub fn first_n(mut self, first_n: usize) -> Self {
         trace!("select first_n: {first_n}");
         self.first_n = first_n;
         self
     }
 
+    /// Selects items whose text matches any of the preset strings
     pub fn preset(mut self, preset: impl IntoIterator<Item = String>) -> Self {
         if self.preset.is_none() {
             self.preset = Some(HashSet::new())
@@ -29,6 +32,7 @@ impl DefaultSkimSelector {
         self
     }
 
+    /// Selects items whose text matches the given regex pattern
     pub fn regex(mut self, regex: &str) -> Self {
         trace!("select regex: {regex}");
         if !regex.is_empty() {

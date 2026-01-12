@@ -136,38 +136,12 @@ function! s:default_layout()
         \ : { 'down': '~40%' }
 endfunction
 
-function! skim#install()
-  if s:is_win && !has('win32unix')
-    let script = s:base_dir.'/install.ps1'
-    if !filereadable(script)
-      throw script.' not found'
-    endif
-    let script = 'powershell -ExecutionPolicy Bypass -file ' . script
-  else
-    let script = s:base_dir.'/install'
-    if !executable(script)
-      throw script.' not found'
-    endif
-    let script .= ' --bin'
-  endif
-
-  call s:warn('Running skim installer ...')
-  call system(script)
-  if v:shell_error
-    throw 'Failed to download skim: '.script
-  endif
-endfunction
-
 function! skim#exec()
   if !exists('s:exec')
     if executable(s:skim_rs)
       let s:exec = s:skim_rs
     elseif executable('sk')
       let s:exec = 'sk'
-    elseif input('skim executable not found. Download binary? (y/n) ') =~? '^y'
-      redraw
-      call skim#install()
-      return skim#exec()
     else
       redraw
       throw 'skim executable not found'
@@ -518,21 +492,17 @@ function! s:dopopd()
     return
   endif
 
-  " FIXME: We temporarily change the working directory to 'dir' entry
+  " Note: We temporarily change the working directory to 'dir' entry
   " of options dictionary (set to the current working directory if not given)
   " before running skim.
   "
   " e.g. call skim#run({'dir': '/tmp', 'source': 'ls', 'sink': 'e'})
   "
-  " After processing the sink function, we have to restore the current working
-  " directory. But doing so may not be desirable if the function changed the
-  " working directory on purpose.
-  "
-  " So how can we tell if we should do it or not? A simple heuristic we use
-  " here is that we change directory only if the current working directory
-  " matches 'dir' entry. However, it is possible that the sink function did
-  " change the directory to 'dir'. In that case, the user will have an
-  " unexpected result.
+  " After processing the sink function, we restore the current working
+  " directory using a heuristic: we only change directory if the current
+  " working directory matches 'dir' entry. This handles most cases correctly,
+  " though it may not restore the directory if the sink function explicitly
+  " changed to the 'dir' path.
   if s:skim_getcwd() ==# w:skim_pushd.dir && (!&autochdir || w:skim_pushd.bufname ==# bufname(''))
     execute w:skim_pushd.command s:escape(w:skim_pushd.origin)
   endif

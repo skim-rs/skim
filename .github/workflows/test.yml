@@ -12,36 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unittests:
-    runs-on: ${{matrix.os}}
-    strategy:
-      matrix:
-        build: [linux, macos]
-        include:
-        - build: linux
-          os: ubuntu-latest
-          rust: stable
-          target: x86_64-unknown-linux-musl
-        - build: macos
-          os: macos-latest
-          rust: stable
-          target: x86_64-apple-darwin
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 1
-    - name: Install correct toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-        target: ${{ matrix.target }}
-    - name: Cache
-      uses: Swatinem/rust-cache@v2
-    - name: Run unit tests
-      run: cargo test -p skim -p skim-common -p skim-tuikit
-
-  e2e:
+  nextest:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -79,13 +50,13 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           target: ${{ matrix.target }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9
       - name: Cache
         uses: Swatinem/rust-cache@v2
-      - name: Run end-to-end tests
-        run: |
-          cargo build --release
-          tmux new-session -d
-          cargo e2e -j8
+      - name: Run tests
+        run: cargo nextest run --release --all-targets
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
@@ -122,3 +93,20 @@ jobs:
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
+
+  build-no-default-features:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Build without cli feature
+        run: |
+          cargo build --no-default-features

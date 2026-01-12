@@ -1,8 +1,8 @@
 use crate::SkimItem;
-use crate::event::Event;
-use skim_tuikit::key::Key;
+use crate::tui::Event;
 use std::sync::Arc;
 
+/// Output from running skim, containing the final selection and state
 pub struct SkimOutput {
     /// The final event that makes skim accept/quit.
     /// Was designed to determine if skim quit or accept.
@@ -14,7 +14,7 @@ pub struct SkimOutput {
 
     /// The final key that makes skim accept/quit.
     /// Note that it might be Key::Null if it is triggered by skim.
-    pub final_key: Key,
+    pub final_key: crossterm::event::KeyEvent,
 
     /// The query
     pub query: String,

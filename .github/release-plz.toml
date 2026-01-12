@@ -20,12 +20,10 @@ publish_no_verify = false
 changelog_include = [
 	"skim",
   "skim-common",
-  "skim-tuikit",
 	"shell",
 	"plugin",
 	"bin",
 	"xtask",
-	"e2e"
 ]
 changelog_path = "./CHANGELOG.md"
 changelog_update = true
@@ -50,14 +48,6 @@ git_tag_enable = true
 git_tag_name = "common-v{{ version }}"
 
 [[package]]
-name = "skim-tuikit"
-publish = true
-publish_no_verify = false
-git_tag_enable = true
-git_tag_name = "tuikit-v{{ version }}"
-
-[[package]]
-name = "e2e"
 release = false
 publish = false
 [[package]]

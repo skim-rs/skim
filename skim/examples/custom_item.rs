@@ -6,7 +6,7 @@ struct MyItem {
 }
 
 impl SkimItem for MyItem {
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.inner)
     }
 
@@ -19,7 +19,7 @@ impl SkimItem for MyItem {
     }
 }
 
-pub fn main() {
+fn main() {
     let options = SkimOptionsBuilder::default()
         .height(String::from("50%"))
         .multi(true)
@@ -39,7 +39,7 @@ pub fn main() {
     }));
     drop(tx_item); // so that skim could know when to stop waiting for more items.
 
-    let selected_items = Skim::run_with(&options, Some(rx_item))
+    let selected_items = Skim::run_with(options, Some(rx_item))
         .map(|out| out.selected_items)
         .unwrap_or_default();
 

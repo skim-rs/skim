@@ -1,17 +1,32 @@
+//! Configuration options for skim.
+//!
+//! This module provides the `SkimOptions` struct and builder for configuring
+//! all aspects of skim's behavior, including search, display, layout, and interaction settings.
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(feature = "cli")]
-use clap::Parser;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
+use regex::Regex;
 
+use crate::binds::KeyMap;
 use crate::item::RankCriteria;
-use crate::model::options::InfoDisplay;
 use crate::prelude::SkimItemReader;
-use crate::previewer::PreviewCallback;
 use crate::reader::CommandCollector;
+use crate::tui::PreviewCallback;
+use crate::tui::event::Action;
+use crate::tui::options::{PreviewLayout, TuiLayout};
+use crate::tui::statusline::InfoDisplay;
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector};
+
+#[cfg(feature = "cli")]
+/// Custom value parser for delimiter that handles escape sequences
+fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
+    let unescaped = crate::util::unescape_delimiter(s);
+    Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {}", e))
+}
 
 /// sk - fuzzy finder in Rust
 ///
@@ -20,7 +35,11 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 ///
 /// # ENVIRONMENT VARIABLES
 ///
-/// ## NO_COLOR
+///      NO_COLOR
+///
+///          If set and not empty, sk will not use any colors in the output.
+///
+///      SKIM_DEFAULT_COMMAND
 ///
 /// If set and not empty, sk will not use any colors in the output.
 ///
@@ -83,13 +102,16 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector};
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
-#[cfg_attr(feature = "cli", derive(Parser))]
-#[cfg_attr(feature = "cli", command(name = "sk", args_override_self = true, version))]
+#[cfg_attr(feature = "cli", derive(clap::Parser))]
+#[cfg_attr(
+    feature = "cli",
+    command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about)
+)]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
     ///
-    /// *Often used in combination with `--no-sort`*
+    /// Often used in combination with --no-sort
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub tac: bool,
 
@@ -101,9 +123,8 @@ pub struct SkimOptions {
 
     /// Do not sort the results
     ///
-    /// *Often used in combination with `--tac`*
-    ///
-    /// **Example**: `history | sk --tac --no-sort`
+    /// Often used in combination with --tac
+    /// Example: `history | sk --tac --no-sort`
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub no_sort: bool,
 
@@ -111,19 +132,8 @@ pub struct SkimOptions {
     ///
     /// * **score**: Score of the fuzzy match algorithm
     ///
-    /// * **index**: Prefers line that appeared earlier in the input stream
-    ///
-    /// * **begin**: Prefers line with matched substring closer to the beginning
-    ///
-    /// * **end**: Prefers line with matched substring closer to the end
-    ///
-    /// * **length**: Prefers line with shorter length
-    ///
-    /// Notes:
-    ///
-    ///   * Each criterion could be negated, e.g. (-index)
-    ///
-    ///   * Each criterion should appear only once in the list
+    ///     - Each criterion could be negated, e.g. (-index)
+    ///     - Each criterion should appear only once in the list
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -132,7 +142,9 @@ pub struct SkimOptions {
             default_value = "score,begin,end",
             value_enum,
             value_delimiter = ',',
-            help_heading = "Search"
+            help_heading = "Search",
+            allow_hyphen_values = true,
+            verbatim_doc_comment
         )
     )]
     pub tiebreak: Vec<RankCriteria>,
@@ -142,26 +154,26 @@ pub struct SkimOptions {
     /// A field index expression can be a non-zero integer or a range expression (`[BEGIN]..[END]`).
     /// `--nth` and `--with-nth` take a comma-separated list of field index expressions.
     ///
-    /// **Examples**:
-    ///
-    ///   * `1`:      The 1st field
-    ///
-    ///   * `2`:      The 2nd field
-    ///
-    ///   * `-1`:     The last field
-    ///
-    ///   * `-2`:     The 2nd to last field
-    ///
-    ///   * `3..5`:   From the 3rd field to the 5th field
-    ///
-    ///   * `2..`:    From the 2nd field to the last field
-    ///
-    ///   * `..-3`:   From the 1st field to the 3rd to the last field
-    ///
-    ///   * `..`:     All the fields
+    /// **Examples:**
+    ///     1      The 1st field
+    ///     2      The 2nd field
+    ///     -1     The last field
+    ///     -2     The 2nd to last field
+    ///     3..5   From the 3rd field to the 5th field
+    ///     2..    From the 2nd field to the last field
+    ///     ..-3   From the 1st field to the 3rd to the last field
+    ///     ..     All the fields
     #[cfg_attr(
         feature = "cli",
-        arg(short, long, default_value = "", help_heading = "Search", value_delimiter = ',')
+        arg(
+            short,
+            long,
+            default_value = "",
+            help_heading = "Search",
+            verbatim_doc_comment,
+            value_delimiter = ',',
+            allow_hyphen_values = true,
+        )
     )]
     pub nth: Vec<String>,
 
@@ -176,12 +188,12 @@ pub struct SkimOptions {
 
     /// Delimiter between fields
     ///
-    /// In regex format, default to AWK-style
+    /// In regex format, default to AWK-style. Escape sequences like \x00, \t, \n are supported.
     #[cfg_attr(
         feature = "cli",
-        arg(short, long, default_value = r"[\t\n ]+", help_heading = "Search")
+        arg(short, long, default_value = r"[\t\n ]+", value_parser = parse_delimiter_value, help_heading = "Search")
     )]
-    pub delimiter: String,
+    pub delimiter: Regex,
 
     /// Run in exact mode
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Search"))]
@@ -193,14 +205,18 @@ pub struct SkimOptions {
 
     /// Fuzzy matching algorithm
     ///
-    /// * **skim_v2**: Latest skim algorithm, should be better in almost any case
-    ///
-    /// * **skim_v1**: Legacy skim algorithm
-    ///
-    /// * **clangd**: Used in clangd for keyword completion
+    /// skim_v2 Latest skim algorithm, should be better in almost any case
+    /// skim_v1 Legacy skim algorithm
+    /// clangd Used in clangd for keyword completion
     #[cfg_attr(
         feature = "cli",
-        arg(long = "algo", default_value = "skim_v2", value_enum, help_heading = "Search")
+        arg(
+            long = "algo",
+            default_value = "skim_v2",
+            value_enum,
+            help_heading = "Search",
+            verbatim_doc_comment
+        )
     )]
     pub algorithm: FuzzyAlgorithm,
 
@@ -305,11 +321,15 @@ pub struct SkimOptions {
     ///
     /// * accept(...): enter *the argument will be printed when the binding is triggered*
     ///
+    /// * append-and-select(c): append c to the query
+    ///
     /// * append-and-select:
     ///
     /// * backward-char: ctrl-b  left
     ///
     /// * backward-delete-char: ctrl-h  bspace
+    ///
+    /// * backward-delete-char/eof:
     ///
     /// * backward-kill-word: alt-bs
     ///
@@ -321,7 +341,7 @@ pub struct SkimOptions {
     ///
     /// * delete-char: del
     ///
-    /// * delete-charEOF: ctrl-d
+    /// * delete-char/eof: ctrl-d
     ///
     /// * deselect-all:
     ///
@@ -373,9 +393,17 @@ pub struct SkimOptions {
     ///
     /// * previous-history: ctrl-p with `--history` or `--cmd-history`
     ///
+    /// * redraw:
+    ///
+    /// * refresh-cmd:
+    ///
+    /// * refresh-preview:
+    ///
     /// * reload(...):
     ///
     /// * select-all:
+    ///
+    /// * select-row:
     ///
     /// * toggle:
     ///
@@ -384,6 +412,8 @@ pub struct SkimOptions {
     /// * toggle+down: ctrl-i  tab
     ///
     /// * toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
+    ///
+    /// * toggle-interactive:
     ///
     /// * toggle-out: (--layout=reverse ? toggle+down:  toggle+up)
     ///
@@ -394,6 +424,8 @@ pub struct SkimOptions {
     /// * toggle-sort:
     ///
     /// * toggle+up: btab    shift-tab
+    ///
+    /// * top:
     ///
     /// * unix-line-discard: ctrl-u
     ///
@@ -448,7 +480,10 @@ pub struct SkimOptions {
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
     /// is equal to ‘delete-char/eof‘.
-    #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface", value_delimiter = ','))]
+    #[cfg_attr(
+        feature = "cli",
+        arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "", num_args=0..)
+    )]
     pub bind: Vec<String>,
 
     /// Enable multiple selection
@@ -484,50 +519,7 @@ pub struct SkimOptions {
 
     /// Set color theme
     ///
-    /// Use `--color` to customize the color scheme of skim. The format is:
-    ///
-    /// **Format**: [BASE_SCHEME][,COLOR:ANSI_VALUE]
-    ///
-    /// ### Base Color Schemes
-    ///
-    /// - **dark**: Default 256-color dark theme (default)
-    /// - **light**: 256-color light theme
-    /// - **16**: Basic 16-color theme
-    /// - **bw**: Minimal black & white theme (no colors, just styles)
-    /// - **none**: Minimal black & white theme (no colors, no styles). Default when NO_COLOR is set
-    /// - **molokai**: Molokai-inspired 256-color theme
-    ///
-    /// ### Color Customization
-    ///
-    /// Colors can be specified in two ways:
-    /// - ANSI color code (0-255): `--color=fg:232,bg:255`
-    /// - RGB hex values: `--color=fg:#FF0000` (red text)
-    ///
-    /// ### Customizable UI Elements
-    ///
-    /// - **fg**: Normal text foreground color
-    /// - **bg**: Normal text background color
-    /// - **matched** (or **hl**): Matched text in search results
-    /// - **matched_bg**: Background of matched text
-    /// - **current** (or **fg+**): Current line foreground color
-    /// - **current_bg** (or **bg+**): Current line background color
-    /// - **current_match** (or **hl+**): Matched text in current line
-    /// - **current_match_bg**: Background of matched text in current line
-    /// - **spinner**: Progress indicator color
-    /// - **info**: Information line color
-    /// - **prompt**: Prompt color
-    /// - **cursor** (or **pointer**): Cursor color
-    /// - **selected** (or **marker**): Selected item marker color
-    /// - **header**: Header text color
-    /// - **border**: Border color for preview/layout
-    ///
-    /// ### Examples
-    ///
-    /// - `--color=light`: Use light color scheme
-    /// - `--color=dark,fg:232,bg:255`: Use dark scheme with custom colors
-    /// - `--color=current_bg:24`: Default scheme with custom current line background
-    /// - `--color=dark,matched:#00FF00`: Green matched text on dark theme
-    /// - `--color=fg:#FFFFFF,bg:#000000`: Custom white-on-black color scheme
+    /// Format: [BASE][,COLOR:ANSI]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub color: Option<String>,
 
@@ -546,8 +538,8 @@ pub struct SkimOptions {
     /// Line  will  start  with  the  start of the matched pattern. Effective only when the query
     /// string is empty. Was designed to skip showing starts of paths of rg/grep results.
     ///
-    /// **Example**: `sk -i -c "rg {} --color=always" --skip-to-pattern '[^/]*:' --ansi`
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
+    /// e.g. sk -i -c "rg {} --color=always" --skip-to-pattern '[^/]*:' --ansi
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub skip_to_pattern: Option<String>,
 
     /// Do not clear previous line if the command returns an empty result
@@ -558,7 +550,7 @@ pub struct SkimOptions {
     /// This is not the default behavior because similar use cases for grep and rg have already been op‐
     /// timized where empty query results actually mean "empty" and previous results should be
     /// cleared.
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub no_clear_if_empty: bool,
 
     /// Do not clear items on start
@@ -580,20 +572,11 @@ pub struct SkimOptions {
     //  --- Layout ---
     /// Set layout
     ///
-    /// *default: Display from the bottom of the screen
-    ///
-    /// *reverse: Display from the top of the screen
-    ///
-    /// *reverse-list: Display from the top of the screen, prompt at the bottom
-    #[cfg_attr(feature = "cli", arg(
-        long,
-        default_value = "default",
-        value_parser = clap::builder::PossibleValuesParser::new(
-            ["default", "reverse", "reverse-list"]
-        ),
-        help_heading = "Layout",
-    ))]
-    pub layout: String,
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Layout", verbatim_doc_comment, default_value = "default")
+    )]
+    pub layout: TuiLayout,
 
     /// Shorthand for reverse layout
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
@@ -605,16 +588,18 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, default_value = "100%", help_heading = "Layout"))]
     pub height: String,
 
-    /// Disable height feature
+    /// Disable height (force full screen)
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
     pub no_height: bool,
 
     /// Minimum height of skim's window
     ///
     /// Useful when the height is set as a percentage
-    ///
-    /// Ignored when `--height` is not specified
-    #[cfg_attr(feature = "cli", arg(long, default_value = "10", help_heading = "Layout"))]
+    /// Ignored when --height is not specified
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment)
+    )]
     pub min_height: String,
 
     /// Screen margin
@@ -622,17 +607,15 @@ pub struct SkimOptions {
     /// For each side, can be either a row count or a percentage of the terminal size
     ///
     /// Format can be one of:
-    ///
-    /// * TRBL
-    ///
-    /// * TB,RL
-    ///
-    /// * T,RL,B
-    ///
-    /// * T,R,B,L
-    ///
-    /// **Example**: 1,10%
-    #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Layout"))]
+    ///     - TRBL
+    ///     - TB,RL
+    ///     - T,RL,B
+    ///     - T,R,B,L
+    /// Example: 1,10%
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment)
+    )]
     pub margin: String,
 
     /// Set prompt
@@ -645,6 +628,20 @@ pub struct SkimOptions {
 
     //  --- Display ---
     /// Parse ANSI color codes in input strings
+    ///
+    /// When using skim as a library, this has no effect and ansi parsing should
+    /// be enabled by manually injecting a cmd_collector like so:
+    /// ```rust
+    /// use skim::prelude::*;
+    ///
+    /// let _options = SkimOptionsBuilder::default()
+    ///   .cmd(ls --color)
+    ///   .cmd_collector(Rc::new(RefCell::new(SkimItemReader::new(
+    ///     SkimItemReaderOption::default().ansi(true),
+    ///     ))) as Rc<RefCell<dyn CommandCollector>>)
+    ///   .build()
+    ///   .unwrap()
+    /// ```
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub ansi: bool,
 
@@ -654,9 +651,9 @@ pub struct SkimOptions {
 
     /// Set matching result count display position
     ///
-    /// * hidden: do not display info
-    /// * inline: display info in the same row as the input
-    /// * default: display info in a dedicated row above the input
+    ///     hidden: do not display info
+    ///     inline: display info in the same row as the input
+    ///     default: display info in a dedicated row above the input
     #[cfg_attr(
         feature = "cli",
         arg(long, help_heading = "Display", value_enum, default_value = "default")
@@ -674,8 +671,8 @@ pub struct SkimOptions {
     /// Set header, displayed next to the info
     ///
     /// The  given  string  will  be printed as the sticky header. The lines are displayed in the
-    /// given order from top to bottom regardless of `--layout` option, and  are  not  affected  by
-    /// `--with-nth`. ANSI color codes are processed even when `--ansi` is not set.
+    /// given order from top to bottom regardless of --layout option, and  are  not  affected  by
+    /// --with-nth. ANSI color codes are processed even when --ansi is not set.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub header: Option<String>,
 
@@ -685,6 +682,11 @@ pub struct SkimOptions {
     /// the lines are transformed just like the other lines that follow.
     #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Display"))]
     pub header_lines: usize,
+
+    /// Draw borders around the UI components
+    ///
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
+    pub border: bool,
 
     //  --- History ---
     /// History file
@@ -746,7 +748,7 @@ pub struct SkimOptions {
     ///
     /// Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐
     /// pressions evaluates to a non-empty string.
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Preview"))]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Preview", verbatim_doc_comment))]
     pub preview: Option<String>,
 
     /// Preview window layout
@@ -775,14 +777,21 @@ pub struct SkimOptions {
     /// git grep --line-number '' |
     ///   sk --delimiter:  --preview 'nl {1}' --preview-window +{2}-5
     ///
-    /// # Preview with bat, matching line in the middle of the window (-/2)
-    /// git grep --line-number '' |
-    ///   sk --delimiter:  \
-    ///       --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
-    ///       --preview-window +{2}-/2
-    /// ```
-    #[cfg_attr(feature = "cli", arg(long, default_value = "right:50%", help_heading = "Preview"))]
-    pub preview_window: String,
+    ///             # Preview with bat, matching line in the middle of the window (-/2)
+    ///             git grep --line-number '' |
+    ///               sk --delimiter : \
+    ///                   --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
+    ///                   --preview-window +{2}-/2
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long,
+            default_value = "right:50%",
+            help_heading = "Preview",
+            allow_hyphen_values = true
+        )
+    )]
+    pub preview_window: PreviewLayout,
 
     //  --- Scripting ---
     /// Initial query
@@ -792,18 +801,6 @@ pub struct SkimOptions {
     /// Initial query in interactive mode
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub cmd_query: Option<String>,
-
-    /// [Deprecated: Use `--bind=<key>:accept(<key>)` instead] Comma separated list of keys used to complete skim
-    ///
-    /// Comma-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this
-    /// option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second
-    /// line  if --print-query is also used). No line will be printed if sk is completed with the default enter key. If
-    /// --expect option is specified multiple times, sk will expect the union of the keys. --no-expect will clear  the
-    /// list.
-    ///
-    /// **Example**: `sk --expect=ctrl-v,ctrl-t,alt-s --expect=f1,f2,~,@`
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", value_delimiter = ','))]
-    pub expect: Vec<String>,
 
     /// Read input delimited by ASCII NUL(\\0) characters
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
@@ -838,7 +835,7 @@ pub struct SkimOptions {
     /// Synchronous search for multi-staged filtering. If specified,
     /// skim will launch ncurses finder only after the input stream is complete.
     ///
-    /// **Example**: `sk --multi | sk --sync`
+    ///     e.g. sk --multi | sk --sync
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub sync: bool,
 
@@ -855,7 +852,7 @@ pub struct SkimOptions {
 
     /// Pre-select the items separated by newline character
     ///
-    /// **Example**: `item1\nitem2`
+    /// Example: 'item1\nitem2'
     #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Scripting"))]
     pub pre_select_items: String,
 
@@ -884,22 +881,24 @@ pub struct SkimOptions {
     )]
     pub shell: Option<clap_complete::Shell>,
 
+    /// Generate man page and output it to stdout
+    #[cfg(feature = "cli")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub man: bool,
+
     /// Run in a tmux popup
     ///
     /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     ///
     /// Depending on the direction, the order and behavior of the sizes varies:
     ///
-    /// * center: (width, height) or (size, size) if only one is provided
-    ///
-    /// * top | bottom: (height, width) or height = size, width = 100% if only one is provided
-    ///
-    /// * left | right: (width, height) or height = 100%, width = size if only one is provided
-    ///
-    /// Note: env vars are only passed to the tmux command if they are either `PATH` or prefixed with
-    /// `RUST` or `SKIM`
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
+    /// Default: center,50%
+    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
     pub tmux: Option<String>,
+
+    /// Pipe log output to a file
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub log_file: Option<String>,
 
     /// Reserved for later use
     #[cfg_attr(
@@ -940,10 +939,6 @@ pub struct SkimOptions {
     pub jump_labels: String,
 
     /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use", default_missing_value="Hi", num_args=0..=1))]
-    pub border: Option<String>,
-
-    /// Reserved for later use
     #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub no_bold: bool,
 
@@ -959,12 +954,20 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub phony: bool,
 
+    /// Deprecated, kept for compatibility purposes. See accept() bind instead.
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
+    pub expect: String,
+
+    /// Command collector for reading items from commands
     #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
     pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
+    /// Query history entries loaded from history file
     #[cfg_attr(feature = "cli", clap(skip))]
     pub query_history: Vec<String>,
+    /// Command history entries loaded from cmd history file
     #[cfg_attr(feature = "cli", clap(skip))]
     pub cmd_history: Vec<String>,
+    /// Selector for pre-selecting items
     #[cfg_attr(feature = "cli", clap(skip))]
     pub selector: Option<Rc<dyn Selector>>,
     /// Preview Callback
@@ -975,6 +978,10 @@ pub struct SkimOptions {
     /// and return a Vec<String> with the lines to display in UTF-8
     #[cfg_attr(feature = "cli", clap(skip))]
     pub preview_fn: Option<PreviewCallback>,
+
+    /// The internal (parsed) keymap
+    #[cfg_attr(feature = "cli", clap(skip))]
+    pub keymap: KeyMap,
 }
 
 impl Default for SkimOptions {
@@ -986,7 +993,7 @@ impl Default for SkimOptions {
             tiebreak: vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End],
             nth: Default::default(),
             with_nth: Default::default(),
-            delimiter: String::from(r"[\t\n ]+"),
+            delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             exact: Default::default(),
             regex: Default::default(),
             algorithm: Default::default(),
@@ -1006,7 +1013,7 @@ impl Default for SkimOptions {
             no_clear_start: Default::default(),
             no_clear: Default::default(),
             show_cmd_error: Default::default(),
-            layout: String::from("default"),
+            layout: TuiLayout::default(),
             reverse: Default::default(),
             height: String::from("100%"),
             no_height: Default::default(),
@@ -1026,10 +1033,9 @@ impl Default for SkimOptions {
             cmd_history_file: Default::default(),
             cmd_history_size: 1000,
             preview: Default::default(),
-            preview_window: String::from("right:50%"),
+            preview_window: PreviewLayout::default(),
             query: Default::default(),
             cmd_query: Default::default(),
-            expect: Default::default(),
             read0: Default::default(),
             print0: Default::default(),
             print_query: Default::default(),
@@ -1043,9 +1049,8 @@ impl Default for SkimOptions {
             pre_select_items: Default::default(),
             pre_select_file: Default::default(),
             filter: Default::default(),
-            #[cfg(feature = "cli")]
-            shell: Default::default(),
             tmux: Default::default(),
+            log_file: Default::default(),
             extended: Default::default(),
             literal: Default::default(),
             cycle: Default::default(),
@@ -1057,46 +1062,64 @@ impl Default for SkimOptions {
             pointer: Default::default(),
             marker: Default::default(),
             phony: Default::default(),
+            expect: Default::default(),
             cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
             query_history: Default::default(),
             cmd_history: Default::default(),
             selector: Default::default(),
             preview_fn: Default::default(),
+            keymap: Default::default(),
+            #[cfg(feature = "cli")]
+            shell: Default::default(),
+            #[cfg(feature = "cli")]
+            man: false,
         }
     }
 }
 
 impl SkimOptionsBuilder {
+    /// Builds the SkimOptions from the builder
     pub fn build(&mut self) -> Result<SkimOptions, SkimOptionsBuilderError> {
-        if let Some(true) = self.no_height {
-            self.height = Some("100%".to_string());
-        }
-
-        if let Some(true) = self.reverse {
-            self.layout = Some("reverse".to_string());
-        }
-
-        self.final_build()
+        self.final_build().map(|opts| opts.build())
     }
 }
 
 impl SkimOptions {
+    /// Finalizes the options by applying defaults and initializing components
     pub fn build(mut self) -> Self {
         if self.no_height {
             self.height = String::from("100%");
         }
 
+        self.keymap = self.bind.iter().fold(KeyMap::default(), |mut res, part| {
+            res.add_keymaps(part.split(','));
+            res
+        });
+
         if self.reverse {
-            self.layout = String::from("reverse");
+            self.layout = TuiLayout::Reverse
         }
-        let history_binds = String::from("ctrl-p:previous-history,ctrl-n:next-history");
         if self.history_file.is_some() || self.cmd_history_file.is_some() {
             self.init_histories();
-            self.bind.push(history_binds);
+            self.keymap.insert(
+                KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL),
+                vec![Action::PreviousHistory],
+            );
+            self.keymap.insert(
+                KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL),
+                vec![Action::NextHistory],
+            );
+        }
+        if self.inline_info {
+            self.info = InfoDisplay::Inline;
+        }
+        if self.no_info {
+            self.info = InfoDisplay::Hidden;
         }
 
         self
     }
+    /// Initializes history from configured history files
     pub fn init_histories(&mut self) {
         if let Some(histfile) = &self.history_file {
             self.query_history.extend(read_file_lines(histfile).unwrap_or_default());

@@ -18,34 +18,43 @@ path = "src/lib.rs"
 [[bin]]
 name = "sk"
 path = "src/bin/main.rs"
+required-features = ["cli"]
 
 [dependencies]
 beef = { workspace = true }
-bitflags = { workspace = true }
+bitflags = "2.10.0"
 chrono = { workspace = true }
 clap = { workspace = true, optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { workspace = true, optional = true }
-crossbeam = { workspace = true }
+clap_mangen = { workspace = true, optional = true }
 defer-drop = { workspace = true }
 derive_builder = { workspace = true }
 env_logger = { workspace = true, optional = true }
-fuzzy-matcher = { workspace = true }
 indexmap = { workspace = true }
 log = { workspace = true }
-nix = { workspace = true }
+nix = { version = "0.30.1", features = ["fs"] }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
 shell-quote = { workspace = true }
 shlex = { workspace = true, optional = true }
-skim-common = { path = "../skim-common/", version = "0.2.0" }
-skim-tuikit = { path = "../skim-tuikit/", version = "0.6.6" }
 time = { workspace = true }
 timer = { workspace = true }
+tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread", "sync", "time", "tokio-macros"] }
 unicode-width = { workspace = true }
 vte = { workspace = true }
-which = { workspace = true }
+which = "8.0.0"
+ratatui = "0.29.0"
+color-eyre = "0.6.5"
+ansi-to-tui = "7.0.0"
+futures = "0.3.31"
+tokio-util = "0.7.17"
+thiserror = "2.0.17"
+tempfile = { workspace = true }
+crossterm = { version = "0.28.1", features = ["event-stream", "use-dev-tty", "libc"] } # TODO remove libc feature after ratatui upgrades to crossterm 0.29+
+thread_local = "1.1.9"
 
 [features]
 default = ["cli"]
-cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger"]
+cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
+compact_matcher = []
