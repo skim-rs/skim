@@ -19,9 +19,15 @@ install-updater = false
 pr-run-mode = "upload"
 
 [[dist.extra-artifacts]]
-artifacts = ["man/"]
+artifacts = ["man/man1/sk.1"]
 build = ["sh", "-c", "cargo run -- --man > man/man1/sk.1"]
 
 [[dist.extra-artifacts]]
-artifacts = ["shell/"]
-build = ["sh", "-c", "cargo run -- --shell bash > shell/completion.bash && cargo run -- --shell zsh > shell/completion.zsh && cargo run --shell fish > shell/completion.fish"]
+artifacts = ["shell/completion.bash"]
+build = ["sh", "-c", "cargo run -- --shell bash > shell/completion.bash"]
+[[dist.extra-artifacts]]
+artifacts = ["shell/completion.zsh"]
+build = ["sh", "-c", "cargo run -- --shell zsh > shell/completion.zsh"]
+[[dist.extra-artifacts]]
+artifacts = ["shell/completion.fish"]
+build = ["sh", "-c", "cargo run -- --shell fish > shell/completion.fish"]
