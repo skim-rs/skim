@@ -7,7 +7,6 @@ extern crate env_logger;
 extern crate log;
 extern crate shlex;
 extern crate skim;
-extern crate time;
 
 use crate::Event;
 use clap::{CommandFactory, Error, Parser};
