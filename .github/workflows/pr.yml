@@ -42,26 +42,12 @@ jobs:
           toolchain: stable
       - name: Cache
         uses: Swatinem/rust-cache@v2
-      - name: Generate manpage
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -- --man > man/man1/sk.1
-      - name: Generate Bash completions
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -- --shell bash > shell/completion.bash
-      - name: Generate Zsh completions
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -- --shell zsh > shell/completion.zsh
-      - name: Generate Fish completions
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -- --shell fish > shell/completion.fish
+      - name: Generate files
+        run: |
+          cargo run -- --man > man/man1/sk.1
+          cargo run -- --shell bash > shell/completion.bash
+          cargo run -- --shell zsh > shell/completion.zsh
+          cargo run -- --shell fish > shell/completion.fish
       - name: Push modified files
         run: |
           git branch -v
