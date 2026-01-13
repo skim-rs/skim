@@ -46,12 +46,22 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --package xtask mangen
-      - name: Generate completions
+          args: -- --man > man/man1/sk.1
+      - name: Generate Bash completions
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --package xtask compgen
+          args: -- --shell bash > shell/completion.bash
+      - name: Generate Zsh completions
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -- --shell zsh > shell/completion.zsh
+      - name: Generate Fish completions
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -- --shell fish > shell/completion.fish
       - name: Push modified files
         run: |
           git branch -v
