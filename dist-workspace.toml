@@ -17,17 +17,4 @@ install-path = "CARGO_HOME"
 install-updater = false
 # Upload all artifacts for each release
 pr-run-mode = "upload"
-
-[[dist.extra-artifacts]]
-artifacts = ["man/man1/sk.1"]
-build = ["sh", "-c", "cargo run -- --man > man/man1/sk.1"]
-
-[[dist.extra-artifacts]]
-artifacts = ["shell/completion.bash"]
-build = ["sh", "-c", "cargo run -- --shell bash > shell/completion.bash"]
-[[dist.extra-artifacts]]
-artifacts = ["shell/completion.zsh"]
-build = ["sh", "-c", "cargo run -- --shell zsh > shell/completion.zsh"]
-[[dist.extra-artifacts]]
-artifacts = ["shell/completion.fish"]
-build = ["sh", "-c", "cargo run -- --shell fish > shell/completion.fish"]
+include = ["./man/", "./shell/"]
