@@ -42,16 +42,12 @@ jobs:
           toolchain: stable
       - name: Cache
         uses: Swatinem/rust-cache@v2
-      - name: Generate manpage
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --package xtask mangen
-      - name: Generate completions
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --package xtask compgen
+      - name: Generate files
+        run: |
+          cargo run -- --man > man/man1/sk.1
+          cargo run -- --shell bash > shell/completion.bash
+          cargo run -- --shell zsh > shell/completion.zsh
+          cargo run -- --shell fish > shell/completion.fish
       - name: Push modified files
         run: |
           git branch -v
