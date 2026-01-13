@@ -3,7 +3,7 @@ name: Bug report
 about: Report a bug encountered using `skim`
 title: "[BUG] xxx"
 labels: bug
-assignees: ''
+assignees: LoricAndre
 
 ---
 
