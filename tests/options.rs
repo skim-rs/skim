@@ -153,6 +153,7 @@ sk_test!(opt_nth_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "5"], {
   @capture[1] contains("0/1");
 });
 sk_test!(opt_nth_neg_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-1"], {
+  @capture[0] starts_with(">");
   @keys Str("4");
   @capture[0] eq("> 4");
   @capture[1] contains("1/1");
@@ -586,7 +587,7 @@ sk_test!(opt_pre_select_file, "a\\nb\\nc", &[], tmux => {
   tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")?;
 });
 
-sk_test!(opt_no_clear_if_empty, @cmd "echo -ne 'a\\nb\\nc'", &["-i", "--no-clear-if-empty", "-c", "'echo -ne {}'"], {
+sk_test!(opt_no_clear_if_empty, @cmd "echo -ne 'a\\nb\\nc'", &["-i", "--no-clear-if-empty", "-c", "'printf {}'"], {
   @capture[0] trim().eq("c>");
 
   @keys Str("xxxx");

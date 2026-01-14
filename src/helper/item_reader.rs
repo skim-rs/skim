@@ -1,6 +1,5 @@
 //! Helper utilities for converting input sources into skim item streams.
 
-use std::env;
 use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
@@ -369,9 +368,8 @@ impl CommandCollector for SkimItemReader {
 type CommandOutput = (Option<Child>, Box<dyn BufRead + Send>);
 
 fn get_command_output(cmd: &str, send_error: bool) -> Result<CommandOutput, Box<dyn Error>> {
-    let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
     let (reader, writer) = std::io::pipe()?;
-    let mut sh = Command::new(shell);
+    let mut sh = Command::new("sh");
     let command = sh.arg("-c").arg(cmd).stdout(writer.try_clone()?);
     if send_error {
         trace!("redirecting stderr to the output");

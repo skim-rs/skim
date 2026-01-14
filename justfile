@@ -7,10 +7,10 @@ generate-files:
     cargo run -- --shell zsh > ./shell/completion.zsh
     cargo run -- --shell fish > ./shell/completion.fish
 
-changelog:
-    git cliff -o CHANGELOG.md
+changelog version:
+    git cliff -o CHANGELOG.md -t 'v{{ version }}'
 
-release version: (bump-version version) generate-files changelog
+release version: (bump-version version) generate-files (changelog version)
     cargo generate-lockfile
     git add CHANGELOG.md Cargo.lock Cargo.toml man/ shell/
     git commit -m 'release: v{{ version }}'
