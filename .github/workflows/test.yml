@@ -3,6 +3,10 @@ name: Build & Test
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
   pull_request:
   push:
     branches:

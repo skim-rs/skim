@@ -1253,7 +1253,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "skim"
-version = "1.0.0-pre1"
+version = "1.0.0-pre2"
 dependencies = [
  "ansi-to-tui",
  "beef",

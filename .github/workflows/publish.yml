@@ -2,6 +2,10 @@ name: Publish cargo crate
 
 on:
   workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
 
 jobs:
   publish:
