@@ -18,3 +18,5 @@ install-updater = false
 # Upload all artifacts for each release
 pr-run-mode = "upload"
 include = ["./man/", "./shell/"]
+host-jobs = ["./test"]
+publish-jobs = ["./publish"]
