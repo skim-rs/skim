@@ -31,6 +31,8 @@ complete -c sk -l min-height -d 'Minimum height of skim\'s window' -r
 complete -c sk -l margin -d 'Screen margin' -r
 complete -c sk -s p -l prompt -d 'Set prompt' -r
 complete -c sk -l cmd-prompt -d 'Set prompt in command mode' -r
+complete -c sk -l selector -d 'Set selected item icon' -r
+complete -c sk -l multi-selector -d 'Set selected item icon' -r
 complete -c sk -l tabstop -d 'Number of spaces that make up a tab' -r
 complete -c sk -l info -d 'Set matching result count display position' -r -f -a "default\t''
 inline\t''

@@ -626,6 +626,20 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, default_value = "c> ", help_heading = "Layout"))]
     pub cmd_prompt: String,
 
+    /// Set selected item icon
+    #[cfg_attr(
+        feature = "cli",
+        arg(long = "selector", default_value = ">", help_heading = "Layout")
+    )]
+    pub selector_icon: String,
+
+    /// Set selected item icon
+    #[cfg_attr(
+        feature = "cli",
+        arg(long = "multi-selector", default_value = ">", help_heading = "Layout")
+    )]
+    pub multi_select_icon: String,
+
     //  --- Display ---
     /// Parse ANSI color codes in input strings
     ///
@@ -1021,6 +1035,8 @@ impl Default for SkimOptions {
             margin: Default::default(),
             prompt: String::from("> "),
             cmd_prompt: String::from("c> "),
+            selector_icon: String::from(">"),
+            multi_select_icon: String::from(">"),
             ansi: Default::default(),
             tabstop: 8,
             info: Default::default(),

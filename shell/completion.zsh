@@ -45,6 +45,8 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '-p+[Set prompt]:PROMPT:_default' \
 '--prompt=[Set prompt]:PROMPT:_default' \
 '--cmd-prompt=[Set prompt in command mode]:CMD_PROMPT:_default' \
+'--selector=[Set selected item icon]:SELECTOR_ICON:_default' \
+'--multi-selector=[Set selected item icon]:MULTI_SELECT_ICON:_default' \
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
 '--info=[Set matching result count display position]:INFO:(default inline hidden)' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \

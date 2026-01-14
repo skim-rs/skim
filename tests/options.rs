@@ -632,3 +632,16 @@ sk_test!(opt_replstr, "", &["-I", "..", "-i", "-c", "'echo foo {} ..'"], {
     @keys Key('a');
     @capture[2] starts_with("> foo {} a");
 });
+
+sk_test!(opt_selector, "a\\nb\\nc", &["--selector", "$"], {
+    @capture[0] starts_with(">");
+    @capture[2] starts_with("$ a");
+});
+
+sk_test!(opt_multi_selector, "a\\nb\\nc", &["--multi-selector", "$", "-m"], {
+    @capture[0] starts_with(">");
+    @capture[2] starts_with("> a");
+    @keys BTab;
+    @capture[2] starts_with(" $a");
+    @capture[3] starts_with("> b");
+});

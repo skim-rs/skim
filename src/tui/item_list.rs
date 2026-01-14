@@ -47,6 +47,8 @@ pub struct ItemList {
     interactive: bool,              // Whether we're in interactive mode
     showing_stale_items: bool,      // True when displaying old items due to no_clear_if_empty
     pub(crate) manual_hscroll: i32, // Manual horizontal scroll offset for ScrollLeft/ScrollRight
+    selector_icon: String,
+    multi_select_icon: String,
 }
 
 impl Default for ItemList {
@@ -76,6 +78,8 @@ impl Default for ItemList {
             interactive: false,
             showing_stale_items: false,
             manual_hscroll: 0,
+            selector_icon: String::from(">"),
+            multi_select_icon: String::from(">"),
         }
     }
 }
@@ -541,6 +545,8 @@ impl SkimWidget for ItemList {
             selection: Default::default(),
             offset: Default::default(),
             height: Default::default(),
+            selector_icon: options.selector_icon.clone(),
+            multi_select_icon: options.multi_select_icon.clone(),
         }
     }
 
@@ -604,6 +610,8 @@ impl SkimWidget for ItemList {
         }
 
         let theme = &this.theme;
+        let selector_icon = &this.selector_icon;
+        let multi_select_icon = &this.multi_select_icon;
 
         let list = List::new(
             this.items
@@ -616,7 +624,8 @@ impl SkimWidget for ItemList {
                     let is_selected = this.selection.contains(item);
 
                     // Reserve 2 characters for cursor indicators ("> " or " >")
-                    let container_width = (area.width as usize).saturating_sub(2);
+                    let container_width = (area.width as usize)
+                        .saturating_sub(selector_icon.chars().count() + multi_select_icon.chars().count());
 
                     // Get item text for hscroll calculation
                     let item_text = item.item.text();
@@ -668,14 +677,14 @@ impl SkimWidget for ItemList {
                     // Pre-allocate capacity to avoid reallocation
                     let mut spans: Vec<Span> = Vec::with_capacity(2 + display_line.spans.len());
                     spans.push(if is_current {
-                        Span::styled(">", theme.selected().add_modifier(Modifier::BOLD))
+                        Span::styled(selector_icon, theme.selected().add_modifier(Modifier::BOLD))
                     } else {
-                        Span::raw(" ")
+                        Span::raw(str::repeat(" ", selector_icon.chars().count()))
                     });
                     spans.push(if this.multi_select && is_selected {
-                        Span::raw(">")
+                        Span::raw(multi_select_icon)
                     } else {
-                        Span::raw(" ")
+                        Span::raw(str::repeat(" ", multi_select_icon.chars().count()))
                     });
                     spans.extend(display_line.spans);
 
