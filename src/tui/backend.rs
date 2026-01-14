@@ -8,6 +8,7 @@ use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};
+use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
 use termion::cursor::DetectCursorPos;
@@ -63,30 +64,31 @@ impl<B: Backend> Tui<B> {
             res
         };
 
-        let (is_fullscreen, viewport) = match height {
-            Size::Percent(100) => (true, Viewport::Fullscreen),
-            Size::Fixed(lines) => (
-                false,
-                Viewport::Fixed(ratatui::prelude::Rect::new(
-                    1,
-                    cursor_pos.1,
-                    backend.size().expect("Failed to get terminal width").width,
-                    lines,
-                )),
-            ),
-            Size::Percent(p) => {
-                let term_height = backend.size().expect("Failed to get terminal height").height;
-                (
-                    false,
-                    Viewport::Fixed(ratatui::prelude::Rect::new(
-                        1,
-                        cursor_pos.1,
-                        backend.size().expect("Failed to get terminal width").width,
-                        term_height * p / 100,
-                    )),
-                )
-            }
+        let term_height = backend.size().expect("Failed to get terminal height").height;
+        let lines = match height {
+            Size::Percent(100) => None,
+            Size::Fixed(lines) => Some(lines),
+            Size::Percent(p) => Some(term_height * p / 100),
         };
+
+        let viewport = if let Some(mut height) = lines {
+            let mut y = cursor_pos.1 - 1;
+            height = height.min(term_height);
+            if term_height - cursor_pos.1 < height {
+                let to_scroll = height - (term_height - cursor_pos.1) - 1;
+                crossterm::execute!(std::io::stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
+                y = y.saturating_sub(to_scroll);
+            }
+            Viewport::Fixed(Rect::new(
+                0,
+                y,
+                backend.size().expect("Failed to get terminal width").width - 1,
+                height,
+            ))
+        } else {
+            Viewport::Fullscreen
+        };
+
         set_panic_hook();
         Ok(Self {
             terminal: ratatui::Terminal::with_options(backend, TerminalOptions { viewport })?,
@@ -96,7 +98,7 @@ impl<B: Backend> Tui<B> {
             frame_rate: FRAME_RATE,
             tick_rate: TICK_RATE,
             cancellation_token: CancellationToken::default(),
-            is_fullscreen,
+            is_fullscreen: lines.is_none(),
         })
     }
     /// Enters the TUI by enabling raw mode and starting event handling
