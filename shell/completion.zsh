@@ -29,8 +29,8 @@ clangd\:"Clangd fuzzy matching algorithm"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
-'*-b+[Comma separated list of bindings]' \
-'*--bind=[Comma separated list of bindings]' \
+'*-b+[Comma separated list of bindings]::BIND:_default' \
+'*--bind=[Comma separated list of bindings]::BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '--cmd=[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
@@ -65,7 +65,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '-f+[Query for filter mode]:FILTER:_default' \
 '--filter=[Query for filter mode]:FILTER:_default' \
 '--shell=[Generate shell completion script]:SHELL:(bash elvish fish powershell zsh)' \
-'--tmux=[Run in a tmux popup]' \
+'--tmux=[Run in a tmux popup]::TMUX:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
 '--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \

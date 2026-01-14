@@ -1,13 +1,17 @@
+use std::io::IsTerminal;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
-use color_eyre::eyre::{Context, Result};
-use crossterm::cursor;
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyEventKind};
+use color_eyre::eyre::Result;
+use crossterm::event::KeyEventKind;
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
+use termion::cursor::DetectCursorPos;
+use termion::raw::IntoRawMode as _;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -45,12 +49,42 @@ impl<B: Backend> Tui<B> {
     /// Creates a new TUI with the specified backend and height
     pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
+
+        // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
+        let cursor_pos = if std::io::stdout().is_terminal() {
+            let mut stdout = std::io::stdout().into_raw_mode()?;
+            let res = stdout.cursor_pos()?;
+            drop(stdout);
+            res
+        } else {
+            let mut tty = termion::get_tty()?.into_raw_mode()?;
+            let res = tty.cursor_pos()?;
+            drop(tty);
+            res
+        };
+
         let (is_fullscreen, viewport) = match height {
             Size::Percent(100) => (true, Viewport::Fullscreen),
-            Size::Fixed(lines) => (false, Viewport::Inline(lines)),
+            Size::Fixed(lines) => (
+                false,
+                Viewport::Fixed(ratatui::prelude::Rect::new(
+                    1,
+                    cursor_pos.1,
+                    backend.size().expect("Failed to get terminal width").width,
+                    lines,
+                )),
+            ),
             Size::Percent(p) => {
-                let term_height = backend.size().context("Failed to get terminal size")?.height;
-                (false, Viewport::Inline(term_height * p / 100))
+                let term_height = backend.size().expect("Failed to get terminal height").height;
+                (
+                    false,
+                    Viewport::Fixed(ratatui::prelude::Rect::new(
+                        1,
+                        cursor_pos.1,
+                        backend.size().expect("Failed to get terminal width").width,
+                        term_height * p / 100,
+                    )),
+                )
             }
         };
         set_panic_hook();
@@ -177,6 +211,9 @@ impl<B: Backend> DerefMut for Tui<B> {
 
 impl<B: Backend> Drop for Tui<B> {
     fn drop(&mut self) {
+        if let Some(t) = self.task.take() {
+            t.abort();
+        }
         let _ = self.exit();
     }
 }
