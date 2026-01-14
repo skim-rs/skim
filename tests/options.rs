@@ -100,6 +100,7 @@ sk_test!(opt_with_nth_range_desc, "f1,f2,f3,f4", &["--delimiter", ",", "--with-n
 });
 
 sk_test!(opt_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "1"], {
+  @capture[0] starts_with(">");
   @keys Key('1');
   @capture[0] eq("> 1");
   @capture[1] contains("1/1");
@@ -113,6 +114,7 @@ sk_test!(opt_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "1"], {
   @capture[1] contains("0/1");
 });
 sk_test!(opt_nth_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2"], {
+  @capture[0] starts_with(">");
   @keys Str("2");
   @capture[0] eq("> 2");
   @capture[1] contains("1/1");
@@ -127,6 +129,7 @@ sk_test!(opt_nth_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2"], {
 });
 
 sk_test!(opt_nth_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "4"], {
+  @capture[0] starts_with(">");
   @keys Str("4");
   @capture[0] eq("> 4");
   @capture[1] contains("1/1");
@@ -141,6 +144,7 @@ sk_test!(opt_nth_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "4"], {
 });
 
 sk_test!(opt_nth_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "5"], {
+  @capture[0] starts_with(">");
   @capture[1] contains("1/1");
   @capture[2] eq("> f1,f2,f3,f4");
 
@@ -163,6 +167,7 @@ sk_test!(opt_nth_neg_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-1"], {
 });
 
 sk_test!(opt_nth_neg_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-2"], {
+  @capture[0] starts_with(">");
   @keys Str("3");
   @capture[0] eq("> 3");
   @capture[1] contains("1/1");
@@ -177,6 +182,7 @@ sk_test!(opt_nth_neg_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-2"], {
 });
 
 sk_test!(opt_nth_neg_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-4"], {
+  @capture[0] starts_with(">");
   @keys Str("1");
   @capture[0] eq("> 1");
   @capture[1] contains("1/1");
@@ -191,6 +197,7 @@ sk_test!(opt_nth_neg_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-4"], {
 });
 
 sk_test!(opt_nth_neg_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-5"], {
+  @capture[0] starts_with(">");
   @capture[1] contains("1/1");
   @capture[2] eq("> f1,f2,f3,f4");
 
@@ -199,6 +206,7 @@ sk_test!(opt_nth_neg_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-5"], {
   @capture[1] contains("0/1");
 });
 sk_test!(opt_nth_range_to_end, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2.."], {
+  @capture[0] starts_with(">");
   @keys Str("3");
   @capture[0] eq("> 3");
   @capture[1] contains("1/1");
@@ -213,6 +221,7 @@ sk_test!(opt_nth_range_to_end, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2.
 });
 
 sk_test!(opt_nth_range_from_start, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "..3"], {
+  @capture[0] starts_with(">");
   @keys Str("1");
   @capture[0] eq("> 1");
   @capture[1] contains("1/1");
@@ -227,6 +236,7 @@ sk_test!(opt_nth_range_from_start, "f1,f2,f3,f4", &["--delimiter", ",", "--nth",
 });
 
 sk_test!(opt_nth_range_closed, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2..3"], {
+  @capture[0] starts_with(">");
   @keys Str("2");
   @capture[0] eq("> 2");
   @capture[1] contains("1/1");

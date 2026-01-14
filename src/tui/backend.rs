@@ -26,12 +26,7 @@ const FRAME_RATE: f64 = 12.;
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
-pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>>
-where
-    B::Error: Send,
-    B::Error: Sync,
-    B::Error: 'static,
-{
+pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>> {
     /// The ratatui terminal instance
     pub terminal: ratatui::Terminal<B>,
     /// Background task handle for event polling
@@ -50,17 +45,9 @@ where
     pub is_fullscreen: bool,
 }
 
-impl<B: Backend> Tui<B>
-where
-    <B as Backend>::Error: Send,
-    <B as Backend>::Error: Sync,
-{
+impl<B: Backend> Tui<B> {
     /// Creates a new TUI with the specified backend and height
-    pub fn new_with_height(backend: B, height: Size) -> Result<Self>
-    where
-        <B as Backend>::Error: Sync,
-        <B as Backend>::Error: 'static,
-    {
+    pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
 
         // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
@@ -124,11 +111,7 @@ where
     }
 
     /// Exits the TUI by stopping event handling and disabling raw mode
-    pub fn exit(&mut self) -> Result<()>
-    where
-        <B as Backend>::Error: Sync,
-        <B as Backend>::Error: 'static,
-    {
+    pub fn exit(&mut self) -> Result<()> {
         self.stop();
         if crossterm::terminal::is_raw_mode_enabled()? {
             self.flush()?;
@@ -212,11 +195,7 @@ where
     }
 }
 
-impl<B: Backend> Deref for Tui<B>
-where
-    <B as Backend>::Error: std::marker::Send,
-    <B as Backend>::Error: Sync,
-{
+impl<B: Backend> Deref for Tui<B> {
     type Target = ratatui::Terminal<B>;
 
     fn deref(&self) -> &Self::Target {
@@ -224,22 +203,13 @@ where
     }
 }
 
-impl<B: Backend> DerefMut for Tui<B>
-where
-    <B as Backend>::Error: std::marker::Send,
-    <B as Backend>::Error: Sync,
-{
+impl<B: Backend> DerefMut for Tui<B> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.terminal
     }
 }
 
-impl<B: Backend> Drop for Tui<B>
-where
-    <B as Backend>::Error: std::marker::Send,
-    <B as Backend>::Error: Sync,
-    <B as Backend>::Error: 'static,
-{
+impl<B: Backend> Drop for Tui<B> {
     fn drop(&mut self) {
         if let Some(t) = self.task.take() {
             t.abort();
