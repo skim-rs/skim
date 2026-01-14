@@ -12,8 +12,8 @@ pub use preview::PreviewCallback;
 use thiserror::Error;
 pub use widget::{SkimRender, SkimWidget};
 mod app;
-mod backend;
-pub use backend::Tui;
+mod tui;
+pub use tui::Tui;
 /// Event handling and action definitions
 pub mod event;
 /// Header display components

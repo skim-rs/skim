@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 
 use super::Direction;
 use super::Event;
-use super::backend::Tui;
+use super::Tui;
 
 use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};

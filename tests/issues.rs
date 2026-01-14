@@ -21,8 +21,9 @@ sk_test!(issue_361_literal_space_invert, "foo  bar\\nfoo bar", &["-q", "'!foo\\ 
 });
 
 sk_test!(issue_547_null_match, "\\0Test Test Test", &[], {
-  @keys Str("Test");
   @capture[0] starts_with(">");
+  @keys Str("Test");
+  @capture[0] starts_with("> Test");
   @capture[2] starts_with("> Test Test Test");
 
   @capture_colored[2] starts_with("\u{1b}[1m\u{1b}[38;5;168m\u{1b}[48;5;236m>\u{1b}[0m \u{1b}[38;5;151m\u{1b}[48;5;236mTest");
@@ -33,6 +34,7 @@ sk_test!(issue_xxx_null_delimiter_with_nth, "a\\0b\\0c", &["--delimiter", "'\\x0
   @capture[2] starts_with("> b");
 });
 sk_test!(issue_xxx_null_delimiter_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", "--nth", "2"], {
+  @capture[0] starts_with(">");
   @keys Key('c');
   @capture[0] starts_with("> c");
   @capture[1] contains("0/1");
