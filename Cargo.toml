@@ -7,6 +7,7 @@ documentation = "https://docs.rs/skim"
 homepage = "https://github.com/skim-rs/skim"
 repository = "https://github.com/skim-rs/skim"
 readme = "README.md"
+changelog = "CHANGELOG.md"
 keywords = ["fuzzy", "menu", "util"]
 license = "MIT"
 edition = "2024"

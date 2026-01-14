@@ -17,6 +17,9 @@ jobs:
           fetch-depth: 1
       - name: Install correct toolchain
         uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: default
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Login

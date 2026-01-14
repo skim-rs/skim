@@ -5,64 +5,105 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [0.20.5](https://github.com/skim-rs/skim/compare/v0.20.4...v0.20.5) - 2025-08-09
-
-### <!-- 1 -->🐛 Bug Fixes
-
-- compile without the cli feature ([#834](https://github.com/skim-rs/skim/pull/834))
-
-## [0.20.4](https://github.com/skim-rs/skim/compare/v0.20.3...v0.20.4) - 2025-08-02
-
-### <!-- 1 -->🐛 Bug Fixes
-
-- *(options)* allow border to be used without args
-- *(cli)* allow value for border arg
-# Changelog
-
-## [0.20.3](https://github.com/skim-rs/skim/compare/v0.20.2...v0.20.3)
-
-### ⚙️ Miscellaneous Tasks
-
-
-- Update Cargo.toml dependencies - ([0000000](https://github.com/skim-rs/skim/commit/0000000))
-## [0.20.1](https://github.com/skim-rs/skim/compare/v0.20.0...v0.20.1)
+## [1.0.0-pre3] - 2026-01-14
 
 ### 🐛 Bug Fixes
 
-
-- Min-query-length in interactive mode ([#814](https://github.com/skim-rs/skim/pull/814)) - ([727be81](https://github.com/skim-rs/skim/commit/727be819291588150f362b7c55b671af0b818688)) (by @LoricAndre)
-
-### Contributors
-
-* @LoricAndre
-## [0.20.0](https://github.com/skim-rs/skim/compare/v0.19.0...v0.20.0)
-
-### ⛰️ Features
-
-
-- **ui:** Respect NO_COLOR environment variable ([#804](https://github.com/skim-rs/skim/pull/804)) - ([0f4b13e](https://github.com/skim-rs/skim/commit/0f4b13e8c44a17142aa264bc4f8beb38e6f7eb3e)) (by @saidelmark)
-
-### Contributors
-
-* @saidelmark
-## [0.19.0](https://github.com/skim-rs/skim/compare/v0.18.0...v0.19.0)
-
-### ⛰️ Features
-
-
-- Add min query length option ([#806](https://github.com/skim-rs/skim/pull/806)) - ([71b82d0](https://github.com/skim-rs/skim/commit/71b82d0f58f96788e509b5af5b92e292dadf4dd3)) (by @LoricAndre)
+- Fix terminal height management
 
 ### ⚙️ Miscellaneous Tasks
 
+- Release v1.0.0-pre3
+## [1.0.0-pre2] - 2026-01-14
 
-- Update Cargo.toml dependencies - ([0000000](https://github.com/skim-rs/skim/commit/0000000))
+### 🚀 Features
 
-### Contributors
+- *(ci)* Add crates.io publish to release CI
 
-* @LoricAndre
-## [0.18.0](https://github.com/skim-rs/skim/compare/v0.17.3...v0.18.0)
+### 🐛 Bug Fixes
+
+- Manually acquire cursor pos (closes #885) (#886)
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove unneeded deps (#884)
+- Release
+## [1.0.0-pre1] - 2026-01-13
+
+### 🚀 Features
+
+- *(ui)* [**breaking**] Ratatui migration (#864)
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove workspace (#883)
+## [0.20.5] - 2025-08-09
+
+### 🐛 Bug Fixes
+
+- Compile without the cli feature (#834)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Release (#835)
+## [0.20.4] - 2025-08-02
+
+### 🚀 Features
+
+- *(e2e)* Add Dockerfile to run E2E
+
+### 🐛 Bug Fixes
+
+- *(options)* Allow border to be used without args
+- *(ci)* Fetch whole history to avoid PR recreation
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Revert to a more vanilla release-plz config
+- Remove unreleased section from changelog
+- *(release)* Release (#831)
+## [0.20.3] - 2025-07-27
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Release (#826)
+## [0.20.2] - 2025-06-29
+
+### 📚 Documentation
+
+- *(e2e)* Add contributing section (#817)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Release (#818)
+## [0.20.1] - 2025-06-21
+
+### 🐛 Bug Fixes
+
+- Min-query-length in interactive mode (#814)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Release (#815)
+## [0.20.0] - 2025-06-21
+
+### 🚀 Features
+
+- *(ui)* Respect NO_COLOR environment variable (#804)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Release (#813)
+## [0.19.0] - 2025-06-21
+
+### 🚀 Features
+
+- Add min query length option (#806)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Release (#811)
+## [0.18.0] - 2025-05-30
 
 ### 🚀 Features
 
@@ -78,6 +119,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve theming documentation (#788)
 - Improve wording in README and options.rs (#789)
 
+### ⚙️ Miscellaneous Tasks
+
+- Generate changelog
+- *(release)* Release (#792)
 ## [0.17.3] - 2025-05-20
 
 ### 🐛 Bug Fixes
@@ -89,6 +134,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Set keybinding right before printing special character (#774)
 
+### ⚙️ Miscellaneous Tasks
+
+- Generate changelog using git cliff
+- *(release)* Release v0.17.3 (#782)
 ## [0.17.2] - 2025-05-04
 
 ### 🐛 Bug Fixes
@@ -100,7 +149,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *(ci)* Remove temp workflow
 - *(release)* Release v0.17.2 (#766)
-
 ## [0.17.1] - 2025-05-04
 
 ### 🚀 Features
@@ -126,13 +174,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release (#760)
 - *(cargo)* Update to 2024 edition (#764)
 - *(ci)* Update dependencies
-
 ## [0.17.0] - 2025-05-04
 
 ### 🐛 Bug Fixes
 
 - Fix local dependencies
-
 ## [common-v0.1.0] - 2025-05-04
 
 ### 🚀 Features
@@ -174,8 +220,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ci)* Do not publish extra packages
 - *(ci)* Release on all commits
 - *(ci)* Make local packages publishable
-
 ## [0.16.2] - 2025-04-26
+
+### 🚀 Features
+
+- *(zsh)* [**breaking**] Sort history items by timestamp
 
 ### 🐛 Bug Fixes
 
@@ -195,7 +244,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Move changelog to subdir (#740)
 - *(master)* Release 0.16.2 (#738)
-
 ## [0.16.1] - 2025-03-06
 
 ### 🐛 Bug Fixes
@@ -206,7 +254,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Manually update release-please manifest after release
 - *(master)* Release 0.16.1 (#712)
-
 ## [0.16.0] - 2025-01-23
 
 ### 🚀 Features
@@ -237,7 +284,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ci)* Try releasing as 0.1.0
 - Release master (#672)
 - Release master (#691)
-
 ## [0.15.7] - 2024-12-27
 
 ### 🐛 Bug Fixes
@@ -247,7 +293,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release master (#670)
-
 ## [0.15.6] - 2024-12-26
 
 ### 🐛 Bug Fixes
@@ -258,7 +303,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release master (#656)
-
 ## [0.15.5] - 2024-12-04
 
 ### 🐛 Bug Fixes
@@ -277,7 +321,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix release-please config
 - Fix release config
 - Release master (#655)
-
 ## [0.15.4] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -289,7 +332,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cargo fmt
 - Release master (#642)
-
 ## [0.15.3] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -302,7 +344,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove cli feature from skim
 - Cargo fmt
 - Release master (#641)
-
 ## [0.15.2] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -313,8 +354,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release master (#640)
-
 ## [0.15.1] - 2024-12-01
+
+### 🐛 Bug Fixes
+
+- Fix ci
+- Fix urls in cargo.toml
+
+### ⚙️ Miscellaneous Tasks
+
+- Generate files in PR (#638)
+- Fix push
+- Test push with explicit ref
+- Use cache for xtask
+- Simplify release ci
+- Use PAT for release-please to trigger downstream ci
+- Use gh app for token
+- Use gh app for push
+- Manually use gh app for push
+- Skip ci on modified files
+- Use token in checkout
+- Exit success when nothing to commit
+- Avoid duplicate test runs
+- Cleanup
+- Release master (#639)
+## [0.15.0] - 2024-12-01
 
 ### 🚀 Features
 
@@ -346,8 +410,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ci)* Skip extra packages
 - *(ci)* Replace underscore with dashes
 - Set toolchain
-- Fix ci
-- Fix urls in cargo.toml
 
 ### 🧪 Testing
 
@@ -371,23 +433,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release master (#635)
 - Release master (#636)
 - Release master (#637)
-- Generate files in PR (#638)
-- Fix push
-- Test push with explicit ref
-- Use cache for xtask
-- Simplify release ci
-- Use PAT for release-please to trigger downstream ci
-- Use gh app for token
-- Use gh app for push
-- Manually use gh app for push
-- Skip ci on modified files
-- Use token in checkout
-- Exit success when nothing to commit
-- Avoid duplicate test runs
-- Cleanup
-- Release master (#639)
-
-## [0.14.0] - 2024-11-28
+## [0.14.3] - 2024-11-28
 
 ### 🚀 Features
 
@@ -412,7 +458,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump env_logger from 0.9.3 to 0.11.5 (#615)
 - Improve PR ci (#617)
 - Remove ci dir (#627)
-
 ## [0.13.0] - 2024-11-25
 
 ### 🚀 Features
@@ -422,13 +467,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Add pull request template (#608)
-
 ## [0.12.0] - 2024-11-24
 
 ### 🚀 Features
 
 - Add reload action (#604)
-
 ## [0.11.12] - 2024-11-24
 
 ### 🐛 Bug Fixes
@@ -438,19 +481,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Remove some platform-specific quirkinesses from e2e (#602)
-
 ## [0.11.11] - 2024-11-22
 
 ### 💼 Other
 
 - Readd version arg (#606)
-
 ## [0.11.1] - 2024-11-21
 
 ### 🐛 Bug Fixes
 
 - Fix github publish action
-
 ## [0.11.0] - 2024-11-20
 
 ### 🚀 Features
@@ -471,19 +511,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix clippy
 - Remove atty (#587)
 - Remove bitflags (#579)
-
 ## [0.10.2] - 2022-11-08
 
 ### 🐛 Bug Fixes
 
 - Print version from Cargo.toml with latest clap
-
 ## [0.10.0] - 2022-10-28
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update deps and fix lots of clippy lints
-
 ## [0.9.4] - 2021-02-15
 
 ### 💼 Other
@@ -493,13 +530,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(cargo)* Fix documentation link
-
 ## [0.9.3] - 2020-11-02
 
 ### 🐛 Bug Fixes
 
 - Ansi parse error for multi-bytes string
-
 ## [0.9.1] - 2020-10-20
 
 ### 🚀 Features
@@ -515,7 +550,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clippy
 - Pre-select-items select '' by default
 - Preview's scroll could be 0
-
 ## [0.9.0] - 2020-10-18
 
 ### 🚀 Features
@@ -541,7 +575,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Demangle lib and bin implementations
 - Separate MatchResult from MatchedItem
-
 ## [0.8.2] - 2020-06-26
 
 ### 🐛 Bug Fixes
@@ -557,7 +590,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚜 Refactor
 
 - DefaultSkimItem now accept string
-
 ## [0.8.0] - 2020-02-23
 
 ### 🚀 Features
@@ -573,7 +605,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "enter" key not printed with expect keys
 - Support case insensitive in exact mode
 - Case insensitive + refactor engine
-
 ## [0.7.0] - 2020-01-15
 
 ### 💼 Other
@@ -587,7 +618,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Update derive_builder to 0.9
-
 ## [0.6.7] - 2019-05-31
 
 ### 💼 Other
@@ -596,20 +626,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove extraneous line.
 - Remove extraneous line.
 - Add crates.io svg.
-
 ## [0.6.5] - 2019-04-01
 
 ### 🐛 Bug Fixes
 
 - Wrong matches on empty lines
-
 ## [0.6.3] - 2019-03-25
 
 ### 🐛 Bug Fixes
 
 - Number of matched items not show correctly
 - Matcher is slow to kill
-
 ## [0.6.2] - 2019-03-19
 
 ### 🚀 Features
@@ -619,13 +646,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Compilation error of examples
-
 ## [0.6.0] - 2019-03-17
 
 ### 💼 Other
 
 - Rotate mode
-
 ## [0.5.3] - 2019-02-20
 
 ### 💼 Other
@@ -635,7 +660,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Return slice instead of new vector
 - Draw status after query
 - Return early if possible
-
 ## [0.3.0] - 2017-09-21
 
 ### 🐛 Bug Fixes
@@ -646,20 +670,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alternate screen is not switched off on exit
 - Ansi color not shown correctly in main area
 - Toggle will panic if there is no item matched
-
 ## [0.2.1-beta.2] - 2017-01-19
 
 ### 🚜 Refactor
 
 - Use filter_map instead of map then filter
-
 ## [0.2.0] - 2017-01-03
 
 ### 🐛 Bug Fixes
 
 - Model will not redraw from the 1 line
 - Reader: reader and sender will lock each other.
-
 ## [0.1.1-rc2] - 2016-07-19
 
 ### 🐛 Bug Fixes
@@ -670,5 +691,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 💼 Other
 
 - Remove debug code
-
+## [0.1-alpha] - 2016-07-01
 <!-- generated by git-cliff -->
