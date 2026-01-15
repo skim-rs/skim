@@ -58,6 +58,7 @@ pub use crate::skim_item::SkimItem;
 use crate::tui::event::Action;
 
 pub mod binds;
+#[cfg(feature = "cli")]
 pub mod completions;
 mod engine;
 pub mod field;
