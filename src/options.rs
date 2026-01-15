@@ -1054,7 +1054,6 @@ impl Default for SkimOptions {
     fn default() -> Self {
         Self {
             disabled: false,
-            shell_bindings: false,
             tac: Default::default(),
             min_query_length: Default::default(),
             no_sort: Default::default(),
@@ -1143,6 +1142,8 @@ impl Default for SkimOptions {
             shell: Default::default(),
             #[cfg(feature = "cli")]
             man: false,
+            #[cfg(feature = "cli")]
+            shell_bindings: false,
         }
     }
 }

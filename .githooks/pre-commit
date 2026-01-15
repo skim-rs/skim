@@ -2,3 +2,4 @@ set -xeuo pipefail
 
 cargo fmt --check --all
 cargo clippy --all
+cargo check --no-default-features
