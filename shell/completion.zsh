@@ -89,6 +89,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--no-clear-start[Do not clear items on start]' \
 '--no-clear[Do not clear screen on exit]' \
 '--show-cmd-error[Show error message if command fails]' \
+'--cycle[Cycle the results by wrapping around when scrolling]' \
 '--reverse[Shorthand for reverse layout]' \
 '--no-height[Disable height (force full screen)]' \
 '--ansi[Parse ANSI color codes in input strings]' \
@@ -109,7 +110,6 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '-x[Reserved for later use]' \
 '--extended[Reserved for later use]' \
 '--literal[Reserved for later use]' \
-'--cycle[Reserved for later use]' \
 '--filepath-word[Reserved for later use]' \
 '--no-bold[Reserved for later use]' \
 '--pointer[Reserved for later use]' \

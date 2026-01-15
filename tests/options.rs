@@ -645,3 +645,25 @@ sk_test!(opt_multi_selector, "a\\nb\\nc", &["--multi-selector", "$", "-m"], {
     @capture[2] starts_with(" $a");
     @capture[3] starts_with("> b");
 });
+
+sk_test!(opt_cycle, "a\\nb\\nc", &["--cycle"], {
+    @capture[0] starts_with(">");
+    @capture[2] starts_with("> a");
+    @keys Down;
+    @capture[2] trim().eq("a");
+    @capture[4] starts_with("> c");
+    @keys Up;
+    @capture[4] trim().eq("c");
+    @capture[2] starts_with("> a");
+});
+
+sk_test!(opt_cycle_header_lines, "a\\nb\\nc\\nd", &["--cycle", "--header-lines", "1"], {
+    @capture[0] starts_with(">");
+    @capture[3] starts_with("> b");
+    @keys Down;
+    @capture[3] trim().eq("b");
+    @capture[5] starts_with("> d");
+    @keys Up;
+    @capture[5] trim().eq("d");
+    @capture[3] starts_with("> b");
+});

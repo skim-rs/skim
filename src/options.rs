@@ -609,6 +609,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub show_cmd_error: bool,
 
+    /// Cycle the results by wrapping around when scrolling
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
+    pub cycle: bool,
+
     //  --- Layout ---
     /// Set layout
     ///
@@ -964,10 +968,6 @@ pub struct SkimOptions {
     /// Reserved for later use
     #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub literal: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub cycle: bool,
 
     /// Reserved for later use
     #[cfg_attr(

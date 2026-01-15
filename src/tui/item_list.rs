@@ -49,6 +49,7 @@ pub struct ItemList {
     pub(crate) manual_hscroll: i32, // Manual horizontal scroll offset for ScrollLeft/ScrollRight
     selector_icon: String,
     multi_select_icon: String,
+    cycle: bool,
 }
 
 impl Default for ItemList {
@@ -80,6 +81,7 @@ impl Default for ItemList {
             manual_hscroll: 0,
             selector_icon: String::from(">"),
             multi_select_icon: String::from(">"),
+            cycle: false,
         }
     }
 }
@@ -417,25 +419,29 @@ impl ItemList {
     }
     /// Scrolls the list by the given offset
     pub fn scroll_by(&mut self, offset: i32) {
-        self.current = self
-            .current
-            .saturating_add_signed(offset as isize)
-            .min(self.items.len().saturating_sub(1))
-            .max(self.reserved);
+        if self.reserved >= self.items.len() {
+            return;
+        }
+        let reserved = self.reserved as i32;
+        let total = self.items.len() as i32;
+        let mut new = self.current as i32 + offset;
+        if self.cycle {
+            let n = total - reserved;
+            new = reserved + (new + n - reserved) % n;
+        } else {
+            new = new.min(self.items.len() as i32 - 1).max(self.reserved as i32);
+        }
+        self.current = new.max(0) as usize;
         debug!("Scrolled to {}", self.current);
         debug!("Selection: {:?}", self.selection);
     }
     /// Selects the previous item in the list
     pub fn select_previous(&mut self) {
-        self.current = self.current.min(self.items.len()).saturating_sub(1).max(self.reserved);
+        self.scroll_by(-1);
     }
     /// Selects the next item in the list
     pub fn select_next(&mut self) {
-        self.current = self
-            .current
-            .saturating_add(1)
-            .min(self.items.len().saturating_sub(1))
-            .max(self.reserved);
+        self.scroll_by(1);
     }
     /// Jump to the first selectable item (respecting reserved header lines)
     pub fn jump_to_first(&mut self) {
@@ -547,6 +553,7 @@ impl SkimWidget for ItemList {
             height: Default::default(),
             selector_icon: options.selector_icon.clone(),
             multi_select_icon: options.multi_select_icon.clone(),
+            cycle: options.cycle,
         }
     }
 
