@@ -5,7 +5,7 @@ on:
   workflow_call:
     inputs:
       plan:
-        required: true
+        required: false
         type: string
   pull_request:
   push:

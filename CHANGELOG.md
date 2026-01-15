@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add cycle flag (closes #553)
 - Add disabled flag (closes #500)
 - Add nushell completion support (closes #459)
+- Add --shell-bindings flag to get bindings at runtime
+
+### 🐛 Bug Fixes
+
+- Disable completions without cli feature
+- Fix build without default features
+
+### 💼 Other
+
+- V1.0.0-pre6
 
 ### ⚙️ Miscellaneous Tasks
 
