@@ -112,6 +112,7 @@ zsh\:"Zsh"))' \
 '-0[Automatically exit when no match is left]' \
 '--exit-0[Automatically exit when no match is left]' \
 '--sync[Synchronous search for multi-staged filtering]' \
+'--shell-bindings[Generate shell key bindings - only for bash, zsh and fish]' \
 '--man[Generate man page and output it to stdout]' \
 '-x[Reserved for later use]' \
 '--extended[Reserved for later use]' \

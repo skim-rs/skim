@@ -1,3 +1,5 @@
+# skim key bindings for bash
+#
 # - $SKIM_TMUX_OPTS
 # - $SKIM_CTRL_T_COMMAND
 # - $SKIM_CTRL_T_OPTS
@@ -9,7 +11,6 @@
 
 # Key bindings
 # ------------
-# copied and modified from https://github.com/junegunn/fzf/blob/master/shell/key-bindings.bash
 __skim_select__() {
   local cmd="${SKIM_CTRL_T_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
     -o -type f -print \

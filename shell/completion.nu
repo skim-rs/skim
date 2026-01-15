@@ -94,6 +94,7 @@ module completions {
     --pre-select-file: string # Pre-select the items read from this file
     --filter(-f): string      # Query for filter mode
     --shell: string@"nu-complete sk shell" # Generate shell completion script
+    --shell-bindings          # Generate shell key bindings - only for bash, zsh and fish
     --man                     # Generate man page and output it to stdout
     --tmux: string            # Run in a tmux popup
     --log-file: string        # Pipe log output to a file

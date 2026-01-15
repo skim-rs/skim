@@ -93,6 +93,7 @@ complete -c sk -l print-score -d 'Print the command as the first line (after pri
 complete -c sk -s 1 -l select-1 -d 'Automatically select the match if there is only one'
 complete -c sk -s 0 -l exit-0 -d 'Automatically exit when no match is left'
 complete -c sk -l sync -d 'Synchronous search for multi-staged filtering'
+complete -c sk -l shell-bindings -d 'Generate shell key bindings - only for bash, zsh and fish'
 complete -c sk -l man -d 'Generate man page and output it to stdout'
 complete -c sk -s x -l extended -d 'Reserved for later use'
 complete -c sk -l literal -d 'Reserved for later use'

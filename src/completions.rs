@@ -21,13 +21,13 @@ pub enum Shell {
 }
 
 /// Generate the completion and write it to stdout
-pub fn generate(sh: Shell) {
+pub fn generate(sh: &Shell) {
     use Shell::*;
     let output = &mut std::io::stdout();
     let cmd = &mut SkimOptions::command();
     let bin_name = "sk";
 
-    if sh == Nushell {
+    if *sh == Nushell {
         clap_complete::generate(clap_complete_nushell::Nushell, cmd, bin_name, output)
     } else {
         let clap_shell: clap_complete::Shell = match sh {

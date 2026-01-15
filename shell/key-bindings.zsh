@@ -1,8 +1,4 @@
-#     ____      ____
-#    / __/___  / __/
-#   / /_/_  / / /_
-#  / __/ / /_/ __/
-# /_/   /___/_/ key-bindings.zsh
+# skim key bindings for zsh
 #
 # - $SKIM_TMUX_OPTS
 # - $SKIM_CTRL_T_COMMAND
@@ -16,8 +12,6 @@
 # Key bindings
 # ------------
 
-# The code at the top and the bottom of this file is the same as in completion.zsh.
-# Refer to that file for explanation.
 if 'zmodload' 'zsh/parameter' 2>'/dev/null' && (( ${+options} )); then
   __skim_key_bindings_options="options=(${(j: :)${(kv)options[@]}})"
   __skim_completion_options="options=(${(j: :)${(kv)options[@]}})"

@@ -1,4 +1,6 @@
 #!/bin/fish
+# skim key bindings for fish
+#
 # - $SKIM_TMUX_OPTS
 # - $SKIM_CTRL_T_COMMAND
 # - $SKIM_CTRL_T_OPTS

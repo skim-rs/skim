@@ -84,7 +84,19 @@ fn main() -> Result<()> {
     // Shell completion scripts
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
-        skim::completions::generate(shell);
+        skim::completions::generate(&shell);
+        if opts.shell_bindings {
+            use skim::completions::Shell::*;
+            let binds_script = match &shell {
+                Bash => include_str!("../../shell/key-bindings.bash"),
+                Zsh => include_str!("../../shell/key-bindings.zsh"),
+                Fish => include_str!("../../shell/key-bindings.fish"),
+                _ => "",
+            };
+            if !binds_script.is_empty() {
+                println!("{binds_script}");
+            }
+        }
         return Ok(());
     }
     // Man page

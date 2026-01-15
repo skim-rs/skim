@@ -943,6 +943,14 @@ pub struct SkimOptions {
     )]
     pub shell: Option<crate::completions::Shell>,
 
+    /// Generate shell key bindings - only for bash, zsh and fish
+    ///
+    /// Generate key bindings script after the shell completions
+    /// See the `shell` option for more details
+    #[cfg(feature = "cli")]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", requires = "shell"))]
+    pub shell_bindings: bool,
+
     /// Generate man page and output it to stdout
     #[cfg(feature = "cli")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
@@ -1046,6 +1054,7 @@ impl Default for SkimOptions {
     fn default() -> Self {
         Self {
             disabled: false,
+            shell_bindings: false,
             tac: Default::default(),
             min_query_length: Default::default(),
             no_sort: Default::default(),
