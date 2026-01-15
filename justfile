@@ -6,6 +6,7 @@ generate-files:
     cargo run -- --shell bash > ./shell/completion.bash
     cargo run -- --shell zsh > ./shell/completion.zsh
     cargo run -- --shell fish > ./shell/completion.fish
+    cargo run -- --shell nushell > ./shell/completion.nu
 
 changelog version:
     git cliff -o CHANGELOG.md -t 'v{{ version }}'

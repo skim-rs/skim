@@ -52,11 +52,12 @@ complete -c sk -l pre-select-pat -d 'Pre-select the matched items in multi-selec
 complete -c sk -l pre-select-items -d 'Pre-select the items separated by newline character' -r
 complete -c sk -l pre-select-file -d 'Pre-select the items read from this file' -r
 complete -c sk -s f -l filter -d 'Query for filter mode' -r
-complete -c sk -l shell -d 'Generate shell completion script' -r -f -a "bash\t''
-elvish\t''
-fish\t''
-powershell\t''
-zsh\t''"
+complete -c sk -l shell -d 'Generate shell completion script' -r -f -a "bash\t'Bourne Again SHell'
+elvish\t'Elvish shell'
+fish\t'Friendly Interactive SHell'
+nushell\t'Nushell (nu)'
+power-shell\t'PowerShell'
+zsh\t'Zsh'"
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r

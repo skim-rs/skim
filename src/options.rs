@@ -3,6 +3,7 @@
 //! This module provides the `SkimOptions` struct and builder for configuring
 //! all aspects of skim's behavior, including search, display, layout, and interaction settings.
 
+use crate::completions;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -941,7 +942,7 @@ pub struct SkimOptions {
         feature = "cli",
         arg(long, value_name = "SHELL", help_heading = "Scripting", value_enum)
     )]
-    pub shell: Option<clap_complete::Shell>,
+    pub shell: Option<completions::Shell>,
 
     /// Generate man page and output it to stdout
     #[cfg(feature = "cli")]

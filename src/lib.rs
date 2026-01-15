@@ -58,6 +58,7 @@ pub use crate::skim_item::SkimItem;
 use crate::tui::event::Action;
 
 pub mod binds;
+pub mod completions;
 mod engine;
 pub mod field;
 pub mod fuzzy_matcher;

@@ -210,7 +210,7 @@ _sk() {
                     return 0
                     ;;
                 --shell)
-                    COMPREPLY=($(compgen -W "bash elvish fish powershell zsh" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "bash elvish fish nushell power-shell zsh" -- "${cur}"))
                     return 0
                     ;;
                 --tmux)

@@ -84,7 +84,7 @@ fn main() -> Result<()> {
     // Shell completion scripts
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
-        clap_complete::generate(shell, &mut SkimOptions::command(), "sk", &mut io::stdout());
+        skim::completions::generate(shell);
         return Ok(());
     }
     // Man page

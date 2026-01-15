@@ -66,7 +66,12 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--pre-select-file=[Pre-select the items read from this file]:PRE_SELECT_FILE:_default' \
 '-f+[Query for filter mode]:FILTER:_default' \
 '--filter=[Query for filter mode]:FILTER:_default' \
-'--shell=[Generate shell completion script]:SHELL:(bash elvish fish powershell zsh)' \
+'--shell=[Generate shell completion script]:SHELL:((bash\:"Bourne Again SHell"
+elvish\:"Elvish shell"
+fish\:"Friendly Interactive SHell"
+nushell\:"Nushell (nu)"
+power-shell\:"PowerShell"
+zsh\:"Zsh"))' \
 '--tmux=[Run in a tmux popup]::TMUX:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
