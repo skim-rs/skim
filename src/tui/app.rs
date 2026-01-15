@@ -1078,7 +1078,9 @@ impl<'a> App<'a> {
 
     pub(crate) fn restart_matcher(&mut self, force: bool) {
         // Check if query meets minimum length requirement
-        if let Some(min_length) = self.options.min_query_length {
+        if let Some(min_length) = self.options.min_query_length
+            && !self.options.disabled
+        {
             let query_to_check = &self.input.value;
 
             if query_to_check.chars().count() < min_length {
@@ -1105,7 +1107,9 @@ impl<'a> App<'a> {
             self.status.matcher_running = true;
             // In interactive mode, use empty query so all items are shown
             // The input contains the command to execute, not a filter query
-            let query = if self.options.interactive {
+            let query = if self.options.disabled {
+                ""
+            } else if self.options.interactive {
                 &input::Input::default()
             } else {
                 &self.input
@@ -1163,6 +1167,9 @@ impl<'a> App<'a> {
 
     /// Restart matcher with debouncing to avoid excessive restarts during rapid typing
     fn restart_matcher_debounced(&mut self) {
+        if self.options.disabled {
+            return;
+        }
         const DEBOUNCE_MS: u64 = 50;
         let now = std::time::Instant::now();
 

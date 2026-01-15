@@ -90,6 +90,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--no-clear[Do not clear screen on exit]' \
 '--show-cmd-error[Show error message if command fails]' \
 '--cycle[Cycle the results by wrapping around when scrolling]' \
+'--disabled[Disable matching entirely]' \
 '--reverse[Shorthand for reverse layout]' \
 '--no-height[Disable height (force full screen)]' \
 '--ansi[Parse ANSI color codes in input strings]' \

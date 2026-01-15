@@ -613,6 +613,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub cycle: bool,
 
+    /// Disable matching entirely
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
+    pub disabled: bool,
+
     //  --- Layout ---
     /// Set layout
     ///
@@ -1041,6 +1045,7 @@ pub struct SkimOptions {
 impl Default for SkimOptions {
     fn default() -> Self {
         Self {
+            disabled: false,
             tac: Default::default(),
             min_query_length: Default::default(),
             no_sort: Default::default(),

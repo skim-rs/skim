@@ -667,3 +667,13 @@ sk_test!(opt_cycle_header_lines, "a\\nb\\nc\\nd", &["--cycle", "--header-lines",
     @capture[5] trim().eq("d");
     @capture[3] starts_with("> b");
 });
+
+sk_test!(opt_disabled, "a\\nb\\nc\\nd", &["--disabled"], {
+    @capture[0] starts_with(">");
+    @capture[1] trim().starts_with("4/4");
+    @capture[2] trim().starts_with("> a");
+    @keys Key('b');
+    @capture[0] starts_with("> b");
+    @capture[1] trim().starts_with("4/4");
+    @capture[2] trim().starts_with("> a");
+});
