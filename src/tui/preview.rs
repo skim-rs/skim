@@ -203,9 +203,7 @@ impl<'a> SkimWidget for Preview<'a> {
         if self.wrap {
             paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });
         }
-        let mut block = Block::new()
-            .style(self.theme.normal())
-            .border_style(self.theme.border());
+        let mut block = Block::new().style(self.theme.normal).border_style(self.theme.border);
 
         // Add scroll position indicator at bottom if scrolled
         if self.scroll_y > 0 && total_lines > 0 {

@@ -663,11 +663,7 @@ impl SkimWidget for ItemList {
                         score: item.rank[0],
                         matches,
                         container_width,
-                        style: if is_current {
-                            theme.current_match()
-                        } else {
-                            theme.matched()
-                        },
+                        style: if is_current { theme.current_match } else { theme.matched },
                     });
 
                     // Apply horizontal scrolling to the display content
@@ -677,7 +673,7 @@ impl SkimWidget for ItemList {
                     // Pre-allocate capacity to avoid reallocation
                     let mut spans: Vec<Span> = Vec::with_capacity(2 + display_line.spans.len());
                     spans.push(if is_current {
-                        Span::styled(selector_icon, theme.selected().add_modifier(Modifier::BOLD))
+                        Span::styled(selector_icon, theme.selected.add_modifier(Modifier::BOLD))
                     } else {
                         Span::raw(str::repeat(" ", selector_icon.chars().count()))
                     });
@@ -692,7 +688,8 @@ impl SkimWidget for ItemList {
                 })
                 .collect::<Vec<Line>>(),
         )
-        .direction(this.direction);
+        .direction(this.direction)
+        .style(this.theme.normal);
 
         Widget::render(Clear, area, buf);
         StatefulWidget::render(

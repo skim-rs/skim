@@ -353,23 +353,23 @@ Colors can be specified in several ways:
 
 The following UI elements can be customized:
 
-| Element            | Description                                 | Example                  |
-|--------------------|---------------------------------------------|-------------------------|
-| `fg`               | Normal text foreground color                | `--color=fg:232`        |
-| `bg`               | Normal text background color                | `--color=bg:255`        |
-| `matched`          | Matched text in search results              | `--color=matched:108`   |
-| `matched_bg`       | Background of matched text                  | `--color=matched_bg:0`  |
-| `current`          | Current line foreground color               | `--color=current:254`   |
-| `current_bg`       | Current line background color               | `--color=current_bg:236`|
-| `current_match`    | Matched text in current line                | `--color=current_match:151` |
+| Element            | Description                                 | Example                        |
+|--------------------|---------------------------------------------|--------------------------------|
+| `fg`               | Normal text foreground color                | `--color=fg:232`               |
+| `bg`               | Normal text background color                | `--color=bg:255`               |
+| `matched`          | Matched text in search results              | `--color=matched:108`          |
+| `matched_bg`       | Background of matched text                  | `--color=matched_bg:0`         |
+| `current`          | Current line foreground color               | `--color=current:254`          |
+| `current_bg`       | Current line background color               | `--color=current_bg:236`       |
+| `current_match`    | Matched text in current line                | `--color=current_match:151`    |
 | `current_match_bg` | Background of matched text in current line  | `--color=current_match_bg:236` |
-| `spinner`          | Progress indicator color                     | `--color=spinner:148`   |
-| `info`             | Information line color                      | `--color=info:144`      |
-| `prompt`           | Prompt color                                | `--color=prompt:110`    |
-| `cursor`           | Cursor color                                | `--color=cursor:161`    |
-| `selected`         | Selected item marker color                  | `--color=selected:168`  |
-| `header`           | Header text color                           | `--color=header:109`    |
-| `border`           | Border color for preview/layout             | `--color=border:59`     |
+| `spinner`          | Progress indicator color                    | `--color=spinner:148`          |
+| `info`             | Information line color                      | `--color=info:144`             |
+| `prompt`           | Prompt color                                | `--color=prompt:110`           |
+| `cursor`           | Cursor color                                | `--color=cursor:161`           |
+| `selected`         | Selected item marker color                  | `--color=selected:168`         |
+| `header`           | Header text color                           | `--color=header:109`           |
+| `border`           | Border color for preview/layout             | `--color=border:59`            |
 
 ### Examples
 

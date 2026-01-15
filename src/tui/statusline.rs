@@ -121,8 +121,8 @@ impl SkimWidget for StatusLine {
     }
 
     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
-        let info_attr = self.theme.info();
-        let info_attr_bold = self.theme.info().add_modifier(Modifier::BOLD);
+        let info_attr = self.theme.info;
+        let info_attr_bold = self.theme.info.add_modifier(Modifier::BOLD);
 
         // Show indicators during active collection phase or sustained matcher activity
         // Show indicators when actively reading or when matcher is running
@@ -146,12 +146,12 @@ impl SkimWidget for StatusLine {
             let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (spinner_set.len() as u128)) as usize;
             let ch = spinner_set[index];
             Paragraph::new(ch.to_string())
-                .style(self.theme.spinner())
+                .style(self.theme.spinner)
                 .render(spinner_a, buf);
         } else if self.info == InfoDisplay::Inline {
             let ch = spinner_set.last().unwrap();
             Paragraph::new(ch.to_string())
-                .style(self.theme.spinner())
+                .style(self.theme.spinner)
                 .render(spinner_a, buf);
         } else {
             // Render a space when spinner is not shown to maintain layout
