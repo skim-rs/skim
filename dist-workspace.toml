@@ -16,6 +16,6 @@ install-path = "CARGO_HOME"
 # Whether to install an updater program
 install-updater = false
 include = ["./man/", "./shell/"]
-host-jobs = ["./test"]
+plan-jobs = ["./test"]
 publish-jobs = ["./publish"]
 publish-prereleases = true

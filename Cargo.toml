@@ -29,6 +29,7 @@ path = "src/bin/main.rs"
 required-features = ["cli"]
 
 [dependencies]
+assert_enum_variants = "0.1.2"
 beef = "0.5.2"
 clap = { version = "4.5.41" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { version = "4.5.55", optional = true }
