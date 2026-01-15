@@ -96,6 +96,7 @@ module completions {
     --shell: string@"nu-complete sk shell" # Generate shell completion script
     --shell-bindings          # Generate shell key bindings - only for bash, zsh and fish
     --man                     # Generate man page and output it to stdout
+    --listen: string          # Run an IPC socket with optional name (defaults to sk)
     --tmux: string            # Run in a tmux popup
     --log-file: string        # Pipe log output to a file
     --extended(-x)            # Reserved for later use

@@ -956,6 +956,14 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub man: bool,
 
+    /// Run an IPC socket with optional name (defaults to `sk`)
+    ///
+    /// The socket expects Actions in Ron format (similar to Rust code), see `./src/tui/event.rs` for all possible Actions
+    /// To write to it, you can use socat, for example with `--listen sk`:
+    /// `echo 'ToggleIn' | socat -u STDIN ABSTRACT-CONNECT:sk`
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
+    pub listen: Option<String>,
+
     /// Run in a tmux popup
     ///
     /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
@@ -1053,6 +1061,7 @@ pub struct SkimOptions {
 impl Default for SkimOptions {
     fn default() -> Self {
         Self {
+            listen: None,
             disabled: false,
             tac: Default::default(),
             min_query_length: Default::default(),

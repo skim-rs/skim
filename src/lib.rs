@@ -346,6 +346,7 @@ impl Skim {
             Ok(v) => v,
         });
         let cmd = options.cmd.clone().unwrap_or(default_command);
+        let listen_socket = options.listen.clone();
 
         let mut app = App::from_options(options, theme.clone(), cmd.clone());
 
@@ -397,6 +398,24 @@ impl Skim {
             // Start matcher initially
             app.restart_matcher(true);
 
+            let listener = if let Some(socket_name) = &listen_socket {
+                debug!("starting listener on socket at {socket_name}");
+                Some(
+                    interprocess::local_socket::ListenerOptions::new()
+                        .name(
+                            interprocess::local_socket::ToNsName::to_ns_name::<
+                                interprocess::local_socket::GenericNamespaced,
+                            >(socket_name.as_str())
+                            .expect(&format!("Failed to create IPC listener at {}", socket_name)),
+                        )
+                        .create_tokio()
+                        .expect(&format!("Failed to create tokio IPC listener at {}", socket_name)),
+                )
+            } else {
+                None
+            };
+            let event_tx_clone = tui.event_tx.clone();
+
             loop {
                 select! {
                     event = tui.next() => {
@@ -438,6 +457,27 @@ impl Skim {
                     }
                     _ = matcher_interval.tick() => {
                       app.restart_matcher(false);
+                    }
+                    Ok(stream) = async {
+                        match &listener {
+                            Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
+                            None => std::future::pending().await,
+                        }
+                    } => {
+                        let event_tx_clone_ipc = event_tx_clone.clone();
+                        tokio::spawn(async move {
+                            use tokio::io::AsyncBufReadExt;
+                            let reader = tokio::io::BufReader::new(stream);
+                            let mut lines = reader.lines();
+                            while let Ok(Some(line)) = lines.next_line().await {
+                                debug!("listener: got {line}");
+                                if let Ok(act) = ron::from_str::<Action>(&line) {
+                                    debug!("listener: parsed into action {act:?}");
+                                    _ = event_tx_clone_ipc.send(Event::Action(act));
+                                    _ = event_tx_clone_ipc.send(Event::Render);
+                                }
+                            }
+                        });
                     }
                 }
 

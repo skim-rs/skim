@@ -39,7 +39,7 @@ pub enum Event {
 }
 
 /// Actions that can be performed in skim
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Action {
     /// Abort and exit with error
     Abort,
