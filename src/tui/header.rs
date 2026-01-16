@@ -17,7 +17,8 @@ use unicode_width::UnicodeWidthChar;
 /// Header widget for displaying static text above the item list
 #[derive(Clone)]
 pub struct Header {
-    header: String,
+    /// The header string with expanded tabstop, as will be displayed on screen
+    pub header: String,
     theme: Arc<ColorTheme>,
 }
 

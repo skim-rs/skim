@@ -303,6 +303,40 @@ sk_test!(opt_print_cmd_and_query, "10\\n20\\n30", &["--cmd-query", "cmd", "--pri
   @output[2] trim().eq("20");
 });
 
+sk_test!(opt_print_header, "x", &["--header", "foo", "--print-header"], {
+    @capture[0] starts_with(">");
+    @keys Enter;
+    @output[0] trim().eq("foo");
+    @output[1] trim().eq("x");
+});
+
+sk_test!(opt_print_score, "x\\nyx\\nyz", &["--print-score"], {
+    @capture[0] starts_with(">");
+    @keys Key('x');
+    @capture[0] starts_with("> x");
+    @capture[1] trim().starts_with("2/3");
+    @keys Enter;
+    @output[0] trim().eq("x");
+    @output[1] trim().eq("-31");
+});
+
+sk_test!(opt_print_score_multi, "x\\nyx\\nyz", &["--print-score", "-m"], {
+    @capture[0] starts_with(">");
+    @keys Key('x');
+    @capture[0] starts_with("> x");
+    @capture[1] trim().starts_with("2/3");
+    @keys BTab;
+    @capture[2] trim().eq(">x");
+    @capture[3] trim().eq("> yx");
+    @keys BTab;
+    @capture[3] trim().eq(">>yx");
+    @keys Enter;
+    @output[0] trim().eq("x");
+    @output[1] trim().eq("-31");
+    @output[2] trim().eq("yx");
+    @output[3] trim().eq("-15");
+});
+
 sk_test!(opt_hscroll_begin, &format!("b{}", &["a"; 1000].join("")), &["-q", "b"], {
   @capture[2] ends_with("..");
 });

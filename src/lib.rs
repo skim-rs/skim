@@ -525,6 +525,7 @@ impl Skim {
             query: app.input.to_string(),
             is_abort,
             selected_items: app.results(),
+            header: app.header.header,
         })
     }
 }

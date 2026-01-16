@@ -25,6 +25,7 @@ use which::which;
 
 use crate::{
     SkimItem, SkimOptions, SkimOutput,
+    item::MatchedItem,
     tui::{Event, event::Action},
 };
 
@@ -266,10 +267,31 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         ""
     };
 
-    let mut output_lines: Vec<Arc<dyn SkimItem>> = vec![];
-    for line in stdout {
+    let header = if opts.print_header && status.success() {
+        stdout.next().expect("Not enough lines to unpack in downstream result")
+    } else {
+        ""
+    }
+    .to_string();
+
+    let mut output_lines: Vec<Arc<MatchedItem>> = vec![];
+    while let Some(line) = stdout.next() {
         debug!("Adding output line: {line}");
-        output_lines.push(Arc::new(SkimTmuxOutput { line: line.to_string() }));
+        let mut item = MatchedItem {
+            item: Arc::new(SkimTmuxOutput { line: line.to_string() }),
+            rank: [0; 5],
+            matched_range: None,
+        };
+        if opts.print_score {
+            item.rank = [
+                stdout.next().unwrap_or_default().parse().unwrap_or_default(),
+                0,
+                0,
+                0,
+                0,
+            ];
+        }
+        output_lines.push(Arc::new(item));
     }
 
     let is_abort = !status.success();
@@ -289,6 +311,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         query: query_str.to_string(),
         cmd: command_str.to_string(),
         selected_items: output_lines,
+        header,
     };
     Some(skim_output)
 }

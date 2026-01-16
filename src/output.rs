@@ -1,4 +1,4 @@
-use crate::SkimItem;
+use crate::item::MatchedItem;
 use crate::tui::Event;
 use std::sync::Arc;
 
@@ -23,5 +23,8 @@ pub struct SkimOutput {
     pub cmd: String,
 
     /// The selected items.
-    pub selected_items: Vec<Arc<dyn SkimItem>>,
+    pub selected_items: Vec<Arc<MatchedItem>>,
+
+    /// The header
+    pub header: String,
 }

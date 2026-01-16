@@ -84,7 +84,8 @@ module completions {
     --print0                  # Print output delimited by ASCII NUL(\0) characters
     --print-query             # Print the query as the first line
     --print-cmd               # Print the command as the first line (after print-query)
-    --print-score             # Print the command as the first line (after print-cmd)
+    --print-score             # Print the score after each item
+    --print-header            # Print the header as the first line (after print-score)
     --select-1(-1)            # Automatically select the match if there is only one
     --exit-0(-0)              # Automatically exit when no match is left
     --sync                    # Synchronous search for multi-staged filtering

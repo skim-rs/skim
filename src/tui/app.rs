@@ -1059,18 +1059,15 @@ impl<'a> App<'a> {
     }
 
     /// Returns the selected items as results
-    pub fn results(&self) -> Vec<Arc<dyn SkimItem>> {
+    pub fn results(&self) -> Vec<Arc<MatchedItem>> {
         if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list
                 .selection
                 .iter()
-                .map(|item| {
-                    debug!("res index: {}", item.get_index());
-                    item.item.clone()
-                })
+                .map(|item| Arc::new(item.clone()))
                 .collect()
-        } else if let Some(sel) = self.item_list.selected() {
-            vec![sel]
+        } else if let Some(sel) = self.item_list.items.get(self.item_list.current) {
+            vec![Arc::new(sel.clone())]
         } else {
             vec![]
         }

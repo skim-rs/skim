@@ -144,6 +144,8 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
         filter: opts.filter.clone(),
         print_query: opts.print_query,
         print_cmd: opts.print_cmd,
+        print_score: opts.print_score,
+        print_header: opts.print_header,
         output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
     };
 
@@ -182,12 +184,19 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
         print!("{}{}", result.cmd, bin_options.output_ending);
     }
 
+    if bin_options.print_header {
+        print!("{}{}", result.header, bin_options.output_ending);
+    }
+
     if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
         print!("{}{}", accept_key, bin_options.output_ending);
     }
 
     for item in &result.selected_items {
         print!("{}{}", item.output(), bin_options.output_ending);
+        if bin_options.print_score {
+            print!("{}{}", item.rank[0], bin_options.output_ending);
+        }
     }
 
     std::io::stdout().flush()?;
@@ -241,6 +250,8 @@ pub struct BinOptions {
     output_ending: String,
     print_query: bool,
     print_cmd: bool,
+    print_score: bool,
+    print_header: bool,
 }
 
 /// Runs skim in filter mode, matching items against a fixed query without interactive UI

@@ -900,9 +900,13 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_cmd: bool,
 
-    /// Print the command as the first line (after print-cmd)
+    /// Print the score after each item
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_score: bool,
+
+    /// Print the header as the first line (after print-score)
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub print_header: bool,
 
     /// Automatically select the match if there is only one
     #[cfg_attr(feature = "cli", arg(long, short = '1', help_heading = "Scripting"))]
@@ -1082,6 +1086,7 @@ impl Default for SkimOptions {
     fn default() -> Self {
         Self {
             listen: None,
+            print_header: false,
             disabled: false,
             tac: Default::default(),
             min_query_length: Default::default(),
