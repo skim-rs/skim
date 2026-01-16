@@ -637,8 +637,14 @@ macro_rules! sk_test {
 
     // @dbg command for debug printing
     (@expand $tmux:ident; @ dbg ; $($rest:tt)*) => {
-        println!("DBG: capture: {:?}", $tmux.capture()?);
-        println!("DBG: output: {:?}", $tmux.output()?);
+        match $tmux.capture() {
+            Ok(lines) => println!("DBG: capture: {:?}", lines),
+            Err(e) => println!("DBG: capture failed: {}", e),
+        }
+        match $tmux.output() {
+            Ok(lines) => println!("DBG: output: {:?}", lines),
+            Err(e) => println!("DBG: output failed: {}", e),
+        }
         sk_test!(@expand $tmux; $($rest)*);
     };
 
