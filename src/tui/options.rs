@@ -24,6 +24,8 @@ pub struct PreviewLayout {
     pub hidden: bool,
     /// Optional offset for preview position
     pub offset: Option<String>,
+    /// Whether or not to wrap the preview contents
+    pub wrap: bool,
 }
 
 impl Default for PreviewLayout {
@@ -33,6 +35,7 @@ impl Default for PreviewLayout {
             size: Size::Percent(50),
             hidden: false,
             offset: None,
+            wrap: false,
         }
     }
 }
@@ -55,6 +58,10 @@ impl From<&str> for PreviewLayout {
                 res.hidden = true;
             } else if part == "nohidden" {
                 res.hidden = false;
+            } else if part == "wrap" {
+                res.wrap = true;
+            } else if part == "nowrap" {
+                res.wrap = false;
             } else {
                 // Try to parse as size
                 if let Ok(size) = part.try_into() {

@@ -183,6 +183,7 @@ impl<'a> SkimWidget for Preview<'a> {
             theme,
             border: options.border,
             direction: options.preview_window.direction,
+            wrap: options.preview_window.wrap,
             ..Default::default()
         }
     }

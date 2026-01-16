@@ -41,3 +41,13 @@ sk_test!(preview_offset_fixed_and_expr, @cmd "echo -ne '123 321'", &["--preview"
     @capture[-1] starts_with("319");
     @capture[-1] contains("319/1000");
 });
+
+sk_test!(preview_nowrap, "x", &["--preview", "'echo a bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'", "--preview-window", "up"], {
+    @capture[-1] starts_with("a b");
+});
+
+sk_test!(preview_wrap, "x", &["--preview", "'echo a      bbbbbbbb'", "--preview-window", "left:10:wrap"], {
+    @capture[-1] trim().starts_with("a");
+    @capture[-1] trim().matches("b").count().eq(&0);
+    @capture[-2] trim().starts_with("bbbbbbbb");
+});
