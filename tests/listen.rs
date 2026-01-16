@@ -455,6 +455,7 @@ mod common;
 
 #[cfg(not(target_os = "linux"))]
 sk_test!(listen_vanilla, "", &["--listen", "sk-test-listen-vanilla"], {
+    std::thread::sleep(std::time::Duration::from_millis(2000));
     @dbg;
     @capture[0] starts_with(">");
 });
