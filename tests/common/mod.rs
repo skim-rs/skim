@@ -37,7 +37,7 @@ where
         if let Ok(t) = pred() {
             return Ok(t);
         }
-        sleep(Duration::from_millis(20));
+        sleep(Duration::from_millis(10));
     }
     Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out"))
 }
@@ -78,7 +78,7 @@ impl Display for Keys<'_> {
 }
 
 pub struct TmuxController {
-    window: String,
+    pub window: String,
     pub tempdir: TempDir,
     pub outfile: Option<String>,
 }
