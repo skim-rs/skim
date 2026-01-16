@@ -7,7 +7,7 @@ on:
       plan:
         required: false
         type: string
-  pull_request:
+  # pull_request: # No need to trigger on PR, cargo-dist already does
   push:
     branches:
     - master
