@@ -105,16 +105,18 @@ impl TmuxController {
         Ok(output[0..output.len() - 1].to_vec())
     }
 
-    pub fn new() -> Result<Self> {
+    pub fn new_named(name: &str) -> Result<Self> {
         let unset_cmd = "unset SKIM_DEFAULT_COMMAND SKIM_DEFAULT_OPTIONS PS1 PROMPT_COMMAND HISTFILE";
 
+        let full_name = format!(
+            "{name}-{}",
+            rand::rng()
+                .sample_iter(&Alphanumeric)
+                .take(4)
+                .map(char::from)
+                .collect::<String>()
+        );
         let shell_cmd = "bash --rcfile None";
-
-        let name: String = rand::rng()
-            .sample_iter(&Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect();
 
         Self::run(&[
             "new-window",
@@ -122,18 +124,29 @@ impl TmuxController {
             "-P",
             "-F",
             "#I",
+            "-t",
+            "skim_e2e:",
             "-n",
-            &name,
+            &full_name,
             &format!("{}; {}", unset_cmd, shell_cmd),
         ])?;
 
-        Self::run(&["set-window-option", "-t", &name, "pane-base-index", "0"])?;
+        Self::run(&["set-window-option", "-t", &full_name, "pane-base-index", "0"])?;
 
         Ok(Self {
-            window: name,
+            window: format!("skim_e2e:{full_name}"),
             tempdir: tempdir()?,
             outfile: None,
         })
+    }
+
+    pub fn new() -> Result<Self> {
+        let name: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+        Self::new_named(&name)
     }
 
     pub fn send_keys(&self, keys: &[Keys]) -> std::io::Result<()> {
@@ -473,7 +486,7 @@ macro_rules! sk_test {
       #[test]
       #[allow(unused_variables)]
       fn $name() -> std::io::Result<()> {
-        let mut tmux = crate::common::TmuxController::new()?;
+        let mut tmux = crate::common::TmuxController::new_named(stringify!($name))?;
         tmux.start_sk(Some(&format!("echo -n -e '{}'", $input)), $options)?;
 
         sk_test!(@expand tmux; $($content)*);
@@ -487,7 +500,7 @@ macro_rules! sk_test {
       #[test]
       #[allow(unused_variables)]
       fn $name() -> std::io::Result<()> {
-        let mut tmux = crate::common::TmuxController::new()?;
+        let mut tmux = crate::common::TmuxController::new_named(stringify!($name))?;
         tmux.start_sk(Some($cmd), $options)?;
 
         sk_test!(@expand tmux; $($content)*);

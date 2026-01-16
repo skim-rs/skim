@@ -19,3 +19,7 @@ release version: (bump-version version) generate-files (changelog version)
     read -p "Press any key to confirm pushing tag v{{ version }}"
     git push
     git push --tags
+
+test target="":
+    -cargo nextest run --release {{ target }}
+    tmux kill-session -t skim_e2e
