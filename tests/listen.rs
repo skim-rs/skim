@@ -452,3 +452,8 @@ sk_test!(listen_yank, "test", &["--listen", "sk-test-yank"], {
     send(&stream, "Yank")?;
     @capture[0] trim().eq("> hello");
 });
+
+sk_test!(listen_vanilla, "", &["--listen", "sk-test-listen-vanilla"], {
+    @dbg;
+    @capture[0] starts_with(">");
+});
