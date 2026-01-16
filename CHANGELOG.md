@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre8] - 2026-01-16
+
+### 🚀 Features
+
+- Add print-header flag (and readd print-score) (closes #470)
+
+### 🐛 Bug Fixes
+
+- *(ui)* Use current highlight for the current item (closes #889) (#890)
+
+### 🧪 Testing
+
+- Remove useless listen tests
 ## [1.0.0-pre7] - 2026-01-16
 
 ### 🚀 Features
@@ -15,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix listen flag on macos (#888)
 - Correctly parse wrap arg in preview options
+
+### 💼 Other
+
+- V1.0.0-pre7
 
 ### 🧪 Testing
 
