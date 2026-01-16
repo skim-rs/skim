@@ -37,7 +37,7 @@ where
         if let Ok(t) = pred() {
             return Ok(t);
         }
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(20));
     }
     Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out"))
 }
