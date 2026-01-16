@@ -1,11 +1,8 @@
 use std::{rc::Rc, sync::Arc};
 
 use indexmap::IndexSet;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, List, ListDirection, ListState, StatefulWidget, Widget};
-use ratatui::{
-    style::Modifier,
-    text::{Line, Span},
-};
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -670,6 +667,7 @@ impl SkimWidget for ItemList {
                         score: item.rank[0],
                         matches,
                         container_width,
+                        base_style: if is_current { theme.current } else { theme.normal },
                         style: if is_current { theme.current_match } else { theme.matched },
                     });
 
@@ -680,14 +678,15 @@ impl SkimWidget for ItemList {
                     // Pre-allocate capacity to avoid reallocation
                     let mut spans: Vec<Span> = Vec::with_capacity(2 + display_line.spans.len());
                     spans.push(if is_current {
-                        Span::styled(selector_icon, theme.selected.add_modifier(Modifier::BOLD))
+                        Span::styled(selector_icon, theme.cursor)
                     } else {
                         Span::raw(str::repeat(" ", selector_icon.chars().count()))
                     });
                     spans.push(if this.multi_select && is_selected {
-                        Span::raw(multi_select_icon)
+                        Span::styled(multi_select_icon, theme.selected)
                     } else {
-                        Span::raw(str::repeat(" ", multi_select_icon.chars().count()))
+                        let style = if is_current { theme.current } else { theme.normal };
+                        Span::styled(str::repeat(" ", multi_select_icon.chars().count()), style)
                     });
                     spans.extend(display_line.spans);
 

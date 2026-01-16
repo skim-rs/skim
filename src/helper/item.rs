@@ -226,7 +226,19 @@ impl SkimItem for DefaultSkimItem {
                             if highlight_positions.contains(&char_idx) {
                                 // Flush normal content if any
                                 if !current_content.is_empty() {
-                                    new_spans.push(Span::styled(current_content.clone(), base_style));
+                                    // Combine ANSI style with context base_style
+                                    let mut combined_base_style = base_style;
+                                    if let Some(bg) = context.base_style.bg {
+                                        combined_base_style = combined_base_style.bg(bg);
+                                    }
+                                    if let Some(fg) = context.base_style.fg
+                                        && base_style.fg.is_none()
+                                    {
+                                        combined_base_style = combined_base_style.fg(fg);
+                                    }
+                                    combined_base_style =
+                                        combined_base_style.add_modifier(context.base_style.add_modifier);
+                                    new_spans.push(Span::styled(current_content.clone(), combined_base_style));
                                     current_content.clear();
                                 }
                                 highlighted_content.push(ch);
@@ -254,7 +266,18 @@ impl SkimItem for DefaultSkimItem {
 
                         // Flush remaining content
                         if !current_content.is_empty() {
-                            new_spans.push(Span::styled(current_content, base_style));
+                            // Combine ANSI style with context base_style
+                            let mut combined_base_style = base_style;
+                            if let Some(bg) = context.base_style.bg {
+                                combined_base_style = combined_base_style.bg(bg);
+                            }
+                            if let Some(fg) = context.base_style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_base_style = combined_base_style.fg(fg);
+                            }
+                            combined_base_style = combined_base_style.add_modifier(context.base_style.add_modifier);
+                            new_spans.push(Span::styled(current_content, combined_base_style));
                         }
                         if !highlighted_content.is_empty() {
                             // Combine styles: use highlight bg, preserve ANSI fg and modifiers
@@ -300,7 +323,18 @@ impl SkimItem for DefaultSkimItem {
                         }
 
                         if !before.is_empty() {
-                            new_spans.push(Span::styled(before, base_style));
+                            // Combine ANSI style with context base_style
+                            let mut combined_base_style = base_style;
+                            if let Some(bg) = context.base_style.bg {
+                                combined_base_style = combined_base_style.bg(bg);
+                            }
+                            if let Some(fg) = context.base_style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_base_style = combined_base_style.fg(fg);
+                            }
+                            combined_base_style = combined_base_style.add_modifier(context.base_style.add_modifier);
+                            new_spans.push(Span::styled(before, combined_base_style));
                         }
                         if !highlighted.is_empty() {
                             // Combine styles: use highlight bg, preserve ANSI fg and modifiers
@@ -317,7 +351,18 @@ impl SkimItem for DefaultSkimItem {
                             new_spans.push(Span::styled(highlighted, combined_style));
                         }
                         if !after.is_empty() {
-                            new_spans.push(Span::styled(after, base_style));
+                            // Combine ANSI style with context base_style
+                            let mut combined_base_style = base_style;
+                            if let Some(bg) = context.base_style.bg {
+                                combined_base_style = combined_base_style.bg(bg);
+                            }
+                            if let Some(fg) = context.base_style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_base_style = combined_base_style.fg(fg);
+                            }
+                            combined_base_style = combined_base_style.add_modifier(context.base_style.add_modifier);
+                            new_spans.push(Span::styled(after, combined_base_style));
                         }
                     }
 
@@ -354,7 +399,18 @@ impl SkimItem for DefaultSkimItem {
                         }
 
                         if !before.is_empty() {
-                            new_spans.push(Span::styled(before, base_style));
+                            // Combine ANSI style with context base_style
+                            let mut combined_base_style = base_style;
+                            if let Some(bg) = context.base_style.bg {
+                                combined_base_style = combined_base_style.bg(bg);
+                            }
+                            if let Some(fg) = context.base_style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_base_style = combined_base_style.fg(fg);
+                            }
+                            combined_base_style = combined_base_style.add_modifier(context.base_style.add_modifier);
+                            new_spans.push(Span::styled(before, combined_base_style));
                         }
                         if !highlighted.is_empty() {
                             // Combine styles: use highlight bg, preserve ANSI fg and modifiers
@@ -371,15 +427,42 @@ impl SkimItem for DefaultSkimItem {
                             new_spans.push(Span::styled(highlighted, combined_style));
                         }
                         if !after.is_empty() {
-                            new_spans.push(Span::styled(after, base_style));
+                            // Combine ANSI style with context base_style
+                            let mut combined_base_style = base_style;
+                            if let Some(bg) = context.base_style.bg {
+                                combined_base_style = combined_base_style.bg(bg);
+                            }
+                            if let Some(fg) = context.base_style.fg
+                                && base_style.fg.is_none()
+                            {
+                                combined_base_style = combined_base_style.fg(fg);
+                            }
+                            combined_base_style = combined_base_style.add_modifier(context.base_style.add_modifier);
+                            new_spans.push(Span::styled(after, combined_base_style));
                         }
                     }
 
                     Line::from(new_spans)
                 }
                 crate::Matches::None => {
-                    // No highlighting needed, just return the parsed ANSI text
-                    Line::from(all_spans)
+                    // No highlighting needed, but apply base_style to all spans
+                    let styled_spans: Vec<Span> = all_spans
+                        .into_iter()
+                        .map(|span| {
+                            let mut combined_style = span.style;
+                            if let Some(bg) = context.base_style.bg {
+                                combined_style = combined_style.bg(bg);
+                            }
+                            if let Some(fg) = context.base_style.fg
+                                && span.style.fg.is_none()
+                            {
+                                combined_style = combined_style.fg(fg);
+                            }
+                            combined_style = combined_style.add_modifier(context.base_style.add_modifier);
+                            Span::styled(span.content, combined_style)
+                        })
+                        .collect();
+                    Line::from(styled_spans)
                 }
             }
         } else {
@@ -619,6 +702,7 @@ mod test {
             score: 100,
             matches: Matches::CharRange(6, 10),
             container_width: 80,
+            base_style: Style::default(),
             style: Style::default().fg(Color::Yellow),
         };
 
@@ -657,6 +741,7 @@ mod test {
             score: 100,
             matches: Matches::CharIndices(vec![1, 2]),
             container_width: 80,
+            base_style: Style::default(),
             style: Style::default().fg(Color::Yellow),
         };
 
@@ -726,6 +811,7 @@ mod test {
             score: 100,
             matches: Matches::CharIndices(vec![0]),
             container_width: 80,
+            base_style: Style::default(),
             style: Style::default().bg(Color::Yellow),
         };
 
@@ -764,6 +850,7 @@ mod test {
             score: 100,
             matches: Matches::CharRange(1, 3),
             container_width: 80,
+            base_style: Style::default(),
             style: Style::default().bg(Color::Yellow),
         };
 
@@ -804,6 +891,7 @@ mod test {
             score: 100,
             matches: Matches::ByteRange(1, 3),
             container_width: 80,
+            base_style: Style::default(),
             style: Style::default().bg(Color::Yellow),
         };
 
