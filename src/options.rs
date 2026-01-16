@@ -520,29 +520,49 @@ pub struct SkimOptions {
     /// Set color theme
     ///
     /// Format: [BASE][,COLOR:ANSI[:ATTR1:ATTR2:..]]
+    ///
     /// Example:
     ///
     /// Available themes:
+    ///
     /// * molokai: molokai 256color
+    ///
     /// * light: light 256color
+    ///
     /// * 16: dark base16 theme
+    ///
     /// * bw: black & white theme
+    ///
     /// * none: base color scheme
+    ///
     /// * dark | default: dark 256color, default value
     ///
     /// Available color names:
+    ///
     /// * normal (or "" empty string): normal text
+    ///
     /// * matched (or hl): matched text
+    ///
     /// * current (or fg+): current line foreground
+    ///
     /// * bg+: current line background (special case, always sets background)
+    ///
     /// * current_match (or hl+): matched text in current line
+    ///
     /// * query: query text
+    ///
     /// * spinner: spinner character
+    ///
     /// * info: info text (match count)
+    ///
     /// * prompt: prompt text
+    ///
     /// * cursor (or pointer): cursor/pointer
+    ///
     /// * selected (or marker): selected item marker
+    ///
     /// * header: header text
+    ///
     /// * border: border lines
     ///
     /// Adding `-fg`, `_fg`, `-bg`, `_bg`, `-underline`, `_underline` sets the corresponding part of

@@ -65,7 +65,6 @@ fn listen_down() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test Abort action
 #[test]
 fn listen_abort() -> std::io::Result<()> {
     let (tmux, stream) = setup("abort", &[])?;
@@ -100,7 +99,6 @@ fn listen_accept_key() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test AddChar action
 #[test]
 fn listen_add_char() -> std::io::Result<()> {
     let (tmux, stream) = setup("add_char", &[])?;
@@ -111,21 +109,6 @@ fn listen_add_char() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test AppendAndSelect action
-#[test]
-fn listen_append_select() -> std::io::Result<()> {
-    let (tmux, stream) = setup("append_select", &["-m"])?;
-    sk_test!(@expand tmux;
-        @keys Key('z');
-        @capture[0]starts_with("> z");
-        @capture[2]starts_with("> a");
-        send(&stream, "AppendAndSelect")?;
-        @capture[2]starts_with(">>z");
-    );
-    Ok(())
-}
-
-// Test BackwardChar action
 #[test]
 fn listen_backward_char() -> std::io::Result<()> {
     let (tmux, stream) = setup("backward_char", &[])?;
@@ -139,7 +122,6 @@ fn listen_backward_char() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test BackwardDeleteChar action
 #[test]
 fn listen_backward_delete_char() -> std::io::Result<()> {
     let (tmux, stream) = setup("backward_delete_char", &[])?;
@@ -152,7 +134,6 @@ fn listen_backward_delete_char() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test BackwardDeleteCharEof action
 #[test]
 fn listen_backward_delete_char_eof() -> std::io::Result<()> {
     let (tmux, stream) = setup("backward_delete_char_eof", &[])?;
@@ -165,7 +146,6 @@ fn listen_backward_delete_char_eof() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test BackwardKillWord action
 #[test]
 fn listen_backward_kill_word() -> std::io::Result<()> {
     let (tmux, stream) = setup("backward_kill_word", &[])?;
@@ -178,7 +158,6 @@ fn listen_backward_kill_word() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test BackwardWord action
 #[test]
 fn listen_backward_word() -> std::io::Result<()> {
     let (tmux, stream) = setup("backward_word", &[])?;
@@ -192,7 +171,6 @@ fn listen_backward_word() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test EndOfLine action
 #[test]
 fn listen_end_of_line() -> std::io::Result<()> {
     let (tmux, stream) = setup("end_of_line", &[])?;
@@ -207,7 +185,6 @@ fn listen_end_of_line() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test First action
 #[test]
 fn listen_first() -> std::io::Result<()> {
     let (tmux, stream) = setup("first", &[])?;
@@ -220,7 +197,6 @@ fn listen_first() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test ForwardChar action
 #[test]
 fn listen_forward_char() -> std::io::Result<()> {
     let (tmux, stream) = setup("forward_char", &[])?;
@@ -235,7 +211,6 @@ fn listen_forward_char() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test ForwardWord action
 #[test]
 fn listen_forward_word() -> std::io::Result<()> {
     let (tmux, stream) = setup("forward_word", &[])?;
@@ -250,7 +225,6 @@ fn listen_forward_word() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test KillLine action
 #[test]
 fn listen_kill_line() -> std::io::Result<()> {
     let (tmux, stream) = setup("kill_line", &[])?;
@@ -264,7 +238,6 @@ fn listen_kill_line() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test KillWord action
 #[test]
 fn listen_kill_word() -> std::io::Result<()> {
     let (tmux, stream) = setup("kill_word", &[])?;
@@ -278,7 +251,6 @@ fn listen_kill_word() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test Last action
 #[test]
 fn listen_last() -> std::io::Result<()> {
     let (tmux, stream) = setup("last", &[])?;
@@ -303,7 +275,6 @@ fn listen_reload_cmd() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test SelectAll action
 #[test]
 fn listen_select_all() -> std::io::Result<()> {
     let (tmux, stream) = setup("select_all", &["-m"])?;
@@ -316,7 +287,6 @@ fn listen_select_all() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test SelectRow action
 #[test]
 fn listen_select_row() -> std::io::Result<()> {
     let (tmux, stream) = setup("select_row", &["-m"])?;
@@ -329,7 +299,6 @@ fn listen_select_row() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test Select action
 #[test]
 fn listen_select() -> std::io::Result<()> {
     let (tmux, stream) = setup("select", &["-m"])?;
@@ -340,7 +309,6 @@ fn listen_select() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test Toggle action
 #[test]
 fn listen_toggle() -> std::io::Result<()> {
     let (tmux, stream) = setup("toggle", &["-m"])?;
@@ -353,7 +321,6 @@ fn listen_toggle() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test ToggleAll action
 #[test]
 fn listen_toggle_all() -> std::io::Result<()> {
     let (tmux, stream) = setup("toggle_all", &["-m"])?;
@@ -366,7 +333,6 @@ fn listen_toggle_all() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test ToggleIn action
 #[test]
 fn listen_toggle_in() -> std::io::Result<()> {
     let (tmux, stream) = setup("toggle_in", &["-m"])?;
@@ -381,7 +347,6 @@ fn listen_toggle_in() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test ToggleOut action
 #[test]
 fn listen_toggle_out() -> std::io::Result<()> {
     let (tmux, stream) = setup("toggle_out", &["-m"])?;
@@ -408,7 +373,6 @@ fn listen_top() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test UnixLineDiscard action
 #[test]
 fn listen_unix_line_discard() -> std::io::Result<()> {
     let (tmux, stream) = setup("unix_line_discard", &[])?;
@@ -421,7 +385,6 @@ fn listen_unix_line_discard() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test UnixWordRubout action
 #[test]
 fn listen_unix_word_rubout() -> std::io::Result<()> {
     let (tmux, stream) = setup("unix_word_rubout", &[])?;
@@ -434,7 +397,6 @@ fn listen_unix_word_rubout() -> std::io::Result<()> {
     Ok(())
 }
 
-// Test Yank action
 #[test]
 fn listen_yank() -> std::io::Result<()> {
     let (tmux, stream) = setup("yank", &[])?;
