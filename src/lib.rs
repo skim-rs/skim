@@ -406,10 +406,12 @@ impl Skim {
                             interprocess::local_socket::ToNsName::to_ns_name::<
                                 interprocess::local_socket::GenericNamespaced,
                             >(socket_name.as_str())
-                            .unwrap_or_else(|_| panic!("Failed to create IPC listener at {}", socket_name)),
+                            .unwrap_or_else(|e| {
+                                panic!("Failed to build full name for IPC listener from {socket_name}: {e}")
+                            }),
                         )
                         .create_tokio()
-                        .unwrap_or_else(|_| panic!("Failed to create tokio IPC listener at {}", socket_name)),
+                        .unwrap_or_else(|e| panic!("Failed to create tokio IPC listener at {socket_name}: {e}")),
                 )
             } else {
                 None

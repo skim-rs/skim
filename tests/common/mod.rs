@@ -33,7 +33,7 @@ pub fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..200 {
+    for _ in 1..500 {
         if let Ok(t) = pred() {
             return Ok(t);
         }
@@ -78,7 +78,7 @@ impl Display for Keys<'_> {
 }
 
 pub struct TmuxController {
-    window: String,
+    pub window: String,
     pub tempdir: TempDir,
     pub outfile: Option<String>,
 }
@@ -637,8 +637,14 @@ macro_rules! sk_test {
 
     // @dbg command for debug printing
     (@expand $tmux:ident; @ dbg ; $($rest:tt)*) => {
-        println!("DBG: capture: {:?}", $tmux.capture()?);
-        println!("DBG: output: {:?}", $tmux.output()?);
+        match $tmux.capture() {
+            Ok(lines) => println!("DBG: capture: {:?}", lines),
+            Err(e) => println!("DBG: capture failed: {}", e),
+        }
+        match $tmux.output() {
+            Ok(lines) => println!("DBG: output: {:?}", lines),
+            Err(e) => println!("DBG: output failed: {}", e),
+        }
         sk_test!(@expand $tmux; $($rest)*);
     };
 
