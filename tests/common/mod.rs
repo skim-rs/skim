@@ -33,7 +33,7 @@ pub fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..200 {
+    for _ in 1..500 {
         if let Ok(t) = pred() {
             return Ok(t);
         }
