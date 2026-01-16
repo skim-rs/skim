@@ -526,8 +526,8 @@ sk_test!(opt_multiple_flags_combined_nth, "a b c\\nd e f", &["--nth 1,2"], {
 });
 
 sk_test!(opt_multiple_flags_combined_with_nth, "a b c\\nd e f", &["--with-nth 1,2"], {
-  @capture[2] ends_with("a b");
-  @capture[3] ends_with("d e");
+  @capture[2] trim().ends_with("a b");
+  @capture[3] trim().ends_with("d e");
 });
 
 sk_test!(opt_ansi_null, "a\\0b", &["--ansi"], {

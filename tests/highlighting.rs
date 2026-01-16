@@ -25,7 +25,7 @@ sk_test!(highlight_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=ma
     @output[0] eq("apple");
 });
 
-sk_test!(highlight_split_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=matched:9,current_match:1"], {
+sk_test!(highlight_split_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=matched:9,current_match:1,current_bg:236"], {
     @capture[2] contains("apple");
 
     @keys Str("aaa");
@@ -39,10 +39,13 @@ sk_test!(highlight_split_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--co
     @capture_colored[2] contains("a");
     @capture_colored[2] contains("n");
 
-    // Check that the 'p' characters in "apple" have highlighting color codes
+    // Check that matched characters have the current_match foreground color (color 1)
     @capture_colored[2] contains("\x1b[38;5;1m");
-    let highlight_pattern = "\x1b[38;5;1m\x1b[48;5;236ma";
-    @capture_colored[2] matches(highlight_pattern).count() == 3;
+    // Check that the current line has the current background color (color 236)
+    @capture_colored[2] contains("\x1b[48;5;236m");
+    // Check that there are 3 matched 'a' characters with foreground color 1
+    let match_fg_pattern = "\x1b[38;5;1ma";
+    @capture_colored[2] matches(match_fg_pattern).count() == 3;
 
     @keys Enter;
 

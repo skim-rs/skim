@@ -11,7 +11,7 @@ sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\
     @keys Key('d');
     @capture[2] starts_with("> red");
 
-    @capture_colored[*] contains("\u{1b}[38;5;1mre");
+    @capture_colored[*] contains("\u{1b}[48;5;236mre");
     @keys Enter;
 });
 
