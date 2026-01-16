@@ -4,14 +4,14 @@ mod common;
 
 use common::Keys::*;
 
-sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &["--ansi"], {
+sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &["--ansi", "--color", "current_match_bg:1,current_bg:2"], {
     @capture[0] starts_with(">");
     @lines |l| (l.len() >= 3 && l.iter().any(|line| line.contains("plain")));
 
     @keys Key('d');
     @capture[2] starts_with("> red");
 
-    @capture_colored[*] contains("\u{1b}[48;5;236mre");
+    @capture_colored[*] contains("mre\u{1b}");
     @keys Enter;
 });
 

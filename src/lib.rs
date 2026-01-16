@@ -134,16 +134,6 @@ impl DisplayContext {
 
         // Combine base_style with match style for highlighted text
         // Match style takes precedence for fg, but inherits bg from base if not set
-        let mut match_style = self.base_style;
-        if let Some(fg) = self.style.fg {
-            match_style = match_style.fg(fg);
-        }
-        if let Some(bg) = self.style.bg {
-            match_style = match_style.bg(bg);
-        }
-        match_style = match_style.add_modifier(self.style.add_modifier);
-        match_style = match_style.remove_modifier(self.style.sub_modifier);
-
         match &self.matches {
             Matches::CharIndices(indices) => {
                 let mut res = Line::default();
@@ -154,7 +144,7 @@ impl DisplayContext {
                     res.push_span(Span::styled(span_content.collect::<String>(), self.base_style));
                     let highlighted_char = chars.next().unwrap_or_default().to_string();
 
-                    res.push_span(Span::styled(highlighted_char, match_style));
+                    res.push_span(Span::styled(highlighted_char, self.style));
                     prev_index = index + 1;
                 }
                 res.push_span(Span::styled(chars.collect::<String>(), self.base_style));
@@ -171,7 +161,7 @@ impl DisplayContext {
                 ));
                 let highlighted_text = chars.by_ref().take(*end - *start).collect::<String>();
 
-                res.push_span(Span::styled(highlighted_text, match_style));
+                res.push_span(Span::styled(highlighted_text, self.style));
                 res.push_span(Span::styled(chars.collect::<String>(), self.base_style));
                 res
             }
@@ -185,7 +175,7 @@ impl DisplayContext {
                 let highlighted_bytes = bytes.by_ref().take(*end - *start).collect();
                 let highlighted_text = String::from_utf8(highlighted_bytes).unwrap();
 
-                res.push_span(Span::styled(highlighted_text, match_style));
+                res.push_span(Span::styled(highlighted_text, self.style));
                 res.push_span(Span::styled(
                     String::from_utf8(bytes.collect()).unwrap(),
                     self.base_style,

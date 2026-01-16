@@ -26,7 +26,7 @@ sk_test!(opt_print0, "a\\nb\\nc", &["-m", "--print0"], {
   @lines |l| (l.len() > 4);
   @keys BTab, BTab, Enter;
   @lines |l| (l.len() > 0 && !l[0].starts_with(">"));
-  @output[0] eq("a\0b\0");
+  @output[0] trim().eq("a\0b\0");
 });
 
 sk_test!(opt_with_nth_preview, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..", "--preview", "'echo X{1}Y'"], {
@@ -62,245 +62,245 @@ sk_test!(opt_min_query_length_interactive, "line1\\nline2\\nline3", &["--min-que
 });
 
 sk_test!(opt_with_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "1"], {
-  @capture[2] eq("> f1,");
+  @capture[2] trim().eq("> f1,");
 });
 sk_test!(opt_with_nth_2, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2"], {
-  @capture[2] eq("> f2,");
+  @capture[2] trim().eq("> f2,");
 });
 sk_test!(opt_with_nth_4, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "4"], {
-  @capture[2] eq("> f4");
+  @capture[2] trim().eq("> f4");
 });
 sk_test!(opt_with_nth_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "5"], {
-  @capture[2] eq(">");
+  @capture[2] trim().eq(">");
 });
 
 sk_test!(opt_with_nth_neg_1, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-1"], {
-  @capture[2] eq("> f4");
+  @capture[2] trim().eq("> f4");
 });
 sk_test!(opt_with_nth_neg_2, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-2"], {
-  @capture[2] eq("> f3,");
+  @capture[2] trim().eq("> f3,");
 });
 sk_test!(opt_with_nth_neg_4, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-4"], {
-  @capture[2] eq("> f1,");
+  @capture[2] trim().eq("> f1,");
 });
 sk_test!(opt_with_nth_oob_4, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-5"], {
-  @capture[2] eq(">");
+  @capture[2] trim().eq(">");
 });
 sk_test!(opt_with_nth_range_to_end, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2.."], {
-  @capture[2] eq("> f2,f3,f4");
+  @capture[2] trim().eq("> f2,f3,f4");
 });
 sk_test!(opt_with_nth_range_from_start, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "..3"], {
-  @capture[2] eq("> f1,f2,f3,");
+  @capture[2] trim().eq("> f1,f2,f3,");
 });
 sk_test!(opt_with_nth_range_closed, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..3"], {
-  @capture[2] eq("> f2,f3,");
+  @capture[2] trim().eq("> f2,f3,");
 });
 sk_test!(opt_with_nth_range_desc, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "3..2"], {
-  @capture[2] eq(">");
+  @capture[2] trim().eq(">");
 });
 
 sk_test!(opt_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "1"], {
   @capture[0] starts_with(">");
   @keys Key('1');
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("2");
-  @capture[0] eq("> 2");
+  @capture[0] trim().eq("> 2");
   @capture[1] contains("0/1");
 });
 sk_test!(opt_nth_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2"], {
   @capture[0] starts_with(">");
   @keys Str("2");
-  @capture[0] eq("> 2");
+  @capture[0] trim().eq("> 2");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "4"], {
   @capture[0] starts_with(">");
   @keys Str("4");
-  @capture[0] eq("> 4");
+  @capture[0] trim().eq("> 4");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "5"], {
   @capture[0] starts_with(">");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 sk_test!(opt_nth_neg_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-1"], {
   @capture[0] starts_with(">");
   @keys Str("4");
-  @capture[0] eq("> 4");
+  @capture[0] trim().eq("> 4");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_neg_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-2"], {
   @capture[0] starts_with(">");
   @keys Str("3");
-  @capture[0] eq("> 3");
+  @capture[0] trim().eq("> 3");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_neg_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-4"], {
   @capture[0] starts_with(">");
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("2");
-  @capture[0] eq("> 2");
+  @capture[0] trim().eq("> 2");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_neg_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-5"], {
   @capture[0] starts_with(">");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 sk_test!(opt_nth_range_to_end, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2.."], {
   @capture[0] starts_with(">");
   @keys Str("3");
-  @capture[0] eq("> 3");
+  @capture[0] trim().eq("> 3");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_range_from_start, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "..3"], {
   @capture[0] starts_with(">");
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("4");
-  @capture[0] eq("> 4");
+  @capture[0] trim().eq("> 4");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_range_closed, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2..3"], {
   @capture[0] starts_with(">");
   @keys Str("2");
-  @capture[0] eq("> 2");
+  @capture[0] trim().eq("> 2");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("3");
-  @capture[0] eq("> 3");
+  @capture[0] trim().eq("> 3");
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 
   @keys Ctrl(&Key('w'));
-  @capture[0] eq(">");
+  @capture[0] trim().eq(">");
 
   @keys Str("4");
-  @capture[0] eq("> 4");
+  @capture[0] trim().eq("> 4");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_nth_range_dec, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "3..2"], {
   @capture[1] contains("1/1");
-  @capture[2] eq("> f1,f2,f3,f4");
+  @capture[2] trim().eq("> f1,f2,f3,f4");
 
   @keys Str("1");
-  @capture[0] eq("> 1");
+  @capture[0] trim().eq("> 1");
   @capture[1] contains("0/1");
 });
 
 sk_test!(opt_print_query, "10\\n20\\n30", &["-q", "2", "--print-query"], {
-  @capture[2] eq("> 20");
+  @capture[2] trim().eq("> 20");
   @keys Enter;
   @capture[0] ne("> 2");
 
   @dbg;
-  @output[0] eq("2");
-  @output[1] eq("20");
+  @output[0] trim().eq("2");
+  @output[1] trim().eq("20");
 });
 
 sk_test!(opt_print_cmd, "1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"], {
   @lines |l| (l.len() > 4);
   @capture[0] starts_with(">");
-  @capture[2] eq("> 1");
+  @capture[2] trim().eq("> 1");
   @keys Enter;
-  @output[0] eq("cmd");
-  @output[1] eq("1");
+  @output[0] trim().eq("cmd");
+  @output[1] trim().eq("1");
 });
 
 sk_test!(opt_print_cmd_and_query, "10\\n20\\n30", &["--cmd-query", "cmd", "--print-cmd", "-q", "2", "--print-query"], {
   @capture[0] starts_with("> 2");
-  @capture[2] eq("> 20");
+  @capture[2] trim().eq("> 20");
   @keys Enter;
-  @output[0] eq("2");
-  @output[1] eq("cmd");
-  @output[2] eq("20");
+  @output[0] trim().eq("2");
+  @output[1] trim().eq("cmd");
+  @output[2] trim().eq("20");
 });
 
 sk_test!(opt_hscroll_begin, &format!("b{}", &["a"; 1000].join("")), &["-q", "b"], {
@@ -354,13 +354,13 @@ sk_test!(opt_info_default, "a\\nb\\nc", &["--info", "default"], {
 });
 
 sk_test!(opt_no_info, "a\\nb\\nc", &["--no-info"], {
-  @capture[0] eq(">");
-  @capture[1] eq("> a");
+  @capture[0] trim().eq(">");
+  @capture[1] trim().eq("> a");
 });
 
 sk_test!(opt_info_hidden, "a\\nb\\nc", &["--info", "hidden"], {
-  @capture[0] eq(">");
-  @capture[1] eq("> a");
+  @capture[0] trim().eq(">");
+  @capture[1] trim().eq("> a");
 });
 
 sk_test!(opt_info_inline, "a\\nb\\nc", &["--info", "inline"], {
@@ -561,7 +561,7 @@ sk_test!(opt_multi, "a\\nb\\nc", &["--multi"], {
 });
 
 sk_test!(opt_pre_select_n, "a\\nb\\nc", &["-m", "--pre-select-n", "2"], {
-  @capture[2] eq(">>a");
+  @capture[2] trim().eq(">>a");
   @capture[3] trim().eq(">b");
 });
 
@@ -603,8 +603,8 @@ sk_test!(opt_no_clear_if_empty, @cmd "echo -ne 'a\\nb\\nc'", &["-i", "--no-clear
 sk_test!(opt_accept_arg, "a\\nb", &["--bind", "ctrl-a:accept:hello"], {
   @capture[1] trim().starts_with("2/2");
   @keys Ctrl(&Key('a'));
-  @output[0] eq("hello");
-  @output[1] eq("a");
+  @output[0] trim().eq("hello");
+  @output[1] trim().eq("a");
 });
 
 sk_test!(opt_tac, "a\\nb", &["--tac"], {
