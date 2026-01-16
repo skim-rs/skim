@@ -487,9 +487,8 @@ impl<'a> App<'a> {
                 ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(t.bytes().collect(), preview_position)?,
-                ItemPreview::Global => self.preview.run(
-                    tui,
-                    &printf(
+                ItemPreview::Global => {
+                    let cmd = printf(
                         preview_opt.to_string(),
                         &self.options.delimiter,
                         &self.options.replstr,
@@ -497,8 +496,13 @@ impl<'a> App<'a> {
                         self.item_list.selected(),
                         &self.input,
                         &self.input,
-                    ),
-                ),
+                    );
+                    if preview_opt.starts_with("@image") {
+                        self.preview.cmd = cmd;
+                    } else {
+                        self.preview.run(tui, &cmd)
+                    }
+                }
             }
         }
         Ok(())

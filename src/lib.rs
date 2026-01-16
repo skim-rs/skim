@@ -346,7 +346,7 @@ impl Skim {
     /// # Panics
     ///
     /// Panics if the tui fails to initilize
-    pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+    pub fn run_with(mut options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         let height = Size::try_from(options.height.as_str())?;
         let backend = CrosstermBackend::new(std::io::stderr());
         let mut tui = tui::Tui::new_with_height(backend, height)?;
@@ -363,13 +363,16 @@ impl Skim {
         let cmd = options.cmd.clone().unwrap_or(default_command);
         let listen_socket = options.listen.clone();
 
-        let mut app = App::from_options(options, theme.clone(), cmd.clone());
-
         let rt = tokio::runtime::Runtime::new()?;
+        let mut app = Default::default();
         let mut final_event: Event = Event::Quit;
         let mut final_key: KeyEvent = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
         rt.block_on(async {
             tui.enter()?;
+            let picker = ratatui_image::picker::Picker::halfblocks();
+            debug!("Picker initialized with protocol {:?}", picker.protocol_type());
+            options.image_picker = Some(picker);
+            app = App::from_options(options, theme.clone(), cmd.clone());
 
             //------------------------------------------------------------------------------
             // reader

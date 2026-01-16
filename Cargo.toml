@@ -63,6 +63,8 @@ clap_complete_nushell = "4.5.10"
 interprocess = { version = "2.2.3", features = ["tokio"] }
 serde = { version = "1.0.228", features = ["derive"] }
 ron = "0.12.0"
+ratatui-image = { version = "9.0.0", default-features = false, features = ["image-defaults", "crossterm"] }
+image = "0.25.9"
 
 [features]
 default = ["cli"]

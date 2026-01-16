@@ -12,8 +12,8 @@ use super::Direction;
 use super::Event;
 use super::Tui;
 
-use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::{AsAny, theme::ColorTheme};
 use crate::{SkimItem, SkimOptions};
 use std::sync::Arc;
 
@@ -55,6 +55,7 @@ pub struct Preview<'a> {
     pub border: bool,
     pub direction: Direction,
     pub wrap: bool,
+    pub picker: Option<ratatui_image::picker::Picker>,
 }
 
 impl Default for Preview<'_> {
@@ -71,6 +72,7 @@ impl Default for Preview<'_> {
             border: false,
             direction: Direction::Right,
             wrap: false,
+            picker: None,
         }
     }
 }
@@ -175,6 +177,27 @@ impl Preview<'_> {
             }
         }));
     }
+
+    fn render_image(
+        &mut self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        path: &str,
+    ) -> Result<()> {
+        use ratatui::{layout::Rect, widgets::Widget};
+        use ratatui_image::{Image, Resize};
+        let source = image::ImageReader::open(path)?.decode()?;
+        let rect = Rect::new(area.x, area.y, area.width, area.height);
+        if let Some(p) = self.picker.as_ref() {
+            let proto = p.new_protocol(source, rect, Resize::Fit(None))?;
+            let widget = Image::new(&proto);
+            debug!("Rendering image preview for {path}");
+            widget.render(rect, buf);
+        } else {
+            debug!("Picker uninitialized");
+        }
+        Ok(())
+    }
 }
 
 impl<'a> SkimWidget for Preview<'a> {
@@ -184,6 +207,8 @@ impl<'a> SkimWidget for Preview<'a> {
             border: options.border,
             direction: options.preview_window.direction,
             wrap: options.preview_window.wrap,
+            cmd: options.preview.clone().unwrap_or_default(),
+            picker: options.image_picker.clone(),
             ..Default::default()
         }
     }
@@ -192,6 +217,14 @@ impl<'a> SkimWidget for Preview<'a> {
         if self.rows != area.height || self.cols != area.width {
             self.rows = area.height;
             self.cols = area.width;
+        }
+        if self.content.to_string().starts_with("@image") {
+            let content = self.content.to_string();
+            let mut p = content.strip_prefix("@image").unwrap_or_default().trim();
+            p = p.strip_prefix("'").unwrap_or(p);
+            p = p.strip_suffix("'").unwrap_or(p);
+            let r = self.render_image(area, buf, &p);
+            debug!("image render: {r:?}");
         }
 
         // Calculate total lines in content

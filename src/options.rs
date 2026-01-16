@@ -1076,6 +1076,10 @@ pub struct SkimOptions {
     /// The internal (parsed) keymap
     #[cfg_attr(feature = "cli", clap(skip))]
     pub keymap: KeyMap,
+
+    /// The ratatui_image Picker to get terminal capabilities
+    #[cfg_attr(feature = "cli", clap(skip))]
+    pub image_picker: Option<ratatui_image::picker::Picker>,
 }
 
 impl Default for SkimOptions {
@@ -1167,6 +1171,7 @@ impl Default for SkimOptions {
             selector: Default::default(),
             preview_fn: Default::default(),
             keymap: Default::default(),
+            image_picker: None,
             #[cfg(feature = "cli")]
             shell: Default::default(),
             #[cfg(feature = "cli")]
