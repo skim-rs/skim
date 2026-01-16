@@ -12,12 +12,23 @@ use defer_drop::DeferDrop;
 use std::rc::Rc;
 
 //==============================================================================
-#[derive(Default)]
 pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
+}
+
+impl Default for MatcherControl {
+    fn default() -> Self {
+        Self {
+            // Default to stopped=true so initial state indicates "no matcher running"
+            stopped: Arc::new(AtomicBool::new(true)),
+            processed: Arc::new(AtomicUsize::new(0)),
+            matched: Arc::new(AtomicUsize::new(0)),
+            items: Arc::new(SpinLock::new(Vec::new())),
+        }
+    }
 }
 
 impl MatcherControl {

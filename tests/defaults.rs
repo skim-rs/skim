@@ -5,6 +5,14 @@ mod common;
 use common::{Keys, TmuxController, sk};
 use std::io::Result;
 
+sk_test!(vanilla_basic, "1\n2\n3", &[], {
+  @capture[0] eq(">");
+  @capture[1] trim().starts_with("3/3");
+  @capture[1] ends_with("0/0");
+  @capture[2] eq("> 1");
+  @capture[3] eq("  2");
+});
+
 sk_test!(vanilla, @cmd "seq 1 100000", &[], {
   @capture[0] eq(">");
   @capture[1] starts_with("  100000");
