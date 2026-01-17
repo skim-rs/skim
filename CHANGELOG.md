@@ -19,10 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Matcher race condition at startup
-
-### 💼 Other
-
-- V1.0.0-pre9
 ## [1.0.0-pre8] - 2026-01-16
 
 ### 🚀 Features
@@ -32,10 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - *(ui)* Use current highlight for the current item (closes #889) (#890)
-
-### 💼 Other
-
-- V1.0.0-pre8
 
 ### 🧪 Testing
 
@@ -50,10 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix listen flag on macos (#888)
 - Correctly parse wrap arg in preview options
-
-### 💼 Other
-
-- V1.0.0-pre7
 
 ### 🧪 Testing
 
@@ -72,11 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disable completions without cli feature
 - Fix build without default features
 
-### 💼 Other
-
-- V1.0.0-pre6
-- V1.0.0-pre6
-
 ### ⚙️ Miscellaneous Tasks
 
 - Add exhaustive_match macro for enum building from str
@@ -86,10 +69,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *(ui)* Add selector and multi-selector options to set the itemlist icons
 - *(ui)* Allow setting modifiers (closes #871)
-
-### 💼 Other
-
-- V1.0.0-pre5
 ## [1.0.0-pre4] - 2026-01-14
 
 ### 🚀 Features
@@ -99,10 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - *(cmd)* [**breaking**] Always use `sh` for all command executions
-
-### 💼 Other
-
-- V1.0.0-pre4
 
 ### ⚙️ Miscellaneous Tasks
 
