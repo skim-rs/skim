@@ -1,9 +1,9 @@
-//! Matcher using https://crates.io/crates/neo_frizbee
-use neo_frizbee::{Config, Scoring, match_indices};
+//! Matcher using https://crates.io/crates/frizbee
+use frizbee::{Config, Scoring, match_indices};
 
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType};
 
-/// Matcher using neo-frizbee,
+/// Matcher using frizbee,
 /// the same one that `blink.cmp` uses in neovim
 /// credits to @saghen
 pub struct FrizbeeMatcher {

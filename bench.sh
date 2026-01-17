@@ -56,7 +56,8 @@ echo "Binary: $BINARY_PATH | Items: $NUM_ITEMS | Query: '$QUERY'"
 TMP_FILE=$(mktemp)
 STATUS_FILE=$(mktemp)
 SESSION_NAME="skim_bench_$$"
-trap "rm -f $TMP_FILE $STATUS_FILE; tmux kill-session -t $SESSION_NAME 2>/dev/null || true" EXIT
+# trap "rm -f $TMP_FILE $STATUS_FILE; tmux kill-session -t $SESSION_NAME 2>/dev/null || true" EXIT
+trap "rm -f $STATUS_FILE; tmux kill-session -t $SESSION_NAME 2>/dev/null || true" EXIT
 
 # Generate random path-like strings with 2-10 words separated by slashes
 awk -v num="$NUM_ITEMS" 'BEGIN {
@@ -67,7 +68,7 @@ awk -v num="$NUM_ITEMS" 'BEGIN {
     words[16]="src"; words[17]="test"; words[18]="config"; words[19]="data"; words[20]="logs"
     words[21]="cache"; words[22]="backup"; words[23]="docs"; words[24]="images"; words[25]="videos"
     words[26]="audio"; words[27]="downloads"; words[28]="uploads"; words[29]="temp"; words[30]="shared"
-    
+
     for (i = 1; i <= num; i++) {
         depth = int(rand() * 9) + 2  # 2-10 depth
         path = ""
@@ -156,7 +157,7 @@ while [ $ELAPSED -lt $MAX_WAIT ]; do
         if [ -n "$STATUS_LINE" ]; then
             MATCHED_COUNT=$(echo "$STATUS_LINE" | cut -d'/' -f1)
             TOTAL_INGESTED=$(echo "$STATUS_LINE" | cut -d'/' -f2)
-            
+
             # Check if ingestion is complete
             if [ "$TOTAL_INGESTED" = "$NUM_ITEMS" ]; then
                 COMPLETED=1
