@@ -21,6 +21,8 @@ pub enum FuzzyAlgorithm {
     SkimV2,
     /// Clangd fuzzy matching algorithm
     Clangd,
+    /// Frizbee matching algorithm
+    Frizbee,
 }
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
@@ -82,6 +84,10 @@ impl FuzzyEngineBuilder {
                     CaseMatching::Smart => matcher.smart_case(),
                 };
                 debug!("Initialized Clangd algorithm");
+                Box::new(matcher)
+            }
+            FuzzyAlgorithm::Frizbee => {
+                let matcher = FrizbeeMatcher::default();
                 Box::new(matcher)
             }
         };

@@ -587,7 +587,10 @@ impl SkimWidget for ItemList {
 
                 // Apply pre-selection only when new items arrive and only if we haven't reached target
                 // This runs once per item batch, not on every render
-                if this.multi_select && this.selector.is_some() && this.selection.len() < this.pre_select_target {
+                if this.multi_select
+                    && let Some(selector) = &this.selector
+                    && this.selection.len() < this.pre_select_target
+                {
                     debug!(
                         "Applying pre-selection to {} items (currently {} selected, target {})",
                         this.items.len(),
@@ -598,7 +601,7 @@ impl SkimWidget for ItemList {
                         if this.selection.len() >= this.pre_select_target {
                             break;
                         }
-                        let should_select = this.selector.as_ref().unwrap().should_select(index, item.item.as_ref());
+                        let should_select = selector.should_select(index, item.item.as_ref());
                         if should_select {
                             debug!("Pre-selecting item[{}]: '{}'", index, item.item.text());
                             this.selection.insert(item.clone());

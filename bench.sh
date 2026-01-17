@@ -2,18 +2,55 @@
 
 # Benchmark script to measure ingestion + matching rate in skim interactive mode
 # This measures how fast skim can ingest items and display matched results
+#
+# Usage: bench.sh [BINARY_PATH] [NUM_ITEMS] [QUERY] [-- EXTRA_ARGS...]
+#
+# Examples:
+#   ./bench.sh                                    # Use defaults
+#   ./bench.sh ./target/release/sk 500000 foo    # Custom binary, items, query
+#   ./bench.sh -- --algo=skim                    # Pass extra args to binary
+#   ./bench.sh ./target/release/sk 1000000 test -- --no-sort --exact
 
 set -e
 export SHELL="/bin/sh"
 unset HISTFILE
 
 # Parse arguments
-BINARY_PATH=${1:-"./target/release/sk"}
-NUM_ITEMS=${2:-1000000}
-QUERY=${3:-"test"}
+# Arguments before -- are: BINARY_PATH NUM_ITEMS QUERY
+# Arguments after -- are passed directly to the binary
+BINARY_PATH="./target/release/sk"
+NUM_ITEMS=1000000
+QUERY="test"
+EXTRA_ARGS=""
+
+# Separate arguments before and after --
+BEFORE_SEP=()
+AFTER_SEP=()
+FOUND_SEP=0
+
+for arg in "$@"; do
+    if [ "$arg" = "--" ]; then
+        FOUND_SEP=1
+    elif [ $FOUND_SEP -eq 0 ]; then
+        BEFORE_SEP+=("$arg")
+    else
+        AFTER_SEP+=("$arg")
+    fi
+done
+
+# Parse positional arguments before --
+[ ${#BEFORE_SEP[@]} -ge 1 ] && BINARY_PATH="${BEFORE_SEP[0]}"
+[ ${#BEFORE_SEP[@]} -ge 2 ] && NUM_ITEMS="${BEFORE_SEP[1]}"
+[ ${#BEFORE_SEP[@]} -ge 3 ] && QUERY="${BEFORE_SEP[2]}"
+
+# Join extra args for passing to binary
+if [ ${#AFTER_SEP[@]} -gt 0 ]; then
+    EXTRA_ARGS="${AFTER_SEP[*]}"
+fi
 
 echo "=== Skim Ingestion + Matching Benchmark ==="
 echo "Binary: $BINARY_PATH | Items: $NUM_ITEMS | Query: '$QUERY'"
+[ -n "$EXTRA_ARGS" ] && echo "Extra args: $EXTRA_ARGS"
 
 # Generate test data
 TMP_FILE=$(mktemp)
@@ -48,7 +85,7 @@ tmux new-session -s "$SESSION_NAME" -d
 
 # Prepare to capture the start time as close to data ingestion as possible
 # Run skim with the query already set, and measure until matcher completes
-tmux send-keys -t "$SESSION_NAME" "cat $TMP_FILE | $BINARY_PATH --query '$QUERY'" Enter
+tmux send-keys -t "$SESSION_NAME" "cat $TMP_FILE | $BINARY_PATH --query '$QUERY' $EXTRA_ARGS" Enter
 
 # Record start time
 START=$(date +%s%N)
