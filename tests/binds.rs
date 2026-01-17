@@ -36,7 +36,10 @@ sk_test!(bind_if_non_matched, "a\\nb", &["--bind", "'enter:if-non-matched(backwa
 });
 
 sk_test!(bind_append_and_select, "a\\n\\nb\\nc", &["-m", "--bind", "'ctrl-f:append-and-select'"], {
-  @keys Str("xyz"), Ctrl(&Key('f'));
+  @capture[0] starts_with(">");
+  @keys Str("xyz");
+  @capture[0] starts_with("> xyz");
+  @keys Ctrl(&Key('f'));
   @capture[2] eq(">>xyz");
 });
 
