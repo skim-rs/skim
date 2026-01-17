@@ -1166,7 +1166,7 @@ impl<'a> App<'a> {
             cmd_to_expand,
             &self.options.delimiter,
             &self.options.replstr,
-            self.item_list.items.iter().map(|x| x.item.clone()),
+            self.item_list.selection.iter().map(|x| x.item.clone()),
             self.item_list.selected(),
             &self.input.value,
             &self.input.value,

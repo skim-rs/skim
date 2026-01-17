@@ -2,7 +2,7 @@ use crate::exhaustive_match;
 use crossterm::event::{KeyEvent, MouseEvent};
 
 /// Events that can occur during skim's execution
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Event {
     /// Quit the application
     Quit,

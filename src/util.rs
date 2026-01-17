@@ -90,7 +90,7 @@ fn escape_arg(a: &str) -> String {
 /// Replaces:
 /// - `{}` -> currently selected item
 /// - `{1..}` etc -> fields of currently selected item, whose index is `selected`
-/// - `{+}` -> all items
+/// - `{+}` -> all selected items (multi-select)
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
 ///
@@ -98,12 +98,12 @@ pub fn printf(
     pattern: String,
     delimiter: &Regex,
     replstr: &str,
-    items: impl Iterator<Item = Arc<dyn SkimItem>> + std::clone::Clone,
-    selected: Option<Arc<dyn SkimItem>>,
+    selected: impl Iterator<Item = Arc<dyn SkimItem>> + std::clone::Clone,
+    current: Option<Arc<dyn SkimItem>>,
     query: &str,
     command_query: &str,
 ) -> String {
-    let (item_text, field_text) = match selected {
+    let (item_text, field_text) = match current {
         Some(ref s) => (s.output().into_owned(), s.output().into_owned()),
         None => (String::default(), String::default()),
     };
@@ -113,7 +113,7 @@ pub fn printf(
     res = res.replace(
         "{+}",
         &escape_arg(
-            &items
+            &selected
                 .clone()
                 .map(|i| i.output().into_owned())
                 .collect::<Vec<_>>()
@@ -122,12 +122,12 @@ pub fn printf(
     );
     res = res.replace("{q}", &escape_arg(query));
     res = res.replace("{cq}", &escape_arg(command_query));
-    if let Some(ref s) = selected {
+    if let Some(ref s) = current {
         res = res.replace("{n}", &format!("{}", &s.get_index()));
     }
     res = res.replace(
         "{+n}",
-        &items
+        &selected
             .map(|i| format!("'{}'", i.get_index()))
             .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " "),
     );
