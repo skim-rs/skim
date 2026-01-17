@@ -677,17 +677,22 @@ impl SkimWidget for ItemList {
                     // Prepend cursor indicators
                     // Pre-allocate capacity to avoid reallocation
                     let mut spans: Vec<Span> = Vec::with_capacity(2 + display_line.spans.len());
-                    spans.push(if is_current {
-                        Span::styled(selector_icon, theme.cursor)
-                    } else {
-                        Span::raw(str::repeat(" ", selector_icon.chars().count()))
-                    });
-                    spans.push(if this.multi_select && is_selected {
-                        Span::styled(multi_select_icon, theme.selected)
-                    } else {
-                        let style = if is_current { theme.current } else { theme.normal };
-                        Span::styled(str::repeat(" ", multi_select_icon.chars().count()), style)
-                    });
+                    spans.push(Span::styled(
+                        if is_current {
+                            selector_icon.to_owned()
+                        } else {
+                            str::repeat(" ", selector_icon.chars().count())
+                        },
+                        theme.cursor,
+                    ));
+                    spans.push(Span::styled(
+                        if this.multi_select && is_selected {
+                            multi_select_icon.to_owned()
+                        } else {
+                            str::repeat(" ", multi_select_icon.chars().count())
+                        },
+                        theme.selected,
+                    ));
                     spans.extend(display_line.spans);
 
                     Line::from(spans)
