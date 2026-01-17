@@ -697,14 +697,19 @@ pub struct SkimOptions {
     /// Set selected item icon
     #[cfg_attr(
         feature = "cli",
-        arg(long = "selector", default_value = ">", help_heading = "Layout")
+        arg(long = "selector", alias = "pointer", default_value = ">", help_heading = "Layout")
     )]
     pub selector_icon: String,
 
     /// Set selected item icon
     #[cfg_attr(
         feature = "cli",
-        arg(long = "multi-selector", default_value = ">", help_heading = "Layout")
+        arg(
+            long = "multi-selector",
+            alias = "marker",
+            default_value = ">",
+            help_heading = "Layout"
+        )
     )]
     pub multi_select_icon: String,
 
@@ -1042,14 +1047,6 @@ pub struct SkimOptions {
 
     /// Reserved for later use
     #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub pointer: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub marker: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
     pub phony: bool,
 
     /// Deprecated, kept for compatibility purposes. See accept() bind instead.
@@ -1162,8 +1159,6 @@ impl Default for SkimOptions {
             jump_labels: String::from("abcdefghijklmnopqrstuvwxyz"),
             border: Default::default(),
             no_bold: Default::default(),
-            pointer: Default::default(),
-            marker: Default::default(),
             phony: Default::default(),
             expect: Default::default(),
             cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
