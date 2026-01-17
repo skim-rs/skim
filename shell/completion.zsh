@@ -25,7 +25,8 @@ _sk() {
 '--delimiter=[Delimiter between fields]:DELIMITER:_default' \
 '--algo=[Fuzzy matching algorithm]:ALGORITHM:((skim_v1\:"Original skim fuzzy matching algorithm (v1)"
 skim_v2\:"Improved skim fuzzy matching algorithm (v2, default)"
-clangd\:"Clangd fuzzy matching algorithm"))' \
+clangd\:"Clangd fuzzy matching algorithm"
+frizbee\:"Frizbee matching algorithm"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
