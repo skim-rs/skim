@@ -5,11 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-pre10] - 2026-01-17
+
+### 🐛 Bug Fixes
+
+- Only expand selection in {+} for commands
+
+### ⚙️ Miscellaneous Tasks
+
+- Add pointer/marker as aliases for selector/multi-selector
 ## [1.0.0-pre9] - 2026-01-16
 
 ### 🐛 Bug Fixes
 
 - Matcher race condition at startup
+
+### 💼 Other
+
+- V1.0.0-pre9
 ## [1.0.0-pre8] - 2026-01-16
 
 ### 🚀 Features

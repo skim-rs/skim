@@ -121,8 +121,6 @@ zsh\:"Zsh"))' \
 '--literal[Reserved for later use]' \
 '--filepath-word[Reserved for later use]' \
 '--no-bold[Reserved for later use]' \
-'--pointer[Reserved for later use]' \
-'--marker[Reserved for later use]' \
 '--phony[Reserved for later use]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \

@@ -106,8 +106,6 @@ module completions {
     --filepath-word           # Reserved for later use
     --jump-labels: string     # Reserved for later use
     --no-bold                 # Reserved for later use
-    --pointer                 # Reserved for later use
-    --marker                  # Reserved for later use
     --phony                   # Reserved for later use
     --expect: string          # Deprecated, kept for compatibility purposes. See accept() bind instead
     --help(-h)                # Print help (see more with '--help')
