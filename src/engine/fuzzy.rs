@@ -2,7 +2,9 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
+use crate::fuzzy_matcher::{
+    FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, frizbee::FrizbeeMatcher, skim::SkimMatcherV2,
+};
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
