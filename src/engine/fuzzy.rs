@@ -2,9 +2,7 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-use crate::fuzzy_matcher::FuzzyMatcher;
-use crate::fuzzy_matcher::clangd::ClangdMatcher;
-use crate::fuzzy_matcher::skim::SkimMatcherV2;
+use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
@@ -109,7 +107,7 @@ impl FuzzyEngine {
         FuzzyEngineBuilder::default()
     }
 
-    fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<(i64, Vec<usize>)> {
+    fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
         if pattern.is_empty() {
             return Some((0, Vec::new()));
         } else if choice.is_empty() {

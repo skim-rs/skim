@@ -67,4 +67,3 @@ ron = "0.12.0"
 [features]
 default = ["cli"]
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
-compact_matcher = []

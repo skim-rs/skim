@@ -11,7 +11,7 @@ generate-files:
 changelog version:
     git cliff -o CHANGELOG.md -t 'v{{ version }}'
 
-release version: (bump-version version) generate-files (changelog version)
+release version: (bump-version version) generate-files (changelog version) test
     cargo generate-lockfile
     git add CHANGELOG.md Cargo.lock Cargo.toml man/ shell/
     git commit -m 'release: v{{ version }}'
