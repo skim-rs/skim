@@ -5,10 +5,7 @@ use std::env;
 use std::io::{self, BufRead};
 use std::process::exit;
 
-#[cfg(not(feature = "compact_matcher"))]
 type IndexType = usize;
-#[cfg(feature = "compact_matcher")]
-type IndexType = u32;
 
 pub fn main() {
     let args: Vec<String> = env::args().collect();

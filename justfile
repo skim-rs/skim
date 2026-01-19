@@ -2,11 +2,11 @@ bump-version version:
     sed -i 's/^version = ".*"/version = "{{ version }}"/' ./Cargo.toml
 
 generate-files:
-    cargo run -- --man > ./man/man1/sk.1
-    cargo run -- --shell bash > ./shell/completion.bash
-    cargo run -- --shell zsh > ./shell/completion.zsh
-    cargo run -- --shell fish > ./shell/completion.fish
-    cargo run -- --shell nushell > ./shell/completion.nu
+    SKIM_DEFAULT_OPTIONS= cargo run -- --man > ./man/man1/sk.1
+    SKIM_DEFAULT_OPTIONS= cargo run -- --shell bash > ./shell/completion.bash
+    SKIM_DEFAULT_OPTIONS= cargo run -- --shell zsh > ./shell/completion.zsh
+    SKIM_DEFAULT_OPTIONS= cargo run -- --shell fish > ./shell/completion.fish
+    SKIM_DEFAULT_OPTIONS= cargo run -- --shell nushell > ./shell/completion.nu
 
 changelog version:
     git cliff -o CHANGELOG.md -t 'v{{ version }}'
