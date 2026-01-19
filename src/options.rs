@@ -813,6 +813,9 @@ pub struct SkimOptions {
     /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the replace‐
     /// ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
     ///
+    /// Note: {..} field index expressions run against the item as it will be outputted, and {} gets
+    /// replaced by the item as it is displayed in the list
+    ///
     /// **Examples**:
     ///
     /// ```bash
