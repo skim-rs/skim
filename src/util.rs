@@ -104,7 +104,7 @@ pub fn printf(
     command_query: &str,
 ) -> String {
     let (item_text, field_text) = match current {
-        Some(ref s) => (s.output().into_owned(), s.output().into_owned()),
+        Some(ref s) => (s.text().into_owned(), s.text().into_owned()),
         None => (String::default(), String::default()),
     };
     // Replace static fields first
