@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 1.1.0" 
+.TH sk 1  "sk 1.1.1" 
 .SH NAME
 sk \- Fuzzy Finder in rust!
 .SH SYNOPSIS
@@ -711,6 +711,9 @@ Execute the given command for the current line and display the result on the pre
 is the placeholder that is replaced to the single\-quoted string of the current line. To transform the replace‐
 ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
 
+Note: {..} field index expressions run against the item as it will be outputted, and {} gets
+replaced by the item as it is displayed in the list
+
 **Examples**:
 
 ```bash
@@ -870,4 +873,4 @@ Pipe log output to a file
 \fB\-\-expect\fR \fI<EXPECT>\fR [default: ]
 Deprecated, kept for compatibility purposes. See accept() bind instead
 .SH VERSION
-v1.1.0
+v1.1.1
