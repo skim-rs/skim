@@ -52,7 +52,7 @@ impl Input {
         if new_pos < 0 || new_pos as usize >= self.value.len() {
             return None;
         }
-        let pos = new_pos as usize;
+        let pos = self.value.floor_char_boundary(new_pos as usize);
         let ch = self.value.remove(pos);
         // Only move cursor if deleting backwards
         if offset < 0 {
