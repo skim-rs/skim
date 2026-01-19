@@ -6,6 +6,7 @@ use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
 use crate::tui::widget::{SkimRender, SkimWidget};
 
+use ansi_to_tui::IntoText;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
@@ -81,7 +82,13 @@ impl SkimWidget for Header {
             panic!("screen height is too small to fit the header");
         }
 
-        Paragraph::new(self.header.as_str()).render(area, buf);
+        if let Ok(header) = self.header.into_text() {
+            Paragraph::new(header).style(self.theme.header).render(area, buf);
+        } else {
+            Paragraph::new(self.header.as_str())
+                .style(self.theme.header)
+                .render(area, buf);
+        }
 
         SkimRender::default()
     }
