@@ -56,7 +56,7 @@ futures = "0.3.31"
 tokio-util = "0.7.17"
 thiserror = "2.0.17"
 tempfile = "3.20.0"
-crossterm = { version = "*", features = ["event-stream", "use-dev-tty", "libc"] }
+crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
 thread_local = "1.1.9"
 termion = "4.0.6"
 clap_complete_nushell = "4.5.10"
