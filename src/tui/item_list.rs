@@ -2,7 +2,7 @@ use std::{rc::Rc, sync::Arc};
 
 use indexmap::IndexSet;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, List, ListDirection, ListState, StatefulWidget, Widget};
+use ratatui::widgets::{Clear, List, ListDirection, ListItem, ListState, StatefulWidget, Widget};
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -13,6 +13,7 @@ use crate::{
     spinlock::SpinLock,
     theme::ColorTheme,
     tui::options::TuiLayout,
+    tui::util::wrap_text,
     tui::widget::{SkimRender, SkimWidget},
 };
 
@@ -47,6 +48,7 @@ pub struct ItemList {
     selector_icon: String,
     multi_select_icon: String,
     cycle: bool,
+    wrap: bool,
 }
 
 impl Default for ItemList {
@@ -79,6 +81,7 @@ impl Default for ItemList {
             selector_icon: String::from(">"),
             multi_select_icon: String::from(">"),
             cycle: false,
+            wrap: false,
         }
     }
 }
@@ -551,6 +554,7 @@ impl SkimWidget for ItemList {
             selector_icon: options.selector_icon.clone(),
             multi_select_icon: options.multi_select_icon.clone(),
             cycle: options.cycle,
+            wrap: options.wrap_items,
         }
     }
 
@@ -616,6 +620,7 @@ impl SkimWidget for ItemList {
         let theme = &this.theme;
         let selector_icon = &this.selector_icon;
         let multi_select_icon = &this.multi_select_icon;
+        let wrap = &this.wrap;
 
         let list = List::new(
             this.items
@@ -671,8 +676,10 @@ impl SkimWidget for ItemList {
                         style: if is_current { theme.current_match } else { theme.matched },
                     });
 
-                    // Apply horizontal scrolling to the display content
-                    display_line = this.apply_hscroll(display_line, shift, container_width, full_width);
+                    if !wrap {
+                        // Apply horizontal scrolling to the display content
+                        display_line = this.apply_hscroll(display_line, shift, container_width, full_width);
+                    }
 
                     // Prepend cursor indicators
                     // Pre-allocate capacity to avoid reallocation
@@ -695,9 +702,13 @@ impl SkimWidget for ItemList {
                     ));
                     spans.extend(display_line.spans);
 
-                    Line::from(spans)
+                    if *wrap {
+                        wrap_text(ratatui::text::Text::from(Line::from(spans)), area.width.into()).into()
+                    } else {
+                        Line::from(spans).into()
+                    }
                 })
-                .collect::<Vec<Line>>(),
+                .collect::<Vec<ListItem>>(),
         )
         .direction(this.direction)
         .style(this.theme.normal);

@@ -775,6 +775,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub border: bool,
 
+    /// Wrap items in the item list
+    #[cfg_attr(feature = "cli", arg(long = "wrap", help_heading = "Display"))]
+    pub wrap_items: bool,
+
     //  --- History ---
     /// History file
     ///
@@ -1082,6 +1086,7 @@ pub struct SkimOptions {
 impl Default for SkimOptions {
     fn default() -> Self {
         Self {
+            wrap_items: false,
             listen: None,
             print_header: false,
             disabled: false,
