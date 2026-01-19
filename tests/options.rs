@@ -715,6 +715,7 @@ sk_test!(opt_disabled, "a\\nb\\nc\\nd", &["--disabled"], {
 sk_test!(opt_wrap, @cmd "seq -s',' 1 1000", &["--wrap"], {
     @capture[0] starts_with(">");
     @capture[1] trim().starts_with("1/1");
+    @dbg;
     @capture[2] ends_with(",1000");
     @lines |l| (l.len() > 3);
 });
