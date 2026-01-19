@@ -103,6 +103,7 @@ zsh\:"Zsh"))' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
 '--border[Draw borders around the UI components]' \
+'--wrap[Wrap items in the item list]' \
 '--read0[Read input delimited by ASCII NUL(\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\0) characters]' \
 '--print-query[Print the query as the first line]' \

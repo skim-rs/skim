@@ -72,6 +72,7 @@ module completions {
     --header: string          # Set header, displayed next to the info
     --header-lines: string    # Number of lines of the input treated as header
     --border                  # Draw borders around the UI components
+    --wrap                    # Wrap items in the item list
     --history: string         # History file
     --history-size: string    # Maximum number of query history entries to keep
     --cmd-history: string     # Command history file
