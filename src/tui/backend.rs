@@ -27,7 +27,10 @@ const FRAME_RATE: f64 = 120.;
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
-pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>> {
+pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>>
+where
+    B::Error: Send + Sync + 'static,
+{
     /// The ratatui terminal instance
     pub terminal: ratatui::Terminal<B>,
     /// Background task handle for event polling
@@ -46,7 +49,10 @@ pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>>
     pub is_fullscreen: bool,
 }
 
-impl<B: Backend> Tui<B> {
+impl<B: Backend> Tui<B>
+where
+    B::Error: Send + Sync + 'static,
+{
     /// Creates a new TUI with the specified backend and height
     pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
@@ -197,7 +203,10 @@ impl<B: Backend> Tui<B> {
     }
 }
 
-impl<B: Backend> Deref for Tui<B> {
+impl<B: Backend> Deref for Tui<B>
+where
+    B::Error: Send + Sync + 'static,
+{
     type Target = ratatui::Terminal<B>;
 
     fn deref(&self) -> &Self::Target {
@@ -205,13 +214,19 @@ impl<B: Backend> Deref for Tui<B> {
     }
 }
 
-impl<B: Backend> DerefMut for Tui<B> {
+impl<B: Backend> DerefMut for Tui<B>
+where
+    B::Error: Send + Sync + 'static,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.terminal
     }
 }
 
-impl<B: Backend> Drop for Tui<B> {
+impl<B: Backend> Drop for Tui<B>
+where
+    B::Error: Send + Sync + 'static,
+{
     fn drop(&mut self) {
         if let Some(t) = self.task.take() {
             t.abort();

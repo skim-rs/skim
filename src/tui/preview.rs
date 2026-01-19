@@ -15,10 +15,11 @@ use super::Tui;
 use crate::theme::ColorTheme;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimItem, SkimOptions};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
+const PREVIEW_MAX_BYTES: usize = 100 * 1024;
 
 /// Callback function for generating preview content
 #[derive(Clone)]
@@ -43,8 +44,8 @@ impl std::ops::Deref for PreviewCallback {
     }
 }
 
-pub struct Preview<'a> {
-    pub content: Text<'a>,
+pub struct Preview {
+    pub content: Arc<RwLock<Text<'static>>>,
     pub cmd: String,
     pub rows: u16,
     pub cols: u16,
@@ -57,10 +58,10 @@ pub struct Preview<'a> {
     pub wrap: bool,
 }
 
-impl Default for Preview<'_> {
+impl Default for Preview {
     fn default() -> Self {
         Self {
-            content: Text::default(),
+            content: Arc::new(RwLock::new(Text::default())),
             cmd: String::default(),
             rows: 0,
             cols: 0,
@@ -75,7 +76,7 @@ impl Default for Preview<'_> {
     }
 }
 
-impl Preview<'_> {
+impl Preview {
     /// Convert a Size value to an actual offset based on preview dimensions
     fn size_to_offset(&self, size: super::Size, is_vertical: bool) -> u16 {
         match size {
@@ -89,25 +90,26 @@ impl Preview<'_> {
 
     pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
         let text = content.to_owned().into_text()?;
-        self.content = text;
-        // Reset scroll when content changes
+        let Ok(mut content) = self.content.write() else {
+            return Err(color_eyre::eyre::eyre!("Failed to acquire content for writing"));
+        };
+        *content = text;
         self.scroll_y = 0;
         self.scroll_x = 0;
         Ok(())
     }
 
     pub fn content_with_position(&mut self, content: Vec<u8>, position: crate::PreviewPosition) -> Result<()> {
-        let text = content.to_owned().into_text()?;
-        self.content = text;
-        // Apply position offsets
-        let v_scroll = self.size_to_offset(position.v_scroll, true);
-        let v_offset = self.size_to_offset(position.v_offset, true);
-        self.scroll_y = v_scroll.saturating_add(v_offset);
+        self.content(content).map(|_| {
+            // Apply position offsets
+            let v_scroll = self.size_to_offset(position.v_scroll, true);
+            let v_offset = self.size_to_offset(position.v_offset, true);
+            self.scroll_y = v_scroll.saturating_add(v_offset);
 
-        let h_scroll = self.size_to_offset(position.h_scroll, false);
-        let h_offset = self.size_to_offset(position.h_offset, false);
-        self.scroll_x = h_scroll.saturating_add(h_offset);
-        Ok(())
+            let h_scroll = self.size_to_offset(position.h_scroll, false);
+            let h_offset = self.size_to_offset(position.h_offset, false);
+            self.scroll_x = h_scroll.saturating_add(h_offset);
+        })
     }
 
     pub fn scroll_up(&mut self, lines: u16) {
@@ -153,6 +155,7 @@ impl Preview<'_> {
         if let Some(th) = &self.thread_handle {
             th.abort();
         }
+        let content = self.content.clone();
         self.thread_handle = Some(tokio::spawn(async move {
             let try_out = shell_cmd.output();
             if try_out.is_err() {
@@ -163,13 +166,24 @@ impl Preview<'_> {
 
             let out = try_out.unwrap();
 
+            let Ok(mut c) = content.write() else {
+                return;
+            };
             if out.status.success() {
+                *c = out.stdout[..PREVIEW_MAX_BYTES.min(out.stdout.len())]
+                    .iter()
+                    .copied()
+                    .filter(|c| *c != b'\r')
+                    .collect::<Vec<u8>>()
+                    .into_text()
+                    .unwrap_or_default();
                 event_tx_clone
-                    .send(Event::PreviewReady(out.stdout))
+                    .send(Event::PreviewReady)
                     .unwrap_or_else(|e| println!("Failed on success: {e}"));
             } else {
+                *c = out.stderr.to_owned().into_text().unwrap_or_default();
                 event_tx_clone
-                    .send(Event::PreviewReady(out.stderr))
+                    .send(Event::PreviewReady)
                     .unwrap_or_else(|e| println!("Failed on error: {e}"));
                 // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
             }
@@ -177,7 +191,7 @@ impl Preview<'_> {
     }
 }
 
-impl<'a> SkimWidget for Preview<'a> {
+impl SkimWidget for Preview {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
         Self {
             theme,
@@ -193,12 +207,15 @@ impl<'a> SkimWidget for Preview<'a> {
             self.rows = area.height;
             self.cols = area.width;
         }
+        let Ok(content) = self.content.try_read() else {
+            return SkimRender::default();
+        };
 
         // Calculate total lines in content
-        let total_lines = self.content.lines.len();
+        let total_lines = content.lines.len();
 
         // Create paragraph with optional block
-        let mut paragraph = Paragraph::new(self.content.clone()).scroll((self.scroll_y, self.scroll_x));
+        let mut paragraph = Paragraph::new(content.clone()).scroll((self.scroll_y, self.scroll_x));
 
         // Enable wrapping if wrap is true
         if self.wrap {

@@ -1,7 +1,7 @@
 //! Handle the color theme
 use std::sync::LazyLock;
 
-use ratatui::style::{Color, Modifier, Style, Stylize as _};
+use ratatui::style::{Color, Modifier, Style};
 
 use crate::options::SkimOptions;
 

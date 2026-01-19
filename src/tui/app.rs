@@ -52,7 +52,7 @@ pub struct App<'a> {
     /// Input field widget
     pub input: Input,
     /// Preview pane widget
-    pub preview: Preview<'a>,
+    pub preview: Preview,
     /// Header widget
     pub header: Header,
     /// Status line widget
@@ -559,8 +559,7 @@ impl<'a> App<'a> {
                 tui.exit()?;
                 self.should_quit = true;
             }
-            Event::PreviewReady(s) => {
-                self.preview.content(s.to_owned())?;
+            Event::PreviewReady => {
                 // Apply preview offset if configured
                 if let Some(offset_expr) = &self.options.preview_window.offset {
                     let offset = self.calculate_preview_offset(offset_expr);

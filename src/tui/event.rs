@@ -19,7 +19,7 @@ pub enum Event {
     /// A mouse event occurred
     Mouse(MouseEvent),
     /// Preview content is ready to display
-    PreviewReady(Vec<u8>),
+    PreviewReady,
     /// Invalid input received
     InvalidInput,
     /// An action was triggered
