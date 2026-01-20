@@ -3,20 +3,25 @@
 # Benchmark script to measure ingestion + matching rate in skim interactive mode
 # This measures how fast skim can ingest items and display matched results
 #
-# Usage: bench.sh [BINARY_PATH] [-n|--num-items NUM] [-q|--query QUERY] [-r|--runs RUNS] [-- EXTRA_ARGS...]
+# Usage: bench.sh [BINARY_PATH] [-n|--num-items NUM] [-q|--query QUERY] [-r|--runs RUNS] 
+#                 [-f|--file FILE] [-g|--generate-file FILE] [-- EXTRA_ARGS...]
 #
 # Arguments:
-#   BINARY_PATH           Path to binary (default: ./target/release/sk)
-#   -n, --num-items NUM   Number of items to generate (default: 1000000)
-#   -q, --query QUERY     Query string to search (default: "test")
-#   -r, --runs RUNS       Number of benchmark runs to average (default: 1)
-#   --                    Pass remaining arguments to the binary
+#   BINARY_PATH              Path to binary (default: ./target/release/sk)
+#   -n, --num-items NUM      Number of items to generate (default: 1000000)
+#   -q, --query QUERY        Query string to search (default: "test")
+#   -r, --runs RUNS          Number of benchmark runs to average (default: 1)
+#   -f, --file FILE          Use existing file as input instead of generating
+#   -g, --generate-file FILE Generate test data to file and exit
+#   --                       Pass remaining arguments to the binary
 #
 # Examples:
 #   ./bench.sh                                    # Use defaults
 #   ./bench.sh ./target/release/sk -n 500000 -q foo
 #   ./bench.sh -n 1000000 -q test -- --no-sort --exact
 #   ./bench.sh -r 5                               # Run 5 times and show average
+#   ./bench.sh -f input.txt -q search             # Use existing file
+#   ./bench.sh -g testdata.txt -n 2000000         # Generate file and exit
 
 set -e
 export SHELL="/bin/sh"
@@ -27,6 +32,8 @@ BINARY_PATH="./target/release/sk"
 NUM_ITEMS=1000000
 QUERY="test"
 RUNS=1
+INPUT_FILE=""
+GENERATE_FILE=""
 EXTRA_ARGS=""
 
 # Parse arguments
@@ -60,6 +67,14 @@ while [ $i -lt ${#ARGS[@]} ]; do
             i=$((i + 1))
             RUNS="${ARGS[$i]}"
             ;;
+        -f|--file)
+            i=$((i + 1))
+            INPUT_FILE="${ARGS[$i]}"
+            ;;
+        -g|--generate-file)
+            i=$((i + 1))
+            GENERATE_FILE="${ARGS[$i]}"
+            ;;
         -*)
             echo "Unknown option: $arg" >&2
             exit 1
@@ -75,8 +90,50 @@ done
 # Trim leading space from EXTRA_ARGS
 EXTRA_ARGS=$(echo "$EXTRA_ARGS" | sed 's/^ *//')
 
+# Validate conflicting options
+if [ -n "$INPUT_FILE" ] && [ -n "$GENERATE_FILE" ]; then
+    echo "Error: Cannot use both --file and --generate-file" >&2
+    exit 1
+fi
+
+# Function to generate test data
+generate_test_data() {
+    local output_file="$1"
+    local num_items="$2"
+    
+    awk -v num="$num_items" 'BEGIN {
+        srand()
+        words[1]="home"; words[2]="usr"; words[3]="etc"; words[4]="var"; words[5]="opt"
+        words[6]="tmp"; words[7]="dev"; words[8]="proc"; words[9]="sys"; words[10]="lib"
+        words[11]="bin"; words[12]="sbin"; words[13]="boot"; words[14]="mnt"; words[15]="media"
+        words[16]="src"; words[17]="test"; words[18]="config"; words[19]="data"; words[20]="logs"
+        words[21]="cache"; words[22]="backup"; words[23]="docs"; words[24]="images"; words[25]="videos"
+        words[26]="audio"; words[27]="downloads"; words[28]="uploads"; words[29]="temp"; words[30]="shared"
+    
+        for (i = 1; i <= num; i++) {
+            depth = int(rand() * 9) + 2  # 2-10 depth
+            path = ""
+            for (j = 1; j <= depth; j++) {
+                word_idx = int(rand() * 30) + 1
+                path = path words[word_idx]
+                if (j < depth) path = path "/"
+            }
+            print path "_" i
+        }
+    }' > "$output_file"
+}
+
+# Handle --generate-file mode
+if [ -n "$GENERATE_FILE" ]; then
+    echo "Generating $NUM_ITEMS items to $GENERATE_FILE..."
+    generate_test_data "$GENERATE_FILE" "$NUM_ITEMS"
+    echo "Generated $NUM_ITEMS items successfully"
+    exit 0
+fi
+
 echo "=== Skim Ingestion + Matching Benchmark ==="
 echo "Binary: $BINARY_PATH | Items: $NUM_ITEMS | Query: '$QUERY' | Runs: $RUNS"
+[ -n "$INPUT_FILE" ] && echo "Input file: $INPUT_FILE"
 [ -n "$EXTRA_ARGS" ] && echo "Extra args: $EXTRA_ARGS"
 
 # Arrays to store results from multiple runs
@@ -87,33 +144,29 @@ PEAK_CPUS=()
 MATCHED_COUNTS=()
 COMPLETED_COUNT=0
 
-# Generate test data once
-TMP_FILE=$(mktemp)
+# Prepare test data file
 STATUS_FILE=$(mktemp)
-trap "rm -f $TMP_FILE $STATUS_FILE" EXIT
+CLEANUP_INPUT=0
 
-# Generate random path-like strings with 2-10 words separated by slashes
-echo "Generating test data..."
-awk -v num="$NUM_ITEMS" 'BEGIN {
-    srand()
-    words[1]="home"; words[2]="usr"; words[3]="etc"; words[4]="var"; words[5]="opt"
-    words[6]="tmp"; words[7]="dev"; words[8]="proc"; words[9]="sys"; words[10]="lib"
-    words[11]="bin"; words[12]="sbin"; words[13]="boot"; words[14]="mnt"; words[15]="media"
-    words[16]="src"; words[17]="test"; words[18]="config"; words[19]="data"; words[20]="logs"
-    words[21]="cache"; words[22]="backup"; words[23]="docs"; words[24]="images"; words[25]="videos"
-    words[26]="audio"; words[27]="downloads"; words[28]="uploads"; words[29]="temp"; words[30]="shared"
+if [ -n "$INPUT_FILE" ]; then
+    # Use provided input file
+    if [ ! -f "$INPUT_FILE" ]; then
+        echo "Error: Input file '$INPUT_FILE' not found" >&2
+        exit 1
+    fi
+    TMP_FILE="$INPUT_FILE"
+    # Count lines in the file to determine NUM_ITEMS
+    NUM_ITEMS=$(wc -l < "$INPUT_FILE")
+    echo "Using input file with $NUM_ITEMS items"
+else
+    # Generate test data to temporary file
+    TMP_FILE=$(mktemp)
+    CLEANUP_INPUT=1
+    echo "Generating test data..."
+    generate_test_data "$TMP_FILE" "$NUM_ITEMS"
+fi
 
-    for (i = 1; i <= num; i++) {
-        depth = int(rand() * 9) + 2  # 2-10 depth
-        path = ""
-        for (j = 1; j <= depth; j++) {
-            word_idx = int(rand() * 30) + 1
-            path = path words[word_idx]
-            if (j < depth) path = path "/"
-        }
-        print path "_" i
-    }
-}' > "$TMP_FILE"
+trap "rm -f $STATUS_FILE; [ $CLEANUP_INPUT -eq 1 ] && rm -f $TMP_FILE || true" EXIT
 
 # Run benchmark multiple times
 for RUN in $(seq 1 $RUNS); do
@@ -126,6 +179,10 @@ for RUN in $(seq 1 $RUNS); do
     
     # Create a new tmux session in the background
     tmux new-session -s "$SESSION_NAME" -d
+    
+    # Unset HISTFILE in the tmux session to prevent command from appearing in shell history
+    tmux send-keys -t "$SESSION_NAME" "unset HISTFILE" Enter
+    sleep 0.1
     
     # Prepare to capture the start time as close to data ingestion as possible
     # Run skim with the query already set, and measure until matcher completes
@@ -178,15 +235,22 @@ for RUN in $(seq 1 $RUNS); do
     fi
     
     # Monitor for matcher completion by checking status line
+    # Wait for matched count to stabilize for 2 seconds
     COMPLETED=0
     MATCHED_COUNT=0
     TOTAL_INGESTED=0
+    PREV_MATCHED_COUNT=-1
+    STABLE_START_TIME=0
+    REQUIRED_STABLE_DURATION_NS=2000000000  # 2 seconds in nanoseconds
     MAX_WAIT=60
-    ELAPSED=0
+    CHECK_INTERVAL=0.05  # 50ms for <0.05s precision
+    ELAPSED_CHECKS=0
+    MAX_CHECKS=$((MAX_WAIT * 20))  # 60 seconds * 20 checks per second = 1200 checks
+    END=0
     
-    while [ $ELAPSED -lt $MAX_WAIT ]; do
-        sleep 1
-        ELAPSED=$((ELAPSED + 1))
+    while [ $ELAPSED_CHECKS -lt $MAX_CHECKS ]; do
+        sleep $CHECK_INTERVAL
+        ELAPSED_CHECKS=$((ELAPSED_CHECKS + 1))
     
         # Capture and check status using bench.sh's method
         tmux capture-pane -b "status-$SESSION_NAME" -t "$SESSION_NAME" 2>/dev/null || true
@@ -203,14 +267,33 @@ for RUN in $(seq 1 $RUNS); do
     
                 # Check if ingestion is complete
                 if [ "$TOTAL_INGESTED" = "$NUM_ITEMS" ]; then
-                    COMPLETED=1
-                    break
+                    # Check if matched count has changed
+                    if [ "$MATCHED_COUNT" != "$PREV_MATCHED_COUNT" ]; then
+                        # Count changed, reset stability timer and mark end time
+                        PREV_MATCHED_COUNT=$MATCHED_COUNT
+                        STABLE_START_TIME=$(date +%s%N)
+                        END=$STABLE_START_TIME
+                    else
+                        # Count is same as before, check if we've been stable long enough
+                        if [ $STABLE_START_TIME -gt 0 ]; then
+                            CURRENT_TIME=$(date +%s%N)
+                            STABLE_NS=$((CURRENT_TIME - STABLE_START_TIME))
+                            
+                            if [ $STABLE_NS -ge $REQUIRED_STABLE_DURATION_NS ]; then
+                                COMPLETED=1
+                                break
+                            fi
+                        fi
+                    fi
                 fi
             fi
         fi
     done
     
-    END=$(date +%s%N)
+    # If we didn't capture an end time, set it now
+    if [ $END -eq 0 ]; then
+        END=$(date +%s%N)
+    fi
     
     # Exit skim
     tmux send-keys -t "$SESSION_NAME" Escape

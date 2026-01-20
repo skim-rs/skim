@@ -627,3 +627,9 @@ For example, with termux, you can add this in your bashrc:
 ```
 export TERMINFO=/data/data/com.termux/files/usr/share/terminfo
 ```
+
+# Benchmarks
+
+The `bench.sh` script is available to benchmark the code.
+
+You can use it directly using `./bench.sh <binary> -n <number of items> -r <number of runs>`, or generate the data using `./bench.sh -g <output file> -n <number of items>`, then `./bench.sh <binary> -f <file> -r <number of runs>`
