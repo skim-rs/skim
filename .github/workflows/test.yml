@@ -48,10 +48,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
-      - name: Install correct toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          target: ${{ matrix.target }}
+      - run: rustup toolchain install
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest@0.9
@@ -70,12 +67,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
-      - name: Install correct toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: clippy
+      - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Clippy
@@ -86,12 +78,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rustfmt
+      - run: rustup toolchain install
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
@@ -102,12 +89,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - run: rustup toolchain install
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rustfmt
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Build without any feature
