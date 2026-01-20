@@ -147,6 +147,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
         print_score: opts.print_score,
         print_header: opts.print_header,
         output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
+        strip_ansi: opts.ansi && !opts.no_strip_ansi,
     };
 
     //------------------------------------------------------------------------------
@@ -193,7 +194,15 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     }
 
     for item in &result.selected_items {
-        print!("{}{}", item.output(), bin_options.output_ending);
+        if bin_options.strip_ansi {
+            print!(
+                "{}{}",
+                skim::helper::item::strip_ansi(&item.output()).0,
+                bin_options.output_ending
+            );
+        } else {
+            print!("{}{}", item.output(), bin_options.output_ending);
+        }
         if bin_options.print_score {
             print!("{}{}", item.rank[0], bin_options.output_ending);
         }
@@ -252,6 +261,7 @@ pub struct BinOptions {
     print_cmd: bool,
     print_score: bool,
     print_header: bool,
+    strip_ansi: bool,
 }
 
 /// Runs skim in filter mode, matching items against a fixed query without interactive UI

@@ -1,5 +1,6 @@
+//! Skim helpers
 pub mod item;
-pub mod item_reader;
+pub(crate) mod item_reader;
 #[macro_use]
-pub mod macros;
-pub mod selector;
+pub(crate) mod macros;
+pub(crate) mod selector;
