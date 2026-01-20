@@ -1,5 +1,6 @@
 use ansi_to_tui::IntoText;
 use color_eyre::eyre::Result;
+use portable_pty::{PtyPair, PtySize, native_pty_system};
 use ratatui::{
     prelude::Backend,
     style::Stylize,
@@ -59,6 +60,8 @@ pub struct Preview {
     pub border: Option<BorderType>,
     pub direction: Direction,
     pub wrap: bool,
+    pty: Option<PtyPair>,
+    pty_killer: Option<Box<dyn portable_pty::ChildKiller + Send + Sync>>,
 }
 
 impl Default for Preview {
@@ -75,6 +78,8 @@ impl Default for Preview {
             border: None,
             direction: Direction::Right,
             wrap: false,
+            pty: None,
+            pty_killer: None,
         }
     }
 }
@@ -89,6 +94,19 @@ impl Preview {
                 (dimension as u32 * p as u32 / 100) as u16
             }
         }
+    }
+
+    fn init_pty(&mut self) {
+        let pty_system = native_pty_system();
+        let pair = pty_system
+            .openpty(PtySize {
+                rows: 0,
+                cols: 0,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .ok();
+        self.pty = pair;
     }
 
     pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
@@ -149,70 +167,159 @@ impl Preview {
     where
         B::Error: Send + Sync + 'static,
     {
-        self.cmd = cmd.to_string();
-        debug!("running preview cmd `{cmd}`");
-        let event_tx_clone = tui.event_tx.clone();
-        let mut shell_cmd = Command::new("/bin/sh");
-        shell_cmd
-            .env("ROWS", self.rows.to_string())
-            .env("COLUMNS", self.cols.to_string())
-            .env("PAGER", "")
-            .arg("-c")
-            .arg(cmd);
         if let Some(th) = &self.thread_handle {
             th.abort();
         }
+        self.cmd = cmd.to_string();
+        let event_tx_clone = tui.event_tx.clone();
         let content = self.content.clone();
-        self.thread_handle = Some(tokio::spawn(async move {
-            let try_out = shell_cmd.output();
-            if try_out.is_err() {
-                println!("Shell cmd in error: {:?}", try_out);
-                // let _ = _event_tx.send(Event::Error(try_out.unwrap_err().to_string()));
-                return;
-            };
 
-            let out = try_out.unwrap();
-
-            let Ok(mut c) = content.write() else {
-                return;
-            };
-            if out.status.success() {
-                *c = out.stdout[..PREVIEW_MAX_BYTES.min(out.stdout.len())]
-                    .iter()
-                    .copied()
-                    .filter(|c| *c != b'\r')
-                    .collect::<Vec<u8>>()
-                    .into_text()
-                    .unwrap_or_default();
-                event_tx_clone
-                    .send(Event::PreviewReady)
-                    .unwrap_or_else(|e| println!("Failed on success: {e}"));
-            } else {
-                *c = out.stderr.to_owned().into_text().unwrap_or_default();
-                event_tx_clone
-                    .send(Event::PreviewReady)
-                    .unwrap_or_else(|e| println!("Failed on error: {e}"));
-                // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
+        if let Some(ref pty) = self.pty {
+            let mut shell_cmd = portable_pty::CommandBuilder::new("/bin/sh");
+            shell_cmd.env("ROWS", self.rows.to_string());
+            shell_cmd.env("COLUMNS", self.cols.to_string());
+            shell_cmd.env("PAGER", "");
+            shell_cmd.arg("-c");
+            shell_cmd.arg(cmd);
+            if let Some(mut killer) = self.pty_killer.take() {
+                let _ = killer.kill();
             }
-        }));
+            let Ok(mut child) = pty.slave.spawn_command(shell_cmd) else {
+                warn!("Failed to spawn shell command");
+                return;
+            };
+            let Ok(mut reader) = pty.master.try_clone_reader() else {
+                warn!("Failed to acquire pty reader");
+                return;
+            };
+            self.pty_killer = Some(child.clone_killer());
+            self.thread_handle = Some(tokio::spawn(async move {
+                let Ok(status) = child.wait() else {
+                    warn!("Failed to get child status");
+                    return;
+                };
+
+                if status.success() {
+                    debug!("preview cmd success");
+                } else {
+                    debug!("preview cmd error: {status:?}");
+                }
+
+                let mut res = Vec::with_capacity(PREVIEW_MAX_BYTES);
+                let mut n = 0;
+                while n < PREVIEW_MAX_BYTES {
+                    let mut buf = [0; 1024];
+                    let Ok(k) = reader.read(&mut buf) else {
+                        break;
+                    };
+                    res.extend_from_slice(&buf[..k]);
+                    if k < 1024 {
+                        break;
+                    }
+                    n += k;
+                }
+                trace!("pty read {} bytes: {res:?}", res.len());
+
+                let Ok(mut c) = content.write() else {
+                    return;
+                };
+                *c = res.into_text().unwrap_or_default();
+                event_tx_clone
+                    .send(Event::PreviewReady)
+                    .unwrap_or_else(|e| warn!("Failed on pty: {e}"));
+            }));
+        } else {
+            let mut shell_cmd = Command::new("/bin/sh");
+            shell_cmd
+                .env("ROWS", self.rows.to_string())
+                .env("COLUMNS", self.cols.to_string())
+                .env("PAGER", "")
+                .arg("-c")
+                .arg(cmd);
+            self.thread_handle = Some(tokio::spawn(async move {
+                let try_out = shell_cmd.output();
+                if try_out.is_err() {
+                    println!("Shell cmd in error: {:?}", try_out);
+                    // let _ = _event_tx.send(Event::Error(try_out.unwrap_err().to_string()));
+                    return;
+                };
+
+                let out = try_out.unwrap();
+
+                let Ok(mut c) = content.write() else {
+                    return;
+                };
+                if out.status.success() {
+                    *c = out.stdout[..PREVIEW_MAX_BYTES.min(out.stdout.len())]
+                        .iter()
+                        .copied()
+                        .filter(|c| *c != b'\r')
+                        .collect::<Vec<u8>>()
+                        .into_text()
+                        .unwrap_or_default();
+                    event_tx_clone
+                        .send(Event::PreviewReady)
+                        .unwrap_or_else(|e| println!("Failed on success: {e}"));
+                } else {
+                    *c = out.stderr.to_owned().into_text().unwrap_or_default();
+                    event_tx_clone
+                        .send(Event::PreviewReady)
+                        .unwrap_or_else(|e| println!("Failed on error: {e}"));
+                    // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
+                }
+            }));
+        }
+    }
+}
+
+impl Drop for Preview {
+    fn drop(&mut self) {
+        debug!("dropping preview");
+        if let Some(mut killer) = self.pty_killer.take() {
+            debug!("killing PTY child");
+            let _ = killer.kill();
+        }
+
+        // Abort the preview thread first
+        if let Some(th) = self.thread_handle.take() {
+            debug!("Dropping Preview: Aborting preview thread");
+            th.abort();
+        }
     }
 }
 
 impl SkimWidget for Preview {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
-        Self {
+        let mut res = Self {
             theme,
             border: options.border,
             direction: options.preview_window.direction,
             wrap: options.preview_window.wrap,
-            ..Default::default()
-        }
+            content: Default::default(),
+            cmd: Default::default(),
+            rows: 0,
+            cols: 0,
+            scroll_y: 0,
+            scroll_x: 0,
+            thread_handle: None,
+            pty: None,
+            pty_killer: None,
+        };
+        res.init_pty();
+        res
     }
 
     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
         if self.rows != area.height || self.cols != area.width {
             self.rows = area.height;
             self.cols = area.width;
+            self.pty.as_ref().map(|p| {
+                p.master.resize(PtySize {
+                    rows: self.rows,
+                    cols: self.cols,
+                    ..Default::default()
+                })
+            });
         }
         let Ok(content) = self.content.try_read() else {
             return SkimRender::default();

@@ -559,7 +559,7 @@ impl Skim {
         // Extract final_key and is_abort from final_event
         let is_abort = !matches!(&final_event, Event::Action(Action::Accept(_)));
 
-        Ok(SkimOutput {
+        let output = SkimOutput {
             cmd: if app.options.interactive {
                 // In interactive mode, cmd is what the user typed
                 app.input.to_string()
@@ -575,7 +575,11 @@ impl Skim {
             query: app.input.to_string(),
             is_abort,
             selected_items: app.results(),
-            header: app.header.header,
-        })
+            header: app.header.header.clone(),
+        };
+        // Explicitely drop app to make sure we stop all components
+        drop(app);
+
+        Ok(output)
     }
 }
