@@ -876,22 +876,38 @@ impl<'a> App<'a> {
             }
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
-                self.item_list.scroll_by(offset * n);
+                if self.options.layout == TuiLayout::Default {
+                    self.item_list.scroll_by(-offset * n);
+                } else {
+                    self.item_list.scroll_by(offset * n);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             HalfPageUp(n) => {
                 let offset = self.item_list.height as i32 / 2;
-                self.item_list.scroll_by(offset * n);
+                if self.options.layout == TuiLayout::Default {
+                    self.item_list.scroll_by(offset * n);
+                } else {
+                    self.item_list.scroll_by(-offset * n);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             PageDown(n) => {
                 let offset = self.item_list.height as i32;
-                self.item_list.scroll_by(offset * n);
+                if self.options.layout == TuiLayout::Default {
+                    self.item_list.scroll_by(-offset * n);
+                } else {
+                    self.item_list.scroll_by(offset * n);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             PageUp(n) => {
                 let offset = self.item_list.height as i32;
-                self.item_list.scroll_by(offset * n);
+                if self.options.layout == TuiLayout::Default {
+                    self.item_list.scroll_by(offset * n);
+                } else {
+                    self.item_list.scroll_by(-offset * n);
+                }
                 return Ok(vec![Event::RunPreview]);
             }
             PreviewUp(n) => {
