@@ -99,4 +99,4 @@ jobs:
           cargo +stable build --no-default-features --features cli
       - name: Build with frizbee feature
         run: |
-          cargo +nightly build --no-default-features --features frizbee
+          cargo +nightly build --no-default-features --features nightly-frizbee
