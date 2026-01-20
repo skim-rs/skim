@@ -495,8 +495,12 @@ First, add skim into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-skim = "*"
+skim = { version = "<version>", default-features = false, features = [..] }
 ```
+
+_Note on features_:
+    - the `cli` feature is required to use skim as a cli, it *should* not be needed when using it as a library.
+    - the `nightly-frizbee` feature adds the frizbee algorithm, but requires cargo nigthly.
 
 Then try to run this simple example:
 
