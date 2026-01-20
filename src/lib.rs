@@ -63,7 +63,7 @@ pub mod completions;
 mod engine;
 pub mod field;
 pub mod fuzzy_matcher;
-mod helper;
+pub mod helper;
 pub mod item;
 mod matcher;
 pub mod options;

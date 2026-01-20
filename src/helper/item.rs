@@ -1,3 +1,5 @@
+//! Skim item helpers
+//! Including the DefaultSkimItem
 use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::{DisplayContext, SkimItem};
 use ansi_to_tui::IntoText;
@@ -43,6 +45,7 @@ pub struct DefaultSkimItem {
 }
 
 impl DefaultSkimItem {
+    /// Create a new DefaultSkimItem from text
     pub fn new(
         orig_text: String,
         ansi_enabled: bool,

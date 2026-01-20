@@ -920,6 +920,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_header: bool,
 
+    /// Print the ANSI codes, making the output exactly match the input even when `--ansi` is on
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", requires = "ansi"))]
+    pub no_strip_ansi: bool,
+
     /// Automatically select the match if there is only one
     #[cfg_attr(feature = "cli", arg(long, short = '1', help_heading = "Scripting"))]
     pub select_1: bool,
@@ -1089,6 +1093,7 @@ pub struct SkimOptions {
 impl Default for SkimOptions {
     fn default() -> Self {
         Self {
+            no_strip_ansi: false,
             wrap_items: false,
             listen: None,
             print_header: false,
