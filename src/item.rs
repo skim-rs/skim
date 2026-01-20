@@ -68,8 +68,6 @@ impl RankBuilder {
 
             rank[priority] = value;
         }
-
-        trace!("ranks: {rank:?}");
         rank
     }
 }
