@@ -13,11 +13,14 @@ edition = "2024"
 
 [profile.release]
 lto = true
+codegen-units = 1
+opt-level = 2
+strip = true
 
-# The profile that 'dist' will build with
+# Kept for compatibility
 [profile.dist]
 inherits = "release"
-lto = "thin"
+
 
 [lib]
 name = "skim"
