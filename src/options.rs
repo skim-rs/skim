@@ -223,6 +223,8 @@ pub struct SkimOptions {
     /// Case sensitivity
     ///
     /// Determines whether or not to ignore case while matching
+    /// Note: this is not used for the Frizbee matcher, it uses a penalty system to favor
+    /// case-sensitivity without enforcing it
     #[cfg_attr(
         feature = "cli",
         arg(long, default_value = "smart", value_enum, help_heading = "Search")

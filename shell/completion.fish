@@ -14,7 +14,8 @@ complete -c sk -l with-nth -d 'Fields to be transformed' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
 complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t'Original skim fuzzy matching algorithm (v1)'
 skim_v2\t'Improved skim fuzzy matching algorithm (v2, default)'
-clangd\t'Clangd fuzzy matching algorithm'"
+clangd\t'Clangd fuzzy matching algorithm'
+frizbee\t'Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"

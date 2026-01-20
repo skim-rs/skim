@@ -5,6 +5,8 @@
 
 /// Clangd fuzzy matching algorithm
 pub mod clangd;
+#[cfg(feature = "nightly-frizbee")]
+pub mod frizbee;
 /// Skim fuzzy matching algorithm
 pub mod skim;
 mod util;

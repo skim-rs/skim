@@ -2,6 +2,8 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
+#[cfg(feature = "nightly-frizbee")]
+use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
 
 use crate::item::RankBuilder;
@@ -10,7 +12,7 @@ use crate::{MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
 /// Fuzzy matching algorithm to use
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
@@ -21,6 +23,9 @@ pub enum FuzzyAlgorithm {
     SkimV2,
     /// Clangd fuzzy matching algorithm
     Clangd,
+    /// Frizbee matching algorithm, typo resistant
+    /// Will fallback to SkimV2 if the feature is not enabled
+    Frizbee,
 }
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
@@ -59,7 +64,14 @@ impl FuzzyEngineBuilder {
     #[allow(deprecated)]
     pub fn build(self) -> FuzzyEngine {
         use crate::fuzzy_matcher::skim::SkimMatcher;
-        let matcher: Box<dyn FuzzyMatcher> = match self.algorithm {
+        #[allow(unused_mut)]
+        let mut algorithm = self.algorithm;
+        #[cfg(not(feature = "nightly-frizbee"))]
+        if algorithm == FuzzyAlgorithm::Frizbee {
+            warn!("Frizbee algorithm not enabled, using SkimV2");
+            algorithm = FuzzyAlgorithm::SkimV2;
+        }
+        let matcher: Box<dyn FuzzyMatcher> = match algorithm {
             FuzzyAlgorithm::SkimV1 => {
                 debug!("Initialized SkimV1 algorithm");
                 Box::new(SkimMatcher::default())
@@ -83,6 +95,12 @@ impl FuzzyEngineBuilder {
                 };
                 debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
+            }
+            FuzzyAlgorithm::Frizbee => {
+                #[cfg(not(feature = "nightly-frizbee"))]
+                unreachable!();
+                #[cfg(feature = "nightly-frizbee")]
+                Box::new(FrizbeeMatcher::default())
             }
         };
 
@@ -141,9 +159,7 @@ impl MatchEngine for FuzzyEngine {
             }
         }
 
-        matched_result.as_ref()?;
-
-        let (score, matched_range) = matched_result.unwrap();
+        let (score, matched_range) = matched_result?;
 
         trace!("matched range {matched_range:?}");
         let begin = *matched_range.first().unwrap_or(&0);

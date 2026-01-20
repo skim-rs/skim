@@ -25,11 +25,9 @@ jobs:
         include:
         - build: linux
           os: ubuntu-latest
-          rust: stable
           target: x86_64-unknown-linux-musl
         - build: macos
           os: macos-latest
-          rust: stable
           target: x86_64-apple-darwin
     steps:
       - name: "[linux] Install dependencies"
@@ -50,11 +48,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
-      - name: Install correct toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
+      - run: rustup toolchain install
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest@0.9
@@ -73,12 +67,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 1
-      - name: Install correct toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: clippy
+      - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Clippy
@@ -89,12 +78,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rustfmt
+      - run: rustup toolchain install
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
@@ -103,15 +87,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rustfmt
+        uses: actions/checkout@v6
+      - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
-      - name: Build without cli feature
+      - name: Build without any feature
         run: |
-          cargo build --no-default-features
+          cargo +stable build --no-default-features
+      - name: Build with cli feature
+        run: |
+          cargo +stable build --no-default-features --features cli
+      - name: Build with frizbee feature
+        run: |
+          cargo +nightly build --no-default-features --features nightly-frizbee
