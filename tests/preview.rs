@@ -8,7 +8,7 @@ sk_test!(preview_preserve_quotes, @cmd "echo \"'\\\"ABC\\\"'\"", &["--preview", 
     @capture[*] contains("X'\"ABC\"'X");
 });
 
-sk_test!(preview_nul_char, @cmd "echo -ne 'a\\0b'", &["--preview", "'echo -en \"{..}\" | hexdump -C'"], {
+sk_test!(preview_nul_char, @cmd "echo -ne 'a\\0b'", &["--preview", "'echo -en \"{}\" | hexdump -C'"], {
     @capture[0] starts_with(">");
     @capture[*] contains("61 00 62");
 });

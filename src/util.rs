@@ -1,6 +1,7 @@
 use crate::SkimItem;
 use crate::field::FieldRange;
 use crate::field::get_string_by_field;
+use crate::helper::item::strip_ansi;
 use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -103,10 +104,7 @@ pub fn printf(
     query: &str,
     command_query: &str,
 ) -> String {
-    let (item_text, field_text) = match current {
-        Some(ref s) => (s.text().into_owned(), s.output().into_owned()),
-        None => (String::default(), String::default()),
-    };
+    let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
     // Replace static fields first
     let mut res = pattern.replace(replstr, &escape_arg(&item_text));
 
@@ -141,7 +139,7 @@ pub fn printf(
                 if pattern.is_empty() {
                     replaced.push_str("{}");
                 } else if let Some(range) = FieldRange::from_str(&pattern) {
-                    let replacement = get_string_by_field(delimiter, &field_text, &range).unwrap_or_default();
+                    let replacement = get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
                     replaced.push_str(&escape_arg(replacement));
                 } else {
                     log::warn!("Failed to build field range from {pattern}");
