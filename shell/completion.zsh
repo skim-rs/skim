@@ -110,6 +110,7 @@ zsh\:"Zsh"))' \
 '--print-cmd[Print the command as the first line (after print-query)]' \
 '--print-score[Print the score after each item]' \
 '--print-header[Print the header as the first line (after print-score)]' \
+'--no-strip-ansi[Print the ANSI codes, making the output exactly match the input even when --ansi is on]' \
 '-1[Automatically select the match if there is only one]' \
 '--select-1[Automatically select the match if there is only one]' \
 '-0[Automatically exit when no match is left]' \
