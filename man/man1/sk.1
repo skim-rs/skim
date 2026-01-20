@@ -162,13 +162,13 @@ skim_v2: Improved skim fuzzy matching algorithm (v2, default)
 .IP \(bu 2
 clangd: Clangd fuzzy matching algorithm
 .IP \(bu 2
-frizbee: Frizbee matching algorithm
+frizbee: Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled
 .RE
 .TP
 \fB\-\-case\fR \fI<CASE>\fR [default: smart]
 Case sensitivity
 
-Determines whether or not to ignore case while matching
+Determines whether or not to ignore case while matching Note: this is not used for the Frizbee matcher, it uses a penalty system to favor case\-sensitivity without enforcing it
 .br
 
 .br
