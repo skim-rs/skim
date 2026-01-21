@@ -977,7 +977,7 @@ impl SkimMatcherV2 {
         let mut pattern_iter = pattern.iter().enumerate().peekable();
 
         // unfortunately we could not get the the character before the first character's(for performance)
-        // so we tread them as NonWord
+        // so we treat them as NonWord
         let mut prev_ch = '\0';
 
         let mut score: i32 = 0;

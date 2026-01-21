@@ -247,7 +247,7 @@ page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 
 - When using the `--split-match` option, each part around spaces or `|` will be matched in a split way:
     - If the option's value (defaulting to `:`) is absent from the query, do a normal match
-    - If it is present, match everything before to everything before it in the items, and everything after it (including potential other occurences of the delimiter) to the part after it in the items. This is particularly useful when piping in input from `rg` to match on both file name and content.
+    - If it is present, match everything before to everything before it in the items, and everything after it (including potential other occurrences of the delimiter) to the part after it in the items. This is particularly useful when piping in input from `rg` to match on both file name and content.
 
 If you prefer using regular expressions, `skim` offers a `regex` mode:
 
@@ -504,7 +504,7 @@ skim = { version = "<version>", default-features = false, features = [..] }
 
 _Note on features_:
     - the `cli` feature is required to use skim as a cli, it *should* not be needed when using it as a library.
-    - the `nightly-frizbee` feature adds the frizbee algorithm, but requires cargo nigthly.
+    - the `nightly-frizbee` feature adds the frizbee algorithm, but requires cargo nightly.
 
 Then try to run this simple example:
 

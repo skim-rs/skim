@@ -345,7 +345,7 @@ impl Skim {
     ///
     /// # Panics
     ///
-    /// Panics if the tui fails to initilize
+    /// Panics if the tui fails to initialize
     pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         let height = Size::try_from(options.height.as_str())?;
         let backend = CrosstermBackend::new(std::io::stderr());

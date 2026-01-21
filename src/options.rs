@@ -496,8 +496,8 @@ pub struct SkimOptions {
     ///
     /// * `execute:...`
     ///
-    /// This is the special form that frees you from parse errors as it does not expect the clos‐
-    /// ing character. The catch is that it should be the last one in the comma-separated list of
+    /// This is the special form that frees you from parse errors as it does not expect the closing
+    /// character. The catch is that it should be the last one in the comma-separated list of
     /// key-action pairs.
     ///
     /// sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐
@@ -857,8 +857,8 @@ pub struct SkimOptions {
     /// Preview command
     ///
     /// Execute the given command for the current line and display the result on the preview window. {} in the command
-    /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the replace‐
-    /// ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
+    /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the
+    /// replacement string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
     ///
     /// Note: {..} field index expressions run against the item as it will be outputted, and {} gets
     /// replaced by the item as it is displayed in the list
