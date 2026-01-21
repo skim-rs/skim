@@ -60,6 +60,23 @@ jobs:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
 
+  codespell:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install codespell
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install codespell
+      - name: Spellcheck
+        run: codespell --config .codespellrc .
+
   clippy:
     runs-on: ubuntu-latest
     steps:

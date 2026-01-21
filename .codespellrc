@@ -1,4 +1,4 @@
 [codespell]
-skip = .git,target,node_modules,po,Cargo.lock,man,shell/completion.*
-ignore-words-list = Ratatui,ratatui,Affinitized,affinitized,afile,enew,worl,Fo,Te,fo
-ignore-regex = .*(ratatui|Affinitized|affinitized|ede|fo|onl).*
+skip = .git,target,node_modules,po,Cargo.lock,CHANGELOG.md,man,shell/completion.*
+ignore-words-list = Ratatui,ratatui,Affinitized,affinitized,afile,enew,worl
+ignore-regex = .*(\^fo|\^Fo|Da\.Te).*

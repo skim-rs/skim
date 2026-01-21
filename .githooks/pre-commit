@@ -1,5 +1,12 @@
 set -xeuo pipefail
 
+if ! command -v codespell >/dev/null 2>&1; then
+    echo "codespell is not installed. Please install it (e.g. pip install codespell)" >&2
+    exit 1
+fi
+
+codespell --config .codespellrc .
+
 cargo fmt --check --all
 cargo clippy --all
 cargo +stable check --no-default-features
