@@ -383,7 +383,7 @@ pub fn enter_interactive<'a>(options: SkimOptions) -> Result<TestHarness<'a>> {
 
     // Run initial command with current (empty) query
     if let Some(ref cmd_template) = harness.app.options.cmd.clone() {
-        let expanded_cmd = harness.app.expand_cmd(&cmd_template);
+        let expanded_cmd = harness.app.expand_cmd(&cmd_template, true);
         harness.run_command(&expanded_cmd)?;
     }
 

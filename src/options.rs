@@ -438,6 +438,9 @@ pub struct SkimOptions {
     ///
     /// * select-row:
     ///
+    /// * set-query(...): _set the query (input) to the expanded value, placeholders are the same as
+    /// execute and others_
+    ///
     /// * toggle:
     ///
     /// * toggle-all:
