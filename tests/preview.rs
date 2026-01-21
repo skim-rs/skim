@@ -8,7 +8,7 @@ insta_test!(insta_preview_preserve_quotes, ["'\"ABC\"'"], &["--preview", "echo X
     @snap;
 });
 
-insta_test!(insta_preview_nul_char, ["a\0b"], &["--preview", "echo -en \"{}\" | hexdump -C"], {
+insta_test!(insta_preview_nul_char, ["a\0b"], &["--preview", "printf \"{}\" | hexdump -C"], {
     @snap;
 });
 
