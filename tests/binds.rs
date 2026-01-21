@@ -22,7 +22,7 @@ insta_test!(insta_bind_append_and_select, ["a", "", "b", "c"], &["-m", "--bind",
 });
 
 // Test first/last actions: jump to first and last items
-insta_test!(insta_bind_first_last, @cmd "seq 1 10", &["--bind", "ctrl-f:first,ctrl-l:last"], {
+insta_test!(insta_bind_first_last, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "ctrl-f:first,ctrl-l:last"], {
     @snap;
     @ctrl 'f';
     @snap;
@@ -33,7 +33,7 @@ insta_test!(insta_bind_first_last, @cmd "seq 1 10", &["--bind", "ctrl-f:first,ct
 });
 
 // Test top alias: top is an alias for first
-insta_test!(insta_bind_top_alias, @cmd "seq 1 10", &["--bind", "ctrl-t:top,ctrl-l:last"], {
+insta_test!(insta_bind_top_alias, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "ctrl-t:top,ctrl-l:last"], {
     @snap;
     @ctrl 'l';
     @snap;
@@ -42,7 +42,7 @@ insta_test!(insta_bind_top_alias, @cmd "seq 1 10", &["--bind", "ctrl-t:top,ctrl-
 });
 
 // Test change event: triggers on query change
-insta_test!(insta_bind_change, @cmd "printf '1\\n12\\n13\\n14\\n15\\n16\\n17\\n18\\n19\\n10'", &["--bind", "change:first"], {
+insta_test!(insta_bind_change, ["1", "12", "13", "14", "15", "16", "17", "18", "19", "10"], &["--bind", "change:first"], {
     @snap;
     @key Up;
     @key Up;
