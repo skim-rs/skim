@@ -30,6 +30,7 @@ frizbee\:"Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if 
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
+'--split-match=[Enable split matching and set delimiter]::SPLIT_MATCH:_default' \
 '*-b+[Comma separated list of bindings]::BIND:_default' \
 '*--bind=[Comma separated list of bindings]::BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \

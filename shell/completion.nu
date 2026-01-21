@@ -37,6 +37,7 @@ module completions {
     --regex                   # Start in regex mode instead of fuzzy-match
     --algo: string@"nu-complete sk algorithm" # Fuzzy matching algorithm
     --case: string@"nu-complete sk case" # Case sensitivity
+    --split-match: string     # Enable split matching and set delimiter
     --bind(-b): string        # Comma separated list of bindings
     --multi(-m)               # Enable multiple selection
     --no-multi                # Disable multiple selection
