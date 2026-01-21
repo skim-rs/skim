@@ -250,7 +250,7 @@ pub struct SkimOptions {
     /// Enable split matching and set delimiter
     ///
     /// Split matching runs the matcher in splits: `foo:bar` will match all items matching `foo`, then
-    /// `:`, then `bar`.
+    /// `:`, then `bar` if the delimiter is present, or match normally if not.
     #[cfg_attr(
         feature = "cli",
         arg(

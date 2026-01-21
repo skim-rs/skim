@@ -17,7 +17,6 @@ pub struct ExactOrFuzzyEngineFactory {
     exact_mode: bool,
     fuzzy_algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
-    split_match: Option<char>,
 }
 
 impl ExactOrFuzzyEngineFactory {
@@ -27,7 +26,6 @@ impl ExactOrFuzzyEngineFactory {
             exact_mode: false,
             fuzzy_algorithm: FuzzyAlgorithm::SkimV2,
             rank_builder: Default::default(),
-            split_match: None,
         }
     }
 
@@ -46,12 +44,6 @@ impl ExactOrFuzzyEngineFactory {
     /// Sets the rank builder for scoring matches
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
-        self
-    }
-
-    /// Sets the split_match option and delimiter
-    pub fn split_match(mut self, value: Option<char>) -> Self {
-        self.split_match = value;
         self
     }
 
@@ -121,7 +113,6 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
                     .algorithm(self.fuzzy_algorithm)
                     .case(case)
                     .rank_builder(self.rank_builder.clone())
-                    .split_match(self.split_match)
                     .build(),
             )
         }

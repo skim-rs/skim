@@ -57,3 +57,9 @@ insta_test!(insta_split_match_custom_delimiter, ["foo/bar", "baz/qux"], &["--spl
     @type "foo/bar";
     @snap;
 });
+
+insta_test!(insta_split_match_or, ["a:bc", "x:yz", "z:ab"], &["--split-match", ":"], {
+    @snap;
+    @type "a:b | x:y";
+    @snap;
+});
