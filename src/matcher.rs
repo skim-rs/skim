@@ -4,6 +4,7 @@ use std::thread;
 
 use rayon::prelude::*;
 
+use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::spinlock::SpinLock;
@@ -94,7 +95,15 @@ impl Matcher {
                 .exact_mode(options.exact)
                 .rank_builder(rank_builder)
                 .build();
-            Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+
+            // If split_match is enabled, wrap the fuzzy factory with SplitMatchEngineFactory
+            // Then wrap with AndOrEngineFactory so that queries like "foo:bar baz:qux" work
+            if let Some(delimiter) = options.split_match {
+                let split_factory = SplitMatchEngineFactory::new(fuzzy_engine_factory, delimiter);
+                Rc::new(AndOrEngineFactory::new(split_factory))
+            } else {
+                Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+            }
         };
 
         Matcher::builder(engine_factory).case(options.case).build()

@@ -1,0 +1,28 @@
+---
+source: tests/split_match.rs
+expression: h.buffer_view()
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  bazqux                                                                        "
+"> foobar                                                                        "
+"  2/2                                                                        0/0"
+">                                                                               "

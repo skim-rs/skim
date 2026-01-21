@@ -64,24 +64,13 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
         // !^abc$ => not "abc"
 
         let mut query = query;
-        let mut exact = false;
+        let mut exact = self.exact_mode;
         let mut param = ExactMatchingParam::default();
         param.case = case;
 
         if query.starts_with('\'') {
-            if self.exact_mode {
-                return Box::new(
-                    FuzzyEngine::builder()
-                        .query(&query[1..])
-                        .algorithm(self.fuzzy_algorithm)
-                        .case(case)
-                        .rank_builder(self.rank_builder.clone())
-                        .build(),
-                );
-            } else {
-                exact = true;
-                query = &query[1..];
-            }
+            exact = !exact;
+            query = &query[1..];
         }
 
         if query.starts_with('!') {
@@ -109,10 +98,6 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
             query = &query[..(query.len() - 1)];
             exact = true;
             param.postfix = true;
-        }
-
-        if self.exact_mode {
-            exact = true;
         }
 
         if exact {
