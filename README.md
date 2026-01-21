@@ -90,10 +90,10 @@ The skim project contains several components:
 
 Any of the following applies:
 
-- Using Git
+- Using the install script:
     ```sh
-    $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
-    $ ~/.skim/install
+    # Always check the content of the script before running it !
+    $ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/skim-rs/skim/releases/latest/download/skim-installer.sh | sh
     ```
 - Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
 - Install from [crates.io](https://crates.io/): Run `cargo install skim`
