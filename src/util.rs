@@ -219,7 +219,8 @@ mod test {
                 items.iter().map(|x| x.clone()),
                 Some(Arc::new("item 2")),
                 "query",
-                "cmd query"
+                "cmd query",
+                true
             ),
             String::from(
                 "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1 item 2 item 3 item 4' [5] 'query' [6] 'cmd query'"
