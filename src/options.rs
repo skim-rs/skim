@@ -247,6 +247,21 @@ pub struct SkimOptions {
     )]
     pub case: CaseMatching,
 
+    /// Enable split matching and set delimiter
+    ///
+    /// Split matching runs the matcher in splits: `foo:bar` will match all items matching `foo`, then
+    /// `:`, then `bar`.
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long,
+            default_missing_value = ":",
+            help_heading = "Search",
+            num_args=0..
+        )
+    )]
+    pub split_match: Option<char>,
+
     //  --- Interface ---
     /// Comma separated list of bindings
     ///
@@ -1125,6 +1140,7 @@ pub struct SkimOptions {
 impl Default for SkimOptions {
     fn default() -> Self {
         Self {
+            split_match: None,
             no_strip_ansi: false,
             wrap_items: false,
             listen: None,

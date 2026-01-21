@@ -38,6 +38,7 @@ pub struct FuzzyEngineBuilder {
     case: CaseMatching,
     algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
+    split_match: Option<char>,
 }
 
 impl FuzzyEngineBuilder {
@@ -58,6 +59,11 @@ impl FuzzyEngineBuilder {
 
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
+        self
+    }
+
+    pub fn split_match(mut self, split_match: Option<char>) -> Self {
+        self.split_match = split_match;
         self
     }
 
@@ -108,6 +114,7 @@ impl FuzzyEngineBuilder {
             matcher,
             query: self.query,
             rank_builder: self.rank_builder,
+            split_match: self.split_match,
         }
     }
 }
@@ -117,6 +124,7 @@ pub struct FuzzyEngine {
     query: String,
     matcher: Box<dyn FuzzyMatcher>,
     rank_builder: Arc<RankBuilder>,
+    split_match: Option<char>,
 }
 
 impl FuzzyEngine {
@@ -132,7 +140,87 @@ impl FuzzyEngine {
             return None;
         }
 
+        if let Some(split_char) = self.split_match {
+            return self.split_fuzzy_match(choice, pattern, split_char);
+        }
+
         self.matcher.fuzzy_indices(choice, pattern)
+    }
+
+    /// Performs split matching based on a delimiter character.
+    ///
+    /// Behavior:
+    /// - If the delimiter is NOT in the pattern: match pattern against the whole choice
+    /// - If the delimiter IS in the pattern: split both on the FIRST delimiter, then
+    ///   match pattern_before against choice_before AND pattern_after against choice_after
+    /// - Only the first delimiter in the pattern is considered; subsequent delimiters are
+    ///   treated as part of the second half
+    /// - If delimiter is in pattern but not in choice, no match
+    fn split_fuzzy_match(&self, choice: &str, pattern: &str, split_char: char) -> Option<(ScoreType, Vec<IndexType>)> {
+        // Find the position of the split character in the pattern (query)
+        let pattern_split_pos = pattern.find(split_char);
+
+        // Find the position of the split character in the choice (item)
+        // We need char index, not byte index, for proper index calculation
+        let choice_split_char_idx = choice.chars().position(|c| c == split_char);
+
+        match pattern_split_pos {
+            None => self.matcher.fuzzy_indices(choice, pattern),
+            Some(pattern_byte_pos) => {
+                // Delimiter in pattern: split both and match separately
+                let pattern_before = &pattern[..pattern_byte_pos];
+                let pattern_after = &pattern[pattern_byte_pos + split_char.len_utf8()..];
+
+                match choice_split_char_idx {
+                    Some(choice_char_idx) => {
+                        // Get byte position for slicing choice
+                        let choice_byte_pos = choice
+                            .char_indices()
+                            .nth(choice_char_idx)
+                            .map(|(i, _)| i)
+                            .unwrap_or(choice.len());
+                        let choice_before = &choice[..choice_byte_pos];
+                        let choice_after = &choice[choice_byte_pos + split_char.len_utf8()..];
+
+                        // Match the "before" parts
+                        let before_match = if pattern_before.is_empty() {
+                            Some((0, Vec::new()))
+                        } else {
+                            self.matcher.fuzzy_indices(choice_before, pattern_before)
+                        };
+
+                        // Match the "after" parts
+                        let after_match = if pattern_after.is_empty() {
+                            Some((0, Vec::new()))
+                        } else {
+                            self.matcher.fuzzy_indices(choice_after, pattern_after)
+                        };
+
+                        // Both must match
+                        match (before_match, after_match) {
+                            (Some((score_before, indices_before)), Some((score_after, indices_after))) => {
+                                // Combine scores
+                                let total_score = score_before + score_after;
+
+                                // Combine indices, adjusting after-indices by the offset
+                                // (choice_char_idx + 1 to account for the delimiter itself)
+                                let offset = choice_char_idx + 1;
+                                let mut combined_indices = indices_before;
+                                combined_indices.extend(indices_after.iter().map(|&i| i + offset));
+
+                                Some((total_score, combined_indices))
+                            }
+                            _ => None,
+                        }
+                    }
+                    None => {
+                        // No delimiter in choice but delimiter in pattern
+                        // This cannot match since we expect both parts to be present
+                        None
+                    }
+                }
+            }
+        }
     }
 }
 

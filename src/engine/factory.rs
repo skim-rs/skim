@@ -17,6 +17,7 @@ pub struct ExactOrFuzzyEngineFactory {
     exact_mode: bool,
     fuzzy_algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
+    split_match: Option<char>,
 }
 
 impl ExactOrFuzzyEngineFactory {
@@ -26,6 +27,7 @@ impl ExactOrFuzzyEngineFactory {
             exact_mode: false,
             fuzzy_algorithm: FuzzyAlgorithm::SkimV2,
             rank_builder: Default::default(),
+            split_match: None,
         }
     }
 
@@ -47,6 +49,12 @@ impl ExactOrFuzzyEngineFactory {
         self
     }
 
+    /// Sets the split_match option and delimiter
+    pub fn split_match(mut self, value: Option<char>) -> Self {
+        self.split_match = value;
+        self
+    }
+
     /// Builds the factory (currently a no-op, returns self)
     pub fn build(self) -> Self {
         self
@@ -64,24 +72,13 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
         // !^abc$ => not "abc"
 
         let mut query = query;
-        let mut exact = false;
+        let mut exact = self.exact_mode;
         let mut param = ExactMatchingParam::default();
         param.case = case;
 
         if query.starts_with('\'') {
-            if self.exact_mode {
-                return Box::new(
-                    FuzzyEngine::builder()
-                        .query(&query[1..])
-                        .algorithm(self.fuzzy_algorithm)
-                        .case(case)
-                        .rank_builder(self.rank_builder.clone())
-                        .build(),
-                );
-            } else {
-                exact = true;
-                query = &query[1..];
-            }
+            exact = !exact;
+            query = &query[1..];
         }
 
         if query.starts_with('!') {
@@ -111,10 +108,6 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
             param.postfix = true;
         }
 
-        if self.exact_mode {
-            exact = true;
-        }
-
         if exact {
             Box::new(
                 ExactEngine::builder(query, param)
@@ -128,6 +121,7 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
                     .algorithm(self.fuzzy_algorithm)
                     .case(case)
                     .rank_builder(self.rank_builder.clone())
+                    .split_match(self.split_match)
                     .build(),
             )
         }

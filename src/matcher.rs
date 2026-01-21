@@ -93,6 +93,7 @@ impl Matcher {
                 .fuzzy_algorithm(options.algorithm)
                 .exact_mode(options.exact)
                 .rank_builder(rank_builder)
+                .split_match(options.split_match)
                 .build();
             Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
         };

@@ -8,7 +8,7 @@ You will need `tmux` to run some integration tests.
 You can then run `cargo nextest run --release --features test-utils`, which should automatically build a release binary, run the unit tests and the integration tests.
 
 
-Most integration tests use [cargo insta](https://insta.rs). If you need to add some tests or re-review them, you will need to install it.
+Most integration tests use [cargo insta](https://insta.rs). If you need to add some tests or re-review them, you will need to install it, and run tests with `cargo insta test --features test-utils --tests --review`, which will let you review snapshots.
 
 Note: you can run the tests without `--release`, but expect more flaky tests since the timings will be looser. I would advise testing manually any debug test failure if you have doubts. However, the tests won't run without the `test-utils` feature, used to create test backends.
 
