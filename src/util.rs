@@ -101,11 +101,7 @@ pub(crate) fn shell_command(cmd: &str) -> Command {
 }
 
 pub(crate) fn platform_default_command() -> &'static str {
-    if cfg!(windows) {
-        "dir /s /b"
-    } else {
-        "find ."
-    }
+    if cfg!(windows) { "dir /s /b" } else { "find ." }
 }
 
 fn escape_arg(a: &str) -> String {
@@ -226,6 +222,7 @@ mod test {
     use super::*;
     use crate::SkimItem;
     use regex::Regex;
+    use std::ffi::{OsStr, OsString};
 
     #[test]
     fn test_unescape_delimiter() {
@@ -330,5 +327,40 @@ mod test {
             ),
             "'{..2}'"
         );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_shell_command_uses_cmd() {
+        let cmd = shell_command("echo hello");
+        let expected_shell = std::env::var_os("COMSPEC")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| OsString::from("cmd.exe"));
+
+        assert_eq!(cmd.get_program(), expected_shell.as_os_str());
+        let args = cmd.get_args().map(OsString::from).collect::<Vec<_>>();
+        assert_eq!(args, [OsString::from("/C"), OsString::from("echo hello")]);
+        assert_ne!(cmd.get_program(), OsStr::new("sh"));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_shell_command_uses_sh() {
+        let cmd = shell_command("echo hello");
+        assert_eq!(cmd.get_program(), OsStr::new("sh"));
+        let args = cmd.get_args().map(OsString::from).collect::<Vec<_>>();
+        assert_eq!(args, [OsString::from("-c"), OsString::from("echo hello")]);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_platform_default_command_windows() {
+        assert_eq!(platform_default_command(), "dir /s /b");
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_platform_default_command_unix() {
+        assert_eq!(platform_default_command(), "find .");
     }
 }
