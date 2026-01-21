@@ -201,7 +201,7 @@ smart: Smart case: case\-insensitive unless query contains uppercase
 \fB\-\-split\-match\fR [\fI<SPLIT_MATCH>...\fR]
 Enable split matching and set delimiter
 
-Split matching runs the matcher in splits: foo:bar will match all items matching foo, then :, then bar.
+Split matching runs the matcher in splits: foo:bar will match all items matching foo, then :, then bar if the delimiter is present, or match normally if not.
 .SH INTERFACE
 .TP
 \fB\-b\fR, \fB\-\-bind\fR [\fI<BIND>...\fR] [default: ]
