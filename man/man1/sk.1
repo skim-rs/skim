@@ -1,78 +1,97 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 0.20.1" 
+.TH sk 1  "sk 1.3.1" 
 .SH NAME
-sk \- sk \- fuzzy finder in Rust
+sk \- Fuzzy Finder in rust!
 .SH SYNOPSIS
-\fBsk\fR [\fB\-\-tac\fR] [\fB\-\-min\-query\-length\fR] [\fB\-\-no\-sort\fR] [\fB\-t\fR|\fB\-\-tiebreak\fR] [\fB\-n\fR|\fB\-\-nth\fR] [\fB\-\-with\-nth\fR] [\fB\-d\fR|\fB\-\-delimiter\fR] [\fB\-e\fR|\fB\-\-exact\fR] [\fB\-\-regex\fR] [\fB\-\-algo\fR] [\fB\-\-case\fR] [\fB\-b\fR|\fB\-\-bind\fR] [\fB\-m\fR|\fB\-\-multi\fR] [\fB\-\-no\-multi\fR] [\fB\-\-no\-mouse\fR] [\fB\-c\fR|\fB\-\-cmd\fR] [\fB\-i\fR|\fB\-\-interactive\fR] [\fB\-I \fR] [\fB\-\-color\fR] [\fB\-\-no\-hscroll\fR] [\fB\-\-keep\-right\fR] [\fB\-\-skip\-to\-pattern\fR] [\fB\-\-no\-clear\-if\-empty\fR] [\fB\-\-no\-clear\-start\fR] [\fB\-\-no\-clear\fR] [\fB\-\-show\-cmd\-error\fR] [\fB\-\-layout\fR] [\fB\-\-reverse\fR] [\fB\-\-height\fR] [\fB\-\-no\-height\fR] [\fB\-\-min\-height\fR] [\fB\-\-margin\fR] [\fB\-p\fR|\fB\-\-prompt\fR] [\fB\-\-cmd\-prompt\fR] [\fB\-\-ansi\fR] [\fB\-\-tabstop\fR] [\fB\-\-info\fR] [\fB\-\-no\-info\fR] [\fB\-\-inline\-info\fR] [\fB\-\-header\fR] [\fB\-\-header\-lines\fR] [\fB\-\-history\fR] [\fB\-\-history\-size\fR] [\fB\-\-cmd\-history\fR] [\fB\-\-cmd\-history\-size\fR] [\fB\-\-preview\fR] [\fB\-\-preview\-window\fR] [\fB\-q\fR|\fB\-\-query\fR] [\fB\-\-cmd\-query\fR] [\fB\-\-expect\fR] [\fB\-\-read0\fR] [\fB\-\-print0\fR] [\fB\-\-print\-query\fR] [\fB\-\-print\-cmd\fR] [\fB\-\-print\-score\fR] [\fB\-1\fR|\fB\-\-select\-1\fR] [\fB\-0\fR|\fB\-\-exit\-0\fR] [\fB\-\-sync\fR] [\fB\-\-pre\-select\-n\fR] [\fB\-\-pre\-select\-pat\fR] [\fB\-\-pre\-select\-items\fR] [\fB\-\-pre\-select\-file\fR] [\fB\-f\fR|\fB\-\-filter\fR] [\fB\-\-shell\fR] [\fB\-\-tmux\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
+\fBsk\fR [\fB\-\-tac\fR] [\fB\-\-min\-query\-length\fR] [\fB\-\-no\-sort\fR] [\fB\-t\fR|\fB\-\-tiebreak\fR] [\fB\-n\fR|\fB\-\-nth\fR] [\fB\-\-with\-nth\fR] [\fB\-d\fR|\fB\-\-delimiter\fR] [\fB\-e\fR|\fB\-\-exact\fR] [\fB\-\-regex\fR] [\fB\-\-algo\fR] [\fB\-\-case\fR] [\fB\-b\fR|\fB\-\-bind\fR] [\fB\-m\fR|\fB\-\-multi\fR] [\fB\-\-no\-multi\fR] [\fB\-\-no\-mouse\fR] [\fB\-c\fR|\fB\-\-cmd\fR] [\fB\-i\fR|\fB\-\-interactive\fR] [\fB\-I \fR] [\fB\-\-color\fR] [\fB\-\-no\-hscroll\fR] [\fB\-\-keep\-right\fR] [\fB\-\-skip\-to\-pattern\fR] [\fB\-\-no\-clear\-if\-empty\fR] [\fB\-\-no\-clear\-start\fR] [\fB\-\-no\-clear\fR] [\fB\-\-show\-cmd\-error\fR] [\fB\-\-cycle\fR] [\fB\-\-disabled\fR] [\fB\-\-layout\fR] [\fB\-\-reverse\fR] [\fB\-\-height\fR] [\fB\-\-no\-height\fR] [\fB\-\-min\-height\fR] [\fB\-\-margin\fR] [\fB\-p\fR|\fB\-\-prompt\fR] [\fB\-\-cmd\-prompt\fR] [\fB\-\-selector\fR] [\fB\-\-multi\-selector\fR] [\fB\-\-ansi\fR] [\fB\-\-tabstop\fR] [\fB\-\-info\fR] [\fB\-\-no\-info\fR] [\fB\-\-inline\-info\fR] [\fB\-\-header\fR] [\fB\-\-header\-lines\fR] [\fB\-\-border\fR] [\fB\-\-wrap\fR] [\fB\-\-history\fR] [\fB\-\-history\-size\fR] [\fB\-\-cmd\-history\fR] [\fB\-\-cmd\-history\-size\fR] [\fB\-\-preview\fR] [\fB\-\-preview\-window\fR] [\fB\-q\fR|\fB\-\-query\fR] [\fB\-\-cmd\-query\fR] [\fB\-\-read0\fR] [\fB\-\-print0\fR] [\fB\-\-print\-query\fR] [\fB\-\-print\-cmd\fR] [\fB\-\-print\-score\fR] [\fB\-\-print\-header\fR] [\fB\-\-no\-strip\-ansi\fR] [\fB\-1\fR|\fB\-\-select\-1\fR] [\fB\-0\fR|\fB\-\-exit\-0\fR] [\fB\-\-sync\fR] [\fB\-\-pre\-select\-n\fR] [\fB\-\-pre\-select\-pat\fR] [\fB\-\-pre\-select\-items\fR] [\fB\-\-pre\-select\-file\fR] [\fB\-f\fR|\fB\-\-filter\fR] [\fB\-\-shell\fR] [\fB\-\-shell\-bindings\fR] [\fB\-\-man\fR] [\fB\-\-listen\fR] [\fB\-\-tmux\fR] [\fB\-\-log\-file\fR] [\fB\-\-expect\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
 .SH DESCRIPTION
 sk \- fuzzy finder in Rust
 .PP
 sk is a general purpose command\-line fuzzy finder.
 .PP
-MODES
+# MODES
 .PP
-Normal mode
+## Normal mode
 .PP
-In normal mode, sk reads the input from stdin and displays the results interactively, and the query is then used to fuzzily filter among the input lines.
+In normal mode, sk reads the input from stdin and displays the results interactively, and the
+query is then used to fuzzily filter among the input lines.
 .PP
-Interactive mode
+## Interactive mode
 .PP
-Interactive mode is a special mode that allows you to run a command interactively and display the results. It is enabled by the \-\-interactive (or \-i) option or by binding the toggle\-interactive action (default: <ctrl\-q>). The command is specified with the \-\-cmd option.
+Interactive mode is a special mode that allows you to run a command interactively and display
+the results. It is enabled by the `\-\-interactive` (or `\-i`) option or by binding the
+`toggle\-interactive` action (default: <ctrl\-q>).
+The command is specified with the `\-\-cmd` option.
 .PP
-Example: sk \-\-cmd "rg {} \-\-color=always" \-\-interactive will use rg to search for the query in the current directory and display the results interactively.
+Example: `sk \-\-cmd "rg {} \-\-color=always" \-\-interactive` will use `rg` to search for the query
+in the current directory and display the results interactively.
 .PP
-ENVIRONMENT VARIABLES
+# ENVIRONMENT VARIABLES
 .PP
-NO_COLOR
+     NO_COLOR
+.PP
+         If set and not empty, sk will not use any colors in the output.
+.PP
+     SKIM_DEFAULT_COMMAND
 .PP
 If set and not empty, sk will not use any colors in the output.
 .PP
-SKIM_DEFAULT_COMMAND
+## SKIM_DEFAULT_COMMAND
 .PP
-Default command to use when input is tty. On *nix systems, sk runs the command with sh \-c, so make  sure  that it\*(Aqs POSIX\-compliant.
+Default command to use when input is tty. On *nix systems, sk runs the command with sh \-c, so make  sure  that
+it\*(Aqs POSIX\-compliant.
 .PP
-SKIM_DEFAULT_OPTIONS
+## SKIM_DEFAULT_OPTIONS
 .PP
-Default options. e.g. export SKIM_DEFAULT_OPTIONS="\-\-multi"
+Default options. e.g. `export SKIM_DEFAULT_OPTIONS="\-\-multi"`
 .PP
-EXTENDED SEARCH MODE
+# EXTENDED SEARCH MODE
 .PP
-Unless specified otherwise, sk will start in "extended\-search mode". In this mode, you can specify multiple  patterns delimited by spaces, such as: \*(Aqwild ^music .mp3$ sbtrkt !rmx
+Unless specified otherwise, sk will start in "extended\-search mode". In this mode, you can specify multiple  patterns
+delimited by spaces, such as: \*(Aqwild ^music .mp3$ sbtrkt !rmx
 .PP
 You can prepend a backslash to a space (\\ ) to match a literal space character.
 .PP
-Exact\-match (quoted)
+## Exact\-match (quoted)
 .PP
-A term that is prefixed by a single\-quote character (\*(Aq) is interpreted as an "exact\-match" (or "non\-fuzzy") term. sk will search for the exact occurrences of the string.
+A term that is prefixed by a single\-quote character (\*(Aq) is interpreted as an "exact\-match" (or "non\-fuzzy") term. sk
+will search for the exact occurrences of the string.
 .PP
-Anchored\-match
+## Anchored\-match
 .PP
-A term can be prefixed by ^, or suffixed by $ to become an anchored\-match term. Then sk will  search  for  the  lines that start with or end with the given string. An anchored\-match term is also an exact\-match term.
+A term can be prefixed by ^, or suffixed by $ to become an anchored\-match term. Then sk will  search  for  the  lines
+that start with or end with the given string. An anchored\-match term is also an exact\-match term.
 .PP
-Negation
+## Negation
 .PP
-If  a  term  is prefixed by !, sk will exclude the lines that satisfy the term from the result. In this case, sk per‐ forms exact match by default.
+If  a  term  is prefixed by !, sk will exclude the lines that satisfy the term from the result. In this case, `sk` per‐
+forms exact match by default.
 .PP
-Exact\-match by default
+## Exact\-match by default
 .PP
-If you don\*(Aqt prefer fuzzy matching and do not wish to "quote" (prefixing with \*(Aq) every word, start sk with \-e or \-\-exact option. Note that when \-\-exact is set, \*(Aq\-prefix "unquotes" the term.
+If you don\*(Aqt prefer fuzzy matching and do not wish to "quote" (prefixing with \*(Aq) every word,
+start `sk` with `\-e` or
+`\-\-exact` option. Note that when `\-\-exact` is set, \*(Aq\-prefix "unquotes" the term.
 .PP
-OR operator
+## OR operator
 .PP
-A  single bar character term acts as an OR operator. For example, the following query matches entries that start with core and end with either go, rb, or py.
+ A  single bar character term acts as an OR operator. For example, the following query matches entries that start with
+core and end with either go, rb, or py.
 .PP
-Example: ^core go$ | rb$ | py$
 .PP
-EXIT STATUS
+**Example**: `^core go$ | rb$ | py$`
 .PP
-\- 0:      Normal exit
 .PP
-\- 1:      No match
+# EXIT STATUS
 .PP
-\- 2:      Error
+* 0:      Normal exit
 .PP
-\- 130:    Interrupted with CTRL\-C or ESC
+* 1:      No match
+.PP
+* 2:      Error
+.PP
+* 130:    Interrupted with CTRL\-C or ESC
 .SH OPTIONS
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -87,7 +106,7 @@ Show results in reverse order
 
 Often used in combination with \-\-no\-sort
 .TP
-\fB\-\-min\-query\-length\fR=\fIMIN_QUERY_LENGTH\fR
+\fB\-\-min\-query\-length\fR \fI<MIN_QUERY_LENGTH>\fR
 Minimum query length to start showing results
 
 Only show results when the query is at least this many characters long
@@ -95,65 +114,45 @@ Only show results when the query is at least this many characters long
 \fB\-\-no\-sort\fR
 Do not sort the results
 
-Often used in combination with \-\-tac
-
-Example: history | sk \-\-tac \-\-no\-sort
+Often used in combination with \-\-tac Example: history | sk \-\-tac \-\-no\-sort
 .TP
-\fB\-t\fR, \fB\-\-tiebreak\fR=\fITIEBREAK\fR [default: score,begin,end]
+\fB\-t\fR, \fB\-\-tiebreak\fR \fI<TIEBREAK>\fR [default: score,begin,end]
 Comma\-separated list of sort criteria to apply when the scores are tied.
 
-\- score: Score of the fuzzy match algorithm
+* **score**: Score of the fuzzy match algorithm
 
-\- index: Prefers line that appeared earlier in the input stream
-
-\- begin: Prefers line with matched substring closer to the beginning
-
-\- end: Prefers line with matched substring closer to the end
-
-\- length: Prefers line with shorter length
-
-Notes:
-
-\- Each criterion could be negated, e.g. (\-index)
-
-\- Each criterion should appear only once in the list
+    \- Each criterion could be negated, e.g. (\-index)
+    \- Each criterion should appear only once in the list
 .br
 
 .br
 [\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length, index, \-index]
 .TP
-\fB\-n\fR, \fB\-\-nth\fR=\fINTH\fR [default: ]
+\fB\-n\fR, \fB\-\-nth\fR \fI<NTH>\fR [default: ]
 Fields to be matched
 
-A field index expression can be a non\-zero integer or a range expression ([BEGIN]..[END]). \-\-nth and \-\-with\-nth take a comma\-separated list of field index expressions.
+A field index expression can be a non\-zero integer or a range expression (`[BEGIN]..[END]`).
+`\-\-nth` and `\-\-with\-nth` take a comma\-separated list of field index expressions.
 
-Examples:
-
-\- 1:      The 1st field
-
-\- 2:      The 2nd field
-
-\- \-1:     The last field
-
-\- \-2:     The 2nd to last field
-
-\- 3..5:   From the 3rd field to the 5th field
-
-\- 2..:    From the 2nd field to the last field
-
-\- ..\-3:   From the 1st field to the 3rd to the last field
-
-\- ..:     All the fields
+**Examples:**
+    1      The 1st field
+    2      The 2nd field
+    \-1     The last field
+    \-2     The 2nd to last field
+    3..5   From the 3rd field to the 5th field
+    2..    From the 2nd field to the last field
+    ..\-3   From the 1st field to the 3rd to the last field
+    ..     All the fields
 .TP
-\fB\-\-with\-nth\fR=\fIWITH_NTH\fR [default: ]
+\fB\-\-with\-nth\fR \fI<WITH_NTH>\fR [default: ]
 Fields to be transformed
 
 See nth for the details
 .TP
-\fB\-d\fR, \fB\-\-delimiter\fR=\fIDELIMITER\fR [default: [\\t\\n ]+]
+\fB\-d\fR, \fB\-\-delimiter\fR \fI<DELIMITER>\fR [default: [\\t\\n ]+]
 Delimiter between fields
 
-In regex format, default to AWK\-style
+In regex format, default to AWK\-style. Escape sequences like \\x00, \\t, \\n are supported.
 .TP
 \fB\-e\fR, \fB\-\-exact\fR
 Run in exact mode
@@ -161,251 +160,296 @@ Run in exact mode
 \fB\-\-regex\fR
 Start in regex mode instead of fuzzy\-match
 .TP
-\fB\-\-algo\fR=\fIALGORITHM\fR [default: skim_v2]
+\fB\-\-algo\fR \fI<ALGORITHM>\fR [default: skim_v2]
 Fuzzy matching algorithm
 
-\- skim_v2: Latest skim algorithm, should be better in almost any case
-
-\- skim_v1: Legacy skim algorithm
-
-\- clangd: Used in clangd for keyword completion
+skim_v2 Latest skim algorithm, should be better in almost any case
+skim_v1 Legacy skim algorithm
+clangd Used in clangd for keyword completion
 .br
 
 .br
-[\fIpossible values: \fRskim_v1, skim_v2, clangd]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+skim_v1: Original skim fuzzy matching algorithm (v1)
+.IP \(bu 2
+skim_v2: Improved skim fuzzy matching algorithm (v2, default)
+.IP \(bu 2
+clangd: Clangd fuzzy matching algorithm
+.IP \(bu 2
+frizbee: Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled
+.RE
 .TP
-\fB\-\-case\fR=\fICASE\fR [default: smart]
+\fB\-\-case\fR \fI<CASE>\fR [default: smart]
 Case sensitivity
 
-Determines whether or not to ignore case while matching
+Determines whether or not to ignore case while matching Note: this is not used for the Frizbee matcher, it uses a penalty system to favor case\-sensitivity without enforcing it
 .br
 
 .br
-[\fIpossible values: \fRrespect, ignore, smart]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+respect: Case\-sensitive matching
+.IP \(bu 2
+ignore: Case\-insensitive matching
+.IP \(bu 2
+smart: Smart case: case\-insensitive unless query contains uppercase
+.RE
 .SH INTERFACE
 .TP
-\fB\-b\fR, \fB\-\-bind\fR=\fIBIND\fR
+\fB\-b\fR, \fB\-\-bind\fR [\fI<BIND>...\fR] [default: ]
 Comma separated list of bindings
 
-You can customize key bindings of sk with \-\-bind option which takes a  comma\-separated  list  of key binding expressions. Each key binding expression follows the following format: <key>:<action>
+You can customize key bindings of sk with `\-\-bind` option which takes a  comma\-separated  list  of
+key binding expressions. Each key binding expression follows the following format: `<key>:<action>`
 
-Example: sk \-\-bind=ctrl\-j:accept,ctrl\-k:kill\-line
+**Example**: `sk \-\-bind=ctrl\-j:accept,ctrl\-k:kill\-line`
 
-AVAILABLE KEYS: (SYNONYMS)
+## AVAILABLE KEYS: (SYNONYMS)
 
-\- ctrl\-[a\-z]
+* ctrl\-[a\-z]
 
-\- ctrl\-space
+* ctrl\-space
 
-\- ctrl\-alt\-[a\-z]
+* ctrl\-alt\-[a\-z]
 
-\- alt\-[a\-zA\-Z]
+* alt\-[a\-zA\-Z]
 
-\- alt\-[0\-9]
+* alt\-[0\-9]
 
-\- f[1\-12]
+* f[1\-12]
 
-\- enter       (ctrl\-m)
+* enter       (ctrl\-m)
 
-\- space
+* space
 
-\- bspace      (bs)
+* bspace      (bs)
 
-\- alt\-up
+* alt\-up
 
-\- alt\-down
+* alt\-down
 
-\- alt\-left
+* alt\-left
 
-\- alt\-right
+* alt\-right
 
-\- alt\-enter   (alt\-ctrl\-m)
+* alt\-enter   (alt\-ctrl\-m)
 
-\- alt\-space
+* alt\-space
 
-\- alt\-bspace  (alt\-bs)
+* alt\-bspace  (alt\-bs)
 
-\- alt\-/
+* alt\-/
 
-\- tab
+* tab
 
-\- btab        (shift\-tab)
+* btab        (shift\-tab)
 
-\- esc
+* esc
 
-\- del
+* del
 
-\- up
+* up
 
-\- down
+* down
 
-\- left
+* left
 
-\- right
+* right
 
-\- home
+* home
 
-\- end
+* end
 
-\- pgup        (page\-up)
+* pgup        (page\-up)
 
-\- pgdn        (page\-down)
+* pgdn        (page\-down)
 
-\- shift\-up
+* shift\-up
 
-\- shift\-down
+* shift\-down
 
-\- shift\-left
+* shift\-left
 
-\- shift\-right
+* shift\-right
 
-\- alt\-shift\-up
+* alt\-shift\-up
 
-\- alt\-shift\-down
+* alt\-shift\-down
 
-\- alt\-shift\-left
+* alt\-shift\-left
 
-\- alt\-shift\-right
+* alt\-shift\-right
 
-\- any single character
+* any single character
 
-ACTION: DEFAULT BINDINGS [NOTES]
+## ACTION: DEFAULT BINDINGS [NOTES]
 
-\- abort: ctrl\-c  ctrl\-q  esc
+* abort: ctrl\-c  ctrl\-q  esc
 
-\- accept(...): enter the argument will be printed when the binding is triggered
+* accept(...): enter *the argument will be printed when the binding is triggered*
 
-\- append\-and\-select:
+* append\-and\-select(c): append c to the query
 
-\- backward\-char: ctrl\-b  left
+* append\-and\-select:
 
-\- backward\-delete\-char: ctrl\-h  bspace
+* backward\-char: ctrl\-b  left
 
-\- backward\-kill\-word: alt\-bs
+* backward\-delete\-char: ctrl\-h  bspace
 
-\- backward\-word: alt\-b   shift\-left
+* backward\-delete\-char/eof:
 
-\- beginning\-of\-line: ctrl\-a  home
+* backward\-kill\-word: alt\-bs
 
-\- clear\-screen: ctrl\-l
+* backward\-word: alt\-b   shift\-left
 
-\- delete\-char: del
+* beginning\-of\-line: ctrl\-a  home
 
-\- delete\-charEOF: ctrl\-d
+* clear\-screen: ctrl\-l
 
-\- deselect\-all:
+* delete\-char: del
 
-\- down: ctrl\-j  ctrl\-n  down
+* delete\-char/eof: ctrl\-d
 
-\- end\-of\-line: ctrl\-e  end
+* deselect\-all:
 
-\- execute(...): see below for the details
+* down: ctrl\-j  ctrl\-n  down
 
-\- execute\-silent(...): see below for the details
+* end\-of\-line: ctrl\-e  end
 
-\- forward\-char: ctrl\-f  right
+* execute(...): *see below for the details*
 
-\- forward\-word: alt\-f   shift\-right
+* execute\-silent(...): *see below for the details*
 
-\- if\-non\-matched:
+* forward\-char: ctrl\-f  right
 
-\- if\-query\-empty:
+* forward\-word: alt\-f   shift\-right
 
-\- if\-query\-not\-empty:
+* if\-non\-matched:
 
-\- ignore:
+* if\-query\-empty:
 
-\- kill\-line:
+* if\-query\-not\-empty:
 
-\- kill\-word: alt\-d
+* ignore:
 
-\- next\-history: ctrl\-n with \-\-history or \-\-cmd\-history
+* kill\-line:
 
-\- page\-down: pgdn
+* kill\-word: alt\-d
 
-\- page\-up: pgup
+* next\-history: ctrl\-n with `\-\-history` or `\-\-cmd\-history`
 
-\- half\-page\-down:
+* page\-down: pgdn
 
-\- half\-page\-up:
+* page\-up: pgup
 
-\- preview\-up: shift\-up
+* half\-page\-down:
 
-\- preview\-down: shift\-down
+* half\-page\-up:
 
-\- preview\-left:
+* preview\-up: shift\-up
 
-\- preview\-right:
+* preview\-down: shift\-down
 
-\- preview\-page\-down:
+* preview\-left:
 
-\- preview\-page\-up:
+* preview\-right:
 
-\- previous\-history: ctrl\-p with \-\-history or \-\-cmd\-history
+* preview\-page\-down:
 
-\- reload(...):
+* preview\-page\-up:
 
-\- select\-all:
+* previous\-history: ctrl\-p with `\-\-history` or `\-\-cmd\-history`
 
-\- toggle:
+* redraw:
 
-\- toggle\-all:
+* refresh\-cmd:
 
-\- toggle+down: ctrl\-i  tab
+* refresh\-preview:
 
-\- toggle\-in: (\-\-layout=reverse ? toggle+up:  toggle+down)
+* reload(...):
 
-\- toggle\-out: (\-\-layout=reverse ? toggle+down:  toggle+up)
+* select\-all:
 
-\- toggle\-preview:
+* select\-row:
 
-\- toggle\-preview\-wrap:
+* toggle:
 
-\- toggle\-sort:
+* toggle\-all:
 
-\- toggle+up: btab    shift\-tab
+* toggle+down: ctrl\-i  tab
 
-\- unix\-line\-discard: ctrl\-u
+* toggle\-in: (\-\-layout=reverse ? toggle+up:  toggle+down)
 
-\- unix\-word\-rubout: ctrl\-w
+* toggle\-interactive:
 
-\- up: ctrl\-k  ctrl\-p  up
+* toggle\-out: (\-\-layout=reverse ? toggle+down:  toggle+up)
 
-\- yank: ctrl\-y
+* toggle\-preview:
 
-Multiple actions can be chained using + separator.
+* toggle\-preview\-wrap:
 
-Example: sk \-\-bind \*(Aqctrl\-a:select\-all+accept\*(Aq
+* toggle\-sort:
 
-Special behaviors
+* toggle+up: btab    shift\-tab
 
-With execute(...) and reload(...) action, you can execute arbitrary commands without leaving sk. For example, you can turn sk into a simple file browser by binding enter key to less command like follows:
+* top:
 
-  sk \-\-bind "enter:execute(less {})"
+* unix\-line\-discard: ctrl\-u
+
+* unix\-word\-rubout: ctrl\-w
+
+* up: ctrl\-k  ctrl\-p  up
+
+* yank: ctrl\-y
+
+## Multiple actions can be chained using + separator.
+
+**Example**: `sk \-\-bind \*(Aqctrl\-a:select\-all+accept\*(Aq`
+
+# Special behaviors
+
+With `execute(...)` and `reload(...)` action, you can execute arbitrary commands without leaving sk.
+For example, you can turn sk into a simple file browser by binding enter key to less command like follows:
+
+```bash
+sk \-\-bind "enter:execute(less {})"
+```
 
 Note: if no argument is supplied to reload, the default command is run.
 
 You can use the same placeholder expressions as in \-\-preview.
 
-If the command contains parentheses, sk may fail to parse the expression. In that case, you  can use any of the following alternative notations to avoid parse errors.
+If the command contains parentheses, sk may fail to parse the expression. In that case, you  can
+use any of the following alternative notations to avoid parse errors.
 
-\- execute[...]
+* `execute[...]`
 
-\- execute\*(Aq...\*(Aq
+* `execute\*(Aq...\*(Aq`
 
-\- execute"..."
+* `execute"..."`
 
-\- execute:...
+* `execute:...`
 
-This is the special form that frees you from parse errors as it does not expect the clos‐ ing character. The catch is that it should be the last one in the comma\-separated list of key\-action pairs.
+This is the special form that frees you from parse errors as it does not expect the clos‐
+ing character. The catch is that it should be the last one in the comma\-separated list of
+key\-action pairs.
 
-sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐ pected to complete quickly, and you are not interested in its output, you might want to use exe‐ cute\-silent instead, which silently executes the command without the  switching.  Note  that  sk will  not  be  responsive  until the command is complete. For asynchronous execution, start your command as a background process (i.e. appending &).
+sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐
+pected to complete quickly, and you are not interested in its output, you might want to use exe‐
+cute\-silent instead, which silently executes the command without the  switching.  Note  that  sk
+will  not  be  responsive  until the command is complete. For asynchronous execution, start your
+command as a background process (i.e. appending &).
 
-With if\-query\-empty and if\-query\-not\-empty action, you could specify the action to  execute  de‐ pends on the query condition. For example:
+With if\-query\-empty and if\-query\-not\-empty action, you could specify the action to  execute  de‐
+pends on the query condition. For example:
 
-sk \-\-bind \*(Aqctrl\-d:if\-query\-empty(abort)+delete\-char\*(Aq
+`sk \-\-bind \*(Aqctrl\-d:if\-query\-empty(abort)+delete\-char\*(Aq`
 
-If  the query is empty, skim will execute abort action, otherwise execute delete\-char action. It is equal to ‘delete\-char/eof‘.
+If  the query is empty, skim will execute abort action, otherwise execute delete\-char action. It
+is equal to ‘delete\-char/eof‘.
 .TP
 \fB\-m\fR, \fB\-\-multi\fR
 Enable multiple selection
@@ -418,7 +462,7 @@ Disable multiple selection
 \fB\-\-no\-mouse\fR
 Disable mouse
 .TP
-\fB\-c\fR, \fB\-\-cmd\fR=\fICMD\fR
+\fB\-c\fR, \fB\-\-cmd\fR \fI<CMD>\fR
 Command to invoke dynamically in interactive mode
 
 Will be invoked using sh \-c
@@ -428,57 +472,84 @@ Start skim in interactive mode
 
 In interactive mode, sk will run the command specified by \-\-cmd option and display the results.
 .TP
-\fB\-I\fR=\fIREPLSTR\fR [default: {}]
+\fB\-I\fR \fI<REPLSTR>\fR [default: {}]
 Replace replstr with the selected item in commands
 .TP
-\fB\-\-color\fR=\fICOLOR\fR
+\fB\-\-color\fR \fI<COLOR>\fR
 Set color theme
 
-Use \-\-color to customize the color scheme of skim. The format is:
+Format: [BASE][,COLOR:ANSI[:ATTR1:ATTR2:..]]
 
-Format: [BASE_SCHEME][,COLOR:ANSI_VALUE]
+Example:
 
-Base Color Schemes
+Available themes:
 
-\- dark: Default 256\-color dark theme (default)
-\- light: 256\-color light theme
-\- 16: Basic 16\-color theme
-\- bw: Minimal black & white theme (no colors, just styles)
-\- none: Minimal black & white theme (no colors, no styles). Default when NO_COLOR is set
-\- molokai: Molokai\-inspired 256\-color theme
+* molokai: molokai 256color
 
-Color Customization
+* light: light 256color
 
-Colors can be specified in two ways:
+* 16: dark base16 theme
 
-\- ANSI color code (0\-255): \-\-color=fg:232,bg:255
-\- RGB hex values: \-\-color=fg:#FF0000 (red text)
+* bw: black & white theme
 
-Customizable UI Elements
+* none: base color scheme
 
-\- fg: Normal text foreground color
-\- bg: Normal text background color
-\- matched (or hl): Matched text in search results
-\- matched_bg: Background of matched text
-\- current (or fg+): Current line foreground color
-\- current_bg (or bg+): Current line background color
-\- current_match (or hl+): Matched text in current line
-\- current_match_bg: Background of matched text in current line
-\- spinner: Progress indicator color
-\- info: Information line color
-\- prompt: Prompt color
-\- cursor (or pointer): Cursor color
-\- selected (or marker): Selected item marker color
-\- header: Header text color
-\- border: Border color for preview/layout
+* dark | default: dark 256color, default value
 
-Examples
 
-\- \-\-color=light: Use light color scheme
-\- \-\-color=dark,fg:232,bg:255: Use dark scheme with custom colors
-\- \-\-color=current_bg:24: Default scheme with custom current line background
-\- \-\-color=dark,matched:#00FF00: Green matched text on dark theme
-\- \-\-color=fg:#FFFFFF,bg:#000000: Custom white\-on\-black color scheme
+Available color names:
+
+* normal (or "" empty string): normal text
+
+* matched (or hl): matched text
+
+* current (or fg+): current line foreground
+
+* bg+: current line background (special case, always sets background)
+
+* current_match (or hl+): matched text in current line
+
+* query: query text
+
+* spinner: spinner character
+
+* info: info text (match count)
+
+* prompt: prompt text
+
+* cursor (or pointer): cursor/pointer
+
+* selected (or marker): selected item marker
+
+* header: header text
+
+* border: border lines
+
+Adding `\-fg`, `_fg`, `\-bg`, `_bg`, `\-underline`, `_underline` sets the corresponding part of
+the color
+
+
+Color formats:
+
+ * 0\-255: ANSI terminal color
+
+ * #rrggbb: 24\-bit color
+
+Available attrs:
+
+* x | regular: resets the modifiers, use it before the others
+
+* b | bold
+
+* u | underline
+
+* c | crossed\-out
+
+* d | dim
+
+* i | italic
+
+* r | reverse
 .TP
 \fB\-\-no\-hscroll\fR
 Disable horizontal scroll
@@ -488,19 +559,23 @@ Keep the right end of the line visible on overflow
 
 Effective only when the query string is empty
 .TP
-\fB\-\-skip\-to\-pattern\fR=\fISKIP_TO_PATTERN\fR
+\fB\-\-skip\-to\-pattern\fR \fI<SKIP_TO_PATTERN>\fR
 Show the matched pattern at the line start
 
-Line  will  start  with  the  start of the matched pattern. Effective only when the query string is empty. Was designed to skip showing starts of paths of rg/grep results.
+Line  will  start  with  the  start of the matched pattern. Effective only when the query
+string is empty. Was designed to skip showing starts of paths of rg/grep results.
 
-Example: sk \-i \-c "rg {} \-\-color=always" \-\-skip\-to\-pattern \*(Aq[^/]*:\*(Aq \-\-ansi
+e.g. sk \-i \-c "rg {} \-\-color=always" \-\-skip\-to\-pattern \*(Aq[^/]*:\*(Aq \-\-ansi
 .TP
 \fB\-\-no\-clear\-if\-empty\fR
 Do not clear previous line if the command returns an empty result
 
-Do not clear previous items if new command returns empty result. This might be useful  to reduce flickering when typing new commands and the half\-complete commands are not valid.
+Do not clear previous items if new command returns empty result. This might be useful  to
+reduce flickering when typing new commands and the half\-complete commands are not valid.
 
-This is not the default behavior because similar use cases for grep and rg have already been op‐ timized where empty query results actually mean "empty" and previous results should be cleared.
+This is not the default behavior because similar use cases for grep and rg have already been op‐
+timized where empty query results actually mean "empty" and previous results should be
+cleared.
 .TP
 \fB\-\-no\-clear\-start\fR
 Do not clear items on start
@@ -512,75 +587,96 @@ Do not clear finder interface on exit. If skim was started in full screen mode, 
 .TP
 \fB\-\-show\-cmd\-error\fR
 Show error message if command fails
+.TP
+\fB\-\-cycle\fR
+Cycle the results by wrapping around when scrolling
+.TP
+\fB\-\-disabled\fR
+Disable matching entirely
 .SH LAYOUT
 .TP
-\fB\-\-layout\fR=\fILAYOUT\fR [default: default]
+\fB\-\-layout\fR \fI<LAYOUT>\fR [default: default]
 Set layout
-
-*default: Display from the bottom of the screen
-
-*reverse: Display from the top of the screen
-
-*reverse\-list: Display from the top of the screen, prompt at the bottom
 .br
 
 .br
-[\fIpossible values: \fRdefault, reverse, reverse\-list]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+default: Display from the bottom of the screen
+.IP \(bu 2
+reverse: Display from the top of the screen
+.IP \(bu 2
+reverse\-list: Display from the top of the screen, prompt at the bottom
+.RE
 .TP
 \fB\-\-reverse\fR
 Shorthand for reverse layout
 .TP
-\fB\-\-height\fR=\fIHEIGHT\fR [default: 100%]
+\fB\-\-height\fR \fI<HEIGHT>\fR [default: 100%]
 Height of skim\*(Aqs window
 
 Can either be a row count or a percentage
 .TP
 \fB\-\-no\-height\fR
-Disable height feature
+Disable height (force full screen)
 .TP
-\fB\-\-min\-height\fR=\fIMIN_HEIGHT\fR [default: 10]
+\fB\-\-min\-height\fR \fI<MIN_HEIGHT>\fR [default: 10]
 Minimum height of skim\*(Aqs window
 
 Useful when the height is set as a percentage
-
 Ignored when \-\-height is not specified
 .TP
-\fB\-\-margin\fR=\fIMARGIN\fR [default: 0]
+\fB\-\-margin\fR \fI<MARGIN>\fR [default: 0]
 Screen margin
 
 For each side, can be either a row count or a percentage of the terminal size
 
 Format can be one of:
-
-\- TRBL
-
-\- TB,RL
-
-\- T,RL,B
-
-\- T,R,B,L
-
+    \- TRBL
+    \- TB,RL
+    \- T,RL,B
+    \- T,R,B,L
 Example: 1,10%
 .TP
-\fB\-p\fR, \fB\-\-prompt\fR=\fIPROMPT\fR [default: > ]
+\fB\-p\fR, \fB\-\-prompt\fR \fI<PROMPT>\fR [default: > ]
 Set prompt
 .TP
-\fB\-\-cmd\-prompt\fR=\fICMD_PROMPT\fR [default: c> ]
+\fB\-\-cmd\-prompt\fR \fI<CMD_PROMPT>\fR [default: c> ]
 Set prompt in command mode
+.TP
+\fB\-\-selector\fR \fI<SELECTOR_ICON>\fR [default: >]
+Set selected item icon
+.TP
+\fB\-\-multi\-selector\fR \fI<MULTI_SELECT_ICON>\fR [default: >]
+Set selected item icon
 .SH DISPLAY
 .TP
 \fB\-\-ansi\fR
 Parse ANSI color codes in input strings
+
+When using skim as a library, this has no effect and ansi parsing should be enabled by manually injecting a cmd_collector like so:
+
+  use skim::prelude::*;
+  
+  let _options = SkimOptionsBuilder::default()
+    .cmd(ls \-\-color)
+    .cmd_collector(Rc::new(RefCell::new(SkimItemReader::new(
+      SkimItemReaderOption::default().ansi(true),
+      ))) as Rc<RefCell<dyn CommandCollector>>)
+    .build()
+    .unwrap()
+
 .TP
-\fB\-\-tabstop\fR=\fITABSTOP\fR [default: 8]
+\fB\-\-tabstop\fR \fI<TABSTOP>\fR [default: 8]
 Number of spaces that make up a tab
 .TP
-\fB\-\-info\fR=\fIINFO\fR [default: default]
+\fB\-\-info\fR \fI<INFO>\fR [default: default]
 Set matching result count display position
 
-\- hidden: do not display info
-\- inline: display info in the same row as the input
-\- default: display info in a dedicated row above the input
+  hidden: do not display info
+  inline: display info in the same row as the input
+  default: display info in a dedicated row above the input
 .br
 
 .br
@@ -592,79 +688,91 @@ Alias for \-\-info=hidden
 \fB\-\-inline\-info\fR
 Alias for \-\-info=inline
 .TP
-\fB\-\-header\fR=\fIHEADER\fR
+\fB\-\-header\fR \fI<HEADER>\fR
 Set header, displayed next to the info
 
 The  given  string  will  be printed as the sticky header. The lines are displayed in the given order from top to bottom regardless of \-\-layout option, and  are  not  affected  by \-\-with\-nth. ANSI color codes are processed even when \-\-ansi is not set.
 .TP
-\fB\-\-header\-lines\fR=\fIHEADER_LINES\fR [default: 0]
+\fB\-\-header\-lines\fR \fI<HEADER_LINES>\fR [default: 0]
 Number of lines of the input treated as header
 
 The  first N lines of the input are treated as the sticky header. When \-\-with\-nth is set, the lines are transformed just like the other lines that follow.
 .TP
-\fB\-\-tmux\fR=\fITMUX\fR
+\fB\-\-border\fR
+Draw borders around the UI components
+.TP
+\fB\-\-wrap\fR
+Wrap items in the item list
+.TP
+\fB\-\-tmux\fR [\fI<TMUX>...\fR]
 Run in a tmux popup
 
-Format: sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]
+Format: `sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
 
 Depending on the direction, the order and behavior of the sizes varies:
 
-\- center: (width, height) or (size, size) if only one is provided
-
-\- top | bottom: (height, width) or height = size, width = 100% if only one is provided
-
-\- left | right: (width, height) or height = 100%, width = size if only one is provided
-
-Note: env vars are only passed to the tmux command if they are either PATH or prefixed with RUST or SKIM
+Default: center,50%
 .SH HISTORY
 .TP
-\fB\-\-history\fR=\fIHISTORY_FILE\fR
+\fB\-\-history\fR \fI<HISTORY_FILE>\fR
 History file
 
 Load search history from the specified file and update the file on completion.
 
 When enabled, CTRL\-N and CTRL\-P are automatically remapped to next\-history and previous\-history.
 .TP
-\fB\-\-history\-size\fR=\fIHISTORY_SIZE\fR [default: 1000]
+\fB\-\-history\-size\fR \fI<HISTORY_SIZE>\fR [default: 1000]
 Maximum number of query history entries to keep
 .TP
-\fB\-\-cmd\-history\fR=\fICMD_HISTORY_FILE\fR
+\fB\-\-cmd\-history\fR \fI<CMD_HISTORY_FILE>\fR
 Command history file
 
 Load command query history from the specified file and update the file on completion.
 
 When enabled, CTRL\-N and CTRL\-P are automatically remapped to next\-history and previous\-history.
 .TP
-\fB\-\-cmd\-history\-size\fR=\fICMD_HISTORY_SIZE\fR [default: 1000]
+\fB\-\-cmd\-history\-size\fR \fI<CMD_HISTORY_SIZE>\fR [default: 1000]
 Maximum number of query history entries to keep
 .SH PREVIEW
 .TP
-\fB\-\-preview\fR=\fIPREVIEW\fR
+\fB\-\-preview\fR \fI<PREVIEW>\fR
 Preview command
 
-Execute the given command for the current line and display the result on the preview window. {} in the command is the placeholder that is replaced to the single\-quoted string of the current line. To transform the replace‐ ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
+Execute the given command for the current line and display the result on the preview window. {} in the command
+is the placeholder that is replaced to the single\-quoted string of the current line. To transform the replace‐
+ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
 
-Examples:
+Note: {..} field index expressions run against the item as it will be outputted, and {} gets
+replaced by the item as it is displayed in the list
 
-  sk \-\-preview=\*(Aqhead \-$LINES {}\*(Aq
-  ls \-l | sk \-\-preview="echo user={3} when={\-4..\-2}; cat {\-1}" \-\-header\-lines=1
+**Examples**:
+
+```bash
+sk \-\-preview=\*(Aqhead \-$LINES {}\*(Aq
+ls \-l | sk \-\-preview="echo user={3} when={\-4..\-2}; cat {\-1}" \-\-header\-lines=1
+```
 
 sk overrides $LINES and $COLUMNS so that they represent the exact size of the preview window.
 
-A placeholder expression starting with + flag will be replaced to the space\-separated  list  of  the  selected lines (or the current line if no selection was made) individually quoted.
+A placeholder expression starting with + flag will be replaced to the space\-separated  list  of  the  selected
+lines (or the current line if no selection was made) individually quoted.
 
-Examples:
-
-  sk \-\-multi \-\-preview=\*(Aqhead \-10 {+}\*(Aq
-  git log \-\-oneline | sk \-\-multi \-\-preview \*(Aqgit show {+1}\*(Aq
+**Examples**:
+```bash
+sk \-\-multi \-\-preview=\*(Aqhead \-10 {+}\*(Aq
+git log \-\-oneline | sk \-\-multi \-\-preview \*(Aqgit show {+1}\*(Aq
+```
 
 Note that you can escape a placeholder pattern by prepending a backslash.
 
-Also, {q}  is replaced to the current query string. {cq} is replaced to the current command query string. {n} is replaced to zero\-based ordinal index of the line. Use {+n} if you want all index numbers when multiple lines are selected
+Also, `{q}`  is replaced to the current query string. `{cq}` is replaced to the current command query string.
+`{n}` is replaced to zero\-based ordinal index of the line. Use `{+n}` if you want all index numbers when multiple
+lines are selected
 
-Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐ pressions evaluates to a non\-empty string.
+Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐
+pressions evaluates to a non\-empty string.
 .TP
-\fB\-\-preview\-window\fR=\fIPREVIEW_WINDOW\fR [default: right:50%]
+\fB\-\-preview\-window\fR \fI<PREVIEW_WINDOW>\fR [default: right:50%]
 Preview window layout
 
 Format: [up|down|left|right][:SIZE[%]][:hidden][:+SCROLL[\-OFFSET]]
@@ -686,26 +794,18 @@ Examples:
   git grep \-\-line\-number \*(Aq\*(Aq |
     sk \-\-delimiter:  \-\-preview \*(Aqnl {1}\*(Aq \-\-preview\-window +{2}\-5
   
-  # Preview with bat, matching line in the middle of the window (\-/2)
-  git grep \-\-line\-number \*(Aq\*(Aq |
-    sk \-\-delimiter:  \\
-        \-\-preview \*(Aqbat \-\-style=numbers \-\-color=always \-\-highlight\-line {2} {1}\*(Aq \\
-        \-\-preview\-window +{2}\-/2
-
+              # Preview with bat, matching line in the middle of the window (\-/2)
+              git grep \-\-line\-number \*(Aq\*(Aq |
+                sk \-\-delimiter : \\
+                    \-\-preview \*(Aqbat \-\-style=numbers \-\-color=always \-\-highlight\-line {2} {1}\*(Aq \\
+                    \-\-preview\-window +{2}\-/2
 .SH SCRIPTING
 .TP
-\fB\-q\fR, \fB\-\-query\fR=\fIQUERY\fR
+\fB\-q\fR, \fB\-\-query\fR \fI<QUERY>\fR
 Initial query
 .TP
-\fB\-\-cmd\-query\fR=\fICMD_QUERY\fR
+\fB\-\-cmd\-query\fR \fI<CMD_QUERY>\fR
 Initial query in interactive mode
-.TP
-\fB\-\-expect\fR=\fIEXPECT\fR
-[Deprecated: Use \-\-bind=<key>:accept(<key>) instead] Comma separated list of keys used to complete skim
-
-Comma\-separated  list  of keys that can be used to complete sk in addition to the default enter key. When this option is set, sk will print the name of the key pressed as the first line of its output  (or  as  the  second line  if \-\-print\-query is also used). No line will be printed if sk is completed with the default enter key. If \-\-expect option is specified multiple times, sk will expect the union of the keys. \-\-no\-expect will clear  the list.
-
-Example: sk \-\-expect=ctrl\-v,ctrl\-t,alt\-s \-\-expect=f1,f2,~,@
 .TP
 \fB\-\-read0\fR
 Read input delimited by ASCII NUL(\\0) characters
@@ -720,7 +820,13 @@ Print the query as the first line
 Print the command as the first line (after print\-query)
 .TP
 \fB\-\-print\-score\fR
-Print the command as the first line (after print\-cmd)
+Print the score after each item
+.TP
+\fB\-\-print\-header\fR
+Print the header as the first line (after print\-score)
+.TP
+\fB\-\-no\-strip\-ansi\fR
+Print the ANSI codes, making the output exactly match the input even when \-\-ansi is on
 .TP
 \fB\-1\fR, \fB\-\-select\-1\fR
 Automatically select the match if there is only one
@@ -733,28 +839,28 @@ Synchronous search for multi\-staged filtering
 
 Synchronous search for multi\-staged filtering. If specified, skim will launch ncurses finder only after the input stream is complete.
 
-Example: sk \-\-multi | sk \-\-sync
+  e.g. sk \-\-multi | sk \-\-sync
 .TP
-\fB\-\-pre\-select\-n\fR=\fIPRE_SELECT_N\fR [default: 0]
+\fB\-\-pre\-select\-n\fR \fI<PRE_SELECT_N>\fR [default: 0]
 Pre\-select the first n items in multi\-selection mode
 .TP
-\fB\-\-pre\-select\-pat\fR=\fIPRE_SELECT_PAT\fR [default: ]
+\fB\-\-pre\-select\-pat\fR \fI<PRE_SELECT_PAT>\fR [default: ]
 Pre\-select the matched items in multi\-selection mode
 
 Check the doc for the detailed syntax: https://docs.rs/regex/1.4.1/regex/
 .TP
-\fB\-\-pre\-select\-items\fR=\fIPRE_SELECT_ITEMS\fR [default: ]
+\fB\-\-pre\-select\-items\fR \fI<PRE_SELECT_ITEMS>\fR [default: ]
 Pre\-select the items separated by newline character
 
-Example: item1\\nitem2
+Example: \*(Aqitem1\\nitem2\*(Aq
 .TP
-\fB\-\-pre\-select\-file\fR=\fIPRE_SELECT_FILE\fR
+\fB\-\-pre\-select\-file\fR \fI<PRE_SELECT_FILE>\fR
 Pre\-select the items read from this file
 .TP
-\fB\-f\fR, \fB\-\-filter\fR=\fIFILTER\fR
+\fB\-f\fR, \fB\-\-filter\fR \fI<FILTER>\fR
 Query for filter mode
 .TP
-\fB\-\-shell\fR=\fISHELL\fR
+\fB\-\-shell\fR \fI<SHELL>\fR
 Generate shell completion script
 
 Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use)
@@ -765,6 +871,40 @@ Note: While PowerShell completions are supported, Windows is not supported for n
 .br
 
 .br
-[\fIpossible values: \fRbash, elvish, fish, powershell, zsh]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+bash: Bourne Again SHell
+.IP \(bu 2
+elvish: Elvish shell
+.IP \(bu 2
+fish: Friendly Interactive SHell
+.IP \(bu 2
+nushell: Nushell (nu)
+.IP \(bu 2
+power\-shell: PowerShell
+.IP \(bu 2
+zsh: Zsh
+.RE
+.TP
+\fB\-\-shell\-bindings\fR
+Generate shell key bindings \- only for bash, zsh and fish
+
+Generate key bindings script after the shell completions See the shell option for more details
+.TP
+\fB\-\-man\fR
+Generate man page and output it to stdout
+.TP
+\fB\-\-listen\fR [\fI<LISTEN>...\fR]
+Run an IPC socket with optional name (defaults to sk)
+
+The socket expects Actions in Ron format (similar to Rust code), see ./src/tui/event.rs for all possible Actions To write to it, you can use socat, for example with \-\-listen sk: echo \*(AqToggleIn\*(Aq | socat \-u STDIN ABSTRACT\-CONNECT:sk
+.TP
+\fB\-\-log\-file\fR \fI<LOG_FILE>\fR
+Pipe log output to a file
+.SH DEPRECATED
+.TP
+\fB\-\-expect\fR \fI<EXPECT>\fR [default: ]
+Deprecated, kept for compatibility purposes. See accept() bind instead
 .SH VERSION
-v0.20.1
+v1.3.1
