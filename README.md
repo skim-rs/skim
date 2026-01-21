@@ -11,6 +11,9 @@
   <a href="https://discord.gg/23PuxttufP">
     <img alt="Skim Discord" src="https://img.shields.io/discord/1031830957432504361?label=&color=7389d8&labelColor=6a7ec2&logoColor=ffffff&logo=discord" />
   </a>
+  <a href="https://ratatui.rs">
+    <img alt="Built with Ratatui" src="https://ratatui.rs/built-with-ratatui/badge.svg" />
+  </a>
 </p>
 
 > Life is short, skim!
@@ -52,7 +55,6 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
       + [How does it work?](#how-does-it-work-1)
    * [Fields support](#fields-support)
    * [Use as a library](#use-as-a-library)
-   * [Tuikit](#tuikit)
 - [FAQ](#faq)
    * [How to ignore files?](#how-to-ignore-files)
    * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
@@ -66,8 +68,7 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
 The skim project contains several components:
 
 1. `sk` executable - the core program
-2. `sk-tmux` - a script for launching `sk` in a tmux pane
-3. Vim/Nvim plugin - to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
+2. Vim/Nvim plugin - to call `sk` inside Vim/Nvim. Check [skim.vim](https://github.com/skim-rs/skim/blob/master/plugin/skim.vim) for Vim support.
 
 ## Package Managers
 
@@ -75,7 +76,6 @@ The skim project contains several components:
 | -------------- | ----------------- | ---------------------------- |
 | macOS          | Homebrew          | `brew install sk`            |
 | macOS          | MacPorts          | `sudo port install skim`     |
-| Fedora         | dnf               | `dnf install skim`           |
 | Alpine         | apk               | `apk add skim`               |
 | Arch           | pacman            | `pacman -S skim`             |
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
@@ -90,10 +90,10 @@ The skim project contains several components:
 
 Any of the following applies:
 
-- Using Git
+- Using the install script:
     ```sh
-    $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
-    $ ~/.skim/install
+    # Always check the content of the script before running it !
+    $ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/skim-rs/skim/releases/latest/download/skim-installer.sh | sh
     ```
 - Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
 - Install from [crates.io](https://crates.io/): Run `cargo install skim`
@@ -115,8 +115,10 @@ interface for running commands.
 
 Via vim-plug (recommended):
 
+Install skim, then :
+
 ```vim
-Plug 'skim-rs/skim', { 'dir': '~/.skim', 'do': './install' }
+Plug 'skim-rs/skim'
 ```
 
 
@@ -351,23 +353,23 @@ Colors can be specified in several ways:
 
 The following UI elements can be customized:
 
-| Element            | Description                                 | Example                  |
-|--------------------|---------------------------------------------|-------------------------|
-| `fg`               | Normal text foreground color                | `--color=fg:232`        |
-| `bg`               | Normal text background color                | `--color=bg:255`        |
-| `matched`          | Matched text in search results              | `--color=matched:108`   |
-| `matched_bg`       | Background of matched text                  | `--color=matched_bg:0`  |
-| `current`          | Current line foreground color               | `--color=current:254`   |
-| `current_bg`       | Current line background color               | `--color=current_bg:236`|
-| `current_match`    | Matched text in current line                | `--color=current_match:151` |
+| Element            | Description                                 | Example                        |
+|--------------------|---------------------------------------------|--------------------------------|
+| `fg`               | Normal text foreground color                | `--color=fg:232`               |
+| `bg`               | Normal text background color                | `--color=bg:255`               |
+| `matched`          | Matched text in search results              | `--color=matched:108`          |
+| `matched_bg`       | Background of matched text                  | `--color=matched_bg:0`         |
+| `current`          | Current line foreground color               | `--color=current:254`          |
+| `current_bg`       | Current line background color               | `--color=current_bg:236`       |
+| `current_match`    | Matched text in current line                | `--color=current_match:151`    |
 | `current_match_bg` | Background of matched text in current line  | `--color=current_match_bg:236` |
-| `spinner`          | Progress indicator color                     | `--color=spinner:148`   |
-| `info`             | Information line color                      | `--color=info:144`      |
-| `prompt`           | Prompt color                                | `--color=prompt:110`    |
-| `cursor`           | Cursor color                                | `--color=cursor:161`    |
-| `selected`         | Selected item marker color                  | `--color=selected:168`  |
-| `header`           | Header text color                           | `--color=header:109`    |
-| `border`           | Border color for preview/layout             | `--color=border:59`     |
+| `spinner`          | Progress indicator color                    | `--color=spinner:148`          |
+| `info`             | Information line color                      | `--color=info:144`             |
+| `prompt`           | Prompt color                                | `--color=prompt:110`           |
+| `cursor`           | Cursor color                                | `--color=cursor:161`           |
+| `selected`         | Selected item marker color                  | `--color=selected:168`         |
+| `header`           | Header text color                           | `--color=header:109`           |
+| `border`           | Border color for preview/layout             | `--color=border:59`            |
 
 ### Examples
 
@@ -493,8 +495,12 @@ First, add skim into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-skim = "*"
+skim = { version = "<version>", default-features = false, features = [..] }
 ```
+
+_Note on features_:
+    - the `cli` feature is required to use skim as a cli, it *should* not be needed when using it as a library.
+    - the `nightly-frizbee` feature adds the frizbee algorithm, but requires cargo nigthly.
 
 Then try to run this simple example:
 
@@ -544,12 +550,6 @@ Plus, `SkimItemReader` is a helper to convert a `BufRead` into
 so that you could deal with strings or files easily.
 
 Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
-
-## Tuikit
-
-`tuikit` is the TUI framework used in `skim`. It is available from the library as `skim::tuikit`.
-
-Check [the README](./tuikit/README.md) for more details.
 
 # FAQ
 
@@ -604,6 +604,8 @@ or have any ideas. Pull requests are warmly welcomed.
 
 # Troubleshooting
 
+To troubleshoot what's happening, you can set the environment variable `RUST_LOG` to either `debug` or even `trace`, and set `--log-file` to a path. You can then read those logs during or after the execution to better understand what's happening. Don't hesitate to add those logs to an issue if you need help.
+
 ## No line feed issues with nix, FreeBSD, termux
 
 If you encounter display issues like:
@@ -625,3 +627,9 @@ For example, with termux, you can add this in your bashrc:
 ```
 export TERMINFO=/data/data/com.termux/files/usr/share/terminfo
 ```
+
+# Benchmarks
+
+The `bench.sh` script is available to benchmark the code.
+
+You can use it directly using `./bench.sh <binary> -n <number of items> -r <number of runs>`, or generate the data using `./bench.sh -g <output file> -n <number of items>`, then `./bench.sh <binary> -f <file> -r <number of runs>`

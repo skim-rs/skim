@@ -1,8 +1,4 @@
-#     ____      ____
-#    / __/___  / __/
-#   / /_/_  / / /_
-#  / __/ / /_/ __/
-# /_/   /___/_/ key-bindings.zsh
+# skim key bindings for zsh
 #
 # - $SKIM_TMUX_OPTS
 # - $SKIM_CTRL_T_COMMAND
@@ -16,8 +12,6 @@
 # Key bindings
 # ------------
 
-# The code at the top and the bottom of this file is the same as in completion.zsh.
-# Refer to that file for explanation.
 if 'zmodload' 'zsh/parameter' 2>'/dev/null' && (( ${+options} )); then
   __skim_key_bindings_options="options=(${(j: :)${(kv)options[@]}})"
   __skim_completion_options="options=(${(j: :)${(kv)options[@]}})"
@@ -133,7 +127,7 @@ bindkey '\ec' skim-cd-widget
 skim-history-widget() {
   local selected num
   setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases 2> /dev/null
-  local awk_filter='{ cmd=$0; sub(/^\s*[0-9]+\**\s+/, "", cmd); if (!seen[cmd]++) print $0 }'  # filter out duplicates
+  local awk_filter='{ cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) print $0 }'  # filter out duplicates
   local n=2 fc_opts=''
   if [[ -o extended_history ]]; then
     local today=$(date +%Y-%m-%d)

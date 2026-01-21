@@ -30,28 +30,22 @@ jobs:
           app-id: ${{ vars.SKIM_RS_BOT_APP_ID }}
           private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
       - name: Checkout Git repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
           token: ${{ steps.app-token.outputs.token }}
-      - name: Install correct toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+      - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
-      - name: Generate manpage
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --package xtask mangen
-      - name: Generate completions
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --package xtask compgen
+      - name: Generate files
+        run: |
+          cargo run -- --man > man/man1/sk.1
+          cargo run -- --shell bash > shell/completion.bash
+          cargo run -- --shell zsh > shell/completion.zsh
+          cargo run -- --shell fish > shell/completion.fish
+          cargo run -- --shell nushell > shell/completion.nu
       - name: Push modified files
         run: |
           git branch -v

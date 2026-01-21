@@ -3,9 +3,9 @@
 ## Build/Test/Lint Commands
 - Build: `cargo build [--release]`
 - Run: `cargo run [--release]`
-- Test (all): `cargo test`
-- Test (single): `cargo test test_name` or `cargo test -- test_name`
-- E2E tests: `cargo test -p e2e`
+- Test (all): `cargo nextest --features test-utils`
+- Test (single): `cargo nextest test_name --features test-utils`
+- Integration/E2E tests: `cargo nextest --tests --features test-utils` (will need tmux under the hood)
 - Lint: `cargo clippy`
 - Format: `cargo fmt` (check only: `cargo fmt --check`)
 
@@ -22,7 +22,14 @@
 
 ## Project Structure
 - Core functionality in `skim/src/`
-- UI toolkit in `skim-tuikit/`
 - Common utilities in `skim-common/`
-- End-to-end tests in `e2e/`
 - Task automation in `xtask/`
+
+
+## Testing
+
+This application can be tested by :
+- creating a new `tmux` session in the background (`tmux new-session -s <session name> -d`)
+- creating a new named tmux window in that session : `tmux new-window -d -P -F '#I' -n <window name> -t <session name>` and configuring the pane naming using `tmux set-window-option -t <window name> pane-base-index 0`
+- sending the command to run and input using `tmux send-keys -t <window name> <keys>`
+- when ready, capturing the window using `tmux capture-pane -b <window name> -t <window name>.0` and then saving the capture to a file using `tmux save-buffer -b <window name> <output file>`

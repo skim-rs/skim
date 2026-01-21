@@ -13,6 +13,4 @@
 /bin/sk
 .idea/
 .ropeproject/
-
-# E2E
-__pycache__
+bench_data.txt

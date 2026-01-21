@@ -1,0 +1,7 @@
+set -xeuo pipefail
+
+cargo fmt --check --all
+cargo clippy --all
+cargo +stable check --no-default-features
+cargo +stable check --no-default-features --features cli
+cargo check --no-default-features --features nightly-frizbee

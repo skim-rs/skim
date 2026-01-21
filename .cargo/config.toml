@@ -1,3 +1,0 @@
-[alias]
-xtask = "run --package xtask --"
-e2e = "test --package e2e"
