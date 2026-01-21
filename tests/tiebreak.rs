@@ -2,74 +2,82 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
-
-sk_test!(tiebreak_default, @cmd "echo -en 'a\\nc\\nab\\nac\\nb'", &["--tiebreak=score,begin,end"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> a");
-    @keys Key('b');
-    @capture[2] starts_with("> b");
+// Default tiebreak: score,begin,end
+// With items "a", "c", "ab", "ac", "b", typing "b" should select "b" (exact match has best score)
+insta_test!(insta_tiebreak_default, @cmd "echo -en 'a\\nc\\nab\\nac\\nb'", &["--tiebreak=score,begin,end"], {
+    @snap;
+    @char 'b';
+    @snap;
 });
 
-sk_test!(tiebreak_neg_score, @cmd "echo -en 'a\\nb\\nc\\nab\\nac'", &["--tiebreak=-score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> a");
-    @keys Key('b');
-    @capture[2] starts_with("> ab");
+// Negative score tiebreak: prefer lower scores
+// With items "a", "b", "c", "ab", "ac", typing "b" should select "ab" (prefers longer match)
+insta_test!(insta_tiebreak_neg_score, @cmd "echo -en 'a\\nb\\nc\\nab\\nac'", &["--tiebreak=-score"], {
+    @snap;
+    @char 'b';
+    @snap;
 });
 
-sk_test!(tiebreak_index, @cmd "echo -en 'a\\nc\\nab\\nac\\nb'", &["--tiebreak=index,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> a");
-    @keys Key('b');
-    @capture[2] starts_with("> ab");
+// Index tiebreak: prefer earlier items
+// With items "a", "c", "ab", "ac", "b", typing "b" should select "ab" (earlier index among matches)
+insta_test!(insta_tiebreak_index, @cmd "echo -en 'a\\nc\\nab\\nac\\nb'", &["--tiebreak=index,score"], {
+    @snap;
+    @char 'b';
+    @snap;
 });
 
-sk_test!(tiebreak_neg_index, @cmd "echo -en 'a\\nb\\nc\\nab\\nac'", &["--tiebreak=-index,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> a");
-    @keys Key('b');
-    @capture[2] starts_with("> ab");
+// Negative index tiebreak: prefer later items
+// With items "a", "b", "c", "ab", "ac", typing "b" should select "ab" (later index)
+insta_test!(insta_tiebreak_neg_index, @cmd "echo -en 'a\\nb\\nc\\nab\\nac'", &["--tiebreak=-index,score"], {
+    @snap;
+    @char 'b';
+    @snap;
 });
 
-sk_test!(tiebreak_begin, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=begin,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> aaba");
-    @keys Str("ba");
-    @capture[2] starts_with("> aba");
+// Begin tiebreak: prefer matches that begin earlier
+// With items "aaba", "b", "c", "aba", "ac", typing "ba" should select "aba" (match begins earlier)
+insta_test!(insta_tiebreak_begin, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=begin,score"], {
+    @snap;
+    @type "ba";
+    @snap;
 });
 
-sk_test!(tiebreak_neg_begin, @cmd "echo -en 'aba\\nb\\nc\\naaba\\nac'", &["--tiebreak=-begin,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> a");
-    @keys Key('b');
-    @capture[2] starts_with("> aaba");
+// Negative begin tiebreak: prefer matches that begin later
+// With items "aba", "b", "c", "aaba", "ac", typing "b" should select "aaba" (match begins later)
+insta_test!(insta_tiebreak_neg_begin, @cmd "echo -en 'aba\\nb\\nc\\naaba\\nac'", &["--tiebreak=-begin,score"], {
+    @snap;
+    @char 'b';
+    @snap;
 });
 
-sk_test!(tiebreak_end, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=end,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> aaba");
-    @keys Str("ba");
-    @capture[2] starts_with("> aba");
+// End tiebreak: prefer matches that end earlier
+// With items "aaba", "b", "c", "aba", "ac", typing "ba" should select "aba" (match ends earlier)
+insta_test!(insta_tiebreak_end, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=end,score"], {
+    @snap;
+    @type "ba";
+    @snap;
 });
 
-sk_test!(tiebreak_neg_end, @cmd "echo -en 'aba\\nb\\nc\\naaba\\nac'", &["--tiebreak=-end,score"], {
-    @capture[0] starts_with(">");
-    @lines |l| (l.len() == 7 && l[2].starts_with("> a"));
-    @keys Str("ba");
-    @capture[2] starts_with("> aaba");
+// Negative end tiebreak: prefer matches that end later
+// With items "aba", "b", "c", "aaba", "ac", typing "ba" should select "aaba" (match ends later)
+insta_test!(insta_tiebreak_neg_end, @cmd "echo -en 'aba\\nb\\nc\\naaba\\nac'", &["--tiebreak=-end,score"], {
+    @snap;
+    @type "ba";
+    @snap;
 });
 
-sk_test!(tiebreak_length, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=length,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> b");
-    @keys Str("ba");
-    @capture[2] starts_with("> aba");
+// Length tiebreak: prefer shorter items
+// With items "aaba", "b", "c", "aba", "ac", typing "ba" should select "aba" (shorter)
+insta_test!(insta_tiebreak_length, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=length,score"], {
+    @snap;
+    @type "ba";
+    @snap;
 });
 
-sk_test!(tiebreak_neg_length, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=-length,score"], {
-    @lines |l| (l.len() >= 3 && l[0].starts_with(">"));
-    @capture[2] starts_with("> aaba");
-    @keys Key('c');
-    @capture[2] starts_with("> ac");
+// Negative length tiebreak: prefer longer items
+// With items "aaba", "b", "c", "aba", "ac", typing "c" should select "ac" (longest match with 'c')
+insta_test!(insta_tiebreak_neg_length, @cmd "echo -en 'aaba\\nb\\nc\\naba\\nac'", &["--tiebreak=-length,score"], {
+    @snap;
+    @char 'c';
+    @snap;
 });

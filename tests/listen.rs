@@ -2,7 +2,7 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
+use common::tmux::Keys::*;
 use interprocess::{
     bound_util::RefWrite,
     local_socket::{GenericNamespaced, Stream, ToNsName, traits::Stream as _},
@@ -10,7 +10,7 @@ use interprocess::{
 use rand::{Rng as _, distr::Alphabetic};
 use std::io::{Result, Write as _};
 
-use crate::common::TmuxController;
+use common::tmux::TmuxController;
 
 fn connect(name: &str) -> Result<Stream> {
     let ns_name = name.to_ns_name::<GenericNamespaced>().unwrap();

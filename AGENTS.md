@@ -3,9 +3,9 @@
 ## Build/Test/Lint Commands
 - Build: `cargo build [--release]`
 - Run: `cargo run [--release]`
-- Test (all): `cargo nextest`
-- Test (single): `cargo nextest test_name`
-- Integration/E2E tests: `cargo nextest --tests` (will need tmux under the hood)
+- Test (all): `cargo nextest --features test-utils`
+- Test (single): `cargo nextest test_name --features test-utils`
+- Integration/E2E tests: `cargo nextest --tests --features test-utils` (will need tmux under the hood)
 - Lint: `cargo clippy`
 - Format: `cargo fmt` (check only: `cargo fmt --check`)
 

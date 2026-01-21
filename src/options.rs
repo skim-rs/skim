@@ -539,6 +539,7 @@ pub struct SkimOptions {
     ///
     /// * dark | default: dark 256color, default value
     ///
+    ///
     /// Available color names:
     ///
     /// * normal (or "" empty string): normal text
@@ -570,17 +571,27 @@ pub struct SkimOptions {
     /// Adding `-fg`, `_fg`, `-bg`, `_bg`, `-underline`, `_underline` sets the corresponding part of
     /// the color
     ///
+    ///
     /// Color formats:
+    ///
     ///  * 0-255: ANSI terminal color
+    ///
     ///  * #rrggbb: 24-bit color
     ///
     /// Available attrs:
+    ///
     /// * x | regular: resets the modifiers, use it before the others
+    ///
     /// * b | bold
+    ///
     /// * u | underline
+    ///
     /// * c | crossed-out
+    ///
     /// * d | dim
+    ///
     /// * i | italic
+    ///
     /// * r | reverse
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub color: Option<String>,

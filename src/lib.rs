@@ -72,7 +72,7 @@ pub mod prelude;
 pub mod reader;
 mod skim_item;
 pub mod spinlock;
-mod theme;
+pub mod theme;
 pub mod tmux;
 pub mod tui;
 mod util;

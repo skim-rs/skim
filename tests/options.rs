@@ -2,727 +2,406 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
-use common::TmuxController;
-use std::io::Result;
-use std::io::Write;
-use tempfile::NamedTempFile;
-
-fn setup(input: &str, opts: &[&str]) -> Result<TmuxController> {
-    let mut tmux = TmuxController::new()?;
-    tmux.start_sk(Some(&format!("echo -n -e '{input}'")), opts)?;
-    tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
-    Ok(tmux)
-}
-
-sk_test!(opt_read0, "a\\0b\\0c", &["--read0"], {
-  @capture[1] starts_with("  3/3");
-  @capture[2] starts_with("> a");
-  @capture[3] ends_with("b");
-  @capture[4] ends_with("c");
-});
-
-sk_test!(opt_print0, "a\\nb\\nc", &["-m", "--print0"], {
-  @lines |l| (l.len() > 4);
-  @keys BTab, BTab, Enter;
-  @lines |l| (l.len() > 0 && !l[0].starts_with(">"));
-  @output[0] trim().eq("a\0b\0");
+insta_test!(insta_opt_with_nth_preview, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2..", "--preview", "echo X{1}Y"], {
+    @snap;
 });
 
-sk_test!(opt_with_nth_preview, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..", "--preview", "'echo X{1}Y'"], {
-  @capture[*] contains("Xf1Y");
+// Use info=hidden to hide the spinner
+insta_test!(insta_opt_min_query_length, ["line1", "line2", "line3"], &["--min-query-length", "3", "--info", "hidden"], {
+    @snap;
+    @type "li";
+    @snap;
+    @char 'n';
+    @snap;
 });
-
-sk_test!(opt_min_query_length, "line1\\nline2\\nline3", &["--min-query-length", "3"], {
-  // With empty query, no results should be shown
-  @capture[1] contains("0/3");
-
-  @keys Str("li");
-  @capture[0] starts_with("> li");
-  @capture[1] contains("0/3");
 
-  @keys Key('n');
-  @capture[0] starts_with("> lin");
-  @capture[1] contains("3/3");
-  @capture[*] contains("line");
+// Use info=hidden to hide the spinner
+insta_test!(insta_opt_min_query_length_interactive, @interactive, &["-i", "--min-query-length", "3", "--cmd", "printf 'line1\\nline2\\nline3'", "--info", "hidden"], {
+    @snap;
+    @type "li";
+    @snap;
+    @char 'n';
+    @snap;
 });
 
-sk_test!(opt_min_query_length_interactive, "line1\\nline2\\nline3", &["--min-query-length", "3", "-i"], {
-  // With empty query, no results should be shown
-  @capture[1] contains("0/3");
-
-  @keys Str("li");
-  @capture[0] starts_with("c> li");
-  @capture[1] contains("0/3");
-
-  @keys Key('n');
-  @capture[0] starts_with("c> lin");
-  @capture[1] contains("3/3");
-  @capture[*] contains("line");
+insta_test!(insta_opt_with_nth_1, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "1"], {
+    @snap;
 });
 
-sk_test!(opt_with_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "1"], {
-  @capture[2] trim().eq("> f1,");
-});
-sk_test!(opt_with_nth_2, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2"], {
-  @capture[2] trim().eq("> f2,");
+insta_test!(insta_opt_with_nth_2, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2"], {
+    @snap;
 });
-sk_test!(opt_with_nth_4, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "4"], {
-  @capture[2] trim().eq("> f4");
-});
-sk_test!(opt_with_nth_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "5"], {
-  @capture[2] trim().eq(">");
-});
 
-sk_test!(opt_with_nth_neg_1, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-1"], {
-  @capture[2] trim().eq("> f4");
-});
-sk_test!(opt_with_nth_neg_2, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-2"], {
-  @capture[2] trim().eq("> f3,");
-});
-sk_test!(opt_with_nth_neg_4, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-4"], {
-  @capture[2] trim().eq("> f1,");
+insta_test!(insta_opt_with_nth_4, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "4"], {
+    @snap;
 });
-sk_test!(opt_with_nth_oob_4, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth=-5"], {
-  @capture[2] trim().eq(">");
-});
-sk_test!(opt_with_nth_range_to_end, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2.."], {
-  @capture[2] trim().eq("> f2,f3,f4");
-});
-sk_test!(opt_with_nth_range_from_start, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "..3"], {
-  @capture[2] trim().eq("> f1,f2,f3,");
-});
-sk_test!(opt_with_nth_range_closed, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "2..3"], {
-  @capture[2] trim().eq("> f2,f3,");
-});
-sk_test!(opt_with_nth_range_desc, "f1,f2,f3,f4", &["--delimiter", ",", "--with-nth", "3..2"], {
-  @capture[2] trim().eq(">");
-});
-
-sk_test!(opt_nth_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "1"], {
-  @capture[0] starts_with(">");
-  @keys Key('1');
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
 
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("2");
-  @capture[0] trim().eq("> 2");
-  @capture[1] contains("0/1");
-});
-sk_test!(opt_nth_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2"], {
-  @capture[0] starts_with(">");
-  @keys Str("2");
-  @capture[0] trim().eq("> 2");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_oob, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "5"], {
+    @snap;
 });
-
-sk_test!(opt_nth_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "4"], {
-  @capture[0] starts_with(">");
-  @keys Str("4");
-  @capture[0] trim().eq("> 4");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
 
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_neg_1, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth=-1"], {
+    @snap;
 });
 
-sk_test!(opt_nth_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "5"], {
-  @capture[0] starts_with(">");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_neg_2, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth=-2"], {
+    @snap;
 });
-sk_test!(opt_nth_neg_1, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-1"], {
-  @capture[0] starts_with(">");
-  @keys Str("4");
-  @capture[0] trim().eq("> 4");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
 
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_neg_4, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth=-4"], {
+    @snap;
 });
-
-sk_test!(opt_nth_neg_2, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-2"], {
-  @capture[0] starts_with(">");
-  @keys Str("3");
-  @capture[0] trim().eq("> 3");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
 
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_oob_4, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth=-5"], {
+    @snap;
 });
 
-sk_test!(opt_nth_neg_4, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-4"], {
-  @capture[0] starts_with(">");
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("2");
-  @capture[0] trim().eq("> 2");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_range_to_end, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2.."], {
+    @snap;
 });
-
-sk_test!(opt_nth_neg_oob, "f1,f2,f3,f4", &["--delimiter", ",", "--nth=-5"], {
-  @capture[0] starts_with(">");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
 
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_range_from_start, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "..3"], {
+    @snap;
 });
-sk_test!(opt_nth_range_to_end, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2.."], {
-  @capture[0] starts_with(">");
-  @keys Str("3");
-  @capture[0] trim().eq("> 3");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
 
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_range_closed, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2..3"], {
+    @snap;
 });
-
-sk_test!(opt_nth_range_from_start, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "..3"], {
-  @capture[0] starts_with(">");
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
 
-  @keys Str("4");
-  @capture[0] trim().eq("> 4");
-  @capture[1] contains("0/1");
-});
-
-sk_test!(opt_nth_range_closed, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "2..3"], {
-  @capture[0] starts_with(">");
-  @keys Str("2");
-  @capture[0] trim().eq("> 2");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("3");
-  @capture[0] trim().eq("> 3");
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().eq(">");
-
-  @keys Str("4");
-  @capture[0] trim().eq("> 4");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_with_nth_range_desc, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "3..2"], {
+    @snap;
 });
-
-sk_test!(opt_nth_range_dec, "f1,f2,f3,f4", &["--delimiter", ",", "--nth", "3..2"], {
-  @capture[1] contains("1/1");
-  @capture[2] trim().eq("> f1,f2,f3,f4");
 
-  @keys Str("1");
-  @capture[0] trim().eq("> 1");
-  @capture[1] contains("0/1");
+insta_test!(insta_opt_nth_1, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "1"], {
+    @snap;
+    @char '1';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '2';
+    @snap;
 });
 
-sk_test!(opt_print_query, "10\\n20\\n30", &["-q", "2", "--print-query"], {
-  @capture[2] trim().eq("> 20");
-  @keys Enter;
-  @capture[0] ne("> 2");
-
-  @dbg;
-  @output[0] trim().eq("2");
-  @output[1] trim().eq("20");
+insta_test!(insta_opt_nth_2, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "2"], {
+    @snap;
+    @char '2';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_print_cmd, "1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"], {
-  @lines |l| (l.len() > 4);
-  @capture[0] starts_with(">");
-  @capture[2] trim().eq("> 1");
-  @keys Enter;
-  @output[0] trim().eq("cmd");
-  @output[1] trim().eq("1");
+insta_test!(insta_opt_nth_4, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "4"], {
+    @snap;
+    @char '4';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_print_cmd_and_query, "10\\n20\\n30", &["--cmd-query", "cmd", "--print-cmd", "-q", "2", "--print-query"], {
-  @capture[0] starts_with("> 2");
-  @capture[2] trim().eq("> 20");
-  @keys Enter;
-  @output[0] trim().eq("2");
-  @output[1] trim().eq("cmd");
-  @output[2] trim().eq("20");
+insta_test!(insta_opt_nth_oob, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "5"], {
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_print_header, "x", &["--header", "foo", "--print-header"], {
-    @capture[0] starts_with(">");
-    @keys Enter;
-    @output[0] trim().eq("foo");
-    @output[1] trim().eq("x");
+insta_test!(insta_opt_nth_neg_1, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth=-1"], {
+    @snap;
+    @char '4';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_print_score, "x\\nyx\\nyz", &["--print-score"], {
-    @capture[0] starts_with(">");
-    @keys Key('x');
-    @capture[0] starts_with("> x");
-    @capture[1] trim().starts_with("2/3");
-    @keys Enter;
-    @output[0] trim().eq("x");
-    @output[1] trim().eq("-31");
+insta_test!(insta_opt_nth_neg_2, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth=-2"], {
+    @snap;
+    @char '3';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_print_score_multi, "x\\nyx\\nyz", &["--print-score", "-m"], {
-    @capture[0] starts_with(">");
-    @keys Key('x');
-    @capture[0] starts_with("> x");
-    @capture[1] trim().starts_with("2/3");
-    @keys BTab;
-    @capture[2] trim().eq(">x");
-    @capture[3] trim().eq("> yx");
-    @keys BTab;
-    @capture[3] trim().eq(">>yx");
-    @keys Enter;
-    @output[0] trim().eq("x");
-    @output[1] trim().eq("-31");
-    @output[2] trim().eq("yx");
-    @output[3] trim().eq("-15");
+insta_test!(insta_opt_nth_neg_4, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth=-4"], {
+    @snap;
+    @char '1';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '2';
+    @snap;
 });
 
-sk_test!(opt_hscroll_begin, &format!("b{}", &["a"; 1000].join("")), &["-q", "b"], {
-  @capture[2] ends_with("..");
+insta_test!(insta_opt_nth_neg_oob, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth=-5"], {
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_hscroll_middle, &format!("{}b{}", &["a"; 1000].join(""), &["a"; 1000].join("")), &["-q", "b"], {
-  @capture[2] ends_with("..");
-  @capture[2] starts_with("> ..");
+insta_test!(insta_opt_nth_range_to_end, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "2.."], {
+    @snap;
+    @char '3';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_hscroll_end, &format!("{}b", &["a"; 1000].join("")), &["-q", "b"], {
-  @capture[2] starts_with("> ..");
+insta_test!(insta_opt_nth_range_from_start, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "..3"], {
+    @snap;
+    @char '1';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '4';
+    @snap;
 });
 
-sk_test!(opt_no_hscroll, &format!("{}b", &["a"; 1000].join("")), &["-q", "b", "--no-hscroll"], {
-  @lines |l| (l.len() > 2 && !l[2].starts_with("> .."));
-  @capture[2] ends_with("..");
+insta_test!(insta_opt_nth_range_closed, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "2..3"], {
+    @snap;
+    @char '2';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '3';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '1';
+    @snap;
+    @ctrl 'w';
+    @snap;
+    @char '4';
+    @snap;
 });
 
-sk_test!(opt_tabstop_default, "a\\tb", &[], {
-  @capture[2] starts_with("> a       b");
+insta_test!(insta_opt_nth_range_dec, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "3..2"], {
+    @snap;
+    @char '1';
+    @snap;
 });
 
-sk_test!(opt_tabstop_1, "a\\tb", &["--tabstop", "1"], {
-  @capture[2] starts_with("> a b");
+insta_test!(insta_opt_hscroll_begin, [&format!("b{}", &["a"; 1000].join(""))], &["-q", "b"], {
+    @snap;
 });
 
-sk_test!(opt_tabstop_3, "aa\\tb", &["--tabstop", "3"], {
-  @capture[2] starts_with("> aa b");
+insta_test!(insta_opt_hscroll_middle, [&format!("{}b{}", &["a"; 1000].join(""), &["a"; 1000].join(""))], &["-q", "b"], {
+    @snap;
 });
 
-sk_test!(opt_info_control, "a\\nb\\nc", &[], {
-  @capture[0] starts_with(">");
-  @capture[1] starts_with("  3/3");
-  @capture[1] ends_with("0/0");
-
-  @keys Key('a');
-  @capture[1] starts_with("  1/3");
-  @capture[1] ends_with("0/0");
+insta_test!(insta_opt_hscroll_end, [&format!("{}b", &["a"; 1000].join(""))], &["-q", "b"], {
+    @snap;
 });
-
-sk_test!(opt_info_default, "a\\nb\\nc", &["--info", "default"], {
-  @capture[0] starts_with(">");
-  @capture[1] starts_with("  3/3");
-  @capture[1] ends_with("0/0");
 
-  @keys Key('a');
-  @capture[1] starts_with("  1/3");
-  @capture[1] ends_with("0/0");
+insta_test!(insta_opt_no_hscroll, [&format!("{}b", &["a"; 1000].join(""))], &["-q", "b", "--no-hscroll"], {
+    @snap;
 });
 
-sk_test!(opt_no_info, "a\\nb\\nc", &["--no-info"], {
-  @capture[0] trim().eq(">");
-  @capture[1] trim().eq("> a");
+insta_test!(insta_opt_tabstop_default, ["a\tb"], &[], {
+    @snap;
 });
 
-sk_test!(opt_info_hidden, "a\\nb\\nc", &["--info", "hidden"], {
-  @capture[0] trim().eq(">");
-  @capture[1] trim().eq("> a");
+insta_test!(insta_opt_tabstop_1, ["a\tb"], &["--tabstop", "1"], {
+    @snap;
 });
 
-sk_test!(opt_info_inline, "a\\nb\\nc", &["--info", "inline"], {
-  @lines |l| (l.len() > 0 && l[0].starts_with(">   < 3/3") && l[0].ends_with("0/0"));
-  @capture[0] starts_with(">   < 3/3");
-  @capture[0] ends_with("0/0");
-
-  @keys Key('a');
-  @capture[0] starts_with("> a  < 1/3");
-  @capture[0] ends_with("0/0");
+insta_test!(insta_opt_tabstop_3, ["aa\tb"], &["--tabstop", "3"], {
+    @snap;
 });
 
-sk_test!(opt_inline_info, "a\\nb\\nc", &["--inline-info"], {
-  @capture[0] starts_with(">   < 3/3");
-  @capture[0] ends_with("0/0");
-
-  @keys Key('a');
-  @capture[0] starts_with("> a  < 1/3");
-  @capture[0] ends_with("0/0");
+insta_test!(insta_opt_info_control, ["a", "b", "c"], &[], {
+    @snap;
+    @char 'a';
+    @snap;
 });
 
-sk_test!(opt_header_only, "a\\nb\\nc", &["--header", "test_header"], {
-  @capture[2] trim().eq("test_header");
+insta_test!(insta_opt_info_default, ["a", "b", "c"], &["--info", "default"], {
+    @snap;
+    @char 'a';
+    @snap;
 });
 
-sk_test!(opt_header_inline_info, "a\\nb\\nc", &["--header", "test_header", "--inline-info"], {
-  @capture[1] trim().eq("test_header");
+insta_test!(insta_opt_no_info, ["a", "b", "c"], &["--no-info"], {
+    @snap;
 });
 
-sk_test!(opt_header_reverse, @cmd "echo -e -n 'a\\nb\\nc'", &["--header", "test_header", "--reverse"], {
-  @capture[-1] starts_with(">");
-  @capture[-3] trim().eq("test_header");
+insta_test!(insta_opt_info_hidden, ["a", "b", "c"], &["--info", "hidden"], {
+    @snap;
 });
 
-sk_test!(opt_header_reverse_inline_info, @cmd "echo -e -n 'a\\nb\\nc'", &["--header", "test_header", "--reverse", "--inline-info"], {
-  @capture[-1] starts_with(">");
-  @capture[-2] trim().eq("test_header");
+insta_test!(insta_opt_info_inline, ["a", "b", "c"], &["--info", "inline"], {
+    @snap;
+    @char 'a';
+    @snap;
 });
 
-sk_test!(opt_header_lines_1, "a\\nb\\nc", &["--header-lines", "1"], {
-  @capture[2] trim().eq("a");
-  @capture[3] starts_with(">");
+insta_test!(insta_opt_inline_info, ["a", "b", "c"], &["--inline-info"], {
+    @snap;
+    @char 'a';
+    @snap;
 });
 
-sk_test!(opt_header_lines_all, "a\\nb\\nc", &["--header-lines", "4"], {
-  @capture[2] trim().eq("a");
-  @capture[3] trim().eq("b");
-  @capture[4] trim().eq("c");
+insta_test!(insta_opt_header_only, ["a", "b", "c"], &["--header", "test_header"], {
+    @snap;
 });
 
-sk_test!(opt_header_lines_inline_info, "a\\nb\\nc", &["--header-lines", "1", "--inline-info"], {
-  @capture[1] trim().eq("a");
+insta_test!(insta_opt_header_inline_info, ["a", "b", "c"], &["--header", "test_header", "--inline-info"], {
+    @snap;
 });
 
-sk_test!(opt_header_lines_reverse, @cmd "echo -e -n 'a\\nb\\nc'", &["--header-lines", "1", "--reverse"], {
-  @capture[-1] starts_with(">");
-  @capture[-3] trim().eq("a");
-  @capture[-4] trim().eq("> b");
+insta_test!(insta_opt_header_reverse, @cmd "echo -e -n 'a\\nb\\nc'", &["--header", "test_header", "--reverse"], {
+    @snap;
 });
 
-sk_test!(opt_header_lines_reverse_inline_info, @cmd "echo -e -n 'a\\nb\\nc'", &["--header-lines", "1", "--reverse", "--inline-info"], {
-  @capture[-1] starts_with(">");
-  @capture[-2] trim().eq("a");
-  @capture[-3] trim().eq("> b");
+insta_test!(insta_opt_header_reverse_inline_info, @cmd "echo -e -n 'a\\nb\\nc'", &["--header", "test_header", "--reverse", "--inline-info"], {
+    @snap;
 });
-
-sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
-  let reserved_options = [
-      "--extended",
-      "--literal",
-      "--no-mouse",
-      "--cycle",
-      "--hscroll-off=10",
-      "--filepath-word",
-      "--jump-labels=CHARS",
-      "--border",
-      "--inline-info",
-      "--header=STR",
-      "--header-lines=1",
-      "--no-bold",
-      "--history-size=10",
-      "--sync",
-      "--no-sort",
-      "--select-1",
-      "-1",
-      "--exit-0",
-      "-0",
-  ];
 
-  for option in reserved_options {
-      println!("Starting sk with opt {}", option);
-      setup("a\\nb", &[option])?;
-  }
+insta_test!(insta_opt_header_lines_1, ["a", "b", "c"], &["--header-lines", "1"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_basic, "a\\nb", &[], tmux => {
-  let basic_flags = [
-      "--bind=ctrl-a:cancel --bind ctrl-b:cancel",
-      "--tiebreak=begin --tiebreak=score",
-      "--cmd asdf --cmd find",
-      "--query asdf -q xyz",
-      "--delimiter , --delimiter . -d ,",
-      "--nth 1,2 --nth=1,3 -n 1,3",
-      "--with-nth 1,2 --with-nth=1,3",
-      "-I {} -I XX",
-      "--color base --color light",
-      "--margin 30% --margin 0",
-      "--min-height 30% --min-height 10",
-      "--preview 'ls {}' --preview 'cat {}'",
-      "--preview-window up --preview-window down",
-      "--multi -m",
-      "--no-multi --no-multi",
-      "--tac --tac",
-      "--ansi --ansi",
-      "--exact -e",
-      "--regex --regex",
-      "--literal --literal",
-      "--no-mouse --no-mouse",
-      "--cycle --cycle",
-      "--no-hscroll --no-hscroll",
-      "--filepath-word --filepath-word",
-      "--border --border",
-      "--inline-info --inline-info",
-      "--no-bold --no-bold",
-      "--print-query --print-query",
-      "--print-cmd --print-cmd",
-      "--print0 --print0",
-      "--sync --sync",
-      "--extended --extended",
-      "--no-sort --no-sort",
-      "--select-1 --select-1",
-      "--exit-0 --exit-0",
-  ];
-
-  for cmd_flags in basic_flags {
-      setup("a\\nb", &[cmd_flags])?;
-  }
+insta_test!(insta_opt_header_lines_all, ["a", "b", "c"], &["--header-lines", "4"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_prompt, "", &["--prompt a", "--prompt b", "-p c"], {
-  @capture[0] starts_with("c");
+insta_test!(insta_opt_header_lines_inline_info, ["a", "b", "c"], &["--header-lines", "1", "--inline-info"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_cmd_prompt, "", &["-i", "--cmd-prompt a", "--cmd-prompt c"], {
-  @capture[0] starts_with("c");
+insta_test!(insta_opt_header_lines_reverse, @cmd "echo -e -n 'a\\nb\\nc'", &["--header-lines", "1", "--reverse"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_cmd_query, "", &["-i", "--cmd-query a", "--cmd-query b"], {
-  @capture[0] starts_with("c> b");
+insta_test!(insta_opt_header_lines_reverse_inline_info, @cmd "echo -e -n 'a\\nb\\nc'", &["--header-lines", "1", "--reverse", "--inline-info"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_interactive, "", &["-i", "--interactive", "--interactive"], {
-  @capture[0] starts_with("c>");
+insta_test!(insta_opt_skip_to_pattern, ["a/b/c"], &["--skip-to-pattern", "[^/]*$", "--bind", "ctrl-a:scroll-left", "--bind", "ctrl-x:scroll-right"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+    @ctrl 'x';
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_reverse, "", &["--reverse", "--reverse"], {
-  @capture[-1] starts_with(">");
+insta_test!(insta_opt_multi, ["a", "b", "c"], &["--multi"], {
+    @snap;
+    @shift Tab;
+    @snap;
+    @shift Tab;
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_combined_nth, "a b c\\nd e f", &["--nth 1,2"], {
-  @keys Key('c');
-  @capture[1] contains("0/2");
+insta_test!(insta_opt_pre_select_n, ["a", "b", "c"], &["-m", "--pre-select-n", "2"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_combined_with_nth, "a b c\\nd e f", &["--with-nth 1,2"], {
-  @capture[2] trim().ends_with("a b");
-  @capture[3] trim().ends_with("d e");
+insta_test!(insta_opt_pre_select_items, ["a", "b", "c"], &["-m", "--pre-select-items", "$'b\\nc'"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_reverse_and_layout, "a b c\\nd e f", &["--reverse", "--layout", "default"], {
-  @capture[0] starts_with(">");
+insta_test!(insta_opt_pre_select_pat, ["a", "b", "c"], &["-m", "--pre-select-pat", "[b|c]"], {
+    @snap;
 });
 
-sk_test!(opt_multiple_flags_layout_and_reverse, "a b c\\nd e f", &["--layout", "default", "--reverse"], {
-  @capture[-1] starts_with(">");
+insta_test!(insta_opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", "printf {}", "--cmd-query", "xxxx"], {
+    @snap;
+    @ctrl 'w';
+    @snap;
 });
 
-sk_test!(opt_ansi_null, "a\\0b", &["--ansi"], {
-  @capture[1] trim().starts_with("1/1");
-  @keys Enter;
-  @output[0] contains("\0");
+insta_test!(insta_opt_tac, ["a", "b"], &["--tac"], {
+    @snap;
 });
 
-sk_test!(opt_skip_to_pattern, "a/b/c", &["--skip-to-pattern", "'[^/]*$'", "--bind", "ctrl-a:scroll-left", "--bind", "ctrl-x:scroll-right"], {
-  @capture[2] starts_with("> ..c");
-  @keys Ctrl(&Key('a'));
-  @capture[2] starts_with("> ../c");
-  @keys Ctrl(&Key('x'));
-  @capture[2] starts_with("> ..c");
+insta_test!(insta_opt_tac_with_header_lines, ["a", "b", "c", "d", "e"], &["--tac", "--header-lines", "2"], {
+    @snap;
 });
-
-sk_test!(opt_multi, "a\\nb\\nc", &["--multi"], {
-  @capture[4] trim().eq("c");
-
-  @keys BTab;
-  @capture[2] trim().eq(">a");
-  @capture[3] trim().eq("> b");
-  @keys BTab;
-  @capture[2] trim().eq(">a");
-  @capture[3] trim().eq(">b");
-  @capture[4] trim().eq("> c");
-  @keys Enter;
 
-  @output[0] trim().eq("a");
-  @output[1] trim().eq("b");
+insta_test!(insta_opt_replstr, @interactive, &["-I", "..", "-i", "-c", "echo foo {} .."], {
+    @snap;
+    @char 'a';
+    @snap;
 });
 
-sk_test!(opt_pre_select_n, "a\\nb\\nc", &["-m", "--pre-select-n", "2"], {
-  @capture[2] trim().eq(">>a");
-  @capture[3] trim().eq(">b");
+insta_test!(insta_opt_selector, ["a", "b", "c"], &["--selector", "$"], {
+    @snap;
 });
 
-sk_test!(opt_pre_select_items, "a\\nb\\nc", &["-m", "--pre-select-items", "$'b\\nc'"], {
-  @capture[2] trim().eq("> a");
-  @capture[3] trim().eq(">b");
-  @capture[4] trim().eq(">c");
+insta_test!(insta_opt_multi_selector, ["a", "b", "c"], &["--multi-selector", "$", "-m"], {
+    @snap;
+    @shift Tab;
+    @snap;
 });
 
-sk_test!(opt_pre_select_pat, "a\\nb\\nc", &["-m", "--pre-select-pat", "'[b|c]'"], {
-  @capture[2] trim().eq("> a");
-  @capture[3] trim().eq(">b");
-  @capture[4] trim().eq(">c");
+insta_test!(insta_opt_cycle, ["a", "b", "c"], &["--cycle"], {
+    @snap;
+    @key Down;
+    @snap;
+    @key Up;
+    @snap;
 });
 
-sk_test!(opt_pre_select_file, "a\\nb\\nc", &[], tmux => {
-  let mut pre_select_file = NamedTempFile::new()?;
-  pre_select_file.write(b"b\nc")?;
-  let tmux = setup(
-      "a\\nb\\nc",
-      &["-m", "--pre-select-file", pre_select_file.path().to_str().unwrap()],
-  )?;
-  tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")?;
+insta_test!(insta_opt_cycle_header_lines, ["a", "b", "c", "d"], &["--cycle", "--header-lines", "1"], {
+    @snap;
+    @key Down;
+    @snap;
+    @key Up;
+    @snap;
 });
 
-sk_test!(opt_no_clear_if_empty, @cmd "echo -ne 'a\\nb\\nc'", &["-i", "--no-clear-if-empty", "-c", "'printf {}'"], {
-  @capture[0] trim().eq("c>");
-
-  @keys Str("xxxx");
-  @capture[0] trim().eq("c> xxxx");
-  @capture[1] trim().starts_with("1/1");
-
-  @keys Ctrl(&Key('w'));
-  @capture[0] trim().starts_with("c>");
-  @capture[1] trim().starts_with("0/0");
-  @capture[2] trim().starts_with("> xxxx");
+insta_test!(insta_opt_disabled, ["a", "b", "c", "d"], &["--disabled"], {
+    @snap;
+    @char 'b';
+    @snap;
 });
 
-sk_test!(opt_accept_arg, "a\\nb", &["--bind", "ctrl-a:accept:hello"], {
-  @capture[1] trim().starts_with("2/2");
-  @keys Ctrl(&Key('a'));
-  @output[0] trim().eq("hello");
-  @output[1] trim().eq("a");
+insta_test!(insta_opt_wrap, @cmd "seq -s',' 1 100", &["--wrap"], {
+    @snap;
 });
 
-sk_test!(opt_tac, "a\\nb", &["--tac"], {
-  @capture[1] trim().starts_with("2/2");
-  @capture[2] starts_with("> b");
-  @capture[3] contains("a");
+insta_test!(insta_opt_multiple_flags_prompt, [""], &["--prompt", "a", "--prompt", "b", "-p", "c"], {
+    @snap;
 });
-
-sk_test!(opt_tac_with_header_lines, "a\\nb\\nc\\nd\\ne", &["--tac", "--header-lines", "2"], {
-  // Should have 3 selectable items (c, d, e reversed to e, d, c)
-  // The count shows matched/total: 3 matched out of 3 selectable (5 total items with 2 headers)
-  @capture[1] trim().starts_with("5/3");
-
-  // Headers should be first 2 items from input (a, b) in original order
-  @capture[2] trim().eq("a");
-  @capture[3] trim().eq("b");
 
-  // First selectable item should be 'e' (last from input, first in reversed order)
-  @capture[4] starts_with("> e");
+insta_test!(insta_opt_multiple_flags_cmd_prompt, @interactive, &["-i", "--cmd-prompt", "a", "--cmd-prompt", "c", "--cmd", "echo"], {
+    @snap;
 });
 
-sk_test!(opt_replstr, "", &["-I", "..", "-i", "-c", "'echo foo {} ..'"], {
-    @capture[0] starts_with("c>");
-    @capture[2] starts_with("> foo {}");
-    @keys Key('a');
-    @capture[2] starts_with("> foo {} a");
+insta_test!(insta_opt_multiple_flags_cmd_query, @interactive, &["-i", "--cmd-query", "a", "--cmd-query", "b", "--cmd", "echo"], {
+    @snap;
 });
 
-sk_test!(opt_selector, "a\\nb\\nc", &["--selector", "$"], {
-    @capture[0] starts_with(">");
-    @capture[2] starts_with("$ a");
+insta_test!(insta_opt_multiple_flags_interactive, @interactive, &["-i", "--interactive", "--interactive", "--cmd", "echo"], {
+    @snap;
 });
 
-sk_test!(opt_multi_selector, "a\\nb\\nc", &["--multi-selector", "$", "-m"], {
-    @capture[0] starts_with(">");
-    @capture[2] starts_with("> a");
-    @keys BTab;
-    @capture[2] starts_with(" $a");
-    @capture[3] starts_with("> b");
+insta_test!(insta_opt_multiple_flags_reverse, [""], &["--reverse", "--reverse"], {
+    @snap;
 });
 
-sk_test!(opt_cycle, "a\\nb\\nc", &["--cycle"], {
-    @capture[0] starts_with(">");
-    @capture[2] starts_with("> a");
-    @keys Down;
-    @capture[2] trim().eq("a");
-    @capture[4] starts_with("> c");
-    @keys Up;
-    @capture[4] trim().eq("c");
-    @capture[2] starts_with("> a");
+insta_test!(insta_opt_multiple_flags_combined_nth, ["a b c", "d e f"], &["--nth", "1,2"], {
+    @snap;
+    @char 'c';
+    @snap;
 });
 
-sk_test!(opt_cycle_header_lines, "a\\nb\\nc\\nd", &["--cycle", "--header-lines", "1"], {
-    @capture[0] starts_with(">");
-    @capture[3] starts_with("> b");
-    @keys Down;
-    @capture[3] trim().eq("b");
-    @capture[5] starts_with("> d");
-    @keys Up;
-    @capture[5] trim().eq("d");
-    @capture[3] starts_with("> b");
+insta_test!(insta_opt_multiple_flags_combined_with_nth, ["a b c", "d e f"], &["--with-nth", "1,2"], {
+    @snap;
 });
 
-sk_test!(opt_disabled, "a\\nb\\nc\\nd", &["--disabled"], {
-    @capture[0] starts_with(">");
-    @capture[1] trim().starts_with("4/4");
-    @capture[2] trim().starts_with("> a");
-    @keys Key('b');
-    @capture[0] starts_with("> b");
-    @capture[1] trim().starts_with("4/4");
-    @capture[2] trim().starts_with("> a");
+insta_test!(insta_opt_multiple_flags_reverse_and_layout, ["a b c", "d e f"], &["--reverse", "--layout", "default"], {
+    @snap;
 });
 
-sk_test!(opt_wrap, @cmd "seq -s',' 1 $COLUMNS", &["--wrap"], {
-    @capture[0] starts_with(">");
-    @capture[1] trim().starts_with("1/1");
-    @capture[-1] trim().starts_with("> 1,");
-    @lines |l| (l.len() > 3);
+insta_test!(insta_opt_multiple_flags_layout_and_reverse, ["a b c", "d e f"], &["--layout", "default", "--reverse"], {
+    @snap;
 });

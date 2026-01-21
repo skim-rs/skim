@@ -5,6 +5,7 @@ use ratatui::style::{Color, Modifier, Style};
 
 use crate::options::SkimOptions;
 
+/// Theme defaults to Dark256
 pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 
 /// The color scheme of skim's UI
@@ -20,22 +21,35 @@ pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark2
 /// </pre>
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ColorTheme {
+    /// Non-selected lines and general text
     pub normal: Style,
+    /// Matched text on non-current lines
     pub matched: Style,
+    /// Current line, non-matched text
     pub current: Style,
+    /// Current line, matched text
     pub current_match: Style,
+    /// Query text/input
     pub query: Style,
+    /// Spinner
     pub spinner: Style,
+    /// Info (outside of spinner)
     pub info: Style,
+    /// Prompt prefix
     pub prompt: Style,
+    /// Cursor/Selector/pointer (prefix of current item)
     pub cursor: Style,
+    /// Multi-selector/marker (prefix of selected items)
     pub selected: Style,
+    /// Header lines
     pub header: Style,
+    /// Border
     pub border: Style,
 }
 
 #[allow(dead_code)]
 impl ColorTheme {
+    /// Setup the theme from the skim options
     pub fn init_from_options(options: &SkimOptions) -> ColorTheme {
         // register
         if let Some(color) = options.color.clone() {

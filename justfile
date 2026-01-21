@@ -21,5 +21,5 @@ release version: (bump-version version) generate-files (changelog version) test
     git push --tags
 
 test target="":
-    -cargo nextest run --release {{ target }}
+    -cargo nextest run --release --features test-utils {{ target }}
     tmux kill-session -t skim_e2e

@@ -3,11 +3,14 @@
 ## Running tests
 
 All tests can be run by using [cargo-nextest](https://nexte.st/), which can be installed using `cargo install cargo-nextest` of following the instructions on the website.
-You will need `tmux` to run the integration tests.
+You will need `tmux` to run some integration tests.
 
-You can then run `cargo nextest run --release`, which should automatically build a release binary, run the unit tests and the integration tests.
+You can then run `cargo nextest run --release --features test-utils`, which should automatically build a release binary, run the unit tests and the integration tests.
 
-Note: you can run the tests without `--release`, but expect more flaky tests since the timings will be looser. I would advise testing manually any debug test failure if you have doubts.
+
+Most integration tests use [cargo insta](https://insta.rs). If you need to add some tests or re-review them, you will need to install it.
+
+Note: you can run the tests without `--release`, but expect more flaky tests since the timings will be looser. I would advise testing manually any debug test failure if you have doubts. However, the tests won't run without the `test-utils` feature, used to create test backends.
 
 Note2: A dockerfile is available if you want to run the tests inside docker. There is little to no cache, so the test will need to rebuild most of the application after each change.
 To use it, build the image with `docker build -f test.dockerfile . -t skim-test` then run it using `docker run --rm -it skim-test`.
