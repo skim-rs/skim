@@ -245,6 +245,10 @@ page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 - `OR` has higher precedence. For example, `readme .md$ | .markdown$` is interpreted as
     `readme AND (.md$ OR .markdown$)`.
 
+- When using the `--split-match` option, each part around spaces or `|` will be matched in a split way:
+    - If the option's value (defaulting to `:`) is absent from the query, do a normal match
+    - If it is present, match everything before to everything before it in the items, and everything after it (including potential other occurences of the delimiter) to the part after it in the items. This is particularly useful when piping in input from `rg` to match on both file name and content.
+
 If you prefer using regular expressions, `skim` offers a `regex` mode:
 
 ```sh
