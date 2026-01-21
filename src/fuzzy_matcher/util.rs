@@ -30,7 +30,17 @@ pub fn char_equal(a: char, b: char, case_sensitive: bool) -> bool {
     if case_sensitive {
         a == b
     } else {
-        a.eq_ignore_ascii_case(&b)
+        let a_lower = a.to_lowercase();
+        let mut b_lower = b.to_lowercase();
+        for a_n in a_lower {
+            let Some(b_n) = b_lower.next() else {
+                return false;
+            };
+            if a_n != b_n {
+                return false;
+            }
+        }
+        return true;
     }
 }
 

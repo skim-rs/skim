@@ -135,7 +135,7 @@ fn build_graph(choice: &str, pattern: &str) -> Option<Vec<Vec<MatchingStatus>>> 
         let mut vec = vec![];
         let mut choice_prev_ch = '\0';
         for (idx, ch) in choice.chars().enumerate() {
-            if ch.eq_ignore_ascii_case(&pat_ch) && idx >= match_start_idx {
+            if char_equal(ch, pat_ch, false) && idx >= match_start_idx {
                 let score = fuzzy_score(
                     ch,
                     idx as IndexType,
@@ -813,7 +813,7 @@ impl SkimMatcherV2 {
     }
 
     fn contains_upper(&self, string: &str) -> bool {
-        string.chars().any(|ch| ch.is_ascii_uppercase())
+        string.chars().any(|ch| ch.is_uppercase())
     }
 
     /// Performs fuzzy matching with full algorithm and returns score and indices

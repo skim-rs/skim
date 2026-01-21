@@ -71,3 +71,14 @@ insta_test!(insta_case_respect_no_match, ["aBcDeF"], &["--case", "respect"], {
     @type "Abc";
     @snap;
 });
+
+// Non-ascii input
+
+insta_test!(insta_case_non_ascii, ["слово", "Слово", "СЛОВО"], &["--case", "smart"], {
+    @snap;
+    @type "слово";
+    @snap;
+    @ctrl 'w';
+    @type "Слово";
+    @snap;
+});
