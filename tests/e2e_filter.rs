@@ -54,3 +54,44 @@ fn filter_mode_exit_code_is_one_on_no_match() {
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
 }
+
+#[test]
+#[cfg(unix)]
+fn help_lists_tmux_flag_on_unix() {
+    let output = Command::new(sk_bin()).arg("--help").output().expect("run sk --help");
+    assert!(
+        output.status.success(),
+        "sk --help failed: status={:?}",
+        output.status.code()
+    );
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        help.lines().any(|line| line.trim_start().starts_with("--tmux")),
+        "expected --tmux flag to be listed on unix"
+    );
+}
+
+#[test]
+#[cfg(windows)]
+fn help_does_not_list_tmux_flag_on_windows() {
+    let output = Command::new(sk_bin()).arg("--help").output().expect("run sk --help");
+    assert!(
+        output.status.success(),
+        "sk --help failed: status={:?}",
+        output.status.code()
+    );
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !help.lines().any(|line| line.trim_start().starts_with("--tmux")),
+        "expected --tmux flag to be omitted on windows"
+    );
+}
+
+#[test]
+#[cfg(windows)]
+fn tmux_flag_is_rejected_on_windows() {
+    let output = Command::new(sk_bin()).arg("--tmux").output().expect("run sk --tmux");
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--tmux"));
+}
