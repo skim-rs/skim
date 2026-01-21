@@ -10,6 +10,22 @@ sk \- fuzzy finder in Rust
 .PP
 sk is a general purpose command\-line fuzzy finder.
 .PP
+# MODES
+.PP
+## Normal mode
+.PP
+In normal mode, sk reads the input from stdin and displays the results interactively, and the
+query is then used to fuzzily filter among the input lines.
+.PP
+## Interactive mode
+.PP
+Interactive mode is a special mode that allows you to run a command interactively and display
+the results. It is enabled by the `\-\-interactive` (or `\-i`) option or by binding the
+`toggle\-interactive` action (default: <ctrl\-q>).
+The command is specified with the `\-\-cmd` option.
+.PP
+Example: `sk \-\-cmd "rg {} \-\-color=always" \-\-interactive` will use `rg` to search for the query
+in the current directory and display the results interactively.
 .PP
 # ENVIRONMENT VARIABLES
 .PP
@@ -452,7 +468,9 @@ Command to invoke dynamically in interactive mode
 Will be invoked using sh \-c
 .TP
 \fB\-i\fR, \fB\-\-interactive\fR
-Run in interactive mode
+Start skim in interactive mode
+
+In interactive mode, sk will run the command specified by \-\-cmd option and display the results.
 .TP
 \fB\-I\fR \fI<REPLSTR>\fR [default: {}]
 Replace replstr with the selected item in commands

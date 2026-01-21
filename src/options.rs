@@ -32,6 +32,22 @@ fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
 ///
 /// sk is a general purpose command-line fuzzy finder.
 ///
+/// # MODES
+///
+/// ## Normal mode
+///
+/// In normal mode, sk reads the input from stdin and displays the results interactively, and the
+/// query is then used to fuzzily filter among the input lines.
+///
+/// ## Interactive mode
+///
+/// Interactive mode is a special mode that allows you to run a command interactively and display
+/// the results. It is enabled by the `--interactive` (or `-i`) option or by binding the
+/// `toggle-interactive` action (default: <ctrl-q>).
+/// The command is specified with the `--cmd` option.
+///
+/// Example: `sk --cmd "rg {} --color=always" --interactive` will use `rg` to search for the query
+/// in the current directory and display the results interactively.
 ///
 /// # ENVIRONMENT VARIABLES
 ///
@@ -511,7 +527,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub cmd: Option<String>,
 
-    /// Run in interactive mode
+    /// Start skim in interactive mode
+    ///
+    /// In interactive mode, sk will run the command specified by `--cmd` option and display the
+    /// results.
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub interactive: bool,
 

@@ -42,7 +42,7 @@ module completions {
     --no-multi                # Disable multiple selection
     --no-mouse                # Disable mouse
     --cmd(-c): string         # Command to invoke dynamically in interactive mode
-    --interactive(-i)         # Run in interactive mode
+    --interactive(-i)         # Start skim in interactive mode
     -I: string                # Replace replstr with the selected item in commands
     --color: string           # Set color theme
     --no-hscroll              # Disable horizontal scroll
