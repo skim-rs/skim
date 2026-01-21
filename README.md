@@ -96,13 +96,13 @@ Any of the following applies:
     $ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/skim-rs/skim/releases/latest/download/skim-installer.sh | sh
     ```
 - Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
-- Install from [crates.io](https://crates.io/): Run `cargo install skim`
+- Install from [crates.io](https://crates.io/): Run `cargo +nightly install skim` (or `cargo install skim --no-default-features --features cli` if you don't like using nightly rust, which will make you lose the `frizbee` typo-resistant matcher)
 - Build Manually:
     ```sh
     $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
     $ cd ~/.skim
-    $ cargo install
-    $ cargo build --release
+    $ cargo +nightly install
+    $ cargo +nightly build --release
     $ # Add the resulting `target/release/sk` executable to your PATH
     ```
 
