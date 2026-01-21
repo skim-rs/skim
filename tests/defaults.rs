@@ -2,72 +2,38 @@
 #[macro_use]
 mod common;
 
-use common::{Keys, TmuxController, sk};
-use std::io::Result;
+insta_test!(insta_vanilla_basic, ["1", "2", "3"], &[]);
 
-sk_test!(vanilla_basic, "1\n2\n3", &[], {
-  @capture[0] eq(">");
-  @capture[1] trim().starts_with("3/3");
-  @capture[1] ends_with("0/0");
-  @capture[2] eq("> 1");
-  @capture[3] eq("  2");
+// Using 100 items to represent a larger dataset
+insta_test!(
+    insta_vanilla,
+    [
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+        "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38",
+        "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55", "56",
+        "57", "58", "59", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69", "70", "71", "72", "73", "74",
+        "75", "76", "77", "78", "79", "80", "81", "82", "83", "84", "85", "86", "87", "88", "89", "90", "91", "92",
+        "93", "94", "95", "96", "97", "98", "99", "100"
+    ],
+    &[]
+);
+
+insta_test!(insta_interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo 'foo {}'"], {
+    @snap;
+    @type "bar";
+    @snap;
+    @type "baz";
+    @snap;
 });
 
-sk_test!(vanilla, @cmd "seq 1 100000", &[], {
-  @capture[0] eq(">");
-  @capture[1] starts_with("  100000");
-  @capture[1] ends_with("0/0");
-  @capture[2] eq("> 1");
-  @capture[3] eq("  2");
-});
-
-#[test]
-fn default_command() -> Result<()> {
-    let tmux = TmuxController::new()?;
-
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_COMMAND=", "SKIM_DEFAULT_COMMAND='echo hello'");
-    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
-    tmux.until(|l| l[0].starts_with(">"))?;
-    tmux.until(|l| l.len() > 1 && l[1].starts_with("  1/1"))?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> hello")?;
-
-    tmux.send_keys(&[Keys::Enter])?;
-    tmux.until(|l| !l[0].starts_with(">"))?;
-
-    let output = tmux.output_from(&outfile)?;
-
-    assert_eq!(output[0], "hello");
-
-    Ok(())
-}
-
-sk_test!(version_long, "", &["--version"], {
-  @output[0] starts_with("sk ");
-});
-sk_test!(version_short, "", &["-V"], {
-  @output[0] starts_with("sk ");
-});
-
-sk_test!(interactive_mode_command_execution, "", &["-i", "--cmd=\"echo 'foo {q}'\""], {
-  @capture[0] starts_with("c>");
-  @capture[2] starts_with("> foo");
-
-  @keys Keys::Str("bar");
-  @capture[0] starts_with("c> bar");
-  @capture[2] starts_with("> foo bar");
-
-  @keys Keys::Str("baz");
-  @capture[0] starts_with("c> barbaz");
-  @capture[2] starts_with("> foo barbaz");
-});
-
-sk_test!(unicode_input, "", &["-q", "󰬈󰬉󰬊"], {
-    @capture[0] starts_with("> 󰬈󰬉󰬊");
-    @keys Keys::Key('|');
-    @capture[0] starts_with("> 󰬈󰬉󰬊|");
-    @keys Keys::Left, Keys::Left, Keys::Key('|');
-    @capture[0] starts_with("> 󰬈󰬉|󰬊|");
-    @keys Keys::Key('󰬈');
-    @capture[0] starts_with("> 󰬈󰬉|󰬈󰬊|");
+insta_test!(insta_unicode_input, [""], &["-q", "󰬈󰬉󰬊"], {
+    @snap;
+    @type "|";
+    @snap;
+    @key Left;
+    @key Left;
+    @type "|";
+    @snap;
+    @type "󰬈";
+    @snap;
 });

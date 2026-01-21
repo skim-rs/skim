@@ -2,7 +2,7 @@
 #[macro_use]
 mod common;
 
-use crate::common::Keys::*;
+use common::tmux::Keys::*;
 
 sk_test!(issue_359_multi_regex_unicode, @cmd "echo 'ああa'", &["--regex", "-q", "'a'"], {
   @capture[0] eq("> a");

@@ -1,0 +1,28 @@
+---
+source: tests/tiebreak.rs
+expression: h.buffer_view()
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  ac                                                                            "
+"  aba                                                                           "
+"  c                                                                             "
+"  b                                                                             "
+"> aaba                                                                          "
+"  5/5                                                                        0/0"
+">                                                                               "

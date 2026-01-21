@@ -1,8 +1,8 @@
 #[allow(dead_code)]
 mod common;
 
-use common::Keys::*;
-use common::TmuxController;
+use common::tmux::Keys::*;
+use common::tmux::TmuxController;
 use std::fs::File;
 use std::fs::Permissions;
 use std::io::Read;

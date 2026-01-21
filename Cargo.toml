@@ -74,3 +74,11 @@ default = ["cli", "nightly-frizbee"]
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
 # The frizbee matcher, which requires cargo nightly
 nightly-frizbee = ["dep:frizbee"]
+# Enable test utilities (e.g., Tui::new_for_test)
+test-utils = []
+
+[dev-dependencies]
+insta = "1.43"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils"))'] }

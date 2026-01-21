@@ -2,64 +2,72 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
-
-sk_test!(case_smart_lower, "aBcDeF", &["--case", "smart"], {
-  @capture[0] starts_with(">");
-  @keys Str("abc");
-  @capture[1] contains("1/1");
+// Smart case: lowercase query matches case-insensitively
+insta_test!(insta_case_smart_lower, ["aBcDeF"], &["--case", "smart"], {
+    @snap;
+    @type "abc";
+    @snap;
 });
 
-sk_test!(case_smart_exact, "aBcDeF", &["--case", "smart"], {
-  @capture[0] starts_with(">");
-  @keys Str("aBc");
-  @capture[1] contains("1/1");
+// Smart case: mixed-case query matches case-sensitively
+insta_test!(insta_case_smart_exact, ["aBcDeF"], &["--case", "smart"], {
+    @snap;
+    @type "aBc";
+    @snap;
 });
 
-sk_test!(case_smart_no_match, "aBcDeF", &["--case", "smart"], {
-  @capture[0] starts_with(">");
-  @keys Str("Abc");
-  @capture[1] contains("0/1");
+// Smart case: uppercase query doesn't match different case
+insta_test!(insta_case_smart_no_match, ["aBcDeF"], &["--case", "smart"], {
+    @snap;
+    @type "Abc";
+    @snap;
 });
 
-sk_test!(case_ignore_lower, "aBcDeF", &["--case", "ignore"], {
-  @capture[0] starts_with(">");
-  @keys Str("abc");
-  @capture[1] contains("1/1");
+// Ignore case: lowercase query matches
+insta_test!(insta_case_ignore_lower, ["aBcDeF"], &["--case", "ignore"], {
+    @snap;
+    @type "abc";
+    @snap;
 });
 
-sk_test!(case_ignore_exact, "aBcDeF", &["--case", "ignore"], {
-  @capture[0] starts_with(">");
-  @keys Str("aBc");
-  @capture[1] contains("1/1");
+// Ignore case: exact case matches
+insta_test!(insta_case_ignore_exact, ["aBcDeF"], &["--case", "ignore"], {
+    @snap;
+    @type "aBc";
+    @snap;
 });
 
-sk_test!(case_ignore_different, "aBcDeF", &["--case", "ignore"], {
-  @capture[0] starts_with(">");
-  @keys Str("Abc");
-  @capture[1] contains("1/1");
+// Ignore case: different case matches
+insta_test!(insta_case_ignore_different, ["aBcDeF"], &["--case", "ignore"], {
+    @snap;
+    @type "Abc";
+    @snap;
 });
 
-sk_test!(case_ignore_no_match, "aBcDeF", &["--case", "ignore"], {
-  @capture[0] starts_with(">");
-  @keys Str("z");
-  @capture[1] contains("0/1");
+// Ignore case: non-matching character doesn't match
+insta_test!(insta_case_ignore_no_match, ["aBcDeF"], &["--case", "ignore"], {
+    @snap;
+    @type "z";
+    @snap;
 });
 
-sk_test!(case_respect_lower, "aBcDeF", &["--case", "respect"], {
-  @capture[0] starts_with(">");
-  @keys Str("abc");
-  @capture[1] contains("0/1");
+// Respect case: lowercase query doesn't match different case
+insta_test!(insta_case_respect_lower, ["aBcDeF"], &["--case", "respect"], {
+    @snap;
+    @type "abc";
+    @snap;
 });
 
-sk_test!(case_respect_exact, "aBcDeF", &["--case", "respect"], {
-  @capture[0] starts_with(">");
-  @keys Str("aBc");
-  @capture[1] contains("1/1");
+// Respect case: exact case matches
+insta_test!(insta_case_respect_exact, ["aBcDeF"], &["--case", "respect"], {
+    @snap;
+    @type "aBc";
+    @snap;
 });
 
-sk_test!(case_respect_no_match, "aBcDeF", &["--case", "respect"], {
-  @capture[0] starts_with(">");
-  @keys Str("Abc");
-  @capture[1] contains("0/1");
+// Respect case: different case doesn't match
+insta_test!(insta_case_respect_no_match, ["aBcDeF"], &["--case", "respect"], {
+    @snap;
+    @type "Abc";
+    @snap;
 });

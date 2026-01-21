@@ -2,7 +2,7 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
+use common::tmux::Keys::*;
 
 sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &["--ansi", "--color", "current_match_bg:1,current_bg:2"], {
     @capture[0] starts_with(">");

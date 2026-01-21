@@ -13,6 +13,7 @@ use crate::util::{self, printf};
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
 use super::Event;
+use super::Tui;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
@@ -25,6 +26,7 @@ use preview::Preview;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::prelude::Backend;
 use ratatui::widgets::Widget;
 
 use super::{input, preview};
@@ -402,7 +404,10 @@ impl<'a> App<'a> {
         ])
     }
 
-    fn run_preview(&mut self, tui: &mut super::Tui) -> Result<()> {
+    fn run_preview<B: Backend>(&mut self, tui: &mut Tui<B>) -> Result<()>
+    where
+        B::Error: Send + Sync + 'static,
+    {
         if let Some(preview_opt) = &self.options.preview
             && let Some(item) = self.item_list.selected()
         {
@@ -505,7 +510,10 @@ impl<'a> App<'a> {
     }
 
     /// Handles a TUI event and updates application state
-    pub fn handle_event(&mut self, tui: &mut super::Tui, event: &Event) -> Result<()> {
+    pub fn handle_event<B: Backend>(&mut self, tui: &mut Tui<B>, event: &Event) -> Result<()>
+    where
+        B::Error: Send + Sync + 'static,
+    {
         let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
@@ -618,7 +626,10 @@ impl<'a> App<'a> {
         self.on_items_updated();
     }
     /// Called when the selected item changes
-    pub fn on_item_changed(&mut self, tui: &mut crate::tui::Tui) -> Result<()> {
+    pub fn on_item_changed<B: Backend>(&mut self, tui: &mut Tui<B>) -> Result<()>
+    where
+        B::Error: Send + Sync + 'static,
+    {
         tui.event_tx.send(Event::RunPreview)?;
 
         Ok(())
@@ -1088,7 +1099,12 @@ impl<'a> App<'a> {
         }
     }
 
-    pub(crate) fn restart_matcher(&mut self, force: bool) {
+    /// Restart the matcher to process items in the item pool.
+    ///
+    /// If `force` is true, the matcher will be restarted even if it's currently running.
+    /// If `force` is false, the matcher will only be restarted if there are new items
+    /// to process or if the previous matcher has completed.
+    pub fn restart_matcher(&mut self, force: bool) {
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.options.min_query_length
             && !self.options.disabled
@@ -1205,7 +1221,10 @@ impl<'a> App<'a> {
     }
 
     /// Handle mouse events
-    fn handle_mouse(&mut self, mouse_event: &MouseEvent, tui: &mut super::Tui) -> Result<()> {
+    fn handle_mouse<B: Backend>(&mut self, mouse_event: &MouseEvent, tui: &mut Tui<B>) -> Result<()>
+    where
+        B::Error: Send + Sync + 'static,
+    {
         let mouse_pos = ratatui::layout::Position {
             x: mouse_event.column,
             y: mouse_event.row,

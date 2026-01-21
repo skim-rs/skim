@@ -107,6 +107,27 @@ where
             is_fullscreen: lines.is_none(),
         })
     }
+
+    /// Creates a new TUI for testing with a fullscreen viewport.
+    ///
+    /// This constructor skips terminal-specific operations (cursor detection,
+    /// raw mode, scrolling) that don't work with `TestBackend`. Use this when
+    /// writing snapshot tests or other tests that need to render the UI.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn new_for_test(backend: B) -> Result<Self> {
+        let event_channel = unbounded_channel();
+        Ok(Self {
+            terminal: ratatui::Terminal::new(backend)?,
+            task: None,
+            event_rx: event_channel.1,
+            event_tx: event_channel.0,
+            frame_rate: FRAME_RATE,
+            tick_rate: TICK_RATE,
+            cancellation_token: CancellationToken::default(),
+            is_fullscreen: true,
+        })
+    }
+
     /// Enters the TUI by enabling raw mode and starting event handling
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;

@@ -55,7 +55,7 @@ jobs:
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo nextest run --release --all-targets
+        run: cargo nextest run --release --all-targets --features test-utils
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color

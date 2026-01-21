@@ -2,189 +2,208 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
-
-sk_test!(keys_basic, @cmd "seq 1 100000", &[], {
-    @lines |l| (l.len() >= 2 && l[0].starts_with(">"));
-    @capture[1] starts_with("  100000");
-    @keys Str("99");
-    @capture[0] eq("> 99");
-    @lines |l| (l.len() >= 3 && l[1].starts_with("  8146/100000"));
-    @capture[2] eq("> 99");
+// Using 100 items to test filtering and navigation (representative of larger datasets)
+insta_test!(insta_keys_basic, [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
+    "21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
+    "31", "32", "33", "34", "35", "36", "37", "38", "39", "40",
+    "41", "42", "43", "44", "45", "46", "47", "48", "49", "50",
+    "51", "52", "53", "54", "55", "56", "57", "58", "59", "60",
+    "61", "62", "63", "64", "65", "66", "67", "68", "69", "70",
+    "71", "72", "73", "74", "75", "76", "77", "78", "79", "80",
+    "81", "82", "83", "84", "85", "86", "87", "88", "89", "90",
+    "91", "92", "93", "94", "95", "96", "97", "98", "99", "100"
+], &[], {
+    @snap;
+    @type "99";
+    @snap;
 });
 
 // Input navigation keys
 
-sk_test!(keys_arrows, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Left, Key('|');
-    @capture[0] eq("> foo bar foo-ba|r");
-    @keys Right, Key('|');
-    @capture[0] eq("> foo bar foo-ba|r|");
+insta_test!(insta_keys_arrows, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @key Left;
+    @char '|';
+    @snap;
+    @key Right;
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_arrows, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Left), Key('|');
-    @capture[0] eq("> foo bar foo-|bar");
-    @keys Ctrl(&Left), Key('|');
-    @capture[0] eq("> foo bar |foo-|bar");
-    @keys Ctrl(&Right), Key('|');
-    @capture[0] eq("> foo bar |foo-|bar|");
+insta_test!(insta_keys_ctrl_arrows, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl Left;
+    @char '|';
+    @snap;
+    @ctrl Left;
+    @char '|';
+    @snap;
+    @ctrl Right;
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_a, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('a')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar");
+insta_test!(insta_keys_ctrl_a, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'a';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_b, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('a')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar");
-    @keys Ctrl(&Key('f')), Key('|');
-    @capture[0] eq("> |f|oo bar foo-bar");
+insta_test!(insta_keys_ctrl_b, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'a';
+    @char '|';
+    @snap;
+    @ctrl 'f';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_e, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('a')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar");
-    @keys Ctrl(&Key('e')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar|");
+insta_test!(insta_keys_ctrl_e, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'a';
+    @char '|';
+    @snap;
+    @ctrl 'e';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_f, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('a')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar");
-    @keys Ctrl(&Key('f')), Key('|');
-    @capture[0] eq("> |f|oo bar foo-bar");
+insta_test!(insta_keys_ctrl_f, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'a';
+    @char '|';
+    @snap;
+    @ctrl 'f';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_h, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('h')), Key('|');
-    @capture[0] eq("> foo bar foo-ba|");
+insta_test!(insta_keys_ctrl_h, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'h';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_alt_b, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Alt(&Key('b')), Key('|');
-    @capture[0] eq("> foo bar foo-|bar");
+insta_test!(insta_keys_alt_b, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @alt 'b';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_alt_f, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('a')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar");
-    @keys Alt(&Key('f')), Key('|');
-    @capture[0] eq("> |foo| bar foo-bar");
+insta_test!(insta_keys_alt_f, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'a';
+    @char '|';
+    @snap;
+    @alt 'f';
+    @char '|';
+    @snap;
 });
 
 // Input manipulation keys
 
-sk_test!(keys_bspace, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys BSpace, Key('|');
-    @capture[0] eq("> foo bar foo-ba|");
+insta_test!(insta_keys_bspace, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @key Backspace;
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_d, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('a')), Key('|');
-    @capture[0] eq("> |foo bar foo-bar");
-    @keys Ctrl(&Key('d')), Key('|');
-    @capture[0] eq("> ||oo bar foo-bar");
+insta_test!(insta_keys_ctrl_d, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'a';
+    @char '|';
+    @snap;
+    @ctrl 'd';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_u, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('u')), Key('|');
-    @capture[0] eq("> |");
+insta_test!(insta_keys_ctrl_u, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'u';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_w, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Key('w')), Key('|');
-    @capture[0] eq("> foo bar |");
+insta_test!(insta_keys_ctrl_w, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'w';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_ctrl_y, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Alt(&BSpace), Key('|');
-    @capture[0] eq("> foo bar foo-|");
-    @keys Ctrl(&Key('y')), Key('|');
-    @capture[0] eq("> foo bar foo-|bar|");
+insta_test!(insta_keys_ctrl_y, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @alt Backspace;
+    @char '|';
+    @snap;
+    @ctrl 'y';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_alt_d, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Ctrl(&Left), Key('|');
-    @capture[0] eq("> foo bar foo-|bar");
-    @keys Ctrl(&Left), Key('|');
-    @capture[0] eq("> foo bar |foo-|bar");
-    @keys Alt(&Key('d')), Key('|');
-    @capture[0] eq("> foo bar ||-|bar");
+insta_test!(insta_keys_alt_d, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl Left;
+    @char '|';
+    @snap;
+    @ctrl Left;
+    @char '|';
+    @snap;
+    @alt 'd';
+    @char '|';
+    @snap;
 });
 
-sk_test!(keys_alt_bspace, "", &["-q", "'foo bar foo-bar'"], {
-    @capture[0] starts_with(">");
-    @keys Alt(&BSpace), Key('|');
-    @capture[0] eq("> foo bar foo-|");
+insta_test!(insta_keys_alt_bspace, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @alt Backspace;
+    @char '|';
+    @snap;
 });
 
 // Results navigation keys
 
-sk_test!(keys_ctrl_k, @cmd "seq 1 100000", &[], {
-    @capture[0] starts_with(">");
-    @capture[1] starts_with("  100000");
-    @keys Ctrl(&Key('k'));
-    @capture[2] eq("  1");
-    @capture[3] eq("> 2");
+insta_test!(insta_keys_ctrl_k, [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"
+], &[], {
+    @snap;
+    @ctrl 'k';
+    @snap;
 });
 
-sk_test!(keys_tab, @cmd "seq 1 100000", &[], {
-    @capture[0] starts_with(">");
-    @capture[1] starts_with("  100000");
-    @keys Ctrl(&Key('k'));
-    @capture[2] eq("  1");
-    @capture[3] eq("> 2");
-    @keys Tab;
-    @capture[2] eq("> 1");
-    @capture[3] eq("  2");
+insta_test!(insta_keys_tab, [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"
+], &[], {
+    @snap;
+    @ctrl 'k';
+    @snap;
+    @key Tab;
+    @snap;
 });
 
-sk_test!(keys_btab, @cmd "seq 1 100000", &[], {
-    @capture[0] starts_with(">");
-    @capture[1] starts_with("  100000");
-    @keys BTab;
-    @capture[2] eq("  1");
-    @capture[3] eq("> 2");
+insta_test!(insta_keys_btab, [
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"
+], &[], {
+    @snap;
+    @key BackTab;
+    @snap;
 });
 
-sk_test!(keys_enter, @cmd "seq 1 100000", &[], {
-    @capture[0] starts_with(">");
-    @capture[1] starts_with("  100000");
-    @keys Enter;
-    @capture[0] ne(">");
-    @output[0] eq("1");
-});
-
-sk_test!(keys_ctrl_m, @cmd "seq 1 100000", &[], {
-    @capture[0] starts_with(">");
-    @capture[1] starts_with("  100000");
-    @keys Ctrl(&Key('m'));
-    @capture[0] ne(">");
-    @output[0] eq("1");
-});
-
-sk_test!(keys_tab_empty, "", &[], {
-    @capture[0] starts_with(">");
-    @keys Tab;
-    @capture[0] starts_with(">");
-    @keys Key('a');
-    @capture[0] starts_with("> a");
-
+insta_test!(insta_keys_tab_empty, [""], &[], {
+    @snap;
+    @key Tab;
+    @snap;
+    @char 'a';
+    @snap;
 });

@@ -1,6 +1,7 @@
 use ansi_to_tui::IntoText;
 use color_eyre::eyre::Result;
 use ratatui::{
+    prelude::Backend,
     style::Stylize,
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph, Widget},
@@ -142,7 +143,10 @@ impl Preview {
         self.scroll_down(page_size);
     }
 
-    pub fn run(&mut self, tui: &mut Tui, cmd: &str) {
+    pub fn run<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str)
+    where
+        B::Error: Send + Sync + 'static,
+    {
         self.cmd = cmd.to_string();
         let event_tx_clone = tui.event_tx.clone();
         let mut shell_cmd = Command::new("/bin/sh");

@@ -2,7 +2,7 @@
 #[macro_use]
 mod common;
 
-use common::Keys::*;
+use common::tmux::Keys::*;
 
 sk_test!(highlight_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=matched:9,current_match:1"], {
     @capture[2] contains("apple");
