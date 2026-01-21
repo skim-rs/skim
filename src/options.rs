@@ -649,7 +649,7 @@ pub struct SkimOptions {
     pub layout: TuiLayout,
 
     /// Shorthand for reverse layout
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout", overrides_with = "layout"))]
     pub reverse: bool,
 
     /// Height of skim's window

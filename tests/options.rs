@@ -564,6 +564,14 @@ sk_test!(opt_multiple_flags_combined_with_nth, "a b c\\nd e f", &["--with-nth 1,
   @capture[3] trim().ends_with("d e");
 });
 
+sk_test!(opt_multiple_flags_reverse_and_layout, "a b c\\nd e f", &["--reverse", "--layout", "default"], {
+  @capture[0] starts_with(">");
+});
+
+sk_test!(opt_multiple_flags_layout_and_reverse, "a b c\\nd e f", &["--layout", "default", "--reverse"], {
+  @capture[-1] starts_with(">");
+});
+
 sk_test!(opt_ansi_null, "a\\0b", &["--ansi"], {
   @capture[1] trim().starts_with("1/1");
   @keys Enter;
