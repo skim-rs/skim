@@ -125,8 +125,8 @@ impl SkimWidget for StatusLine {
         let info_attr_bold = self.theme.info.add_modifier(Modifier::BOLD);
 
         // Show indicators during active collection phase or sustained matcher activity
-        // Show indicators when actively reading or when matcher is running
-        let show_progress_indicators = self.reading || self.matcher_running;
+        // Use the debounced show_spinner flag instead of raw matcher_running to avoid flicker
+        let show_progress_indicators = self.show_spinner;
 
         // Compute spinner animation timing once for performance
         let spinner_elapsed_ms = self.start.elapsed().as_millis();

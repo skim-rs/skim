@@ -534,22 +534,23 @@ impl<'a> App<'a> {
                 self.status.reading = self.item_pool.num_not_taken() != 0;
                 self.status.matcher_running = !self.matcher_control.stopped();
 
-                const MATCHER_DEBOUNCE_MS: u128 = 300;
-                const READER_DEBOUNCE_MS: u128 = 50;
-                const HIDE_GRACE_MS: u128 = 600;
+                const MATCHER_DEBOUNCE_MS: u128 = 200;
+                const HIDE_GRACE_MS: u128 = 500;
 
                 let matcher_running = !self.matcher_control.stopped();
                 let time_since_match = self.matcher_timer.elapsed();
-                let time_since_read = self.reader_timer.elapsed();
+                let reading = self.item_pool.num_not_taken() != 0;
 
-                let matcher_ready = matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS;
-                let reader_ready =
-                    self.item_pool.num_not_taken() != 0 && time_since_read.as_millis() > READER_DEBOUNCE_MS;
+                let should_show_spinner =
+                    reading || (matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS);
 
-                let desired = matcher_ready || reader_ready;
-
-                if desired || self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
+                if should_show_spinner && !self.status.show_spinner {
                     self.toggle_spinner();
+                } else if !should_show_spinner && self.status.show_spinner {
+                    // Hide spinner only after grace period to avoid flickering
+                    if self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
+                        self.toggle_spinner();
+                    }
                 }
                 self.on_items_updated();
             }
