@@ -50,3 +50,31 @@ insta_test!(insta_bind_change, ["1", "12", "13", "14", "15", "16", "17", "18", "
     @char '1';
     @snap;
 });
+
+insta_test!(insta_bind_set_query_basic, ["a", "b", "c"], &["--bind", "ctrl-a:set-query(foo)"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
+
+insta_test!(insta_bind_set_query_expand, ["a", "b", "c"], &["--bind", "ctrl-a:set-query({})"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
+
+insta_test!(insta_bind_set_query_fields, ["a.1", "b.2", "c.3"], &["--bind", "ctrl-a:set-query({1})", "-d", "\\."], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
+
+insta_test!(insta_bind_set_query_to_itself, ["a", "b", "c"], &["--bind", "ctrl-a:set-query({q})"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+    @char 'a';
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
