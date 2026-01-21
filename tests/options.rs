@@ -256,11 +256,11 @@ insta_test!(insta_opt_header_inline_info, ["a", "b", "c"], &["--header", "test_h
     @snap;
 });
 
-insta_test!(insta_opt_header_reverse, @cmd "echo -e -n 'a\\nb\\nc'", &["--header", "test_header", "--reverse"], {
+insta_test!(insta_opt_header_reverse, ["a", "b", "c"], &["--header", "test_header", "--reverse"], {
     @snap;
 });
 
-insta_test!(insta_opt_header_reverse_inline_info, @cmd "echo -e -n 'a\\nb\\nc'", &["--header", "test_header", "--reverse", "--inline-info"], {
+insta_test!(insta_opt_header_reverse_inline_info, ["a", "b", "c"], &["--header", "test_header", "--reverse", "--inline-info"], {
     @snap;
 });
 
@@ -276,11 +276,11 @@ insta_test!(insta_opt_header_lines_inline_info, ["a", "b", "c"], &["--header-lin
     @snap;
 });
 
-insta_test!(insta_opt_header_lines_reverse, @cmd "echo -e -n 'a\\nb\\nc'", &["--header-lines", "1", "--reverse"], {
+insta_test!(insta_opt_header_lines_reverse, ["a", "b", "c"], &["--header-lines", "1", "--reverse"], {
     @snap;
 });
 
-insta_test!(insta_opt_header_lines_reverse_inline_info, @cmd "echo -e -n 'a\\nb\\nc'", &["--header-lines", "1", "--reverse", "--inline-info"], {
+insta_test!(insta_opt_header_lines_reverse_inline_info, ["a", "b", "c"], &["--header-lines", "1", "--reverse", "--inline-info"], {
     @snap;
 });
 
@@ -364,7 +364,8 @@ insta_test!(insta_opt_disabled, ["a", "b", "c", "d"], &["--disabled"], {
     @snap;
 });
 
-insta_test!(insta_opt_wrap, @cmd "seq -s',' 1 100", &["--wrap"], {
+const LONG_INPUT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+insta_test!(insta_opt_wrap, [LONG_INPUT], &["--wrap"], {
     @snap;
 });
 
