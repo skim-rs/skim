@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.3] - 2026-01-22
+
+### 🐛 Bug Fixes
+
+- Quote expanded items independently (#910)
+- Escape last `;` in env var value before passing to tmux (#912)
+
+### New Contributors
+* @mathieu-lemay made their first contribution in [#912](https://github.com/skim-rs/skim/pull/912)
+
 ## [1.5.2] - 2026-01-22
 
 ### 🐛 Bug Fixes
