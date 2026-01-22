@@ -228,4 +228,35 @@ mod test {
             )
         );
     }
+    #[test]
+    fn test_printf_plus() {
+        assert_eq!(
+            printf(
+                "{+}".to_string(),
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![Arc::new("1"), Arc::new("2")]
+                    .iter()
+                    .map(|x| x.clone() as Arc<dyn SkimItem>),
+                Some(Arc::new("1")),
+                "q",
+                "cq",
+                true
+            ),
+            "'1 2'"
+        );
+        assert_eq!(
+            printf(
+                "{+}".to_string(),
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![].into_iter(),
+                Some(Arc::new("1")),
+                "q",
+                "cq",
+                true
+            ),
+            "'1'"
+        );
+    }
 }
