@@ -1,0 +1,28 @@
+---
+source: tests/normalize.rs
+expression: h.buffer_view()
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  uber                                                                          "
+"> über                                                                          "
+"  2/4                                                                        0/0"
+"> uber                                                                          "

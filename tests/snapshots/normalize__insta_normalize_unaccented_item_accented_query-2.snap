@@ -1,0 +1,28 @@
+---
+source: tests/normalize.rs
+expression: h.buffer_view()
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  cafe                                                                          "
+"> café                                                                          "
+"  2/3                                                                        0/0"
+"> café                                                                          "

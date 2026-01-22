@@ -64,7 +64,7 @@ pub mod field;
 pub mod fuzzy_matcher;
 pub mod helper;
 pub mod item;
-mod matcher;
+pub mod matcher;
 pub mod options;
 mod output;
 pub mod prelude;
