@@ -375,7 +375,7 @@ impl Skim {
             // reader
             // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
             let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
-                let expanded = app.expand_cmd(&cmd);
+                let expanded = app.expand_cmd(&cmd, true);
                 log::debug!(
                     "Interactive mode: initial_cmd = {:?} (from template {:?})",
                     expanded,

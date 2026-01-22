@@ -224,12 +224,12 @@ impl Input {
         let mut pos = self.cursor_pos as usize;
 
         // Skip any trailing whitespace
-        while pos > 0 && self.value.chars().nth(pos - 1).unwrap().is_whitespace() {
+        while pos > 0 && self.value.chars().nth(pos - 1).unwrap_or_default().is_whitespace() {
             pos -= 1;
         }
 
         // Delete back to next whitespace or start
-        while pos > 0 && !self.value.chars().nth(pos - 1).unwrap().is_whitespace() {
+        while pos > 0 && !self.value.chars().nth(pos - 1).unwrap_or_default().is_whitespace() {
             pos -= 1;
         }
 

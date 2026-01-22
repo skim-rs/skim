@@ -12,7 +12,7 @@ pub fn regex_match(choice: &str, pattern: &Option<Regex>) -> Option<(usize, usiz
 
 pub fn contains_upper(string: &str) -> bool {
     for ch in string.chars() {
-        if ch.is_ascii_uppercase() {
+        if ch.is_uppercase() {
             return true;
         }
     }

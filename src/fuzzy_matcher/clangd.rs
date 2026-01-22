@@ -82,7 +82,7 @@ impl ClangdMatcher {
 
     fn contains_upper(&self, string: &str) -> bool {
         for ch in string.chars() {
-            if ch.is_ascii_uppercase() {
+            if ch.is_uppercase() {
                 return true;
             }
         }

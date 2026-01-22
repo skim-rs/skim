@@ -82,10 +82,6 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
     ret
 }
 
-fn escape_arg(a: &str) -> String {
-    format!("'{}'", a.replace('\0', "\\0").replace("'", "'\\''"))
-}
-
 /// Replace the fields in `pattern` with the items, expanding {...} patterns
 ///
 /// Replaces:
@@ -103,7 +99,13 @@ pub fn printf(
     current: Option<Arc<dyn SkimItem>>,
     query: &str,
     command_query: &str,
+    quote_args: bool,
 ) -> String {
+    let escape_arg = if quote_args {
+        |s: &str| format!("'{}'", s.replace('\0', "\\0").replace("'", "'\\''"))
+    } else {
+        |s: &str| format!("{}", s.replace('\0', "\\0"))
+    };
     let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
     // Replace static fields first
     let mut res = pattern.replace(replstr, &escape_arg(&item_text));
@@ -217,7 +219,8 @@ mod test {
                 items.iter().map(|x| x.clone()),
                 Some(Arc::new("item 2")),
                 "query",
-                "cmd query"
+                "cmd query",
+                true
             ),
             String::from(
                 "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1 item 2 item 3 item 4' [5] 'query' [6] 'cmd query'"

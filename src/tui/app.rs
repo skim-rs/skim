@@ -9,7 +9,7 @@ use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
-use crate::util::{self, printf};
+use crate::util;
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 
 use super::Event;
@@ -328,16 +328,7 @@ impl<'a> App<'a> {
         let expr = offset_expr.trim_start_matches('+');
 
         // Substitute field placeholders using printf
-        let substituted = printf(
-            expr.to_string(),
-            &self.options.delimiter,
-            &self.options.replstr,
-            self.item_list.selection.iter().map(|m| m.item.clone()),
-            self.item_list.selected(),
-            &self.input.value,
-            &self.input.value,
-        );
-
+        let substituted = self.expand_cmd(expr, true);
         // Evaluate the expression (handle simple arithmetic like "321-2")
         if let Some((left, right)) = substituted.split_once('-') {
             let left_val = left.trim_matches(|x: char| !x.is_numeric()).parse::<u16>().unwrap_or(0);
@@ -394,7 +385,7 @@ impl<'a> App<'a> {
     fn on_query_changed(&mut self) -> Result<Vec<Event>> {
         // In interactive mode with --cmd, execute the command with {} substitution
         if self.options.interactive && self.options.cmd.is_some() {
-            let expanded_cmd = self.expand_cmd(&self.cmd);
+            let expanded_cmd = self.expand_cmd(&self.cmd, true);
             return Ok(vec![Event::Reload(expanded_cmd)]);
         }
         self.restart_matcher_debounced();
@@ -438,33 +429,11 @@ impl<'a> App<'a> {
             };
             let preview = item.preview(ctx);
             match preview {
-                ItemPreview::Command(cmd) => self.preview.run(
-                    tui,
-                    &printf(
-                        cmd,
-                        &self.options.delimiter,
-                        &self.options.replstr,
-                        self.item_list.selection.iter().map(|m| m.item.clone()),
-                        self.item_list.selected(),
-                        &self.input,
-                        &self.input,
-                    ),
-                ),
+                ItemPreview::Command(cmd) => self.preview.run(tui, &self.expand_cmd(&cmd, true)),
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
-                    self.preview.run(
-                        tui,
-                        &printf(
-                            cmd.to_string(),
-                            &self.options.delimiter,
-                            &self.options.replstr,
-                            self.item_list.selection.iter().map(|m| m.item.clone()),
-                            self.item_list.selected(),
-                            &self.input,
-                            &self.input,
-                        ),
-                    );
+                    self.preview.run(tui, &self.expand_cmd(&cmd, true));
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -492,18 +461,7 @@ impl<'a> App<'a> {
                 ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(t.bytes().collect(), preview_position)?,
-                ItemPreview::Global => self.preview.run(
-                    tui,
-                    &printf(
-                        preview_opt.to_string(),
-                        &self.options.delimiter,
-                        &self.options.replstr,
-                        self.item_list.selection.iter().map(|m| m.item.clone()),
-                        self.item_list.selected(),
-                        &self.input,
-                        &self.input,
-                    ),
-                ),
+                ItemPreview::Global => self.preview.run(tui, &self.expand_cmd(preview_opt, true)),
             }
         }
         Ok(())
@@ -756,7 +714,7 @@ impl<'a> App<'a> {
             }
             Execute(cmd) => {
                 let mut command = Command::new("sh");
-                let expanded_cmd = self.expand_cmd(cmd);
+                let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {}", expanded_cmd);
                 command.args(["-c", &expanded_cmd]);
                 let in_raw_mode = crossterm::terminal::is_raw_mode_enabled()?;
@@ -781,7 +739,7 @@ impl<'a> App<'a> {
             }
             ExecuteSilent(cmd) => {
                 let mut command = Command::new("sh");
-                let expanded_cmd = self.expand_cmd(cmd);
+                let expanded_cmd = self.expand_cmd(cmd, true);
                 command.args(["-c", &expanded_cmd]);
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
@@ -982,7 +940,7 @@ impl<'a> App<'a> {
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
                 self.item_list.clear_selection();
-                return Ok(vec![Event::Reload(self.expand_cmd(s))]);
+                return Ok(vec![Event::Reload(self.expand_cmd(s, true))]);
             }
             Reload(None) => {
                 self.item_list.clear_selection();
@@ -991,7 +949,7 @@ impl<'a> App<'a> {
             RefreshCmd => {
                 // Refresh the command (reload in interactive mode)
                 if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd);
+                    let expanded_cmd = self.expand_cmd(&self.cmd, true);
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
             }
@@ -1027,6 +985,11 @@ impl<'a> App<'a> {
             SelectAll => self.item_list.select_all(),
             SelectRow(row) => self.item_list.select_row(*row),
             Select => self.item_list.select(),
+            SetQuery(value) => {
+                self.input.value = self.expand_cmd(&value, false);
+                self.input.move_to_end();
+                return self.on_query_changed();
+            }
             Toggle => self.item_list.toggle(),
             ToggleAll => self.item_list.toggle_all(),
             ToggleIn => {
@@ -1188,7 +1151,7 @@ impl<'a> App<'a> {
     /// Replaces {}, {q}, {cq}, {n}, {+}, {+n}, and field patterns.
     ///
     /// Note: in command mode, the replstr is replaced by the current query
-    pub fn expand_cmd(&self, cmd: &str) -> String {
+    pub fn expand_cmd(&self, cmd: &str, quote_args: bool) -> String {
         let cmd_to_expand = if self.options.interactive {
             cmd.replace(&self.options.replstr, "{cq}")
         } else {
@@ -1202,6 +1165,7 @@ impl<'a> App<'a> {
             self.item_list.selected(),
             &self.input.value,
             &self.input.value,
+            quote_args,
         )
     }
 
