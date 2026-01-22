@@ -91,6 +91,7 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
 ///
+#[allow(clippy::too_many_arguments)]
 pub fn printf(
     pattern: String,
     delimiter: &Regex,
@@ -104,22 +105,22 @@ pub fn printf(
     let escape_arg = if quote_args {
         |s: &str| format!("'{}'", s.replace('\0', "\\0").replace("'", "'\\''"))
     } else {
-        |s: &str| format!("{}", s.replace('\0', "\\0"))
+        |s: &str| s.replace('\0', "\\0").to_string()
     };
     let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
     // Replace static fields first
     let mut res = pattern.replace(replstr, &escape_arg(&item_text));
 
-    res = res.replace(
-        "{+}",
-        &escape_arg(
-            &selected
-                .clone()
-                .map(|i| i.output().into_owned())
-                .collect::<Vec<_>>()
-                .join(" "),
-        ),
-    );
+    let mut selection_str = selected
+        .clone()
+        .map(|i| i.output().into_owned())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if selection_str.is_empty() {
+        selection_str = item_text.clone();
+    }
+
+    res = res.replace("{+}", &escape_arg(&selection_str));
     res = res.replace("{q}", &escape_arg(query));
     res = res.replace("{cq}", &escape_arg(command_query));
     if let Some(ref s) = current {
