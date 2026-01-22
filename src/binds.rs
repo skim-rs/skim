@@ -202,14 +202,12 @@ where
 /// Parses an action chain, separated by '+'s into the corresponding actions
 pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
     let mut actions: Vec<Action> = vec![];
-    let mut split = action_chain.split('+');
+    let mut split = action_chain.split("+");
     loop {
-        let opt_s = split.next();
-        if opt_s.is_none() {
+        let Some(mut s) = split.next().map(String::from) else {
             break;
-        }
-        let mut s = opt_s.unwrap().to_string();
-        if s.starts_with("if-")
+        };
+        if (s.starts_with("if-") || s.ends_with("{"))
             && let Some(otherwise) = split.next()
         {
             s += &(String::from("+") + otherwise);
@@ -236,4 +234,28 @@ pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
         .ok_or(eyre!("Failed to parse {} as key and action", key_action))?;
     debug!("parsed key_action: {:?}: {:?}", key, action_chain);
     Ok((key, parse_action_chain(action_chain)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use event::Action::*;
+    #[test]
+    fn test_parse_action_chain() {
+        let parsed = parse_action_chain(
+            "execute-silent:1 {}+execute-silent:2 {+}+execute-silent:3 {+n}+reload+if-query-empty:reload+up",
+        );
+        assert!(parsed.is_ok());
+        let res = parsed.unwrap();
+        assert_eq!(
+            res,
+            vec![
+                ExecuteSilent("1 {}".into()),
+                ExecuteSilent("2 {+}".into()),
+                ExecuteSilent("3 {+n}".into()),
+                Reload(None),
+                IfQueryEmpty("reload".into(), Some("up".into())),
+            ]
+        );
+    }
 }

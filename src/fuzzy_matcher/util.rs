@@ -40,7 +40,7 @@ pub fn char_equal(a: char, b: char, case_sensitive: bool) -> bool {
                 return false;
             }
         }
-        return true;
+        true
     }
 }
 

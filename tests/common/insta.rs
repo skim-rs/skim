@@ -131,16 +131,32 @@ impl<'a> TestHarness<'a> {
         self.tui.backend().to_string()
     }
 
-    /// Take a snapshot of the current state.
+    /// Prepare for taking a snapshot by waiting for preview and processing heartbeat.
     ///
-    /// This ensures the status counters are up-to-date by sending a heartbeat
-    /// before rendering.
-    pub fn snap(&mut self) -> Result<()> {
+    /// This ensures the state is up-to-date before taking a snapshot.
+    /// Call `render()` and `buffer_view()` afterward to actually take the snapshot.
+    pub fn prepare_snap(&mut self) -> Result<()> {
+        // Wait for preview if configured - do this BEFORE heartbeat so we don't
+        // accidentally consume PreviewReady events
+        if self.app.options.preview.is_some() {
+            self.wait_for_preview()?;
+        }
+
         // Send heartbeat to update status counters (item counts, spinner, etc.)
         self.send(Event::Heartbeat)?;
         self.tick()?;
 
         self.render()?;
+        Ok(())
+    }
+
+    /// Take a snapshot of the current state.
+    ///
+    /// NOTE: This method should NOT be called from test code directly because
+    /// insta will use the wrong file path for the snapshot. Use the snap! macro instead.
+    #[doc(hidden)]
+    pub fn snap(&mut self) -> Result<()> {
+        self.prepare_snap()?;
         insta::assert_snapshot!(self.buffer_view());
         Ok(())
     }
@@ -285,8 +301,18 @@ impl<'a> TestHarness<'a> {
 
     /// Wait for preview to be ready.
     pub fn wait_for_preview(&mut self) -> Result<()> {
-        // Process any queued RunPreview events
+        // Process any queued events first (including RunPreview)
         self.tick()?;
+
+        // Now check if there's a pending preview task
+        // If not, there's nothing to wait for
+        if let Some(ref handle) = self.app.preview.thread_handle {
+            if handle.is_finished() {
+                return Ok(());
+            }
+        } else {
+            return Ok(());
+        }
 
         // Wait for preview to execute
         // With multi-threaded runtime, spawned tasks run on background threads
@@ -406,7 +432,7 @@ pub fn parse_options(args: &[&str]) -> SkimOptions {
 #[macro_export]
 macro_rules! snap {
     ($harness:ident) => {
-        $harness.render()?;
+        $harness.prepare_snap()?;
         insta::assert_snapshot!($harness.buffer_view());
     };
 }

@@ -91,6 +91,7 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
 ///
+#[allow(clippy::too_many_arguments)]
 pub fn printf(
     pattern: String,
     delimiter: &Regex,
@@ -104,22 +105,22 @@ pub fn printf(
     let escape_arg = if quote_args {
         |s: &str| format!("'{}'", s.replace('\0', "\\0").replace("'", "'\\''"))
     } else {
-        |s: &str| format!("{}", s.replace('\0', "\\0"))
+        |s: &str| s.replace('\0', "\\0").to_string()
     };
     let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
     // Replace static fields first
     let mut res = pattern.replace(replstr, &escape_arg(&item_text));
 
-    res = res.replace(
-        "{+}",
-        &escape_arg(
-            &selected
-                .clone()
-                .map(|i| i.output().into_owned())
-                .collect::<Vec<_>>()
-                .join(" "),
-        ),
-    );
+    let mut selection_str = selected
+        .clone()
+        .map(|i| strip_ansi(&i.output()).0)
+        .collect::<Vec<_>>()
+        .join(" ");
+    if selection_str.is_empty() {
+        selection_str = item_text.clone();
+    }
+
+    res = res.replace("{+}", &escape_arg(&selection_str));
     res = res.replace("{q}", &escape_arg(query));
     res = res.replace("{cq}", &escape_arg(command_query));
     if let Some(ref s) = current {
@@ -225,6 +226,37 @@ mod test {
             String::from(
                 "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1 item 2 item 3 item 4' [5] 'query' [6] 'cmd query'"
             )
+        );
+    }
+    #[test]
+    fn test_printf_plus() {
+        assert_eq!(
+            printf(
+                "{+}".to_string(),
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![Arc::new("1"), Arc::new("2")]
+                    .iter()
+                    .map(|x| x.clone() as Arc<dyn SkimItem>),
+                Some(Arc::new("1")),
+                "q",
+                "cq",
+                true
+            ),
+            "'1 2'"
+        );
+        assert_eq!(
+            printf(
+                "{+}".to_string(),
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![].into_iter(),
+                Some(Arc::new("1")),
+                "q",
+                "cq",
+                true
+            ),
+            "'1'"
         );
     }
 }
