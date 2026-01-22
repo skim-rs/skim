@@ -1152,13 +1152,8 @@ impl<'a> App<'a> {
     ///
     /// Note: in command mode, the replstr is replaced by the current query
     pub fn expand_cmd(&self, cmd: &str, quote_args: bool) -> String {
-        let cmd_to_expand = if self.options.interactive {
-            cmd.replace(&self.options.replstr, "{cq}")
-        } else {
-            cmd.to_string()
-        };
         util::printf(
-            cmd_to_expand,
+            cmd.to_string(),
             &self.options.delimiter,
             &self.options.replstr,
             self.item_list.selection.iter().map(|x| x.item.clone()),

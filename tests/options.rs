@@ -312,7 +312,7 @@ insta_test!(insta_opt_pre_select_pat, ["a", "b", "c"], &["-m", "--pre-select-pat
     @snap;
 });
 
-insta_test!(insta_opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", "printf {}", "--cmd-query", "xxxx"], {
+insta_test!(insta_opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", "printf {q}", "--cmd-query", "xxxx"], {
     @snap;
     @ctrl 'w';
     @snap;
@@ -326,7 +326,7 @@ insta_test!(insta_opt_tac_with_header_lines, ["a", "b", "c", "d", "e"], &["--tac
     @snap;
 });
 
-insta_test!(insta_opt_replstr, @interactive, &["-I", "..", "-i", "-c", "echo foo {} .."], {
+insta_test!(insta_opt_replstr, ["a", "b", "c"], &["-I", "..", "--preview", "echo foo {} .."], {
     @snap;
     @char 'a';
     @snap;

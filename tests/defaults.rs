@@ -18,7 +18,7 @@ insta_test!(
     &[]
 );
 
-insta_test!(insta_interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo 'foo {}'"], {
+insta_test!(insta_interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo 'foo {q}'"], {
     @snap;
     @type "bar";
     @snap;
