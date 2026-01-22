@@ -113,7 +113,7 @@ pub fn printf(
 
     let mut selection_str = selected
         .clone()
-        .map(|i| i.output().into_owned())
+        .map(|i| strip_ansi(&i.output()).0)
         .collect::<Vec<_>>()
         .join(" ");
     if selection_str.is_empty() {
