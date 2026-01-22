@@ -214,9 +214,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     for (name, value) in std::env::vars() {
         if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
-            let value = sanitize_arg(value);
             debug!("adding {name} = {value} to the command's env");
-            tmux_cmd.args(["-e", &format!("{name}={value}")]);
+            tmux_cmd.args(["-e", &format!("{name}={}", quote_value(&value))]);
         }
     }
 
@@ -318,29 +317,21 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 }
 
 fn push_quoted_arg(args_str: &mut String, arg: &str) {
+    args_str.push_str(&format!(" {}", quote_value(arg),));
+}
+
+fn quote_value(value: &str) -> String {
     use shell_quote::{Bash, Fish, Quote as _, Sh, Zsh};
     let shell_path = env::var("SHELL").unwrap_or(String::from("/bin/sh"));
     let shell = shell_path.rsplit_once('/').unwrap_or(("", "sh")).1;
     let quoted_arg: Vec<u8> = match shell {
-        "zsh" => Zsh::quote(arg),
-        "bash" => Bash::quote(arg),
-        "fish" => Fish::quote(arg),
-        _ => Sh::quote(arg),
+        "zsh" => Zsh::quote(value),
+        "bash" => Bash::quote(value),
+        "fish" => Fish::quote(value),
+        _ => Sh::quote(value),
     };
-    args_str.push_str(&format!(
-        " {}",
-        String::from_utf8(quoted_arg).expect("Failed to parse quoted arg as utf8, this should not happen")
-    ));
-}
 
-fn sanitize_arg(arg: String) -> String {
-    if !arg.ends_with(';') {
-        return arg;
-    }
-
-    let mut arg = arg.clone();
-    arg.replace_range(arg.len() - 1.., "\\;");
-    arg
+    String::from_utf8(quoted_arg).expect("Failed to parse quoted value as utf8, this should not happen")
 }
 
 #[cfg(test)]
@@ -402,15 +393,5 @@ mod tests {
         check("right,10,20", "20", "10", x, y);
         check("right,10%,20", "20", "10%", x, y);
         check("right,10%,20%", "20%", "10%", x, y);
-    }
-
-    #[test]
-    fn test_sanitize_arg() {
-        assert_eq!(sanitize_arg("some-value".to_string()), "some-value".to_string());
-        assert_eq!(sanitize_arg("some-value;".to_string()), "some-value\\;".to_string());
-        assert_eq!(sanitize_arg("some-value;;".to_string()), "some-value;\\;".to_string());
-        assert_eq!(sanitize_arg("some-value;;;".to_string()), "some-value;;\\;".to_string());
-        assert_eq!(sanitize_arg("some-value;x".to_string()), "some-value;x".to_string());
-        assert_eq!(sanitize_arg("some-value;x;".to_string()), "some-value;x\\;".to_string());
     }
 }
