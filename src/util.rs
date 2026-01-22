@@ -113,14 +113,14 @@ pub fn printf(
 
     let mut selection_str = selected
         .clone()
-        .map(|i| strip_ansi(&i.output()).0)
+        .map(|i| escape_arg(&strip_ansi(&i.output()).0))
         .collect::<Vec<_>>()
         .join(" ");
     if selection_str.is_empty() {
-        selection_str = item_text.clone();
+        selection_str = escape_arg(&item_text);
     }
 
-    res = res.replace("{+}", &escape_arg(&selection_str));
+    res = res.replace("{+}", &selection_str);
     res = res.replace("{q}", &escape_arg(query));
     res = res.replace("{cq}", &escape_arg(command_query));
     if let Some(ref s) = current {
@@ -129,7 +129,7 @@ pub fn printf(
     res = res.replace(
         "{+n}",
         &selected
-            .map(|i| format!("'{}'", i.get_index()))
+            .map(|i| escape_arg(&i.get_index().to_string()))
             .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " "),
     );
 
@@ -224,7 +224,7 @@ mod test {
                 true
             ),
             String::from(
-                "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1 item 2 item 3 item 4' [5] 'query' [6] 'cmd query'"
+                "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query'"
             )
         );
     }
@@ -243,7 +243,7 @@ mod test {
                 "cq",
                 true
             ),
-            "'1 2'"
+            "'1' '2'"
         );
         assert_eq!(
             printf(
