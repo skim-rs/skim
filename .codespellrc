@@ -1,4 +1,4 @@
 [codespell]
-skip = .git,target,node_modules,po,Cargo.lock,CHANGELOG.md,man,shell/completion.*
+skip = .git,target,node_modules,po,Cargo.lock,CHANGELOG.md,./CHANGELOG.md,man/*,man/*/*,./man/*,./man/*/*,shell/completion.*,./shell/completion.*
 ignore-words-list = Ratatui,ratatui,Affinitized,affinitized,afile,enew,worl
 ignore-regex = .*(\^fo|\^Fo|Da\.Te).*

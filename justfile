@@ -12,7 +12,8 @@ changelog version:
     git cliff -o CHANGELOG.md -t 'v{{ version }}'
 
 codespell:
-    codespell --config .codespellrc .
+    echo "Running codespell on git-tracked files..."
+    git ls-files -z | xargs -0 codespell --config .codespellrc --
 
 release version: (bump-version version) generate-files (changelog version) codespell test
     cargo generate-lockfile

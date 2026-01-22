@@ -5,7 +5,9 @@ if ! command -v codespell >/dev/null 2>&1; then
     exit 1
 fi
 
-codespell --config .codespellrc .
+if git diff --cached --name-only --diff-filter=ACMR | head -c 1 | grep -q .; then
+    git diff --cached --name-only -z --diff-filter=ACMR | xargs -0 codespell --config .codespellrc --
+fi
 
 cargo fmt --check --all
 cargo clippy --all
