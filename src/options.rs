@@ -661,6 +661,14 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub listen: Option<String>,
 
+    /// Send commands to an IPC socket with optional name (defaults to `sk`)
+    ///
+    /// The commands are read from stdin, one per line, in the same format as the actions in the
+    /// bind flag. They can also be chained using `+` as a separator.
+    /// All other arguments will be ignored
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
+    pub remote: Option<String>,
+
     /// Run in a tmux popup
     ///
     /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
@@ -754,6 +762,7 @@ impl Default for SkimOptions {
             no_strip_ansi: false,
             wrap_items: false,
             listen: None,
+            remote: None,
             print_header: false,
             disabled: false,
             tac: Default::default(),

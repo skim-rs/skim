@@ -13,7 +13,11 @@ use clap::{Error, Parser};
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use derive_builder::Builder;
+use interprocess::bound_util::RefWrite;
+use interprocess::local_socket::ToNsName as _;
+use interprocess::local_socket::traits::Stream as _;
 use log::trace;
+use skim::binds::parse_action_chain;
 use skim::item::RankBuilder;
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
@@ -102,6 +106,30 @@ fn main() -> Result<()> {
     // Man page
     if opts.man {
         crate::manpage::generate(&mut std::io::stdout())?;
+        return Ok(());
+    }
+
+    if let Some(remote) = opts.remote {
+        let ns_name = remote
+            .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
+            .unwrap();
+        let stream = interprocess::local_socket::Stream::connect(ns_name)?;
+        let mut action_chain = String::new();
+        loop {
+            action_chain.clear();
+            let len = std::io::stdin().read_line(&mut action_chain)?;
+            log::debug!("Got line {} from stdin", action_chain.trim());
+            if len == 0 {
+                break;
+            }
+            let actions = parse_action_chain(&action_chain.trim())?;
+            for act in actions {
+                stream
+                    .as_write()
+                    .write_all(&format!("{}\n", ron::ser::to_string(&act)?).as_bytes())?;
+                log::debug!("Sent action {act:?} to listener");
+            }
+        }
         return Ok(());
     }
 

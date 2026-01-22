@@ -202,7 +202,8 @@ where
 /// Parses an action chain, separated by '+'s into the corresponding actions
 pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
     let mut actions: Vec<Action> = vec![];
-    let mut split = action_chain.split("+");
+    let lchain = action_chain.to_ascii_lowercase();
+    let mut split = lchain.split("+");
     loop {
         let Some(mut s) = split.next().map(String::from) else {
             break;
