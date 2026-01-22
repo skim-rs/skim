@@ -93,7 +93,7 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 ///
 #[allow(clippy::too_many_arguments)]
 pub fn printf(
-    pattern: String,
+    pattern: &str,
     delimiter: &Regex,
     replstr: &str,
     selected: impl Iterator<Item = Arc<dyn SkimItem>> + std::clone::Clone,
@@ -204,7 +204,7 @@ mod test {
 
     #[test]
     fn test_printf() {
-        let pattern = String::from("[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq}");
+        let pattern = "[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq}";
         let items: Vec<Arc<dyn SkimItem>> = vec![
             Arc::new("item 1"),
             Arc::new("item 2"),
@@ -232,7 +232,7 @@ mod test {
     fn test_printf_plus() {
         assert_eq!(
             printf(
-                "{+}".to_string(),
+                "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
                 vec![Arc::new("1"), Arc::new("2")]
@@ -247,7 +247,7 @@ mod test {
         );
         assert_eq!(
             printf(
-                "{+}".to_string(),
+                "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
                 vec![].into_iter(),

@@ -1153,7 +1153,7 @@ impl<'a> App<'a> {
     /// Note: in command mode, the replstr is replaced by the current query
     pub fn expand_cmd(&self, cmd: &str, quote_args: bool) -> String {
         util::printf(
-            cmd.to_string(),
+            cmd,
             &self.options.delimiter,
             &self.options.replstr,
             self.item_list.selection.iter().map(|x| x.item.clone()),
