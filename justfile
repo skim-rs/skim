@@ -9,7 +9,7 @@ generate-files:
     SKIM_DEFAULT_OPTIONS= cargo run -- --shell nushell > ./shell/completion.nu
 
 changelog version:
-    git cliff -o CHANGELOG.md -t 'v{{ version }}'
+    git cliff -p CHANGELOG.md -t 'v{{ version }}' -u
 
 release version: (bump-version version) generate-files (changelog version) test
     cargo generate-lockfile
@@ -19,6 +19,9 @@ release version: (bump-version version) generate-files (changelog version) test
     read -p "Press any key to confirm pushing tag v{{ version }}"
     git push
     git push --tags
+
+auto-release:
+    just release $(git cliff --bumped-version | sed 's/v\(.*\)/\1/')
 
 test target="":
     -cargo nextest run --release --features test-utils {{ target }}

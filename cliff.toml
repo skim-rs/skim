@@ -6,6 +6,10 @@
 # A Tera template to be rendered for each release in the changelog.
 # See https://keats.github.io/tera/docs/#introduction
 body = """
+{%- macro remote_url() -%}
+  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
+
 {% if version %}\
     ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
 {% else %}\
@@ -19,6 +23,20 @@ body = """
             {{ commit.message | upper_first }}\
     {% endfor %}
 {% endfor %}
+
+{%- if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+    ### New Contributors
+{%- endif -%}
+
+{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
+  * @{{ contributor.username }} made their first contribution
+    {%- if contributor.pr_number %} in \
+      [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}) \
+    {%- endif %}
+{%- endfor %}\n
+
+{%- if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}{% raw %}\n{% endraw -%}{% endif %}
+
 """
 header = """
 # Changelog

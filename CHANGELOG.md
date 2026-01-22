@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-01-22
+
+### 🐛 Bug Fixes
+
+- Correctly expand `{+}` to current when no items are selected (cl… (#913)
+
 ## [1.5.0] - 2026-01-22
 
 ### 🚀 Features
@@ -18,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Fix tests link in PR template [skip ci]
+
 ## [1.4.0] - 2026-01-21
 
 ### 🚀 Features
@@ -27,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📚 Documentation
 
 - Reflect need for nightly rust in install section [skip ci]
+
 ## [1.3.2] - 2026-01-21
 
 ### 🐛 Bug Fixes
@@ -41,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Testing
 
 - Use insta for applicable integration tests, making them cross-p… (#903)
+
 ## [1.3.1] - 2026-01-21
 
 ### 🐛 Bug Fixes
@@ -55,11 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Optimized release builds
+
 ## [1.3.0] - 2026-01-20
 
 ### 🚀 Features
 
 - Typo resistant matcher using frizbee from blink.cmp (#891)
+
 ## [1.2.0] - 2026-01-20
 
 ### 🚀 Features
@@ -69,12 +80,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Run preview in a PTY (closes #894)
+
 ## [1.1.2] - 2026-01-20
 
 ### 🐛 Bug Fixes
 
 - Half page down scrolls down
 - Use ansi-stripped raw item in preview expansion
+
 ## [1.1.1] - 2026-01-19
 
 ### 🐛 Bug Fixes
@@ -90,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Update crossterm version requirement to pass crates.io publish checks
+
 ## [1.1.0] - 2026-01-19
 
 ### 🚀 Features
@@ -104,11 +118,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Testing
 
 - Fix wrap test (#896)
+
 ## [1.0.1] - 2026-01-19
 
 ### 🐛 Bug Fixes
 
 - Disable compact_matcher feature
+
 ## [1.0.0-pre11] - 2026-01-17
 
 ### 🐛 Bug Fixes
@@ -122,6 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(changelog)* Ignore release commits
+
 ## [1.0.0-pre10] - 2026-01-17
 
 ### 🐛 Bug Fixes
@@ -131,11 +148,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Add pointer/marker as aliases for selector/multi-selector
+
 ## [1.0.0-pre9] - 2026-01-16
 
 ### 🐛 Bug Fixes
 
 - Matcher race condition at startup
+
 ## [1.0.0-pre8] - 2026-01-16
 
 ### 🚀 Features
@@ -149,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Testing
 
 - Remove useless listen tests
+
 ## [1.0.0-pre7] - 2026-01-16
 
 ### 🚀 Features
@@ -163,6 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Testing
 
 - Add tests for listen flag
+
 ## [1.0.0-pre6] - 2026-01-15
 
 ### 🚀 Features
@@ -180,12 +201,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Add exhaustive_match macro for enum building from str
+
 ## [1.0.0-pre5] - 2026-01-15
 
 ### 🚀 Features
 
 - *(ui)* Add selector and multi-selector options to set the itemlist icons
 - *(ui)* Allow setting modifiers (closes #871)
+
 ## [1.0.0-pre4] - 2026-01-14
 
 ### 🚀 Features
@@ -199,6 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Regenerate CHANGELOG.md
+
 ## [1.0.0-pre3] - 2026-01-14
 
 ### 🐛 Bug Fixes
@@ -208,6 +232,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release v1.0.0-pre3
+
 ## [1.0.0-pre2] - 2026-01-14
 
 ### 🚀 Features
@@ -222,6 +247,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove unneeded deps (#884)
 - Release
+
 ## [1.0.0-pre1] - 2026-01-13
 
 ### 🚀 Features
@@ -231,6 +257,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Remove workspace (#883)
+
+### New Contributors
+* @rusty-snake made their first contribution in [#872](https://github.com/skim-rs/skim/pull/872)
+* @peccu made their first contribution in [#845](https://github.com/skim-rs/skim/pull/845)
+* @azarmadr made their first contribution in [#841](https://github.com/skim-rs/skim/pull/841)
+
 ## [0.20.5] - 2025-08-09
 
 ### 🐛 Bug Fixes
@@ -240,6 +272,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Release (#835)
+
 ## [0.20.4] - 2025-08-02
 
 ### 🚀 Features
@@ -256,11 +289,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ci)* Revert to a more vanilla release-plz config
 - Remove unreleased section from changelog
 - *(release)* Release (#831)
+
 ## [0.20.3] - 2025-07-27
 
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Release (#826)
+
 ## [0.20.2] - 2025-06-29
 
 ### 📚 Documentation
@@ -270,6 +305,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Release (#818)
+
+### New Contributors
+* @azat made their first contribution in [#783](https://github.com/skim-rs/skim/pull/783)
+
 ## [0.20.1] - 2025-06-21
 
 ### 🐛 Bug Fixes
@@ -279,6 +318,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Release (#815)
+
 ## [0.20.0] - 2025-06-21
 
 ### 🚀 Features
@@ -288,6 +328,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Release (#813)
+
+### New Contributors
+* @saidelmark made their first contribution in [#804](https://github.com/skim-rs/skim/pull/804)
+
 ## [0.19.0] - 2025-06-21
 
 ### 🚀 Features
@@ -297,6 +341,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(release)* Release (#811)
+
 ## [0.18.0] - 2025-05-30
 
 ### 🚀 Features
@@ -317,6 +362,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Generate changelog
 - *(release)* Release (#792)
+
 ## [0.17.3] - 2025-05-20
 
 ### 🐛 Bug Fixes
@@ -332,6 +378,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Generate changelog using git cliff
 - *(release)* Release v0.17.3 (#782)
+
+### New Contributors
+* @ajeetdsouza made their first contribution in [#774](https://github.com/skim-rs/skim/pull/774)
+
 ## [0.17.2] - 2025-05-04
 
 ### 🐛 Bug Fixes
@@ -343,6 +393,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *(ci)* Remove temp workflow
 - *(release)* Release v0.17.2 (#766)
+
 ## [0.17.1] - 2025-05-04
 
 ### 🚀 Features
@@ -368,11 +419,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release (#760)
 - *(cargo)* Update to 2024 edition (#764)
 - *(ci)* Update dependencies
+
 ## [0.17.0] - 2025-05-04
 
 ### 🐛 Bug Fixes
 
 - Fix local dependencies
+
 ## [common-v0.1.0] - 2025-05-04
 
 ### 🚀 Features
@@ -414,6 +467,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ci)* Do not publish extra packages
 - *(ci)* Release on all commits
 - *(ci)* Make local packages publishable
+
 ## [0.16.2] - 2025-04-26
 
 ### 🚀 Features
@@ -438,6 +492,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Move changelog to subdir (#740)
 - *(master)* Release 0.16.2 (#738)
+
 ## [0.16.1] - 2025-03-06
 
 ### 🐛 Bug Fixes
@@ -448,6 +503,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Manually update release-please manifest after release
 - *(master)* Release 0.16.1 (#712)
+
 ## [0.16.0] - 2025-01-23
 
 ### 🚀 Features
@@ -478,6 +534,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ci)* Try releasing as 0.1.0
 - Release master (#672)
 - Release master (#691)
+
+### New Contributors
+* @alexxbb made their first contribution in [#407](https://github.com/skim-rs/skim/pull/407)
+* @alexandregv made their first contribution in [#679](https://github.com/skim-rs/skim/pull/679)
+
 ## [0.15.7] - 2024-12-27
 
 ### 🐛 Bug Fixes
@@ -487,6 +548,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release master (#670)
+
+### New Contributors
+* @gallois made their first contribution in [#671](https://github.com/skim-rs/skim/pull/671)
+
 ## [0.15.6] - 2024-12-26
 
 ### 🐛 Bug Fixes
@@ -497,6 +562,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release master (#656)
+
+### New Contributors
+* @egrieco made their first contribution
+* @dotdash made their first contribution in [#659](https://github.com/skim-rs/skim/pull/659)
+
 ## [0.15.5] - 2024-12-04
 
 ### 🐛 Bug Fixes
@@ -515,6 +585,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix release-please config
 - Fix release config
 - Release master (#655)
+
+### New Contributors
+* @genskyff made their first contribution in [#646](https://github.com/skim-rs/skim/pull/646)
+
 ## [0.15.4] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -526,6 +600,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cargo fmt
 - Release master (#642)
+
 ## [0.15.3] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -538,6 +613,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove cli feature from skim
 - Cargo fmt
 - Release master (#641)
+
 ## [0.15.2] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -548,6 +624,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Release master (#640)
+
+### New Contributors
+* @skim-rs-bot[bot] made their first contribution in [#640](https://github.com/skim-rs/skim/pull/640)
+
 ## [0.15.1] - 2024-12-01
 
 ### 🐛 Bug Fixes
@@ -572,6 +652,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avoid duplicate test runs
 - Cleanup
 - Release master (#639)
+
 ## [0.15.0] - 2024-12-01
 
 ### 🚀 Features
@@ -627,6 +708,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release master (#635)
 - Release master (#636)
 - Release master (#637)
+
+### New Contributors
+* @github-actions[bot] made their first contribution in [#637](https://github.com/skim-rs/skim/pull/637)
+
 ## [0.14.3] - 2024-11-28
 
 ### 🚀 Features
@@ -652,6 +737,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump env_logger from 0.9.3 to 0.11.5 (#615)
 - Improve PR ci (#617)
 - Remove ci dir (#627)
+
+### New Contributors
+* @khafatech made their first contribution in [#605](https://github.com/skim-rs/skim/pull/605)
+* @praveenperera made their first contribution in [#621](https://github.com/skim-rs/skim/pull/621)
+
 ## [0.13.0] - 2024-11-25
 
 ### 🚀 Features
@@ -661,11 +751,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Add pull request template (#608)
+
 ## [0.12.0] - 2024-11-24
 
 ### 🚀 Features
 
 - Add reload action (#604)
+
 ## [0.11.12] - 2024-11-24
 
 ### 🐛 Bug Fixes
@@ -675,16 +767,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Remove some platform-specific quirkinesses from e2e (#602)
+
+### New Contributors
+* @crodjer made their first contribution in [#413](https://github.com/skim-rs/skim/pull/413)
+
 ## [0.11.11] - 2024-11-22
 
 ### 💼 Other
 
 - Readd version arg (#606)
+
 ## [0.11.1] - 2024-11-21
 
 ### 🐛 Bug Fixes
 
 - Fix github publish action
+
 ## [0.11.0] - 2024-11-20
 
 ### 🚀 Features
@@ -705,16 +803,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix clippy
 - Remove atty (#587)
 - Remove bitflags (#579)
+
+### New Contributors
+* @LoricAndre made their first contribution in [#586](https://github.com/skim-rs/skim/pull/586)
+* @otto-dev made their first contribution in [#468](https://github.com/skim-rs/skim/pull/468)
+* @jgarte made their first contribution in [#487](https://github.com/skim-rs/skim/pull/487)
+* @iamb4uc made their first contribution in [#560](https://github.com/skim-rs/skim/pull/560)
+* @hellux made their first contribution in [#563](https://github.com/skim-rs/skim/pull/563)
+* @reneegyllensvaan made their first contribution in [#461](https://github.com/skim-rs/skim/pull/461)
+* @jirutka made their first contribution in [#449](https://github.com/skim-rs/skim/pull/449)
+* @rspencer01 made their first contribution in [#433](https://github.com/skim-rs/skim/pull/433)
+* @marcoieni made their first contribution in [#382](https://github.com/skim-rs/skim/pull/382)
+* @ymnejmi made their first contribution in [#551](https://github.com/skim-rs/skim/pull/551)
+* @sisrfeng made their first contribution
+* @vitaly-zdanevich made their first contribution
+
 ## [0.10.2] - 2022-11-08
 
 ### 🐛 Bug Fixes
 
 - Print version from Cargo.toml with latest clap
+
+### New Contributors
+* @anthraxx made their first contribution
+
 ## [0.10.0] - 2022-10-28
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update deps and fix lots of clippy lints
+
+### New Contributors
+* @yazgoo made their first contribution in [#472](https://github.com/skim-rs/skim/pull/472)
+* @EdenEast made their first contribution
+* @grant0417 made their first contribution
+* @mgttlinger made their first contribution
+* @TD-Sky made their first contribution
+* @dependabot[bot] made their first contribution
+* @io12 made their first contribution
+* @terror made their first contribution
+* @PCouaillier made their first contribution
+* @sweenu made their first contribution
+
 ## [0.9.4] - 2021-02-15
 
 ### 💼 Other
@@ -724,11 +854,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - *(cargo)* Fix documentation link
+
+### New Contributors
+* @x4121 made their first contribution
+* @Mephistophiles made their first contribution
+* @n8henrie made their first contribution
+* @marcusbuffett made their first contribution
+* @mb720 made their first contribution
+* @pickfire made their first contribution
+* @sirwindfield made their first contribution
+
 ## [0.9.3] - 2020-11-02
 
 ### 🐛 Bug Fixes
 
 - Ansi parse error for multi-bytes string
+
 ## [0.9.1] - 2020-10-20
 
 ### 🚀 Features
@@ -744,6 +885,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clippy
 - Pre-select-items select '' by default
 - Preview's scroll could be 0
+
 ## [0.9.0] - 2020-10-18
 
 ### 🚀 Features
@@ -769,6 +911,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Demangle lib and bin implementations
 - Separate MatchResult from MatchedItem
+
+### New Contributors
+* @pkubik made their first contribution
+* @wucke13 made their first contribution
+
 ## [0.8.2] - 2020-06-26
 
 ### 🐛 Bug Fixes
@@ -784,6 +931,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚜 Refactor
 
 - DefaultSkimItem now accept string
+
+### New Contributors
+* @marsam made their first contribution
+* @caixiangyue made their first contribution
+* @emmanueltouzery made their first contribution
+* @BlindingDark made their first contribution
+* @aldhsu made their first contribution
+
 ## [0.8.0] - 2020-02-23
 
 ### 🚀 Features
@@ -799,6 +954,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "enter" key not printed with expect keys
 - Support case insensitive in exact mode
 - Case insensitive + refactor engine
+
 ## [0.7.0] - 2020-01-15
 
 ### 💼 Other
@@ -812,6 +968,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Miscellaneous Tasks
 
 - Update derive_builder to 0.9
+
+### New Contributors
+* @ammgws made their first contribution
+* @alexreg made their first contribution
+* @cireu made their first contribution
+
 ## [0.6.7] - 2019-05-31
 
 ### 💼 Other
@@ -820,17 +982,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove extraneous line.
 - Remove extraneous line.
 - Add crates.io svg.
+
+### New Contributors
+* @chmp made their first contribution
+* @ngirard made their first contribution
+
 ## [0.6.5] - 2019-04-01
 
 ### 🐛 Bug Fixes
 
 - Wrong matches on empty lines
+
 ## [0.6.3] - 2019-03-25
 
 ### 🐛 Bug Fixes
 
 - Number of matched items not show correctly
 - Matcher is slow to kill
+
 ## [0.6.2] - 2019-03-19
 
 ### 🚀 Features
@@ -840,11 +1009,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Compilation error of examples
+
 ## [0.6.0] - 2019-03-17
 
 ### 💼 Other
 
 - Rotate mode
+
 ## [0.5.3] - 2019-02-20
 
 ### 💼 Other
@@ -854,6 +1025,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Return slice instead of new vector
 - Draw status after query
 - Return early if possible
+
+### New Contributors
+* @dfreese made their first contribution
+* @lilydjwg made their first contribution
+* @RemiliaForever made their first contribution
+* @bennyyip made their first contribution
+* @Konfekt made their first contribution
+* @Lompik made their first contribution
+* @light4 made their first contribution
+
 ## [0.3.0] - 2017-09-21
 
 ### 🐛 Bug Fixes
@@ -864,17 +1045,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alternate screen is not switched off on exit
 - Ansi color not shown correctly in main area
 - Toggle will panic if there is no item matched
+
+### New Contributors
+* @tiziano88 made their first contribution
+* @supermarin made their first contribution
+
 ## [0.2.1-beta.2] - 2017-01-19
 
 ### 🚜 Refactor
 
 - Use filter_map instead of map then filter
+
+### New Contributors
+* @anchepiece made their first contribution
+* @brookst made their first contribution
+* @SirVer made their first contribution
+* @akiradeveloper made their first contribution
+
 ## [0.2.0] - 2017-01-03
 
 ### 🐛 Bug Fixes
 
 - Model will not redraw from the 1 line
 - Reader: reader and sender will lock each other.
+
+### New Contributors
+* @leoyvens made their first contribution
+* @mohamedhayibor made their first contribution
+
 ## [0.1.1-rc2] - 2016-07-19
 
 ### 🐛 Bug Fixes
@@ -885,5 +1083,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 💼 Other
 
 - Remove debug code
+
 ## [0.1-alpha] - 2016-07-01
+
+### New Contributors
+* @lotabout made their first contribution
+* @ made their first contribution
+
 <!-- generated by git-cliff -->
