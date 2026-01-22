@@ -75,6 +75,7 @@ nushell\:"Nushell (nu)"
 power-shell\:"PowerShell"
 zsh\:"Zsh"))' \
 '--listen=[Run an IPC socket with optional name (defaults to sk)]::LISTEN:_default' \
+'--remote=[Send commands to an IPC socket with optional name (defaults to sk)]::REMOTE:_default' \
 '--tmux=[Run in a tmux popup]::TMUX:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
