@@ -43,3 +43,22 @@ insta_test!(insta_preview_nowrap, ["x"], &["--preview", "echo a bbbbbbbbbbbbbbbb
 insta_test!(insta_preview_wrap, ["x"], &["--preview", "echo a      bbbbbbbb", "--preview-window", "left:10:wrap"], {
     @snap;
 });
+
+// Test that preview updates when navigating between items
+insta_test!(insta_preview_navigation, ["a", "b", "c"], &["--preview", "echo {}"], {
+    @snap;
+    @key Up;
+    @snap;
+});
+
+insta_test!(insta_preview_plus, ["a", "b", "c"], &["--preview", "echo {+}", "-m"], {
+    @snap;
+    @key Up;
+    @snap;
+    @shift Tab;
+    @snap;
+    @shift Tab;
+    @snap;
+    @action DeselectAll;
+    @snap;
+});

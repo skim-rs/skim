@@ -986,7 +986,7 @@ impl<'a> App<'a> {
             SelectRow(row) => self.item_list.select_row(*row),
             Select => self.item_list.select(),
             SetQuery(value) => {
-                self.input.value = self.expand_cmd(&value, false);
+                self.input.value = self.expand_cmd(value, false);
                 self.input.move_to_end();
                 return self.on_query_changed();
             }
