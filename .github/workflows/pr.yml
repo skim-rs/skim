@@ -1,5 +1,6 @@
+---
 name: "Pull Requests"
-on:
+'on':
   pull_request_target:
     types:
       - opened
@@ -30,7 +31,7 @@ jobs:
           app-id: ${{ vars.SKIM_RS_BOT_APP_ID }}
           private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
       - name: Checkout Git repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{github.event.pull_request.head.ref}}

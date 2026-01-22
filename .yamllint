@@ -1,0 +1,12 @@
+---
+extends: default
+
+ignore: |
+  **/*.md
+  **/*.json
+
+rules:
+  line-length:
+    max: 320
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true

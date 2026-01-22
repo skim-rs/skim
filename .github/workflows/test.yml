@@ -1,6 +1,7 @@
+---
 name: Build & Test
 
-on:
+'on':
   workflow_dispatch:
   workflow_call:
     inputs:
@@ -10,7 +11,7 @@ on:
   # pull_request: # No need to trigger on PR, cargo-dist already does
   push:
     branches:
-    - master
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,12 +24,12 @@ jobs:
       matrix:
         build: [linux, macos]
         include:
-        - build: linux
-          os: ubuntu-latest
-          target: x86_64-unknown-linux-musl
-        - build: macos
-          os: macos-latest
-          target: x86_64-apple-darwin
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - build: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
     steps:
       - name: "[linux] Install dependencies"
         run: |
@@ -45,7 +46,7 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
       - run: rustup toolchain install
@@ -64,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
       - uses: actions/setup-python@v5
@@ -81,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
       - run: rustup toolchain install
@@ -94,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - run: rustup toolchain install
       - name: Check formatting
         run: |
@@ -104,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
