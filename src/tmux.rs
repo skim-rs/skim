@@ -214,6 +214,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     for (name, value) in std::env::vars() {
         if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
+            let value = sanitize_value(value);
             debug!("adding {name} = {value} to the command's env");
             tmux_cmd.args(["-e", &format!("{name}={value}")]);
         }
@@ -332,6 +333,16 @@ fn push_quoted_arg(args_str: &mut String, arg: &str) {
     ));
 }
 
+fn sanitize_value(value: String) -> String {
+    if !value.ends_with(';') {
+        return value;
+    }
+
+    let mut value = value.clone();
+    value.replace_range(value.len() - 1.., "\\;");
+    value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +402,21 @@ mod tests {
         check("right,10,20", "20", "10", x, y);
         check("right,10%,20", "20", "10%", x, y);
         check("right,10%,20%", "20%", "10%", x, y);
+    }
+
+    #[test]
+    fn test_sanitize_value() {
+        assert_eq!(sanitize_value("some-value".to_string()), "some-value".to_string());
+        assert_eq!(sanitize_value("some-value;".to_string()), "some-value\\;".to_string());
+        assert_eq!(sanitize_value("some-value;;".to_string()), "some-value;\\;".to_string());
+        assert_eq!(
+            sanitize_value("some-value;;;".to_string()),
+            "some-value;;\\;".to_string()
+        );
+        assert_eq!(sanitize_value("some-value;x".to_string()), "some-value;x".to_string());
+        assert_eq!(
+            sanitize_value("some-value;x;".to_string()),
+            "some-value;x\\;".to_string()
+        );
     }
 }
