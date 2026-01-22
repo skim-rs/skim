@@ -127,7 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 Features
 
-- Add print-header flag (and re-add print-score) (closes #470)
+- Add print-header flag (and readd print-score) (closes #470)
 
 ### 🐛 Bug Fixes
 
@@ -365,7 +365,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🚀 Features
 
 - *(tui)* Add tuikit as workspace member and update (#741)
-- *(shell)* Re-add completions (#726) (#739)
+- *(shell)* Readd completions (#726) (#739)
 
 ### 🐛 Bug Fixes
 
@@ -377,21 +377,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *(tuikit)* Bring skim-rs/tuikit#43 (#743)
 - *(ci)* Back to manifest release
-- *(ci)* Re-add manifest manually
+- *(ci)* Readd manifest manually
 - *(ci)* Revert action
 - *(ci)* Use linked changelog
 - *(ci)* Disable skim prefix in tag
 - *(ci)* Test without extra packages
-- *(ci)* Re-add all components
+- *(ci)* Readd all components
 - *(ci)* Release every package at the same version
 - *(ci)* Release whole workspace at once
 - *(ci)* Update manifest
-- *(ci)* Re-add all packages as well as root
+- *(ci)* Readd all packages as well as root
 - *(ci)* Better handling of packages in release
 - *(ci)* Unlink versions
 - *(ci)* Set package names
-- *(ci)* Explicitly set root component
-- *(ci)* Explicitly set last release sha
+- *(ci)* Explicitely set root component
+- *(ci)* Explicitely set last release sha
 - *(ci)* Use previous versions for packages
 - *(ci)* Migrate to release-plz
 - *(ci)* Update release-plz changelog format
@@ -479,7 +479,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🐛 Bug Fixes
 
 - Fix non-functional vim plugin (#659)
-- Update rank to follow the re-added index tiebreak (#669)
+- Update rank to follow the readded index tiebreak (#669)
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -604,7 +604,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚙️ Miscellaneous Tasks
 
-- Re-add crate to release-please
+- Readd crate to release-please
 - Fix release-please target branch
 - Fix condition
 - Release master (#632)
@@ -618,7 +618,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🚀 Features
 
-- Re-add index tiebreak (#609)
+- Readd index tiebreak (#609)
 - [**breaking**] Do not check for expect before printing the argument of accept… (#625)
 - Add `--tmux` flag (deprecates sk-tmux, fixes #596) (#603)
 
@@ -666,7 +666,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 💼 Other
 
-- Re-add version arg (#606)
+- Readd version arg (#606)
 ## [0.11.1] - 2024-11-21
 
 ### 🐛 Bug Fixes
@@ -681,7 +681,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 💼 Other
 
 - "Package Managers": add Portage
-- Remove useless entries (#382)
+- Remove unuseful entries (#382)
 
 ### 📚 Documentation
 
