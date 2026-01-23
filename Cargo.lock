@@ -1927,6 +1927,7 @@ dependencies = [
  "ratatui",
  "rayon",
  "regex",
+ "roff",
  "ron",
  "serde",
  "shell-quote",

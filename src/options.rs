@@ -31,90 +31,6 @@ fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
 /// sk - fuzzy finder in Rust
 ///
 /// sk is a general purpose command-line fuzzy finder.
-///
-/// # MODES
-///
-/// ## Normal mode
-///
-/// In normal mode, sk reads the input from stdin and displays the results interactively, and the
-/// query is then used to fuzzily filter among the input lines.
-///
-/// ## Interactive mode
-///
-/// Interactive mode is a special mode that allows you to run a command interactively and display
-/// the results. It is enabled by the `--interactive` (or `-i`) option or by binding the
-/// `toggle-interactive` action (default: <ctrl-q>).
-/// The command is specified with the `--cmd` option.
-///
-/// Example: `sk --cmd "rg {} --color=always" --interactive` will use `rg` to search for the query
-/// in the current directory and display the results interactively.
-///
-/// # ENVIRONMENT VARIABLES
-///
-///      NO_COLOR
-///
-///          If set and not empty, sk will not use any colors in the output.
-///
-///      SKIM_DEFAULT_COMMAND
-///
-/// If set and not empty, sk will not use any colors in the output.
-///
-/// ## SKIM_DEFAULT_COMMAND
-///
-/// Default command to use when input is tty. On *nix systems, sk runs the command with sh -c, so make  sure  that
-/// it's POSIX-compliant.
-///
-/// ## SKIM_DEFAULT_OPTIONS
-///
-/// Default options. e.g. `export SKIM_DEFAULT_OPTIONS="--multi"`
-///
-/// # EXTENDED SEARCH MODE
-///
-/// Unless specified otherwise, sk will start in "extended-search mode". In this mode, you can specify multiple  patterns
-/// delimited by spaces, such as: 'wild ^music .mp3$ sbtrkt !rmx
-///
-/// You can prepend a backslash to a space (\ ) to match a literal space character.
-///
-/// ## Exact-match (quoted)
-///
-/// A term that is prefixed by a single-quote character (') is interpreted as an "exact-match" (or "non-fuzzy") term. sk
-/// will search for the exact occurrences of the string.
-///
-/// ## Anchored-match
-///
-/// A term can be prefixed by ^, or suffixed by $ to become an anchored-match term. Then sk will  search  for  the  lines
-/// that start with or end with the given string. An anchored-match term is also an exact-match term.
-///
-/// ## Negation
-///
-/// If  a  term  is prefixed by !, sk will exclude the lines that satisfy the term from the result. In this case, `sk` per‐
-/// forms exact match by default.
-///
-/// ## Exact-match by default
-///
-/// If you don't prefer fuzzy matching and do not wish to "quote" (prefixing with ') every word,
-/// start `sk` with `-e` or
-/// `--exact` option. Note that when `--exact` is set, '-prefix "unquotes" the term.
-///
-/// ## OR operator
-///
-///  A  single bar character term acts as an OR operator. For example, the following query matches entries that start with
-/// core and end with either go, rb, or py.
-///
-///
-/// **Example**: `^core go$ | rb$ | py$`
-///
-///
-/// # EXIT STATUS
-///
-/// * 0:      Normal exit
-///
-/// * 1:      No match
-///
-/// * 2:      Error
-///
-/// * 130:    Interrupted with CTRL-C or ESC
-
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"))]
 #[builder(default)]
@@ -267,209 +183,9 @@ pub struct SkimOptions {
     ///
     /// You can customize key bindings of sk with `--bind` option which takes a  comma-separated  list  of
     /// key binding expressions. Each key binding expression follows the following format: `<key>:<action>`
+    /// See the [KEYBINDS] section for details
     ///
     /// **Example**: `sk --bind=ctrl-j:accept,ctrl-k:kill-line`
-    ///
-    /// ## AVAILABLE KEYS: (SYNONYMS)
-    ///
-    /// * ctrl-[a-z]
-    ///
-    /// * ctrl-space
-    ///
-    /// * ctrl-alt-[a-z]
-    ///
-    /// * alt-[a-zA-Z]
-    ///
-    /// * alt-[0-9]
-    ///
-    /// * f[1-12]
-    ///
-    /// * enter       (ctrl-m)
-    ///
-    /// * space
-    ///
-    /// * bspace      (bs)
-    ///
-    /// * alt-up
-    ///
-    /// * alt-down
-    ///
-    /// * alt-left
-    ///
-    /// * alt-right
-    ///
-    /// * alt-enter   (alt-ctrl-m)
-    ///
-    /// * alt-space
-    ///
-    /// * alt-bspace  (alt-bs)
-    ///
-    /// * alt-/
-    ///
-    /// * tab
-    ///
-    /// * btab        (shift-tab)
-    ///
-    /// * esc
-    ///
-    /// * del
-    ///
-    /// * up
-    ///
-    /// * down
-    ///
-    /// * left
-    ///
-    /// * right
-    ///
-    /// * home
-    ///
-    /// * end
-    ///
-    /// * pgup        (page-up)
-    ///
-    /// * pgdn        (page-down)
-    ///
-    /// * shift-up
-    ///
-    /// * shift-down
-    ///
-    /// * shift-left
-    ///
-    /// * shift-right
-    ///
-    /// * alt-shift-up
-    ///
-    /// * alt-shift-down
-    ///
-    /// * alt-shift-left
-    ///
-    /// * alt-shift-right
-    ///
-    /// * any single character
-    ///
-    /// ## ACTION: DEFAULT BINDINGS [NOTES]
-    ///
-    /// * abort: ctrl-c  ctrl-q  esc
-    ///
-    /// * accept(...): enter *the argument will be printed when the binding is triggered*
-    ///
-    /// * append-and-select(c): append c to the query
-    ///
-    /// * append-and-select:
-    ///
-    /// * backward-char: ctrl-b  left
-    ///
-    /// * backward-delete-char: ctrl-h  bspace
-    ///
-    /// * backward-delete-char/eof:
-    ///
-    /// * backward-kill-word: alt-bs
-    ///
-    /// * backward-word: alt-b   shift-left
-    ///
-    /// * beginning-of-line: ctrl-a  home
-    ///
-    /// * clear-screen: ctrl-l
-    ///
-    /// * delete-char: del
-    ///
-    /// * delete-char/eof: ctrl-d
-    ///
-    /// * deselect-all:
-    ///
-    /// * down: ctrl-j  ctrl-n  down
-    ///
-    /// * end-of-line: ctrl-e  end
-    ///
-    /// * execute(...): *see below for the details*
-    ///
-    /// * execute-silent(...): *see below for the details*
-    ///
-    /// * forward-char: ctrl-f  right
-    ///
-    /// * forward-word: alt-f   shift-right
-    ///
-    /// * if-non-matched:
-    ///
-    /// * if-query-empty:
-    ///
-    /// * if-query-not-empty:
-    ///
-    /// * ignore:
-    ///
-    /// * kill-line:
-    ///
-    /// * kill-word: alt-d
-    ///
-    /// * next-history: ctrl-n with `--history` or `--cmd-history`
-    ///
-    /// * page-down: pgdn
-    ///
-    /// * page-up: pgup
-    ///
-    /// * half-page-down:
-    ///
-    /// * half-page-up:
-    ///
-    /// * preview-up: shift-up
-    ///
-    /// * preview-down: shift-down
-    ///
-    /// * preview-left:
-    ///
-    /// * preview-right:
-    ///
-    /// * preview-page-down:
-    ///
-    /// * preview-page-up:
-    ///
-    /// * previous-history: ctrl-p with `--history` or `--cmd-history`
-    ///
-    /// * redraw:
-    ///
-    /// * refresh-cmd:
-    ///
-    /// * refresh-preview:
-    ///
-    /// * reload(...):
-    ///
-    /// * select-all:
-    ///
-    /// * select-row:
-    ///
-    /// * set-query(...): _set the query (input) to the expanded value, placeholders are the same as
-    ///   execute and others
-    ///
-    /// * toggle:
-    ///
-    /// * toggle-all:
-    ///
-    /// * toggle+down: ctrl-i  tab
-    ///
-    /// * toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
-    ///
-    /// * toggle-interactive:
-    ///
-    /// * toggle-out: (--layout=reverse ? toggle+down:  toggle+up)
-    ///
-    /// * toggle-preview:
-    ///
-    /// * toggle-preview-wrap:
-    ///
-    /// * toggle-sort:
-    ///
-    /// * toggle+up: btab    shift-tab
-    ///
-    /// * top:
-    ///
-    /// * unix-line-discard: ctrl-u
-    ///
-    /// * unix-word-rubout: ctrl-w
-    ///
-    /// * up: ctrl-k  ctrl-p  up
-    ///
-    /// * yank: ctrl-y
     ///
     /// ## Multiple actions can be chained using + separator.
     ///
@@ -487,21 +203,6 @@ pub struct SkimOptions {
     /// Note: if no argument is supplied to reload, the default command is run.
     ///
     /// You can use the same placeholder expressions as in --preview.
-    ///
-    /// If the command contains parentheses, sk may fail to parse the expression. In that case, you  can
-    /// use any of the following alternative notations to avoid parse errors.
-    ///
-    /// * `execute[...]`
-    ///
-    /// * `execute'...'`
-    ///
-    /// * `execute"..."`
-    ///
-    /// * `execute:...`
-    ///
-    /// This is the special form that frees you from parse errors as it does not expect the clos‐
-    /// ing character. The catch is that it should be the last one in the comma-separated list of
-    /// key-action pairs.
     ///
     /// sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐
     /// pected to complete quickly, and you are not interested in its output, you might want to use exe‐
@@ -559,77 +260,7 @@ pub struct SkimOptions {
     /// Set color theme
     ///
     /// Format: [BASE][,COLOR:ANSI[:ATTR1:ATTR2:..]]
-    ///
-    /// Example:
-    ///
-    /// Available themes:
-    ///
-    /// * molokai: molokai 256color
-    ///
-    /// * light: light 256color
-    ///
-    /// * 16: dark base16 theme
-    ///
-    /// * bw: black & white theme
-    ///
-    /// * none: base color scheme
-    ///
-    /// * dark | default: dark 256color, default value
-    ///
-    ///
-    /// Available color names:
-    ///
-    /// * normal (or "" empty string): normal text
-    ///
-    /// * matched (or hl): matched text
-    ///
-    /// * current (or fg+): current line foreground
-    ///
-    /// * bg+: current line background (special case, always sets background)
-    ///
-    /// * current_match (or hl+): matched text in current line
-    ///
-    /// * query: query text
-    ///
-    /// * spinner: spinner character
-    ///
-    /// * info: info text (match count)
-    ///
-    /// * prompt: prompt text
-    ///
-    /// * cursor (or pointer): cursor/pointer
-    ///
-    /// * selected (or marker): selected item marker
-    ///
-    /// * header: header text
-    ///
-    /// * border: border lines
-    ///
-    /// Adding `-fg`, `_fg`, `-bg`, `_bg`, `-underline`, `_underline` sets the corresponding part of
-    /// the color
-    ///
-    ///
-    /// Color formats:
-    ///
-    ///  * 0-255: ANSI terminal color
-    ///
-    ///  * #rrggbb: 24-bit color
-    ///
-    /// Available attrs:
-    ///
-    /// * x | regular: resets the modifiers, use it before the others
-    ///
-    /// * b | bold
-    ///
-    /// * u | underline
-    ///
-    /// * c | crossed-out
-    ///
-    /// * d | dim
-    ///
-    /// * i | italic
-    ///
-    /// * r | reverse
+    /// See [THEME] section for details
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub color: Option<String>,
 
@@ -863,35 +494,11 @@ pub struct SkimOptions {
     /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the replace‐
     /// ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
     ///
-    /// Note: {..} field index expressions run against the item as it will be outputted, and {} gets
-    /// replaced by the item as it is displayed in the list
-    ///
     /// **Examples**:
     ///
     /// ```bash
     /// sk --preview='head -$LINES {}'
     /// ls -l | sk --preview="echo user={3} when={-4..-2}; cat {-1}" --header-lines=1
-    /// ```
-    ///
-    /// sk overrides $LINES and $COLUMNS so that they represent the exact size of the preview window.
-    ///
-    /// A placeholder expression starting with + flag will be replaced to the space-separated  list  of  the  selected
-    /// lines (or the current line if no selection was made) individually quoted.
-    ///
-    /// **Examples**:
-    /// ```bash
-    /// sk --multi --preview='head -10 {+}'
-    /// git log --oneline | sk --multi --preview 'git show {+1}'
-    /// ```
-    ///
-    /// Note that you can escape a placeholder pattern by prepending a backslash.
-    ///
-    /// Also, `{q}`  is replaced to the current query string. `{cq}` is replaced to the current command query string.
-    /// `{n}` is replaced to zero-based ordinal index of the line. Use `{+n}` if you want all index numbers when multiple
-    /// lines are selected
-    ///
-    /// Preview window will be updated even when there is no match for the current query if any of the placeholder ex‐
-    /// pressions evaluates to a non-empty string.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Preview", verbatim_doc_comment))]
     pub preview: Option<String>,
 

@@ -58,8 +58,6 @@ pub use crate::skim_item::SkimItem;
 use crate::tui::event::Action;
 
 pub mod binds;
-#[cfg(feature = "cli")]
-pub mod completions;
 mod engine;
 pub mod field;
 pub mod fuzzy_matcher;
@@ -76,6 +74,11 @@ pub mod theme;
 pub mod tmux;
 pub mod tui;
 mod util;
+
+#[cfg(feature = "cli")]
+pub mod completions;
+#[cfg(feature = "cli")]
+pub mod manpage;
 
 //------------------------------------------------------------------------------
 /// Trait for downcasting to concrete types from trait objects

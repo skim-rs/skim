@@ -9,7 +9,7 @@ extern crate shlex;
 extern crate skim;
 
 use crate::Event;
-use clap::{CommandFactory, Error, Parser};
+use clap::{Error, Parser};
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use derive_builder::Builder;
@@ -101,7 +101,7 @@ fn main() -> Result<()> {
     }
     // Man page
     if opts.man {
-        clap_mangen::Man::new(SkimOptions::command()).render(&mut std::io::stdout())?;
+        crate::manpage::generate(&mut std::io::stdout())?;
         return Ok(());
     }
 
