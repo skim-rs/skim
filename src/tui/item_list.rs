@@ -92,12 +92,15 @@ impl ItemList {
     fn process_items_task(
         mut rx: UnboundedReceiver<Vec<MatchedItem>>,
         processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
+        no_sort: bool,
     ) {
         while let Some(mut items) = rx.blocking_recv() {
             debug!("Background task: Got {} items to process", items.len());
 
             // Sort items immediately - use stable sort to preserve order for equal ranks
-            items.sort_by_key(|item| item.rank);
+            if !no_sort {
+                items.sort_by_key(|item| item.rank);
+            }
 
             // Write processed items to shared state for render thread
             // Move items instead of cloning for efficiency
@@ -522,8 +525,9 @@ impl SkimWidget for ItemList {
 
         // Spawn background processing thread with the appropriate configuration
         let processed_items_clone = processed_items.clone();
+        let no_sort = options.no_sort;
         std::thread::spawn(move || {
-            Self::process_items_task(rx, processed_items_clone);
+            Self::process_items_task(rx, processed_items_clone, no_sort);
         });
 
         Self {
