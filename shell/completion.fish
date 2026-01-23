@@ -61,6 +61,7 @@ nushell\t'Nushell (nu)'
 power-shell\t'PowerShell'
 zsh\t'Zsh'"
 complete -c sk -l listen -d 'Run an IPC socket with optional name (defaults to sk)' -r
+complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l hscroll-off -d 'Reserved for later use' -r

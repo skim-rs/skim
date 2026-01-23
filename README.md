@@ -106,12 +106,17 @@ Any of the following applies:
     $ # Add the resulting `target/release/sk` executable to your PATH
     ```
 
+You will then have access to:
+
+- The man page, which you can either write to the correct path or run `man --local-file <(sk --man)`
+- The shell completions (and optional keybinds), using `source <(sk --shell \<shell> \[--shell-bindings])`, see below for details
+
 # Usage
 
 Skim can be used either as a general filter (similar to `grep`) or as an interactive
 interface for running commands.
 
-## As Vim plugin
+## As Vim plugin (on neovim, checkout [fzf-lua](https://github.com/ibhagwan/fzf-lua) with the skim profile)
 
 Via vim-plug (recommended):
 

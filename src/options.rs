@@ -656,10 +656,17 @@ pub struct SkimOptions {
     /// Run an IPC socket with optional name (defaults to `sk`)
     ///
     /// The socket expects Actions in Ron format (similar to Rust code), see `./src/tui/event.rs` for all possible Actions
-    /// To write to it, you can use socat, for example with `--listen sk`:
-    /// `echo 'ToggleIn' | socat -u STDIN ABSTRACT-CONNECT:sk`
+    /// To write to it, see the `--remote` option or the man page
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub listen: Option<String>,
+
+    /// Send commands to an IPC socket with optional name (defaults to `sk`)
+    ///
+    /// The commands are read from stdin, one per line, in the same format as the actions in the
+    /// bind flag. They can also be chained using `+` as a separator.
+    /// All other arguments will be ignored
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
+    pub remote: Option<String>,
 
     /// Run in a tmux popup
     ///
@@ -754,6 +761,7 @@ impl Default for SkimOptions {
             no_strip_ansi: false,
             wrap_items: false,
             listen: None,
+            remote: None,
             print_header: false,
             disabled: false,
             tac: Default::default(),
