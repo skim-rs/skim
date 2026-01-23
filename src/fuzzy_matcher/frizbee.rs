@@ -26,6 +26,18 @@ impl Default for FrizbeeMatcher {
 impl FuzzyMatcher for FrizbeeMatcher {
     fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
         let res = match_indices(pattern, choice, &self.config);
-        res.map(|indices| (indices.score.into(), indices.indices.to_vec()))
+        let Some(matches) = res else { return None };
+        let mut chars = choice.char_indices().enumerate();
+        let mut indices = Vec::new();
+        for matched_idx in matches.indices {
+            while let Some((char_idx, (byte_idx, _))) = chars.next() {
+                if byte_idx == matched_idx {
+                    indices.push(char_idx);
+                    break;
+                }
+            }
+        }
+
+        Some((matches.score.into(), indices))
     }
 }
