@@ -64,19 +64,9 @@ impl ColorTheme {
     }
 
     fn none() -> Self {
-        ColorTheme {
-            normal: Style::reset(),
-            matched: Style::reset(),
-            current: Style::reset(),
-            current_match: Style::reset(),
-            query: Style::reset(),
-            spinner: Style::reset().bold(),
-            info: Style::reset(),
-            prompt: Style::reset(),
-            cursor: Style::reset(),
-            selected: Style::reset(),
-            header: Style::reset(),
-            border: Style::reset(),
+        Self {
+            spinner: Style::default().bold(),
+            ..ColorTheme::default()
         }
     }
 
@@ -91,19 +81,18 @@ impl ColorTheme {
     }
 
     fn default16() -> Self {
-        let bg = Color::Black;
         let base = ColorTheme::none();
         ColorTheme {
-            matched: base.matched.fg(Color::Green).bg(bg),
-            current: base.current.fg(Color::Yellow).bg(bg),
-            current_match: base.current_match.fg(Color::Green).bg(bg),
-            spinner: base.spinner.fg(Color::Green).bg(bg),
-            info: base.info.fg(Color::White).bg(bg),
-            prompt: base.prompt.fg(Color::Blue).bg(bg),
-            cursor: base.cursor.fg(Color::Red).bg(bg),
-            selected: base.selected.fg(Color::Magenta).bg(bg),
-            header: base.header.fg(Color::Cyan).bg(bg),
-            border: base.border.fg(Color::Black).bg(bg),
+            matched: base.matched.fg(Color::Green),
+            current: base.current.fg(Color::Yellow),
+            current_match: base.current_match.fg(Color::Green),
+            spinner: base.spinner.fg(Color::Green),
+            info: base.info.fg(Color::White),
+            prompt: base.prompt.fg(Color::Blue),
+            cursor: base.cursor.fg(Color::Red),
+            selected: base.selected.fg(Color::Magenta),
+            header: base.header.fg(Color::Cyan),
+            border: base.border.fg(Color::Black),
             ..base
         }
     }
@@ -112,7 +101,7 @@ impl ColorTheme {
         let base = ColorTheme::none();
         ColorTheme {
             matched: base.matched.fg(Color::Indexed(108)).bg(Color::Indexed(0)),
-            current: base.current.fg(Color::Indexed(254)).bg(Color::Indexed(236)),
+            current: base.current.bg(Color::Indexed(236)),
             current_match: base.current_match.fg(Color::Indexed(151)).bg(Color::Indexed(236)),
             spinner: base.spinner.fg(Color::Indexed(148)),
             info: base.info.fg(Color::Indexed(144)),
@@ -129,7 +118,7 @@ impl ColorTheme {
         let base = ColorTheme::none();
         ColorTheme {
             matched: base.matched.fg(Color::Indexed(234)).bg(Color::Indexed(186)),
-            current: base.current.fg(Color::Indexed(254)).bg(Color::Indexed(236)),
+            current: base.current.bg(Color::Indexed(236)),
             current_match: base.current_match.fg(Color::Indexed(234)).bg(Color::Indexed(186)),
             spinner: base.spinner.fg(Color::Indexed(148)),
             info: base.info.fg(Color::Indexed(144)),
@@ -146,7 +135,7 @@ impl ColorTheme {
         let base = ColorTheme::none();
         ColorTheme {
             matched: base.matched.fg(Color::Indexed(0)).bg(Color::Indexed(220)),
-            current: base.current.fg(Color::Indexed(237)).bg(Color::Indexed(251)),
+            current: base.current.bg(Color::Indexed(251)),
             current_match: base.current_match.fg(Color::Indexed(66)).bg(Color::Indexed(251)),
             spinner: base.spinner.fg(Color::Indexed(65)),
             info: base.info.fg(Color::Indexed(101)),
@@ -206,6 +195,8 @@ impl ColorTheme {
             (&name[..name.len() - 2], "u")
         } else if name.ends_with("_underline") || name.ends_with("-underline") {
             (&name[..name.len() - 10], "underline")
+        } else if name == "bg" {
+            ("", "bg")
         } else {
             (name, "fg")
         };
@@ -307,7 +298,7 @@ mod tests {
 
         let theme_16 = ColorTheme::default16();
         assert_eq!(theme_16.matched.fg, Some(Color::Green));
-        assert_eq!(theme_16.matched.bg, Some(Color::Black));
+        assert_eq!(theme_16.matched.bg, None);
 
         let dark = ColorTheme::dark256();
         assert_eq!(dark.matched.fg, Some(Color::Indexed(108)));

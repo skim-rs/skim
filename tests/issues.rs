@@ -26,7 +26,7 @@ sk_test!(issue_547_null_match, "\\0Test Test Test", &[], {
   @capture[0] starts_with("> Test");
   @capture[2] starts_with("> Test Test Test");
 
-  @capture_colored[2] trim().eq("\u{1b}[38;5;161m>\u{1b}[38;5;168m \u{1b}[38;5;151m\u{1b}[48;5;236mTest\u{1b}[38;5;254m Test Test");
+  @capture_colored[2] trim().eq("\u{1b}[38;5;161m>\u{1b}[38;5;168m \u{1b}[38;5;151m\u{1b}[48;5;236mTest\u{1b}[39m Test Test");
 });
 
 sk_test!(issue_xxx_null_delimiter_with_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", "--with-nth", "2"], {

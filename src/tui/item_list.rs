@@ -676,7 +676,7 @@ impl SkimWidget for ItemList {
                         matches,
                         container_width,
                         base_style: if is_current { theme.current } else { theme.normal },
-                        style: if is_current { theme.current_match } else { theme.matched },
+                        matched_syle: if is_current { theme.current_match } else { theme.matched },
                     });
 
                     if !wrap {
