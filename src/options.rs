@@ -656,8 +656,7 @@ pub struct SkimOptions {
     /// Run an IPC socket with optional name (defaults to `sk`)
     ///
     /// The socket expects Actions in Ron format (similar to Rust code), see `./src/tui/event.rs` for all possible Actions
-    /// To write to it, you can use socat, for example with `--listen sk`:
-    /// `echo 'ToggleIn' | socat -u STDIN ABSTRACT-CONNECT:sk`
+    /// To write to it, see the `--remote` option or the man page
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub listen: Option<String>,
 

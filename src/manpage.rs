@@ -177,6 +177,17 @@ const ACTIONS_SS: &str = "
 * yank: ctrl-y
 ";
 
+const REMOTE_SECTION: &str = "
+skim can be controlled from other processes, using the `--listen` (and optionally `--remote`) flags.
+
+To achieve this, run the server instance using `sk --listen optional_address` (the address defaults to `sk`).
+It will then start listening on a named socket for instructions.
+
+To send instructions, you can use `sk --remote optional_address` or any other tool that allows us to interact with such sockets,
+such as `socat` on linux: `echo 'ToggleIn' | socat -u STDIN ABSTRACT-CONNECT:optional_address`. Instructions correspond to skim's Actions and need to be sent in Ron format.
+When using `sk --remote`, pipe in action chains (see the KEYBINDS section), for instance `echo 'up+select-row' | sk --remote optional_address`
+";
+
 fn parse_str(src: &str) -> Vec<Inline> {
     let mut res = Vec::new();
     for line in src.lines() {
@@ -312,6 +323,8 @@ It will expand to the corresponding fields, separated by the `--delimiter|-d` op
     );
 
     section(&mut custom, "THEME", THEME_SECTION);
+
+    section(&mut custom, "LISTEN/REMOTE", REMOTE_SECTION);
 
     section(&mut custom, "EXIT CODES", EXIT_CODES_SECTION);
 
