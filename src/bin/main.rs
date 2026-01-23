@@ -122,11 +122,11 @@ fn main() -> Result<()> {
             if len == 0 {
                 break;
             }
-            let actions = parse_action_chain(&action_chain.trim())?;
+            let actions = parse_action_chain(action_chain.trim())?;
             for act in actions {
                 stream
                     .as_write()
-                    .write_all(&format!("{}\n", ron::ser::to_string(&act)?).as_bytes())?;
+                    .write_all(format!("{}\n", ron::ser::to_string(&act)?).as_bytes())?;
                 log::debug!("Sent action {act:?} to listener");
             }
         }
