@@ -2,11 +2,11 @@
 #[macro_use]
 mod common;
 
-insta_test!(insta_vanilla_basic, ["1", "2", "3"], &[]);
+insta_test!(vanilla_basic, ["1", "2", "3"], &[]);
 
 // Using 100 items to represent a larger dataset
 insta_test!(
-    insta_vanilla,
+    vanilla,
     [
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
         "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38",
@@ -18,7 +18,7 @@ insta_test!(
     &[]
 );
 
-insta_test!(insta_interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo 'foo {q}'"], {
+insta_test!(interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo 'foo {q}'"], {
     @snap;
     @type "bar";
     @snap;
@@ -26,7 +26,7 @@ insta_test!(insta_interactive_mode_command_execution, @interactive, &["-i", "--c
     @snap;
 });
 
-insta_test!(insta_unicode_input, [""], &["-q", "󰬈󰬉󰬊"], {
+insta_test!(unicode_input, [""], &["-q", "󰬈󰬉󰬊"], {
     @snap;
     @type "|";
     @snap;

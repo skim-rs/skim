@@ -3,7 +3,7 @@
 mod common;
 
 // Using 100 items to test filtering and navigation (representative of larger datasets)
-insta_test!(insta_keys_basic, [
+insta_test!(keys_basic, [
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
     "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
     "21", "22", "23", "24", "25", "26", "27", "28", "29", "30",
@@ -22,7 +22,7 @@ insta_test!(insta_keys_basic, [
 
 // Input navigation keys
 
-insta_test!(insta_keys_arrows, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_arrows, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @key Left;
     @char '|';
@@ -32,7 +32,7 @@ insta_test!(insta_keys_arrows, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_arrows, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_arrows, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl Left;
     @char '|';
@@ -45,14 +45,14 @@ insta_test!(insta_keys_ctrl_arrows, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_a, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_a, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'a';
     @char '|';
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_b, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_b, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'a';
     @char '|';
@@ -62,7 +62,7 @@ insta_test!(insta_keys_ctrl_b, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_e, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_e, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'a';
     @char '|';
@@ -72,7 +72,7 @@ insta_test!(insta_keys_ctrl_e, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_f, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_f, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'a';
     @char '|';
@@ -82,21 +82,21 @@ insta_test!(insta_keys_ctrl_f, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_h, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_h, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'h';
     @char '|';
     @snap;
 });
 
-insta_test!(insta_keys_alt_b, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_alt_b, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @alt 'b';
     @char '|';
     @snap;
 });
 
-insta_test!(insta_keys_alt_f, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_alt_f, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'a';
     @char '|';
@@ -108,14 +108,14 @@ insta_test!(insta_keys_alt_f, [""], &["-q", "foo bar foo-bar"], {
 
 // Input manipulation keys
 
-insta_test!(insta_keys_bspace, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_bspace, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @key Backspace;
     @char '|';
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_d, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_d, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'a';
     @char '|';
@@ -125,21 +125,21 @@ insta_test!(insta_keys_ctrl_d, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_u, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_u, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'u';
     @char '|';
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_w, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_w, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl 'w';
     @char '|';
     @snap;
 });
 
-insta_test!(insta_keys_ctrl_y, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_ctrl_y, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @alt Backspace;
     @char '|';
@@ -149,7 +149,7 @@ insta_test!(insta_keys_ctrl_y, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_alt_d, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_alt_d, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @ctrl Left;
     @char '|';
@@ -162,7 +162,7 @@ insta_test!(insta_keys_alt_d, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
-insta_test!(insta_keys_alt_bspace, [""], &["-q", "foo bar foo-bar"], {
+insta_test!(keys_alt_bspace, [""], &["-q", "foo bar foo-bar"], {
     @snap;
     @alt Backspace;
     @char '|';
@@ -171,7 +171,7 @@ insta_test!(insta_keys_alt_bspace, [""], &["-q", "foo bar foo-bar"], {
 
 // Results navigation keys
 
-insta_test!(insta_keys_ctrl_k, [
+insta_test!(keys_ctrl_k, [
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
     "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"
 ], &[], {
@@ -180,7 +180,7 @@ insta_test!(insta_keys_ctrl_k, [
     @snap;
 });
 
-insta_test!(insta_keys_tab, [
+insta_test!(keys_tab, [
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
     "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"
 ], &[], {
@@ -191,7 +191,7 @@ insta_test!(insta_keys_tab, [
     @snap;
 });
 
-insta_test!(insta_keys_btab, [
+insta_test!(keys_btab, [
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
     "11", "12", "13", "14", "15", "16", "17", "18", "19", "20"
 ], &[], {
@@ -200,7 +200,7 @@ insta_test!(insta_keys_btab, [
     @snap;
 });
 
-insta_test!(insta_keys_tab_empty, [""], &[], {
+insta_test!(keys_tab_empty, [""], &[], {
     @snap;
     @key Tab;
     @snap;

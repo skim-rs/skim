@@ -1,5 +1,5 @@
 ---
-source: tests/tiebreak.rs
+source: tests/options.rs
 expression: h.buffer_view()
 ---
 "                                                                                "
@@ -19,10 +19,10 @@ expression: h.buffer_view()
 "                                                                                "
 "                                                                                "
 "                                                                                "
-"  c                                                                             "
-"  b                                                                             "
-"  ac                                                                            "
-"  aba                                                                           "
-"> aaba                                                                          "
-"  5/5                                                                        0/0"
+"                                                                                "
+"                                                                                "
+"  cc                                                                            "
+"  bc                                                                            "
+"> ac                                                                            "
+"  3/3                                                                        0/0"
 ">                                                                               "
