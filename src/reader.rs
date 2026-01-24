@@ -34,13 +34,13 @@ pub struct ReaderControl {
 
 impl ReaderControl {
     /// Kills the reader and waits for all components to stop
-    pub fn kill(self) {
+    pub fn kill(&mut self) {
         debug!(
             "kill reader, components before: {}",
             self.components_to_stop.load(Ordering::SeqCst)
         );
 
-        let _ = self.tx_interrupt_cmd.map(|tx| tx.send(1));
+        let _ = self.tx_interrupt_cmd.clone().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
         while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
     }
@@ -57,6 +57,12 @@ impl ReaderControl {
     pub fn is_done(&self) -> bool {
         let items = self.items.lock();
         self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
+    }
+}
+
+impl Drop for ReaderControl {
+    fn drop(&mut self) {
+        self.kill();
     }
 }
 
