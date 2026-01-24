@@ -105,7 +105,12 @@ impl Widget for &mut App<'_> {
         let input_area;
         let input_len = (self.input.chars().count() + 2 + self.options.prompt.chars().count()) as u16;
         let remaining_height = 1
-            + (self.options.header.as_ref().and(Some(1)).unwrap_or(0))
+            + (self
+                .options
+                .header
+                .as_ref()
+                .and(Some(self.header.height()))
+                .unwrap_or(0))
             + if self.options.info == InfoDisplay::Default {
                 1
             } else {
@@ -158,10 +163,12 @@ impl Widget for &mut App<'_> {
             let header_area;
             [header_area, remaining_area] = match self.options.layout {
                 TuiLayout::Default | TuiLayout::ReverseList => {
-                    Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(remaining_area)
+                    Layout::vertical([Constraint::Length(self.header.height()), Constraint::Fill(1)])
+                        .areas(remaining_area)
                 }
                 TuiLayout::Reverse => {
-                    let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(remaining_area);
+                    let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(self.header.height())])
+                        .areas(remaining_area);
                     a.reverse();
                     a
                 }

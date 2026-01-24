@@ -38,6 +38,14 @@ impl Header {
         self.theme = theme;
         self
     }
+    /// Gets the header height (number of lines)
+    pub fn height(&self) -> u16 {
+        self.header
+            .lines()
+            .count()
+            .try_into()
+            .expect("Failed to fit header height into an u16")
+    }
 }
 
 /// Expands tab characters to spaces based on tabstop width and current position
