@@ -3,6 +3,7 @@
 use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::{DisplayContext, SkimItem};
 use ansi_to_tui::IntoText;
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use regex::Regex;
 use std::borrow::Cow;
@@ -232,7 +233,7 @@ impl SkimItem for DefaultSkimItem {
                                     // Combine ANSI style with context base_style
                                     new_spans.push(Span::styled(
                                         current_content.clone(),
-                                        base_style.patch(context.base_style),
+                                        merge_styles(context.base_style, base_style),
                                     ));
                                     current_content.clear();
                                 }
@@ -243,7 +244,7 @@ impl SkimItem for DefaultSkimItem {
                                     // Combine styles: use highlight bg, preserve ANSI fg and modifiers
                                     new_spans.push(Span::styled(
                                         highlighted_content.clone(),
-                                        base_style.patch(context.matched_syle),
+                                        merge_styles(base_style, context.matched_syle),
                                     ));
                                     highlighted_content.clear();
                                 }
@@ -255,13 +256,16 @@ impl SkimItem for DefaultSkimItem {
                         // Flush remaining content
                         if !current_content.is_empty() {
                             // Combine ANSI style with context base_style
-                            new_spans.push(Span::styled(current_content, base_style.patch(context.base_style)));
+                            new_spans.push(Span::styled(
+                                current_content,
+                                merge_styles(context.base_style, base_style),
+                            ));
                         }
                         if !highlighted_content.is_empty() {
                             // Combine styles: use highlight bg, preserve ANSI fg and modifiers
                             new_spans.push(Span::styled(
                                 highlighted_content,
-                                base_style.patch(context.matched_syle),
+                                merge_styles(base_style, context.matched_syle),
                             ));
                         }
                     }
@@ -295,15 +299,18 @@ impl SkimItem for DefaultSkimItem {
 
                         if !before.is_empty() {
                             // Combine ANSI style with context base_style
-                            new_spans.push(Span::styled(before, base_style.patch(context.base_style)));
+                            new_spans.push(Span::styled(before, merge_styles(context.base_style, base_style)));
                         }
                         if !highlighted.is_empty() {
                             // Combine ANSI style with context matched_syle
-                            new_spans.push(Span::styled(highlighted, base_style.patch(context.matched_syle)));
+                            new_spans.push(Span::styled(
+                                highlighted,
+                                merge_styles(base_style, context.matched_syle),
+                            ));
                         }
                         if !after.is_empty() {
                             // Combine ANSI style with context base_style
-                            new_spans.push(Span::styled(after, base_style.patch(context.base_style)));
+                            new_spans.push(Span::styled(after, merge_styles(context.base_style, base_style)));
                         }
                     }
 
@@ -341,15 +348,18 @@ impl SkimItem for DefaultSkimItem {
 
                         if !before.is_empty() {
                             // Combine ANSI style with context base_style
-                            new_spans.push(Span::styled(before, base_style.patch(context.base_style)));
+                            new_spans.push(Span::styled(before, merge_styles(context.base_style, base_style)));
                         }
                         if !highlighted.is_empty() {
                             // Combine ANSI style with context matched_syle
-                            new_spans.push(Span::styled(highlighted, base_style.patch(context.matched_syle)));
+                            new_spans.push(Span::styled(
+                                highlighted,
+                                merge_styles(base_style, context.matched_syle),
+                            ));
                         }
                         if !after.is_empty() {
                             // Combine ANSI style with context base_style
-                            new_spans.push(Span::styled(after, base_style.patch(context.base_style)));
+                            new_spans.push(Span::styled(after, merge_styles(context.base_style, base_style)));
                         }
                     }
 
@@ -463,6 +473,31 @@ pub fn strip_ansi(text: &str) -> (String, Vec<(usize, usize)>) {
 /// No risk associated
 fn escape_ansi(raw: &str) -> String {
     unsafe { String::from_utf8_unchecked(raw.bytes().map(|b| if b == 27 { b'?' } else { b }).collect()) }
+}
+
+/// Merges styles from right to left
+/// left has higher priority
+/// contrary to ratatui's Style::patch, this will override `Reset` with the new style if set
+fn merge_styles(left: Style, right: Style) -> Style {
+    use ratatui::style::Color::*;
+    let mut res = left.patch(right);
+    macro_rules! set_field {
+        ($res:ident, $left:ident, $right:ident, $field:ident) => {
+            if left.$field == Some(Reset) {
+                $res.$field = $right.$field;
+            } else if $right.$field == Some(Reset) {
+                $res.$field = $left.$field;
+            } else {
+                $res.$field = $right.$field.or($left.$field);
+            }
+        };
+    }
+
+    set_field!(res, left, right, fg);
+    set_field!(res, left, right, bg);
+    set_field!(res, left, right, underline_color);
+
+    res
 }
 
 #[cfg(test)]
@@ -864,5 +899,16 @@ mod test {
         let stripped_text = item.text();
         let field_text = &stripped_text[ranges[0].0..ranges[0].1];
         assert_eq!(field_text, "b", "Field text should be 'b'");
+    }
+    #[test]
+    fn test_merge_styles() {
+        use ratatui::style::{Color::*, Modifier};
+        let input = "before \x1b[1;34mline1\x1b[0m nocol";
+        let styled = input.into_text().unwrap().lines[0].clone();
+        let red = Style::new().red();
+        assert_eq!(merge_styles(red, styled.spans[0].style).fg, Some(Red));
+        assert_eq!(merge_styles(red, styled.spans[1].style).fg, Some(Blue));
+        assert_eq!(merge_styles(red, styled.spans[1].style).add_modifier, Modifier::BOLD);
+        assert_eq!(merge_styles(red, styled.spans[2].style).fg, Some(Red));
     }
 }
