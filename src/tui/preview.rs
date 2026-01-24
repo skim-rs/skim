@@ -148,6 +148,7 @@ impl Preview {
         B::Error: Send + Sync + 'static,
     {
         self.cmd = cmd.to_string();
+        debug!("running preview cmd `{cmd}`");
         let event_tx_clone = tui.event_tx.clone();
         let mut shell_cmd = Command::new("/bin/sh");
         shell_cmd

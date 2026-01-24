@@ -77,9 +77,7 @@ pub fn unescape_delimiter(s: &str) -> String {
 
 pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
     let file = File::open(filename)?;
-    let ret = BufReader::new(file).lines().collect();
-    debug!("file content: {:?}", ret);
-    ret
+    BufReader::new(file).lines().collect()
 }
 
 /// Replace the fields in `pattern` with the items, expanding {...} patterns
@@ -108,59 +106,87 @@ pub fn printf(
         |s: &str| s.replace('\0', "\\0").to_string()
     };
     let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
-    // Replace static fields first
-    let mut res = pattern.replace(replstr, &escape_arg(&item_text));
+    let escaped_item = escape_arg(&item_text);
+    let escaped_query = escape_arg(query);
+    let escaped_cmd_query = escape_arg(command_query);
 
     let mut selection_str = selected
         .clone()
         .map(|i| escape_arg(&strip_ansi(&i.output()).0))
-        .collect::<Vec<_>>()
-        .join(" ");
+        .reduce(|a, b| a + " " + &b)
+        .unwrap_or_default();
     if selection_str.is_empty() {
-        selection_str = escape_arg(&item_text);
+        selection_str = escaped_item;
     }
 
-    res = res.replace("{+}", &selection_str);
-    res = res.replace("{q}", &escape_arg(query));
-    res = res.replace("{cq}", &escape_arg(command_query));
-    if let Some(ref s) = current {
-        res = res.replace("{n}", &format!("{}", &s.get_index()));
-    }
-    res = res.replace(
-        "{+n}",
-        &selected
-            .map(|i| escape_arg(&i.get_index().to_string()))
-            .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " "),
-    );
+    // Split on replstr first
+    let replstr_parts = pattern.split(replstr);
+    let mut replaced_parts = Vec::new();
 
-    let mut inside = false;
-    let mut pattern = String::new();
-    let mut replaced = String::new();
-    for c in res.chars() {
-        if inside {
-            if c == '}' {
-                if pattern.is_empty() {
-                    replaced.push_str("{}");
-                } else if let Some(range) = FieldRange::from_str(&pattern) {
-                    let replacement = get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
-                    replaced.push_str(&escape_arg(replacement));
-                } else {
-                    log::warn!("Failed to build field range from {pattern}");
-                }
+    // Deal with every part to expand inside
 
-                pattern = String::new();
-                inside = false;
+    for part in replstr_parts {
+        let mut sub = part.split('{');
+        let mut replaced = sub.next().unwrap_or_default().to_string();
+        for s in sub {
+            if s.starts_with("+}") {
+                replaced += &selection_str;
+                replaced += s.get(2..).unwrap_or_default();
+            } else if s.starts_with("q}") {
+                replaced += &escaped_query;
+                replaced += s.get(2..).unwrap_or_default();
+            } else if s.starts_with("cq}") {
+                replaced += &escaped_cmd_query;
+                replaced += s.get(3..).unwrap_or_default();
+            } else if s.starts_with("n}")
+                && let Some(ref item) = current
+            {
+                replaced += item.get_index().to_string().as_str();
+                replaced += s.get(2..).unwrap_or_default();
+            } else if s.starts_with("+n}") {
+                replaced += &selected
+                    .clone()
+                    .map(|i| escape_arg(&i.get_index().to_string()))
+                    .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " ");
+                replaced += s.get(3..).unwrap_or_default()
             } else {
-                pattern.push(c);
+                let mut inside = true;
+                let mut content = String::new();
+                for c in s.chars() {
+                    if inside {
+                        if c == '}' {
+                            if content.is_empty() {
+                                replaced.push_str("{}");
+                            } else if let Some(range) = FieldRange::from_str(&content) {
+                                let replacement =
+                                    get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
+                                replaced.push_str(&escape_arg(replacement));
+                            } else {
+                                log::warn!("Failed to build field range from {content}");
+                                replaced.push_str(&format!("{{{content}}}"));
+                            }
+
+                            content.clear();
+                            inside = false;
+                        } else {
+                            content.push(c);
+                        }
+                    } else if c == '{' {
+                        inside = true;
+                    } else {
+                        replaced.push(c);
+                    }
+                }
             }
-        } else if c == '{' {
-            inside = true;
-        } else {
-            replaced.push(c);
         }
+        replaced_parts.push(replaced);
     }
 
-    replaced
+    // Join back the replstr parts into the res
+    replaced_parts
+        .into_iter()
+        .reduce(|a: String, b| a + &escape_arg(&item_text) + &b)
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -213,7 +239,7 @@ mod test {
         ];
         let delimiter = Regex::new(" ").unwrap();
         assert_eq!(
-            printf(
+            &printf(
                 pattern,
                 &delimiter,
                 "{}",
@@ -223,9 +249,7 @@ mod test {
                 "cmd query",
                 true
             ),
-            String::from(
-                "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query'"
-            )
+            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query'"
         );
     }
     #[test]
@@ -257,6 +281,22 @@ mod test {
                 true
             ),
             "'1'"
+        );
+    }
+    #[test]
+    fn test_printf_norec() {
+        assert_eq!(
+            printf(
+                "{}",
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![].into_iter(),
+                Some(Arc::new("{..2}")),
+                "q",
+                "cq",
+                true
+            ),
+            "'{..2}'"
         );
     }
 }
