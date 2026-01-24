@@ -14,6 +14,7 @@ use super::Event;
 use super::Tui;
 
 use crate::theme::ColorTheme;
+use crate::tui::BorderType;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimItem, SkimOptions};
 use std::sync::{Arc, RwLock};
@@ -54,7 +55,8 @@ pub struct Preview {
     pub scroll_x: u16,
     pub thread_handle: Option<JoinHandle<()>>,
     pub theme: Arc<ColorTheme>,
-    pub border: bool,
+    /// Border type, if borders are enabled
+    pub border: Option<BorderType>,
     pub direction: Direction,
     pub wrap: bool,
 }
@@ -70,7 +72,7 @@ impl Default for Preview {
             scroll_x: 0,
             thread_handle: None,
             theme: Arc::new(ColorTheme::default()),
-            border: false,
+            border: None,
             direction: Direction::Right,
             wrap: false,
         }
@@ -237,8 +239,8 @@ impl SkimWidget for Preview {
             block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
         }
 
-        if self.border {
-            block = block.borders(Borders::ALL);
+        if let Some(border_type) = self.border {
+            block = block.borders(Borders::ALL).border_type(border_type.into());
         } else {
             // No border on preview itself - separator will be drawn between areas
             match self.direction {

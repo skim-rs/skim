@@ -416,3 +416,51 @@ insta_test!(opt_multiple_flags_reverse_and_layout, ["a b c", "d e f"], &["--reve
 insta_test!(opt_multiple_flags_layout_and_reverse, ["a b c", "d e f"], &["--layout", "default", "--reverse"], {
     @snap;
 });
+
+insta_test!(opt_border_plain, ["a", "b", "c", "ac"], &["-q", "a", "--border", "plain"], {
+    @snap;
+});
+
+insta_test!(opt_border_rounded, ["a", "b", "c", "ac"], &["-q", "a", "--border", "rounded"], {
+    @snap;
+});
+
+insta_test!(opt_border_double, ["a", "b", "c", "ac"], &["-q", "a", "--border", "double"], {
+    @snap;
+});
+
+insta_test!(opt_border_thick, ["a", "b", "c", "ac"], &["-q", "a", "--border", "thick"], {
+    @snap;
+});
+
+insta_test!(opt_border_light_double_dashed, ["a", "b", "c", "ac"], &["-q", "a", "--border", "light-double-dashed"], {
+    @snap;
+});
+
+insta_test!(opt_border_heavy_double_dashed, ["a", "b", "c", "ac"], &["-q", "a", "--border", "heavy-double-dashed"], {
+    @snap;
+});
+
+insta_test!(opt_border_light_triple_dashed, ["a", "b", "c", "ac"], &["-q", "a", "--border", "light-triple-dashed"], {
+    @snap;
+});
+
+insta_test!(opt_border_heavy_triple_dashed, ["a", "b", "c", "ac"], &["-q", "a", "--border", "heavy-triple-dashed"], {
+    @snap;
+});
+
+insta_test!(opt_border_light_quadruple_dashed, ["a", "b", "c", "ac"], &["-q", "a", "--border", "light-quadruple-dashed"], {
+    @snap;
+});
+
+insta_test!(opt_border_heavy_quadruple_dashed, ["a", "b", "c", "ac"], &["-q", "a", "--border", "heavy-quadruple-dashed"], {
+    @snap;
+});
+
+insta_test!(opt_border_quadrant_inside, ["a", "b", "c", "ac"], &["-q", "a", "--border", "quadrant-inside"], {
+    @snap;
+});
+
+insta_test!(opt_border_quadrant_outside, ["a", "b", "c", "ac"], &["-q", "a", "--border", "quadrant-outside"], {
+    @snap;
+});

@@ -53,6 +53,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--info=[Set matching result count display position]:INFO:(default inline hidden)' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
+'--border=[Draw borders around the UI components]::BORDER:(plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside)' \
 '--history=[History file]:HISTORY_FILE:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
 '--cmd-history=[Command history file]:CMD_HISTORY_FILE:_default' \
@@ -105,7 +106,6 @@ zsh\:"Zsh"))' \
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
-'--border[Draw borders around the UI components]' \
 '--wrap[Wrap items in the item list]' \
 '--read0[Read input delimited by ASCII NUL(\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\0) characters]' \

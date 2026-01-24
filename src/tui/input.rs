@@ -1,10 +1,129 @@
 use std::ops::{Deref, DerefMut};
+use std::time::Instant;
 
 use ratatui::{prelude::*, widgets::Widget};
 
+use crate::tui::BorderType;
+use crate::tui::options::TuiLayout;
+use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimOptions, theme::ColorTheme};
 use std::sync::Arc;
+
+const SPINNER_DURATION: u32 = 200;
+const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// Status information to display in the input widget's title
+#[derive(Clone, Default)]
+pub struct StatusInfo {
+    /// Total number of items
+    pub total: usize,
+    /// Number of matched items
+    pub matched: usize,
+    /// Number of processed items
+    pub processed: usize,
+    /// Whether the spinner should be shown (controlled by App with debouncing)
+    pub show_spinner: bool,
+    /// Current matcher mode (e.g., "RE" for regex)
+    pub matcher_mode: String,
+    /// Whether multi-selection mode is enabled
+    pub multi_selection: bool,
+    /// Number of selected items
+    pub selected: usize,
+    /// Index of the current item
+    pub current_item_idx: usize,
+    /// Horizontal scroll offset
+    pub hscroll_offset: i64,
+    /// Start time for calculating spinner animation
+    pub start: Option<Instant>,
+}
+
+impl StatusInfo {
+    /// Build the left-aligned title string (spinner, matched/total, mode, progress, selection)
+    /// Used for Default info display mode (separate line)
+    pub fn left_title(&self) -> String {
+        let mut parts = String::new();
+
+        // Spinner
+        if self.show_spinner
+            && let Some(start) = self.start
+        {
+            let spinner_elapsed_ms = start.elapsed().as_millis();
+            let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (SPINNERS_UNICODE.len() as u128)) as usize;
+            parts.push(SPINNERS_UNICODE[index]);
+            parts.push(' ');
+        } else {
+            parts.push_str("  ");
+        }
+
+        // Matched/total
+        parts.push_str(&format!("{}/{}", self.matched, self.total));
+
+        // Matcher mode
+        if !self.matcher_mode.is_empty() {
+            parts.push_str(&format!("/{}", &self.matcher_mode));
+        }
+
+        // Progress percentage
+        if self.show_spinner && self.total > 0 {
+            let pct = self.processed.saturating_mul(100) / self.total;
+            parts.push_str(&format!(" ({}%)", pct));
+        }
+
+        // Selection count
+        if self.multi_selection && self.selected > 0 {
+            parts.push_str(&format!(" [{}]", self.selected));
+        }
+
+        parts
+    }
+
+    /// Get the inline separator character: spinner when active, '<' otherwise
+    /// Used for Inline info display mode
+    pub fn inline_separator(&self) -> char {
+        if self.show_spinner
+            && let Some(start) = self.start
+        {
+            let spinner_elapsed_ms = start.elapsed().as_millis();
+            let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (SPINNERS_UNICODE.len() as u128)) as usize;
+            SPINNERS_UNICODE[index]
+        } else {
+            '<'
+        }
+    }
+
+    /// Build the inline status string (matched/total, mode, progress, selection)
+    /// Used for Inline info display mode - does NOT include spinner prefix
+    pub fn inline_status(&self) -> String {
+        let mut parts = String::new();
+
+        // Matched/total
+        parts.push_str(&format!("{}/{}", self.matched, self.total));
+
+        // Matcher mode
+        if !self.matcher_mode.is_empty() {
+            parts.push_str(&format!("/{}", &self.matcher_mode));
+        }
+
+        // Progress percentage
+        if self.show_spinner && self.total > 0 {
+            let pct = self.processed.saturating_mul(100) / self.total;
+            parts.push_str(&format!(" ({}%)", pct));
+        }
+
+        // Selection count
+        if self.multi_selection && self.selected > 0 {
+            parts.push_str(&format!(" [{}]", self.selected));
+        }
+
+        parts
+    }
+
+    /// Build the right-aligned title string (current index / hscroll)
+    pub fn right_title(&self) -> String {
+        format!("{}/{}", self.current_item_idx, self.hscroll_offset)
+    }
+}
 
 pub struct Input {
     pub prompt: String,
@@ -16,7 +135,14 @@ pub struct Input {
     pub cursor_pos: u16,
     pub alternate_cursor_pos: u16,
     pub theme: Arc<ColorTheme>,
-    pub border: bool,
+    /// Border type, if borders are enabled
+    pub border: Option<BorderType>,
+    /// Status information to display as the input's title
+    pub status_info: Option<StatusInfo>,
+    /// How to display the info/status (default, inline, or hidden)
+    pub info_display: InfoDisplay,
+    /// Whether layout is reversed (status goes below input instead of above)
+    pub reverse: bool,
 }
 
 impl Default for Input {
@@ -29,7 +155,10 @@ impl Default for Input {
             cursor_pos: 0,
             alternate_cursor_pos: 0,
             theme: Arc::new(ColorTheme::default()),
-            border: false,
+            border: None,
+            status_info: None,
+            info_display: InfoDisplay::Default,
+            reverse: false,
         }
     }
 }
@@ -288,6 +417,8 @@ impl SkimWidget for Input {
         let mut res = Self {
             theme,
             border: options.border,
+            info_display: options.info.clone(),
+            reverse: options.layout == TuiLayout::Reverse,
             ..Default::default()
         };
         if options.interactive {
@@ -307,22 +438,113 @@ impl SkimWidget for Input {
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
+        use ratatui::layout::Alignment;
         use ratatui::text::{Line, Span};
         use ratatui::widgets::Paragraph;
+        use ratatui::widgets::{Block, Borders};
+        use unicode_width::UnicodeWidthStr;
 
         let prompt_span = Span::styled(&self.prompt, self.theme.prompt);
         let value_span = Span::styled(&self.value, self.theme.query);
-        let line = Line::from(vec![prompt_span, value_span]);
-        use ratatui::widgets::{Block, Borders};
-        let block = if self.border {
-            Block::default().borders(Borders::ALL).border_style(self.theme.border)
-        } else {
-            Block::default()
-        };
-        Paragraph::new(line)
-            .block(block)
-            .style(self.theme.normal)
-            .render(area, buf);
+
+        let mut block = Block::default();
+
+        // Add borders if enabled
+        if let Some(border_type) = self.border {
+            block = block
+                .borders(Borders::ALL)
+                .border_type(border_type.into())
+                .border_style(self.theme.border);
+        }
+
+        // Handle different info display modes
+        match self.info_display {
+            InfoDisplay::Inline => {
+                // Inline mode: render status on the same line as input
+                // Format: prompt + value + " " + separator_char + " " + status + padding + right_status
+                // separator_char is spinner when active, '<' otherwise
+                if let Some(ref status) = self.status_info {
+                    let separator = status.inline_separator();
+                    let inline_status = status.inline_status();
+                    let right_status = status.right_title();
+
+                    // Calculate available width for padding
+                    // Format: " X " where X is separator (3 chars total)
+                    let prompt_width = self.prompt.width();
+                    let value_width = self.value.width();
+                    let separator_width = 4; // "  X " (2xspace + separator + space)
+                    let inline_status_width = inline_status.width();
+                    let right_status_width = right_status.width();
+
+                    let used_width =
+                        prompt_width + value_width + separator_width + inline_status_width + right_status_width;
+                    let available_width = area.width as usize;
+                    let padding_width = available_width.saturating_sub(used_width);
+
+                    let line = Line::from(vec![
+                        prompt_span,
+                        value_span,
+                        Span::styled(format!("  {} ", separator), self.theme.info),
+                        Span::styled(inline_status, self.theme.info),
+                        Span::raw(" ".repeat(padding_width)),
+                        Span::styled(right_status, self.theme.info),
+                    ]);
+
+                    Paragraph::new(line)
+                        .block(block)
+                        .style(self.theme.normal)
+                        .render(area, buf);
+                } else {
+                    // No status info, just render input
+                    let line = Line::from(vec![prompt_span, value_span]);
+                    Paragraph::new(line)
+                        .block(block)
+                        .style(self.theme.normal)
+                        .render(area, buf);
+                }
+            }
+            InfoDisplay::Default => {
+                // Default mode: render status as block title (separate line)
+                // In normal layout: status above input (title_top)
+                // In reverse layout: status below input (title_bottom)
+                if let Some(ref status) = self.status_info {
+                    let left_title = status.left_title();
+                    let right_title = status.right_title();
+
+                    if self.reverse {
+                        block = block
+                            .title_bottom(Line::from(left_title).style(self.theme.info).alignment(Alignment::Left))
+                            .title_bottom(
+                                Line::from(right_title)
+                                    .style(self.theme.info)
+                                    .alignment(Alignment::Right),
+                            );
+                    } else {
+                        block = block
+                            .title_top(Line::from(left_title).style(self.theme.info).alignment(Alignment::Left))
+                            .title_top(
+                                Line::from(right_title)
+                                    .style(self.theme.info)
+                                    .alignment(Alignment::Right),
+                            );
+                    }
+                }
+
+                let line = Line::from(vec![prompt_span, value_span]);
+                Paragraph::new(line)
+                    .block(block)
+                    .style(self.theme.normal)
+                    .render(area, buf);
+            }
+            InfoDisplay::Hidden => {
+                // Hidden mode: no status displayed
+                let line = Line::from(vec![prompt_span, value_span]);
+                Paragraph::new(line)
+                    .block(block)
+                    .style(self.theme.normal)
+                    .render(area, buf);
+            }
+        }
 
         SkimRender::default()
     }

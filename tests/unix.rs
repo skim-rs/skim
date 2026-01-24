@@ -85,6 +85,8 @@ sk_test!(opt_print_cmd_and_query, "10\\n20\\n30", &["--cmd-query", "cmd", "--pri
 
 sk_test!(opt_print_header, "x", &["--header", "foo", "--print-header"], {
     @capture[0] starts_with(">");
+    @capture[2] starts_with("  foo");
+    @capture[3] starts_with("> x");
     @keys Enter;
     @output[0] trim().eq("foo");
     @output[1] trim().eq("x");
@@ -134,7 +136,6 @@ sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
       "--hscroll-off=10",
       "--filepath-word",
       "--jump-labels=CHARS",
-      "--border",
       "--inline-info",
       "--header=STR",
       "--header-lines=1",
@@ -182,7 +183,6 @@ sk_test!(opt_multiple_flags_basic, "a\\nb", &[], tmux => {
       "--cycle --cycle",
       "--no-hscroll --no-hscroll",
       "--filepath-word --filepath-word",
-      "--border --border",
       "--inline-info --inline-info",
       "--no-bold --no-bold",
       "--print-query --print-query",

@@ -456,7 +456,6 @@ impl Skim {
                             app.restart_matcher(true);
                             // Start a new reader with the new command (no source, using cmd)
                             reader_control = reader.run(item_tx.clone(), new_cmd);
-                            app.status.reading = true;
                             reader_done.store(false, std::sync::atomic::Ordering::Relaxed);
                         }
                         if let Event::Key(k) = &evt {
@@ -471,7 +470,6 @@ impl Skim {
                         } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
                             reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
                             app.restart_matcher(true);
-                            app.status.reading = false;
                         }
                         app.handle_event(&mut tui, &evt)?;
                     }

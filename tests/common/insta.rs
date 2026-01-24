@@ -60,7 +60,6 @@ impl<'a> TestHarness<'a> {
             // Run the command and add items
             self.run_command_internal(new_cmd)?;
             self.app.restart_matcher(true);
-            self.app.status.reading = true;
         }
 
         // Let the app handle the event (this may queue more events)

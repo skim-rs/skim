@@ -106,6 +106,51 @@ impl Default for Size {
     }
 }
 
+/// This mirrors Ratatui's border type
+///
+/// We need it so that we can properly use ValueEnum
+#[derive(Default, Clone, Copy)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+#[allow(missing_docs)]
+pub enum BorderType {
+    #[default]
+    Plain,
+    Rounded,
+    Double,
+    Thick,
+
+    LightDoubleDashed,
+    HeavyDoubleDashed,
+
+    LightTripleDashed,
+    HeavyTripleDashed,
+
+    LightQuadrupleDashed,
+    HeavyQuadrupleDashed,
+
+    QuadrantInside,
+    QuadrantOutside,
+}
+
+impl From<BorderType> for ratatui::widgets::BorderType {
+    fn from(val: BorderType) -> Self {
+        match val {
+            BorderType::Plain => ratatui::widgets::BorderType::Plain,
+            BorderType::Rounded => ratatui::widgets::BorderType::Rounded,
+            BorderType::Double => ratatui::widgets::BorderType::Double,
+            BorderType::Thick => ratatui::widgets::BorderType::Thick,
+            BorderType::LightDoubleDashed => ratatui::widgets::BorderType::LightDoubleDashed,
+            BorderType::HeavyDoubleDashed => ratatui::widgets::BorderType::HeavyDoubleDashed,
+            BorderType::LightTripleDashed => ratatui::widgets::BorderType::LightTripleDashed,
+            BorderType::HeavyTripleDashed => ratatui::widgets::BorderType::HeavyTripleDashed,
+            BorderType::LightQuadrupleDashed => ratatui::widgets::BorderType::LightQuadrupleDashed,
+            BorderType::HeavyQuadrupleDashed => ratatui::widgets::BorderType::HeavyQuadrupleDashed,
+            BorderType::QuadrantInside => ratatui::widgets::BorderType::QuadrantInside,
+            BorderType::QuadrantOutside => ratatui::widgets::BorderType::QuadrantOutside,
+        }
+    }
+}
+
 #[cfg(test)]
 mod size_test {
     use super::*;
