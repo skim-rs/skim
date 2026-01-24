@@ -138,10 +138,10 @@ pub fn printf(
             } else if s.starts_with("cq}") {
                 replaced += &escaped_cmd_query;
                 replaced += s.get(3..).unwrap_or_default();
-            } else if s.starts_with("n}")
-                && let Some(ref item) = current
-            {
-                replaced += item.get_index().to_string().as_str();
+            } else if s.starts_with("n}") {
+                if let Some(ref item) = current {
+                    replaced += item.get_index().to_string().as_str();
+                }
                 replaced += s.get(2..).unwrap_or_default();
             } else if s.starts_with("+n}") {
                 replaced += &selected
