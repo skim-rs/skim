@@ -252,6 +252,10 @@ insta_test!(opt_header_only, ["a", "b", "c"], &["--header", "test_header"], {
     @snap;
 });
 
+insta_test!(opt_header_multiline, ["a", "b", "c"], &["--header", "header 1\nheader 2"], {
+    @snap;
+});
+
 insta_test!(opt_header_inline_info, ["a", "b", "c"], &["--header", "test_header", "--inline-info"], {
     @snap;
 });

@@ -1010,6 +1010,11 @@ impl<'a> App<'a> {
             }
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
+                if self.options.interactive {
+                    self.input.prompt = self.options.cmd_prompt.clone();
+                } else {
+                    self.input.prompt = self.options.prompt.clone();
+                }
             }
             ToggleOut => {
                 self.item_list.toggle();

@@ -78,3 +78,9 @@ insta_test!(bind_set_query_to_itself, ["a", "b", "c"], &["--bind", "ctrl-a:set-q
     @ctrl 'a';
     @snap;
 });
+
+insta_test!(bind_toggle_interactive, @interactive, &["--bind", "ctrl-a:toggle-interactive", "-i"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
