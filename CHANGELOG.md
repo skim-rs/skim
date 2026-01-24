@@ -19,20 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove insta_ prefixes after finalizing tests migration
 
-## [1.6.0] - 2026-01-23
-
-### 🚀 Features
-
-- Add `--remote` flag to call remote (`--listen`) instances (#915)
-
-### 🐛 Bug Fixes
-
-- Make no-sort work again
-
-### 🧪 Testing
-
-- Remove insta_ prefixes after finalizing tests migration
-
 ## [1.5.4] - 2026-01-23
 
 ### 🐛 Bug Fixes
