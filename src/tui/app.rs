@@ -282,20 +282,8 @@ impl Default for App<'_> {
 impl<'a> App<'a> {
     /// Creates a new App from skim options
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
-        let mut input = Input::from_options(&options, theme.clone());
-
-        // In interactive mode, use cmd_prompt instead of regular prompt
-        if options.interactive {
-            input.prompt = options.cmd_prompt.clone();
-            // In interactive mode, use cmd_query if provided
-            if let Some(ref cmd_query) = options.cmd_query {
-                input.value = cmd_query.clone();
-                input.move_to_end();
-            }
-        }
-
         Self {
-            input,
+            input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
             status: StatusLine::from_options(&options, theme.clone()),
@@ -1010,11 +998,7 @@ impl<'a> App<'a> {
             }
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
-                if self.options.interactive {
-                    self.input.prompt = self.options.cmd_prompt.clone();
-                } else {
-                    self.input.prompt = self.options.prompt.clone();
-                }
+                self.input.switch_mode();
             }
             ToggleOut => {
                 self.item_list.toggle();

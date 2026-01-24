@@ -8,8 +8,13 @@ use std::sync::Arc;
 
 pub struct Input {
     pub prompt: String,
+    /// see alternate_value
+    alternate_prompt: String,
     pub value: String,
+    /// cmd query when in normal mode, query when in interactive mode
+    alternate_value: String,
     pub cursor_pos: u16,
+    pub alternate_cursor_pos: u16,
     pub theme: Arc<ColorTheme>,
     pub border: bool,
 }
@@ -18,8 +23,11 @@ impl Default for Input {
     fn default() -> Self {
         Self {
             prompt: String::from(">"),
+            alternate_prompt: String::from("c>"),
             value: String::default(),
+            alternate_value: String::default(),
             cursor_pos: 0,
+            alternate_cursor_pos: 0,
             theme: Arc::new(ColorTheme::default()),
             border: false,
         }
@@ -268,17 +276,34 @@ impl Input {
             .try_into()
             .expect("Failed to fit cursor char into an u16")
     }
+    pub fn switch_mode(&mut self) {
+        std::mem::swap(&mut self.prompt, &mut self.alternate_prompt);
+        std::mem::swap(&mut self.value, &mut self.alternate_value);
+        std::mem::swap(&mut self.cursor_pos, &mut self.alternate_cursor_pos);
+    }
 }
 
 impl SkimWidget for Input {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
-        Self {
-            prompt: options.prompt.clone(),
-            value: options.query.clone().unwrap_or_default(),
+        let mut res = Self {
             theme,
             border: options.border,
-            cursor_pos: options.query.clone().map(|q| q.len() as u16).unwrap_or_default(),
+            ..Default::default()
+        };
+        if options.interactive {
+            res.prompt = options.cmd_prompt.clone();
+            res.alternate_prompt = options.prompt.clone();
+            res.value = options.cmd_query.clone().unwrap_or_default();
+            res.alternate_value = options.query.clone().unwrap_or_default();
+        } else {
+            res.prompt = options.prompt.clone();
+            res.alternate_prompt = options.cmd_prompt.clone();
+            res.value = options.query.clone().unwrap_or_default();
+            res.alternate_value = options.cmd_query.clone().unwrap_or_default();
         }
+        res.cursor_pos = res.value.len() as u16;
+        res.alternate_cursor_pos = res.alternate_value.len() as u16;
+        res
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {

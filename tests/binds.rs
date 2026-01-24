@@ -84,3 +84,16 @@ insta_test!(bind_toggle_interactive, @interactive, &["--bind", "ctrl-a:toggle-in
     @ctrl 'a';
     @snap;
 });
+
+insta_test!(bind_toggle_interactive_queries, @interactive, &["--bind", "ctrl-a:toggle-interactive", "-i", "--query", "normal", "--cmd-query", "interactive"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+    @key Left;
+    @char '|';
+    @snap;
+    @ctrl 'a';
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
