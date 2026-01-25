@@ -7,6 +7,7 @@ use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
+use crate::tui::util::char_display_width;
 use crate::tui::widget::{SkimRender, SkimWidget};
 
 use ansi_to_tui::IntoText;
@@ -16,7 +17,6 @@ use ratatui::widgets::Widget;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use std::cmp::max;
 use std::sync::Arc;
-use unicode_width::UnicodeWidthChar;
 
 /// Header widget for displaying static text above the item list
 #[derive(Clone)]
@@ -87,7 +87,7 @@ fn apply_tabstop(text: &str, tabstop: usize) -> String {
             current_width += tab_width;
         } else {
             result.push(ch);
-            current_width += ch.width_cjk().unwrap_or(0);
+            current_width += char_display_width(ch);
         }
     }
 

@@ -2,6 +2,7 @@ use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 use ratatui::{prelude::*, widgets::Widget};
+use unicode_display_width::width as display_width;
 
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
@@ -401,7 +402,7 @@ impl Input {
         deleted
     }
     pub fn cursor_pos(&self) -> u16 {
-        (self.value[..(self.cursor_pos as usize)].chars().count() + self.prompt.chars().count())
+        (display_width(&self.value[..(self.cursor_pos as usize)]) + display_width(&self.prompt))
             .try_into()
             .expect("Failed to fit cursor char into an u16")
     }
@@ -442,7 +443,6 @@ impl SkimWidget for Input {
         use ratatui::text::{Line, Span};
         use ratatui::widgets::Paragraph;
         use ratatui::widgets::{Block, Borders};
-        use unicode_width::UnicodeWidthStr;
 
         let prompt_span = Span::styled(&self.prompt, self.theme.prompt);
         let value_span = Span::styled(&self.value, self.theme.query);
@@ -470,15 +470,15 @@ impl SkimWidget for Input {
 
                     // Calculate available width for padding
                     // Format: " X " where X is separator (3 chars total)
-                    let prompt_width = self.prompt.width();
-                    let value_width = self.value.width();
+                    let prompt_width = display_width(&self.prompt);
+                    let value_width = display_width(&self.value);
                     let separator_width = 4; // "  X " (2xspace + separator + space)
-                    let inline_status_width = inline_status.width();
-                    let right_status_width = right_status.width();
+                    let inline_status_width = display_width(&inline_status);
+                    let right_status_width = display_width(&right_status);
 
                     let used_width =
                         prompt_width + value_width + separator_width + inline_status_width + right_status_width;
-                    let available_width = area.width as usize;
+                    let available_width = area.width as u64;
                     let padding_width = available_width.saturating_sub(used_width);
 
                     let line = Line::from(vec![
@@ -486,7 +486,7 @@ impl SkimWidget for Input {
                         value_span,
                         Span::styled(format!("  {} ", separator), self.theme.info),
                         Span::styled(inline_status, self.theme.info),
-                        Span::raw(" ".repeat(padding_width)),
+                        Span::raw(" ".repeat(padding_width.try_into().unwrap())),
                         Span::styled(right_status, self.theme.info),
                     ]);
 

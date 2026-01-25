@@ -1,5 +1,14 @@
 use ratatui::text::{Line, Span, Text};
-use unicode_width::UnicodeWidthChar;
+use unicode_display_width::is_double_width;
+
+// Directly taken from https://docs.rs/unicode-display-width/0.3.0/src/unicode_display_width/lib.rs.html#77-81
+#[inline]
+pub fn char_display_width(c: char) -> usize {
+    if c == '\u{FE0F}' || is_double_width(c) {
+        return 2;
+    }
+    1
+}
 
 pub fn wrap_text(input: Text, width: usize) -> Text {
     if input.width() <= width {
@@ -15,8 +24,7 @@ pub fn wrap_text(input: Text, width: usize) -> Text {
             let mut curr = Span::default().style(span.style);
             let mut curr_content = String::new();
             for c in span.content.chars() {
-                let char_width = c.width().unwrap_or_default();
-                if w + char_width > width {
+                if w + char_display_width(c) > width {
                     // Push current span and line before wrapping
                     if !curr_content.is_empty() {
                         curr.content = curr_content.into();
@@ -30,7 +38,7 @@ pub fn wrap_text(input: Text, width: usize) -> Text {
                     w = 0;
                 }
                 curr_content.push(c);
-                w += char_width;
+                w += char_display_width(c);
             }
             // Push remaining content in current span
             if !curr_content.is_empty() {

@@ -5,8 +5,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, ListState, StatefulWidget, Widget};
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_display_width::width as display_width;
 
+use crate::tui::util::char_display_width;
 use crate::{
     DisplayContext, MatchRange, Selector, SkimItem, SkimOptions,
     item::MatchedItem,
@@ -143,7 +144,7 @@ impl ItemList {
         if let Some(ref regex) = self.skip_to_pattern
             && let Some(mat) = regex.find(text)
         {
-            return text[..mat.start()].width_cjk();
+            return display_width(&text[..mat.start()]).try_into().unwrap();
         }
         0
     }
@@ -162,7 +163,7 @@ impl ItemList {
             if ch == '\t' {
                 acc + self.tabstop - (acc % self.tabstop)
             } else {
-                acc + ch.to_string().width_cjk()
+                acc + char_display_width(ch)
             }
         });
 
@@ -212,7 +213,7 @@ impl ItemList {
                 if ch == '\t' {
                     current_width += self.tabstop - (current_width % self.tabstop);
                 } else {
-                    current_width += ch.to_string().width_cjk();
+                    current_width += char_display_width(ch);
                 }
             }
 
@@ -318,7 +319,7 @@ impl ItemList {
             }
 
             current_char_index += span_chars.len();
-            current_width += span_text.width_cjk();
+            current_width += usize::try_from(display_width(span_text)).unwrap();
         }
 
         // Add right indicator if needed
@@ -338,7 +339,7 @@ impl ItemList {
                 let ch_width = if ch == '\t' {
                     self.tabstop - (current_width % self.tabstop)
                 } else {
-                    ch.width_cjk().unwrap_or_default()
+                    char_display_width(ch)
                 };
 
                 if current_width >= target_width {
@@ -364,7 +365,7 @@ impl ItemList {
                 current_width += tab_width;
             } else {
                 result.push(ch);
-                current_width += ch.to_string().width_cjk();
+                current_width += char_display_width(ch)
             }
         }
 

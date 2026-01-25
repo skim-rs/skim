@@ -42,3 +42,9 @@ sk_test!(issue_xxx_null_delimiter_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", 
   @capture[0] starts_with("> b");
   @capture[2] starts_with("> abc");
 });
+
+insta_test!(issue_929_double_width_chars, [""], &["-q", "中文测试"], {
+    @snap;
+    @char '|';
+    @snap;
+});
