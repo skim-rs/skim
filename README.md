@@ -11,6 +11,9 @@
   <a href="https://discord.gg/23PuxttufP">
     <img alt="Skim Discord" src="https://img.shields.io/discord/1031830957432504361?label=&color=7389d8&labelColor=6a7ec2&logoColor=ffffff&logo=discord" />
   </a>
+  <a href="https://matrix.to/#/#skim:matrix.org">
+    <img alt="Skim Matrix room" src="https://img.shields.io/badge/matrix-%23000000?style=flat&logo=matrix&logoColor=white" />
+  </a>
   <a href="https://ratatui.rs">
     <img alt="Built with Ratatui" src="https://ratatui.rs/built-with-ratatui/badge.svg" />
   </a>
