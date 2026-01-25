@@ -114,10 +114,10 @@ zsh\:"Zsh"))' \
 '--print-score[Print the score after each item]' \
 '--print-header[Print the header as the first line (after print-score)]' \
 '--no-strip-ansi[Print the ANSI codes, making the output exactly match the input even when --ansi is on]' \
-'-1[Automatically select the match if there is only one]' \
-'--select-1[Automatically select the match if there is only one]' \
-'-0[Automatically exit when no match is left]' \
-'--exit-0[Automatically exit when no match is left]' \
+'-1[Do not enter the TUI if the query passed in -q matches only one item and return it]' \
+'--select-1[Do not enter the TUI if the query passed in -q matches only one item and return it]' \
+'-0[Do not enter the TUI if the query passed in -q does not match any item]' \
+'--exit-0[Do not enter the TUI if the query passed in -q does not match any item]' \
 '--sync[Synchronous search for multi-staged filtering]' \
 '--shell-bindings[Generate shell key bindings - only for bash, zsh and fish]' \
 '--man[Generate man page and output it to stdout]' \

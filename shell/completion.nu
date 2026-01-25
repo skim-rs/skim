@@ -93,8 +93,8 @@ module completions {
     --print-score             # Print the score after each item
     --print-header            # Print the header as the first line (after print-score)
     --no-strip-ansi           # Print the ANSI codes, making the output exactly match the input even when --ansi is on
-    --select-1(-1)            # Automatically select the match if there is only one
-    --exit-0(-0)              # Automatically exit when no match is left
+    --select-1(-1)            # Do not enter the TUI if the query passed in -q matches only one item and return it
+    --exit-0(-0)              # Do not enter the TUI if the query passed in -q does not match any item
     --sync                    # Synchronous search for multi-staged filtering
     --pre-select-n: string    # Pre-select the first n items in multi-selection mode
     --pre-select-pat: string  # Pre-select the matched items in multi-selection mode

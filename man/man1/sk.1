@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 1.7.0" 
+.TH sk 1  "sk 1.7.1" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -451,10 +451,10 @@ Print the header as the first line (after print\-score)
 Print the ANSI codes, making the output exactly match the input even when \-\-ansi is on
 .TP
 \fB\-1\fR, \fB\-\-select\-1\fR
-Automatically select the match if there is only one
+Do not enter the TUI if the query passed in \-q matches only one item and return it
 .TP
 \fB\-0\fR, \fB\-\-exit\-0\fR
-Automatically exit when no match is left
+Do not enter the TUI if the query passed in \-q does not match any item
 .TP
 \fB\-\-sync\fR
 Synchronous search for multi\-staged filtering
@@ -982,4 +982,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v1.7.0
+v1.7.1
