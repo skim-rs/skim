@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-01-25
+
+### 🚀 Features
+
+- Add borders to all widgets (#930)
+
+### 🐛 Bug Fixes
+
+- Correctly merge base styles
+- Correctly display all header lines
+- Correctly toggle prompt on ToggleInteractive (closes #925)
+- Fix printf sometimes replacing recursively
+- Interrupt the reader thread when stopping
+- Replace {n} with an empty string when no item is selected
+- Revert case-insensitive action_chain
+- Re-enable query/cmd-query distinction and switching
+- Correctly compute character width for cursor display (closes #929)
+
+### ⚙️ Miscellaneous Tasks
+
+- Cleanup changelog [skip ci]
+
 ## [1.6.0] - 2026-01-23
 
 ### 🚀 Features
