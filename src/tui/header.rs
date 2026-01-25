@@ -75,6 +75,18 @@ impl Header {
     /// Sets the dynamic header lines from input (--header-lines)
     pub fn set_header_lines(&mut self, items: Vec<Arc<dyn SkimItem>>) {
         self.header_lines = items;
+        if self.reverse_lines {
+            self.header_lines.reverse();
+        }
+    }
+    fn header_text<'a>(&self) -> Text<'a> {
+        let mut res = self.header.into_text().unwrap(); //.unwrap_or(Text::from(self.header.clone()));
+        res.lines.iter_mut().for_each(|line| {
+            line.spans
+                .iter_mut()
+                .for_each(|span| span.style = merge_styles(self.theme.header, span.style))
+        });
+        res
     }
 }
 
@@ -135,9 +147,7 @@ impl SkimWidget for Header {
 
         // Combine static header with dynamic header_lines
         let mut combined_header = if self.reverse && !self.header.is_empty() {
-            let mut header = self.header.into_text().unwrap_or(Text::from(self.header.clone()));
-            header.style = merge_styles(self.theme.header, header.style);
-            header
+            self.header_text()
         } else {
             Text::default()
         };
@@ -147,25 +157,17 @@ impl SkimWidget for Header {
             ..Default::default()
         };
 
-        // Add dynamic header lines (from --header-lines)
-        // In default layout (bottom-to-top), reverse the order to match the list
-        if self.reverse_lines {
-            for item in self.header_lines.iter().rev() {
-                let text = item.display(display_context.clone());
-                combined_header.push_line(text);
-            }
-        } else {
-            for item in &self.header_lines {
-                let text = item.display(display_context.clone());
-                combined_header.push_line(text);
-            }
+        for item in self.header_lines.iter() {
+            let mut text = item.display(display_context.clone());
+            text.spans
+                .iter_mut()
+                .for_each(|s| s.style = merge_styles(self.theme.header, s.style));
+            combined_header.push_line(text);
         }
 
         // Add static header (from --header)
         if !self.reverse && !self.header.is_empty() {
-            let mut header = self.header.into_text().unwrap_or(Text::from(self.header.clone()));
-            header.style = merge_styles(self.theme.header, header.style);
-            combined_header += header;
+            combined_header += self.header_text();
         }
 
         Paragraph::new(combined_header)
