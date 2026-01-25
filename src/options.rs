@@ -585,11 +585,11 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", requires = "ansi"))]
     pub no_strip_ansi: bool,
 
-    /// Automatically select the match if there is only one
+    /// Do not enter the TUI if the query passed in `-q` matches only one item and return it
     #[cfg_attr(feature = "cli", arg(long, short = '1', help_heading = "Scripting"))]
     pub select_1: bool,
 
-    /// Automatically exit when no match is left
+    /// Do not enter the TUI if the query passed in `-q` does not match any item
     #[cfg_attr(feature = "cli", arg(long, short = '0', help_heading = "Scripting"))]
     pub exit_0: bool,
 

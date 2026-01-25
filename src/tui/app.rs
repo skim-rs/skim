@@ -252,7 +252,12 @@ impl Widget for &mut App<'_> {
         // Always +1 for title line (whether bordered or not)
         self.cursor_pos = (
             input_area.x + self.input.cursor_pos() + if has_border { 1 } else { 0 },
-            input_area.y + 1,
+            input_area.y
+                + if self.options.layout == TuiLayout::Reverse {
+                    0
+                } else {
+                    1
+                },
         );
     }
 }
