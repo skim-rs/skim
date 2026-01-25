@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "                                                                                "
 "  0/1                                                                        0/0"
 "> 中文测试|                                                                     " Hidden by multi-width symbols: [(3, " "), (5, " "), (7, " "), (9, " ")]
-cursor: (11, 23)
+cursor: (24, 12)

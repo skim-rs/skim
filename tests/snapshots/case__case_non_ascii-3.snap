@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "> Слово                                                                         "
 "  1/3                                                                        0/0"
 "> Слово                                                                         "
-cursor: (7, 23)
+cursor: (24, 8)

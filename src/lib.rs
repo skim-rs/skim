@@ -101,7 +101,7 @@ impl<T: Any> AsAny for T {
 
 //------------------------------------------------------------------------------
 // Display Context
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 /// Represents how a query matches an item
 pub enum Matches {
     /// No matches
@@ -115,7 +115,7 @@ pub enum Matches {
     ByteRange(usize, usize),
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 /// Context information for displaying an item
 pub struct DisplayContext {
     /// The match score for this item

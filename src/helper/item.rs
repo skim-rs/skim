@@ -478,7 +478,7 @@ fn escape_ansi(raw: &str) -> String {
 /// Merges styles from right to left
 /// left has higher priority
 /// contrary to ratatui's Style::patch, this will override `Reset` with the new style if set
-fn merge_styles(left: Style, right: Style) -> Style {
+pub(crate) fn merge_styles(left: Style, right: Style) -> Style {
     use ratatui::style::Color::*;
     let mut res = left.patch(right);
     macro_rules! set_field {

@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "                                                                                "
 "                                                                                "
 "> li                                                                            "
-cursor: (4, 24)
+cursor: (25, 5)

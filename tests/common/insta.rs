@@ -435,7 +435,11 @@ macro_rules! snap {
     ($harness:ident) => {
         $harness.prepare_snap()?;
         let buf = $harness.buffer_view();
-        let cursor_pos = format!("cursor: {:?}", $harness.app.cursor_pos);
+        let cursor_pos = format!(
+            "cursor: ({}, {})",
+            $harness.app.cursor_pos.1 + 1,
+            $harness.app.cursor_pos.0 + 1
+        );
         insta::assert_snapshot!(buf + &cursor_pos);
     };
 }

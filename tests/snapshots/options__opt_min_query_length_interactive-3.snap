@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "  line2                                                                         "
 "> line1                                                                         "
 "c> lin                                                                          "
-cursor: (6, 24)
+cursor: (25, 7)

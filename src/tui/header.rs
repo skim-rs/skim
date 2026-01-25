@@ -1,8 +1,10 @@
 //! Header display widget for skim's TUI.
 //!
 //! This module provides the header widget that displays static text above the item list.
+use crate::DisplayContext;
 use crate::SkimItem;
 use crate::SkimOptions;
+use crate::helper::item::merge_styles;
 use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
 use crate::tui::BorderType;
@@ -13,6 +15,7 @@ use crate::tui::widget::{SkimRender, SkimWidget};
 use ansi_to_tui::IntoText;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::text::Text;
 use ratatui::widgets::Widget;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use std::cmp::max;
@@ -27,13 +30,13 @@ pub struct Header {
     pub header_lines: Vec<Arc<dyn SkimItem>>,
     /// The number of spaces to show before the header
     indent_size: u16,
-    /// Tabstop width for expanding tabs in header_lines
-    tabstop: usize,
     theme: Arc<ColorTheme>,
     /// Border type, if borders are enabled
     pub border: Option<BorderType>,
     /// Whether to reverse the order of header_lines (for default/bottom-to-top layout)
     reverse_lines: bool,
+    /// Reverse layout
+    reverse: bool,
 }
 
 impl Default for Header {
@@ -42,10 +45,10 @@ impl Default for Header {
             header: Default::default(),
             header_lines: Vec::new(),
             indent_size: 0,
-            tabstop: 8,
             theme: Arc::new(*DEFAULT_THEME),
             border: None,
             reverse_lines: false,
+            reverse: false,
         }
     }
 }
@@ -109,13 +112,13 @@ impl SkimWidget for Header {
         Self {
             header: expanded_header,
             header_lines: Vec::new(),
-            tabstop,
             indent_size: (options.selector_icon.chars().count() + options.multi_select_icon.chars().count())
                 .try_into()
                 .expect("Failed to fit selector lens into an u16"),
             theme,
             border: options.border,
             reverse_lines,
+            reverse: options.layout == TuiLayout::Reverse,
         }
     }
 
@@ -131,43 +134,44 @@ impl SkimWidget for Header {
         .padding(ratatui::widgets::Padding::left(self.indent_size));
 
         // Combine static header with dynamic header_lines
-        let mut combined_header = String::new();
+        let mut combined_header = if self.reverse && !self.header.is_empty() {
+            let mut header = self.header.into_text().unwrap_or(Text::from(self.header.clone()));
+            header.style = merge_styles(self.theme.header, header.style);
+            header
+        } else {
+            Text::default()
+        };
+
+        let display_context = DisplayContext {
+            base_style: self.theme.header,
+            ..Default::default()
+        };
 
         // Add dynamic header lines (from --header-lines)
         // In default layout (bottom-to-top), reverse the order to match the list
         if self.reverse_lines {
             for item in self.header_lines.iter().rev() {
-                let text = item.text();
-                combined_header.push_str(&apply_tabstop(&text, self.tabstop));
-                combined_header.push('\n');
+                let text = item.display(display_context.clone());
+                combined_header.push_line(text);
             }
         } else {
             for item in &self.header_lines {
-                let text = item.text();
-                combined_header.push_str(&apply_tabstop(&text, self.tabstop));
-                combined_header.push('\n');
+                let text = item.display(display_context.clone());
+                combined_header.push_line(text);
             }
         }
 
         // Add static header (from --header)
-        if !self.header.is_empty() {
-            combined_header.push_str(&self.header);
-        } else if combined_header.ends_with('\n') {
-            // Remove trailing newline if there's no static header
-            combined_header.pop();
+        if !self.reverse && !self.header.is_empty() {
+            let mut header = self.header.into_text().unwrap_or(Text::from(self.header.clone()));
+            header.style = merge_styles(self.theme.header, header.style);
+            combined_header += header;
         }
 
-        if let Ok(header) = combined_header.into_text() {
-            Paragraph::new(header)
-                .style(self.theme.header)
-                .block(block)
-                .render(area, buf);
-        } else {
-            Paragraph::new(combined_header.as_str())
-                .style(self.theme.header)
-                .block(block)
-                .render(area, buf);
-        }
+        Paragraph::new(combined_header)
+            .style(self.theme.header)
+            .block(block)
+            .render(area, buf);
 
         SkimRender::default()
     }

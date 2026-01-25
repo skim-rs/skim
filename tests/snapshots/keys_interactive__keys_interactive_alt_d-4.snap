@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "                                                                                "
 "  0/0                                                                        0/0"
 "c> foo bar ||-|bar                                                              "
-cursor: (13, 23)
+cursor: (24, 14)

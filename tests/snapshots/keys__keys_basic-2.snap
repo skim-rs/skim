@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "> 99                                                                            "
 "  1/100                                                                      0/0"
 "> 99                                                                            "
-cursor: (4, 23)
+cursor: (24, 5)

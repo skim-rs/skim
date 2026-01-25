@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "> aBcDeF                                                                        "
 "  1/1                                                                        0/0"
 "> aBc                                                                           "
-cursor: (5, 23)
+cursor: (24, 6)

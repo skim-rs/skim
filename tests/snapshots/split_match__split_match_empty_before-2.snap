@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "> foo:bar                                                                       "
 "  2/2                                                                        0/0"
 "> :bar                                                                          "
-cursor: (6, 23)
+cursor: (24, 7)

@@ -3,7 +3,7 @@ source: tests/options.rs
 expression: buf + & cursor_pos
 ---
 ">   < 2/2                                                                    0/0"
-"  a                                                                             "
+"                                                                                "
 "> b                                                                             "
 "  c                                                                             "
 "                                                                                "
@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "                                                                                "
 "                                                                                "
 "                                                                                "
-cursor: (2, 0)
+cursor: (1, 3)

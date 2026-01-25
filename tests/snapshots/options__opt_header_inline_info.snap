@@ -26,4 +26,4 @@ expression: buf + & cursor_pos
 "> a                                                                             "
 "  test_header                                                                   "
 ">   < 3/3                                                                    0/0"
-cursor: (2, 24)
+cursor: (25, 3)
