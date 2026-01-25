@@ -1,6 +1,6 @@
 ---
 source: tests/preview.rs
-expression: h.buffer_view()
+expression: buf + & cursor_pos
 ---
 "                                        │X'"ABC"'X                              "
 "                                        │                                       "
@@ -26,3 +26,4 @@ expression: h.buffer_view()
 "> '"ABC"'                               │                                       "
 "  1/1                                0/0│                                       "
 ">                                       │                                       "
+cursor: (2, 23)

@@ -1,6 +1,6 @@
 ---
 source: tests/preview.rs
-expression: h.buffer_view()
+expression: buf + & cursor_pos
 ---
 "                                        │b c                                    "
 "                                        │                                       "
@@ -26,3 +26,4 @@ expression: h.buffer_view()
 "  a                                     │                                       "
 "  3/3 [2]                            2/0│                                       "
 ">                                       │                                       "
+cursor: (2, 23)

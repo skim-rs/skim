@@ -253,7 +253,7 @@ impl Widget for &mut App<'_> {
         self.cursor_pos = (
             input_area.x + self.input.cursor_pos() + if has_border { 1 } else { 0 },
             input_area.y
-                + if self.options.layout == TuiLayout::Reverse {
+                + if self.options.layout == TuiLayout::Reverse && self.options.border.is_none() {
                     0
                 } else {
                     1

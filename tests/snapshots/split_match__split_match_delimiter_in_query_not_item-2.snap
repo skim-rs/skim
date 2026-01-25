@@ -1,6 +1,6 @@
 ---
 source: tests/split_match.rs
-expression: h.buffer_view()
+expression: buf + & cursor_pos
 ---
 "                                                                                "
 "                                                                                "
@@ -26,3 +26,4 @@ expression: h.buffer_view()
 "                                                                                "
 "  0/2                                                                        0/0"
 "> foo:bar                                                                       "
+cursor: (9, 23)

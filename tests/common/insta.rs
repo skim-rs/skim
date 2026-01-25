@@ -156,7 +156,9 @@ impl<'a> TestHarness<'a> {
     #[doc(hidden)]
     pub fn snap(&mut self) -> Result<()> {
         self.prepare_snap()?;
-        insta::assert_snapshot!(self.buffer_view());
+        let buf = self.buffer_view();
+        let cursor_pos = format!("cursor: {}x{}", self.app.cursor_pos.0, self.app.cursor_pos.1);
+        insta::assert_snapshot!(buf + &cursor_pos);
         Ok(())
     }
 
@@ -432,7 +434,9 @@ pub fn parse_options(args: &[&str]) -> SkimOptions {
 macro_rules! snap {
     ($harness:ident) => {
         $harness.prepare_snap()?;
-        insta::assert_snapshot!($harness.buffer_view());
+        let buf = $harness.buffer_view();
+        let cursor_pos = format!("cursor: {:?}", $harness.app.cursor_pos);
+        insta::assert_snapshot!(buf + &cursor_pos);
     };
 }
 

@@ -1,6 +1,6 @@
 ---
 source: tests/binds.rs
-expression: h.buffer_view()
+expression: buf + & cursor_pos
 ---
 "                                                                                "
 "                                                                                "
@@ -26,3 +26,4 @@ expression: h.buffer_view()
 "                                                                                "
 "  0/2                                                                        0/0"
 "> ac                                                                            "
+cursor: (4, 23)

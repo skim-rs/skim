@@ -120,14 +120,6 @@ impl SkimWidget for Header {
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
-        if area.width < 3 {
-            panic!("screen width is too small to fit the header");
-        }
-
-        if area.height < 1 {
-            panic!("screen height is too small to fit the header");
-        }
-
         let block = if let Some(border_type) = self.border {
             Block::default()
                 .borders(Borders::ALL)
