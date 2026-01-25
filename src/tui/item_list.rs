@@ -2,7 +2,7 @@ use std::{rc::Rc, sync::Arc};
 
 use indexmap::IndexSet;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, List, ListDirection, ListItem, ListState, StatefulWidget, Widget};
+use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, ListState, StatefulWidget, Widget};
 use regex::Regex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
@@ -12,6 +12,7 @@ use crate::{
     item::MatchedItem,
     spinlock::SpinLock,
     theme::ColorTheme,
+    tui::BorderType,
     tui::options::TuiLayout,
     tui::util::wrap_text,
     tui::widget::{SkimRender, SkimWidget},
@@ -49,6 +50,8 @@ pub struct ItemList {
     multi_select_icon: String,
     cycle: bool,
     wrap: bool,
+    /// Border type, if borders are enabled
+    pub border: Option<BorderType>,
 }
 
 impl Default for ItemList {
@@ -82,6 +85,7 @@ impl Default for ItemList {
             multi_select_icon: String::from(">"),
             cycle: false,
             wrap: false,
+            border: None,
         }
     }
 }
@@ -533,12 +537,12 @@ impl SkimWidget for ItemList {
         Self {
             tx,
             processed_items,
-            reserved: options.header_lines,
+            reserved: 0, // header_lines are now displayed in the Header widget, not ItemList
             direction: match options.layout {
                 TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
                 TuiLayout::Reverse | TuiLayout::ReverseList => ratatui::widgets::ListDirection::TopToBottom,
             },
-            current: options.header_lines,
+            current: 0,
             theme,
             multi_select,
             no_hscroll: options.no_hscroll,
@@ -559,16 +563,30 @@ impl SkimWidget for ItemList {
             multi_select_icon: options.multi_select_icon.clone(),
             cycle: options.cycle,
             wrap: options.wrap_items,
+            border: options.border,
         }
     }
 
     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
         let this = &mut *self;
-        this.height = area.height;
+
+        // Calculate inner area if borders are enabled
+        let inner_area = if this.border.is_some() {
+            ratatui::layout::Rect {
+                x: area.x + 1,
+                y: area.y + 1,
+                width: area.width.saturating_sub(2),
+                height: area.height.saturating_sub(2),
+            }
+        } else {
+            area
+        };
+
+        this.height = inner_area.height;
         if this.current < this.offset {
             this.offset = this.current;
-        } else if this.offset + area.height as usize <= this.current {
-            this.offset = this.current - area.height as usize + 1;
+        } else if this.offset + inner_area.height as usize <= this.current {
+            this.offset = this.current - inner_area.height as usize + 1;
         }
 
         // Check for pre-processed items from background thread (non-blocking)
@@ -621,6 +639,15 @@ impl SkimWidget for ItemList {
         };
 
         if this.items.is_empty() {
+            // Still render border if enabled, even with no items
+            if let Some(border_type) = this.border {
+                let block = Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(border_type.into())
+                    .border_style(this.theme.border);
+                Widget::render(Clear, area, buf);
+                Widget::render(block, area, buf);
+            }
             return SkimRender { items_updated };
         }
 
@@ -634,13 +661,13 @@ impl SkimWidget for ItemList {
                 .iter()
                 .enumerate()
                 .skip(this.offset)
-                .take(area.height as usize)
+                .take(inner_area.height as usize)
                 .map(|(idx, item)| {
                     let is_current = idx == this.current;
                     let is_selected = this.selection.contains(item);
 
                     // Reserve 2 characters for cursor indicators ("> " or " >")
-                    let container_width = (area.width as usize)
+                    let container_width = (inner_area.width as usize)
                         .saturating_sub(selector_icon.chars().count() + multi_select_icon.chars().count());
 
                     // Get item text for hscroll calculation
@@ -710,7 +737,7 @@ impl SkimWidget for ItemList {
                     spans.extend(display_line.spans);
 
                     if *wrap {
-                        wrap_text(ratatui::text::Text::from(Line::from(spans)), area.width.into()).into()
+                        wrap_text(ratatui::text::Text::from(Line::from(spans)), inner_area.width.into()).into()
                     } else {
                         Line::from(spans).into()
                     }
@@ -721,9 +748,19 @@ impl SkimWidget for ItemList {
         .style(this.theme.normal);
 
         Widget::render(Clear, area, buf);
+
+        // Render border if enabled
+        if let Some(border_type) = this.border {
+            let block = Block::default()
+                .borders(Borders::ALL)
+                .border_type(border_type.into())
+                .border_style(this.theme.border);
+            Widget::render(block, area, buf);
+        }
+
         StatefulWidget::render(
             list,
-            area,
+            inner_area,
             buf,
             &mut ListState::default().with_selected(Some(this.current.saturating_sub(this.offset))),
         );

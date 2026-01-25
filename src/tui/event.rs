@@ -145,7 +145,7 @@ pub enum Action {
     SelectRow(usize),
     /// Select current item
     Select,
-    /// Set the prompt to the expanded value
+    /// Set the query to the expanded value
     SetQuery(String),
     /// Toggle selection of current item
     Toggle,
@@ -275,7 +275,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "select" => Some(Select),
                 "select-all" => Some(SelectAll),
                 "select-row" => Some(SelectRow(arg.and_then(|s| s.parse().ok()).unwrap_or_default())),
-                "set-query" => Some(SetQuery(arg.expect("set-prompt action needs a value"))),
+                "set-query" => Some(SetQuery(arg.expect("set-query action needs a value"))),
                 "toggle" => Some(Toggle),
                 "toggle-all" => Some(ToggleAll),
                 "toggle-in" => Some(ToggleIn),

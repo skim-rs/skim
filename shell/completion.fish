@@ -41,6 +41,18 @@ inline\t''
 hidden\t''"
 complete -c sk -l header -d 'Set header, displayed next to the info' -r
 complete -c sk -l header-lines -d 'Number of lines of the input treated as header' -r
+complete -c sk -l border -d 'Draw borders around the UI components' -r -f -a "plain\t''
+rounded\t''
+double\t''
+thick\t''
+light-double-dashed\t''
+heavy-double-dashed\t''
+light-triple-dashed\t''
+heavy-triple-dashed\t''
+light-quadruple-dashed\t''
+heavy-quadruple-dashed\t''
+quadrant-inside\t''
+quadrant-outside\t''"
 complete -c sk -l history -d 'History file' -r
 complete -c sk -l history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l cmd-history -d 'Command history file' -r
@@ -88,7 +100,6 @@ complete -c sk -l no-height -d 'Disable height (force full screen)'
 complete -c sk -l ansi -d 'Parse ANSI color codes in input strings'
 complete -c sk -l no-info -d 'Alias for --info=hidden'
 complete -c sk -l inline-info -d 'Alias for --info=inline'
-complete -c sk -l border -d 'Draw borders around the UI components'
 complete -c sk -l wrap -d 'Wrap items in the item list'
 complete -c sk -l read0 -d 'Read input delimited by ASCII NUL(\\0) characters'
 complete -c sk -l print0 -d 'Print output delimited by ASCII NUL(\\0) characters'

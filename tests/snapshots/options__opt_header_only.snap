@@ -23,6 +23,6 @@ expression: h.buffer_view()
 "  c                                                                             "
 "  b                                                                             "
 "> a                                                                             "
-"test_header                                                                     "
+"  test_header                                                                   "
 "  3/3                                                                        0/0"
 ">                                                                               "

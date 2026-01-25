@@ -20,6 +20,10 @@ module completions {
     [ "default" "inline" "hidden" ]
   }
 
+  def "nu-complete sk border" [] {
+    [ "plain" "rounded" "double" "thick" "light-double-dashed" "heavy-double-dashed" "light-triple-dashed" "heavy-triple-dashed" "light-quadruple-dashed" "heavy-quadruple-dashed" "quadrant-inside" "quadrant-outside" ]
+  }
+
   def "nu-complete sk shell" [] {
     [ "bash" "elvish" "fish" "nushell" "power-shell" "zsh" ]
   }
@@ -72,7 +76,7 @@ module completions {
     --inline-info             # Alias for --info=inline
     --header: string          # Set header, displayed next to the info
     --header-lines: string    # Number of lines of the input treated as header
-    --border                  # Draw borders around the UI components
+    --border: string@"nu-complete sk border" # Draw borders around the UI components
     --wrap                    # Wrap items in the item list
     --history: string         # History file
     --history-size: string    # Maximum number of query history entries to keep

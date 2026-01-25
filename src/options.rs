@@ -14,6 +14,7 @@ use crate::binds::KeyMap;
 use crate::item::RankCriteria;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
+use crate::tui::BorderType;
 use crate::tui::PreviewCallback;
 use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
@@ -453,8 +454,11 @@ pub struct SkimOptions {
 
     /// Draw borders around the UI components
     ///
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
-    pub border: bool,
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_missing_value = "plain", help_heading = "Display", num_args=0..)
+    )]
+    pub border: Option<BorderType>,
 
     /// Wrap items in the item list
     #[cfg_attr(feature = "cli", arg(long = "wrap", help_heading = "Display"))]

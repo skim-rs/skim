@@ -2,7 +2,7 @@
 source: tests/options.rs
 expression: h.buffer_view()
 ---
-">   < 3/2                                                                    0/0"
+">   < 2/2                                                                    0/0"
 "  a                                                                             "
 "> b                                                                             "
 "  c                                                                             "

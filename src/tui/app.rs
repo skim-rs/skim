@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
+use crate::tui::input::StatusInfo;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
@@ -17,7 +18,6 @@ use super::Tui;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
-use super::statusline::StatusLine;
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use defer_drop::DeferDrop;
@@ -57,8 +57,6 @@ pub struct App<'a> {
     pub preview: Preview,
     /// Header widget
     pub header: Header,
-    /// Status line widget
-    pub status: StatusLine,
     /// Item list widget
     pub item_list: ItemList,
     /// Color theme
@@ -71,6 +69,10 @@ pub struct App<'a> {
 
     /// Last time spinner visibility changed
     pub spinner_last_change: std::time::Instant,
+    /// Whether to show the spinner (controlled with debouncing)
+    pub show_spinner: bool,
+    /// Start time for spinner animation (set once at app creation, never reset)
+    pub spinner_start: std::time::Instant,
 
     /// Track when items were just updated to avoid unnecessary status updates
     pub items_just_updated: bool,
@@ -91,8 +93,6 @@ pub struct App<'a> {
 
     /// Skim configuration options
     pub options: SkimOptions,
-    /// Whether to show a border around the input field
-    pub input_border: bool,
     /// The command being executed
     pub cmd: String,
     /// Preview area rectangle for mouse event handling
@@ -101,21 +101,36 @@ pub struct App<'a> {
 
 impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let status_area;
-        let input_area;
-        let input_len = (self.input.chars().count() + 2 + self.options.prompt.chars().count()) as u16;
-        let remaining_height = 1
-            + (self
-                .options
-                .header
-                .as_ref()
-                .and(Some(self.header.height()))
-                .unwrap_or(0))
-            + if self.options.info == InfoDisplay::Default {
-                1
-            } else {
-                0
-            };
+        let has_border = self.options.border.is_some();
+
+        // Update header with reserved items (from --header-lines)
+        let reserved_items = self.item_pool.reserved();
+        self.header.set_header_lines(reserved_items);
+
+        // Check if header should be shown (either static header or header_lines)
+        let show_header = self.options.header.is_some() || self.options.header_lines > 0;
+
+        // Compute heights early, accounting for borders
+        // Status line is now always part of the input (as title), so we don't allocate separate space for it
+        let heights = if has_border {
+            // With borders: each bordered widget needs +2 height (top + bottom border)
+            WidgetHeights {
+                input: 3, // 1 line content + 2 border (status is shown as title within border)
+                header: if show_header { self.header.height() + 2 } else { 0 },
+            }
+        } else {
+            // Without borders: input needs +1 for status line title above
+            WidgetHeights {
+                input: 1 + if self.options.info == InfoDisplay::Default {
+                    1
+                } else {
+                    0
+                },
+                header: if show_header { self.header.height() } else { 0 },
+            }
+        };
+
+        let remaining_height = heights.input + heights.header;
 
         // Determine if preview should be split from the root area (for left/right) or from list area (for up/down)
         let preview_visible = self.options.preview.is_some() && !self.options.preview_window.hidden;
@@ -159,15 +174,14 @@ impl Widget for &mut App<'_> {
                 layout
             }
         };
-        if self.options.header.is_some() {
+        if show_header {
             let header_area;
             [header_area, remaining_area] = match self.options.layout {
                 TuiLayout::Default | TuiLayout::ReverseList => {
-                    Layout::vertical([Constraint::Length(self.header.height()), Constraint::Fill(1)])
-                        .areas(remaining_area)
+                    Layout::vertical([Constraint::Length(heights.header), Constraint::Fill(1)]).areas(remaining_area)
                 }
                 TuiLayout::Reverse => {
-                    let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(self.header.height())])
+                    let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(heights.header)])
                         .areas(remaining_area);
                     a.reverse();
                     a
@@ -175,32 +189,31 @@ impl Widget for &mut App<'_> {
             };
             self.header.render(header_area, buf);
         }
-        if self.options.info == InfoDisplay::Hidden {
-            input_area = remaining_area;
+
+        // Build status info for the input's title
+        self.input.status_info = if self.options.info != InfoDisplay::Hidden {
+            Some(StatusInfo {
+                total: self.item_pool.len(),
+                matched: self.item_list.count(),
+                processed: self.matcher_control.get_num_processed(),
+                show_spinner: self.show_spinner,
+                matcher_mode: if self.options.regex {
+                    "RE".to_string()
+                } else {
+                    String::new()
+                },
+                multi_selection: self.options.multi,
+                selected: self.item_list.selection.len(),
+                current_item_idx: self.item_list.current,
+                hscroll_offset: self.item_list.manual_hscroll as i64,
+                start: Some(self.spinner_start),
+            })
         } else {
-            match self.options.info {
-                InfoDisplay::Default => {
-                    let areas: [_; 2] =
-                        Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(remaining_area);
-                    if self.options.layout == TuiLayout::Reverse {
-                        input_area = areas[0];
-                        status_area = areas[1];
-                    } else {
-                        status_area = areas[0];
-                        input_area = areas[1];
-                    }
-                }
-                InfoDisplay::Inline => {
-                    [input_area, status_area] =
-                        Layout::horizontal([Constraint::Length(input_len), Constraint::Fill(1)]).areas(remaining_area);
-                }
-                InfoDisplay::Hidden => {
-                    unreachable!()
-                }
-            };
-            self.status.render(status_area, buf);
-        }
-        self.input.border = self.input_border;
+            None
+        };
+
+        // Render input (status is now shown as its title)
+        let input_area = remaining_area;
         self.input.render(input_area, buf);
 
         // Render preview if enabled
@@ -235,8 +248,19 @@ impl Widget for &mut App<'_> {
         }
         self.items_just_updated = self.item_list.render(list_area, buf).items_updated;
 
-        self.cursor_pos = (input_area.x + self.input.cursor_pos(), input_area.y);
+        // Cursor position needs to account for input border and title
+        // Always +1 for title line (whether bordered or not)
+        self.cursor_pos = (
+            input_area.x + self.input.cursor_pos() + if has_border { 1 } else { 0 },
+            input_area.y + 1,
+        );
     }
+}
+
+/// Helper struct to hold computed widget heights
+struct WidgetHeights {
+    input: u16,
+    header: u16,
 }
 
 impl Default for App<'_> {
@@ -247,7 +271,6 @@ impl Default for App<'_> {
             input: Input::from_options(&opts, theme.clone()),
             preview: Preview::from_options(&opts, theme.clone()),
             header: Header::from_options(&opts, theme.clone()),
-            status: StatusLine::from_options(&opts, theme.clone()),
             item_list: ItemList::from_options(&opts, theme.clone()),
             item_pool: Arc::default(),
             theme,
@@ -264,6 +287,8 @@ impl Default for App<'_> {
             pending_matcher_restart: false,
             // spinner initial state
             spinner_last_change: std::time::Instant::now(),
+            show_spinner: false,
+            spinner_start: std::time::Instant::now(),
             items_just_updated: false,
             query_history: Vec::new(),
             history_index: None,
@@ -272,7 +297,6 @@ impl Default for App<'_> {
             cmd_history_index: None,
             saved_cmd_input: String::new(),
             options: SkimOptions::default(),
-            input_border: false,
             cmd: String::new(),
             preview_area: None,
         }
@@ -286,7 +310,6 @@ impl<'a> App<'a> {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
-            status: StatusLine::from_options(&options, theme.clone()),
             item_pool: Arc::new(DeferDrop::new(ItemPool::from_options(&options))),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
@@ -301,6 +324,8 @@ impl<'a> App<'a> {
             pending_matcher_restart: false,
             // spinner initial state
             spinner_last_change: std::time::Instant::now(),
+            show_spinner: false,
+            spinner_start: std::time::Instant::now(),
             items_just_updated: false,
             query_history: options.query_history.clone(),
             history_index: None,
@@ -309,7 +334,6 @@ impl<'a> App<'a> {
             cmd_history_index: None,
             saved_cmd_input: String::new(),
             options,
-            input_border: false,
             cmd,
             preview_area: None,
         }
@@ -348,32 +372,21 @@ impl<'a> App<'a> {
     }
 
     /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
+    /// Status info is computed on-demand during render, so this is a no-op.
     fn on_items_updated(&mut self) {
-        self.status.total = self.item_pool.len();
-        self.status.matched = self.item_list.count();
-        self.status.processed = self.matcher_control.get_num_processed();
-        // keep multi-selection flag synced with options
-        self.status.multi_selection = self.options.multi;
-        // reading/time updates should be performed by whoever owns reader timers
+        // Status info is computed on-demand during render
     }
 
     /// Call after selection changes (e.g., selection actions, Event::Key)
+    /// Status info is computed on-demand during render, so this is a no-op.
     fn on_selection_changed(&mut self) {
-        self.status.selected = self.item_list.selection.len();
-        self.status.current_item_idx = self.item_list.current;
-        // ensure multi-selection display reflects current options
-        self.status.multi_selection = self.options.multi;
+        // Status info is computed on-demand during render
     }
 
     /// Call when matcher state changes (start/stop)
+    /// Status info is computed on-demand during render, so this is a no-op.
     fn on_matcher_state_changed(&mut self) {
-        self.status.matcher_running = !self.matcher_control.stopped();
-        // set matcher mode string based on current options (e.g., regex mode)
-        self.status.matcher_mode = if self.options.regex {
-            "RE".to_string()
-        } else {
-            String::new()
-        };
+        // Status info is computed on-demand during render
     }
 
     /// Call when query changes (e.g., AddChar, BackwardDeleteChar, etc.)
@@ -481,12 +494,6 @@ impl<'a> App<'a> {
                 // Heartbeat is used for periodic UI updates
                 self.on_matcher_state_changed();
 
-                // Update status & spinner
-                self.status.time_since_read = self.reader_timer.elapsed();
-                self.status.time_since_match = self.matcher_timer.elapsed();
-                self.status.reading = self.item_pool.num_not_taken() != 0;
-                self.status.matcher_running = !self.matcher_control.stopped();
-
                 const MATCHER_DEBOUNCE_MS: u128 = 200;
                 const HIDE_GRACE_MS: u128 = 500;
 
@@ -497,9 +504,9 @@ impl<'a> App<'a> {
                 let should_show_spinner =
                     reading || (matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS);
 
-                if should_show_spinner && !self.status.show_spinner {
+                if should_show_spinner && !self.show_spinner {
                     self.toggle_spinner();
-                } else if !should_show_spinner && self.status.show_spinner {
+                } else if !should_show_spinner && self.show_spinner {
                     // Hide spinner only after grace period to avoid flickering
                     if self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
                         self.toggle_spinner();
@@ -574,7 +581,6 @@ impl<'a> App<'a> {
         trace!("Got new items, len {}", self.item_pool.len());
         // mark reader activity and reset reader timer
         self.reader_timer = std::time::Instant::now();
-        self.status.reading = true;
         self.items_just_updated = true;
         // Update status to reflect new pool state
         self.on_items_updated();
@@ -1077,7 +1083,6 @@ impl<'a> App<'a> {
                 self.item_list.items.clear();
                 self.item_list.current = 0;
                 self.item_list.offset = 0;
-                self.status.matcher_running = false;
                 return;
             }
         }
@@ -1103,7 +1108,6 @@ impl<'a> App<'a> {
             self.item_pool.reset();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
-            self.status.matcher_running = true;
             // In interactive mode, use empty query so all items are shown
             // The input contains the command to execute, not a filter query
             let query = if self.options.disabled {
@@ -1118,23 +1122,8 @@ impl<'a> App<'a> {
                 let m = matches.lock();
                 debug!("Got {} results from matcher, sending to item list...", m.len());
 
-                // Prepend reserved header items to the matched results
-                let reserved_items = item_pool.reserved();
-                let mut all_items = Vec::with_capacity(reserved_items.len() + m.len());
-
-                // Add reserved items as MatchedItems with min rank (always at top, unmatched)
-                for item in reserved_items {
-                    all_items.push(MatchedItem {
-                        item,
-                        rank: [i32::MIN, 0, 0, 0, 0],
-                        matched_range: None,
-                    });
-                }
-
-                // Add matched items
-                all_items.extend_from_slice(&m);
-
-                let _ = tx.send(all_items);
+                // Send matched items directly (header_lines are now handled by the Header widget)
+                let _ = tx.send(m.to_vec());
             });
         }
     }
@@ -1226,7 +1215,7 @@ impl<'a> App<'a> {
         Ok(())
     }
     fn toggle_spinner(&mut self) {
-        self.status.show_spinner = !self.status.show_spinner;
+        self.show_spinner = !self.show_spinner;
         self.spinner_last_change = std::time::Instant::now();
     }
 }

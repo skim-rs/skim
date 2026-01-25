@@ -4,7 +4,7 @@ expression: h.buffer_view()
 ---
 ">                                                                               "
 "  3/3                                                                        0/0"
-"test_header                                                                     "
+"  test_header                                                                   "
 "> a                                                                             "
 "  b                                                                             "
 "  c                                                                             "
