@@ -21,9 +21,9 @@ expression: buf + & cursor_pos
 "                                                                                "
 "                                                                                "
 "                                                                                "
+"                                                                                "
 "  aaba                                                                          "
-"  aba                                                                           "
-"> b                                                                             "
-"  3/5                                                                        0/0"
+"> aba                                                                           "
+"  2/5                                                                        0/0"
 "> ba                                                                            "
 cursor: (24, 5)
