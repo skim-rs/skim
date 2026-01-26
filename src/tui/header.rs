@@ -4,12 +4,13 @@
 use crate::DisplayContext;
 use crate::SkimItem;
 use crate::SkimOptions;
-use crate::helper::item::merge_styles;
 use crate::theme::ColorTheme;
 use crate::theme::DEFAULT_THEME;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
 use crate::tui::util::char_display_width;
+use crate::tui::util::style_line;
+use crate::tui::util::style_text;
 use crate::tui::widget::{SkimRender, SkimWidget};
 
 use ansi_to_tui::IntoText;
@@ -81,11 +82,7 @@ impl Header {
     }
     fn header_text<'a>(&self) -> Text<'a> {
         let mut res = self.header.into_text().unwrap(); //.unwrap_or(Text::from(self.header.clone()));
-        res.lines.iter_mut().for_each(|line| {
-            line.spans
-                .iter_mut()
-                .for_each(|span| span.style = merge_styles(self.theme.header, span.style))
-        });
+        style_text(&mut res, self.theme.header);
         res
     }
 }
@@ -158,11 +155,9 @@ impl SkimWidget for Header {
         };
 
         for item in self.header_lines.iter() {
-            let mut text = item.display(display_context.clone());
-            text.spans
-                .iter_mut()
-                .for_each(|s| s.style = merge_styles(self.theme.header, s.style));
-            combined_header.push_line(text);
+            let mut line = item.display(display_context.clone());
+            style_line(&mut line, self.theme.header);
+            combined_header.push_line(line);
         }
 
         // Add static header (from --header)

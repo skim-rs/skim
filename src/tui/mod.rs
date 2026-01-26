@@ -13,7 +13,7 @@ use thiserror::Error;
 pub use widget::{SkimRender, SkimWidget};
 mod app;
 mod backend;
-mod util;
+pub(crate) mod util;
 pub use backend::Tui;
 /// Event handling and action definitions
 pub mod event;

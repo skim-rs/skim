@@ -54,5 +54,8 @@ sk_test!(test_ansi_flag_no_strip, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n
     @capture_colored[*] contains("mre\u{1b}");
     @keys Enter;
     @output[*] contains("mred\u{1b}");
+});
 
+insta_test!(test_prompt_ansi, ["a"], &["--prompt", "\x1b[1;34mprompt\x1b[0m nocol"], {
+    @snap;
 });

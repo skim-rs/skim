@@ -1,4 +1,7 @@
-use ratatui::text::{Line, Span, Text};
+use ratatui::{
+    style::Style,
+    text::{Line, Span, Text},
+};
 use unicode_display_width::is_double_width;
 
 // Directly taken from https://docs.rs/unicode-display-width/0.3.0/src/unicode_display_width/lib.rs.html#77-81
@@ -55,9 +58,45 @@ pub fn wrap_text(input: Text, width: usize) -> Text {
     output
 }
 
+/// Merges styles from right to left
+/// left has higher priority
+/// contrary to ratatui's Style::patch, this will override `Reset` with the new style if set
+pub(crate) fn merge_styles(left: Style, right: Style) -> Style {
+    use ratatui::style::Color::*;
+    let mut res = left.patch(right);
+    macro_rules! set_field {
+        ($res:ident, $left:ident, $right:ident, $field:ident) => {
+            if left.$field == Some(Reset) {
+                $res.$field = $right.$field;
+            } else if $right.$field == Some(Reset) {
+                $res.$field = $left.$field;
+            } else {
+                $res.$field = $right.$field.or($left.$field);
+            }
+        };
+    }
+
+    set_field!(res, left, right, fg);
+    set_field!(res, left, right, bg);
+    set_field!(res, left, right, underline_color);
+
+    res
+}
+
+pub(crate) fn style_span(span: &mut Span, style: Style) {
+    span.style = merge_styles(style, span.style);
+}
+pub(crate) fn style_line(line: &mut Line, style: Style) {
+    line.iter_mut().for_each(|span| style_span(span, style));
+}
+pub(crate) fn style_text(text: &mut Text, style: Style) {
+    text.iter_mut().for_each(|line| style_line(line, style));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ansi_to_tui::IntoText as _;
     use ratatui::style::{Color, Style};
 
     #[test]
@@ -208,5 +247,32 @@ mod tests {
         assert!(styles.contains(&Some(Color::Red)));
         assert!(styles.contains(&Some(Color::Blue)));
         assert!(styles.contains(&Some(Color::Green)));
+    }
+
+    #[test]
+    fn test_merge_styles() {
+        use ratatui::style::{Color::*, Modifier};
+        let input = "before \x1b[1;34mline1\x1b[0m nocol";
+        let styled = input.into_text().unwrap().lines[0].clone();
+        let red = Style::new().red();
+        assert_eq!(merge_styles(red, styled.spans[0].style).fg, Some(Red));
+        assert_eq!(merge_styles(red, styled.spans[1].style).fg, Some(Blue));
+        assert_eq!(merge_styles(red, styled.spans[1].style).add_modifier, Modifier::BOLD);
+        assert_eq!(merge_styles(red, styled.spans[2].style).fg, Some(Red));
+    }
+
+    #[test]
+    fn test_style_text() {
+        use ratatui::style::{Color::*, Modifier};
+        let input = "before \x1b[1;34mline1\x1b[0m nocol";
+        let mut styled = input.into_text().unwrap();
+        let red = Style::new().red();
+        style_text(&mut styled, red);
+        assert_eq!(styled.lines.len(), 1);
+        let line = styled.lines[0].clone();
+        assert_eq!(line.spans[0].style.fg, Some(Red));
+        assert_eq!(line.spans[1].style.fg, Some(Blue));
+        assert_eq!(line.spans[1].style.add_modifier, Modifier::BOLD);
+        assert_eq!(line.spans[2].style.fg, Some(Red));
     }
 }

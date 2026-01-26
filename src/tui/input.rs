@@ -1,12 +1,15 @@
 use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
+use ansi_to_tui::IntoText;
 use ratatui::{prelude::*, widgets::Widget};
 use unicode_display_width::width as display_width;
 
+use crate::helper::item::strip_ansi;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
+use crate::tui::util::style_line;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimOptions, theme::ColorTheme};
 use std::sync::Arc;
@@ -402,7 +405,7 @@ impl Input {
         deleted
     }
     pub fn cursor_pos(&self) -> u16 {
-        (display_width(&self.value[..(self.cursor_pos as usize)]) + display_width(&self.prompt))
+        (display_width(&self.value[..(self.cursor_pos as usize)]) + display_width(&strip_ansi(&self.prompt).0))
             .try_into()
             .expect("Failed to fit cursor char into an u16")
     }
@@ -444,8 +447,13 @@ impl SkimWidget for Input {
         use ratatui::widgets::Paragraph;
         use ratatui::widgets::{Block, Borders};
 
-        let prompt_span = Span::styled(&self.prompt, self.theme.prompt);
-        let value_span = Span::styled(&self.value, self.theme.query);
+        let mut line = self
+            .prompt
+            .into_text()
+            .map(|t| t.lines.into_iter().next().unwrap_or_default())
+            .unwrap_or_else(|_| Line::from(self.prompt.as_str()));
+        style_line(&mut line, self.theme.prompt);
+        line.push_span(Span::styled(&self.value, self.theme.query));
 
         let mut block = Block::default();
 
@@ -481,14 +489,10 @@ impl SkimWidget for Input {
                     let available_width = area.width as u64;
                     let padding_width = available_width.saturating_sub(used_width);
 
-                    let line = Line::from(vec![
-                        prompt_span,
-                        value_span,
-                        Span::styled(format!("  {} ", separator), self.theme.info),
-                        Span::styled(inline_status, self.theme.info),
-                        Span::raw(" ".repeat(padding_width.try_into().unwrap())),
-                        Span::styled(right_status, self.theme.info),
-                    ]);
+                    line.push_span(Span::styled(format!("  {} ", separator), self.theme.info));
+                    line.push_span(Span::styled(inline_status, self.theme.info));
+                    line.push_span(Span::raw(" ".repeat(padding_width.try_into().unwrap())));
+                    line.push_span(Span::styled(right_status, self.theme.info));
 
                     Paragraph::new(line)
                         .block(block)
@@ -496,7 +500,6 @@ impl SkimWidget for Input {
                         .render(area, buf);
                 } else {
                     // No status info, just render input
-                    let line = Line::from(vec![prompt_span, value_span]);
                     Paragraph::new(line)
                         .block(block)
                         .style(self.theme.normal)
@@ -530,7 +533,6 @@ impl SkimWidget for Input {
                     }
                 }
 
-                let line = Line::from(vec![prompt_span, value_span]);
                 Paragraph::new(line)
                     .block(block)
                     .style(self.theme.normal)
@@ -538,7 +540,6 @@ impl SkimWidget for Input {
             }
             InfoDisplay::Hidden => {
                 // Hidden mode: no status displayed
-                let line = Line::from(vec![prompt_span, value_span]);
                 Paragraph::new(line)
                     .block(block)
                     .style(self.theme.normal)
