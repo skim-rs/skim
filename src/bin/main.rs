@@ -18,7 +18,6 @@ use interprocess::local_socket::ToNsName as _;
 use interprocess::local_socket::traits::Stream as _;
 use log::trace;
 use skim::binds::parse_action_chain;
-use skim::item::RankBuilder;
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;

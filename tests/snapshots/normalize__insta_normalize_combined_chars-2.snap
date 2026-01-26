@@ -1,6 +1,6 @@
 ---
 source: tests/normalize.rs
-expression: h.buffer_view()
+expression: buf + & cursor_pos
 ---
 "                                                                                "
 "                                                                                "
@@ -26,3 +26,4 @@ expression: h.buffer_view()
 "> señor                                                                         "
 "  2/4                                                                        0/0"
 "> senor                                                                         "
+cursor: (24, 8)
