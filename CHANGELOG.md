@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-01-26
+
+### 🚀 Features
+
+- Parse ansi codes in prompt
+
+### 🐛 Bug Fixes
+
+- Header and header-lines order in reverse layout
+- Correctly overlay header styles
+- Make select-1 and exit-0 work again (closes #916) (#933)
+- Fix cursor blinking (closes #932) (credits to @lilydjwg)
+
+### 🧪 Testing
+
+- Review snapshots
+
+### ⚙️ Miscellaneous Tasks
+
+- Add matrix room to readme
+
 ## [1.7.2] - 2026-01-25
 
 ### 🐛 Bug Fixes
