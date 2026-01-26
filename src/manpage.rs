@@ -16,6 +16,11 @@ Available themes:
     * 16: dark base16 theme
     * bw: black & white theme
     * dark | default: dark 256color, default value
+    * all 4 catppuccin variants:
+        * catppuccin-latte
+        * catppuccin-macchiato
+        * catppuccin-frappe
+        * catppuccin-mocha
 
 Available color names:
     * normal (or empty string): normal text
