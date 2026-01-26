@@ -20,8 +20,9 @@ use crate::{
 };
 
 /// Processed items ready for rendering
-struct ProcessedItems {
-    items: Vec<MatchedItem>,
+#[derive(Default)]
+pub(crate) struct ProcessedItems {
+    pub(crate) items: Vec<MatchedItem>,
 }
 
 /// Widget for displaying and managing the list of filtered items
@@ -29,7 +30,7 @@ pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: IndexSet<MatchedItem>,
     pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
-    processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
+    pub(crate) processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     pub(crate) current: usize,

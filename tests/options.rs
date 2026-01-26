@@ -1,3 +1,6 @@
+use crate::common::tmux::SK;
+use std::process::Command;
+
 #[allow(dead_code)]
 #[macro_use]
 mod common;
@@ -462,5 +465,38 @@ insta_test!(opt_border_quadrant_inside, ["a", "b", "c", "ac"], &["-q", "a", "--b
 });
 
 insta_test!(opt_border_quadrant_outside, ["a", "b", "c", "ac"], &["-q", "a", "--border", "quadrant-outside"], {
+    @snap;
+});
+
+#[test]
+fn opt_select_1() -> std::io::Result<()> {
+    let res = Command::new("/bin/sh")
+        .arg("-c")
+        .env_clear()
+        .arg(&format!("printf '1\n2\n3' | {SK} --select-1 -q 3"))
+        .stdin(std::process::Stdio::null())
+        .output()?;
+    assert_eq!(res.status.code(), Some(0));
+    assert_eq!(res.stdout, &[b'3', b'\n']);
+    Ok(())
+}
+
+#[test]
+fn opt_exit_0() -> std::io::Result<()> {
+    let res = Command::new("/bin/sh")
+        .arg("-c")
+        .env_clear()
+        .arg(&format!("printf '1\n2\n3' | {SK} --exit-0 -q 4"))
+        .stdin(std::process::Stdio::null())
+        .output()?;
+    assert_eq!(res.status.code(), Some(1));
+    assert_eq!(res.stdout, &[]);
+    Ok(())
+}
+
+insta_test!(opt_select_1_enter, ["1", "2", "3", "11"], &["-q", "1", "--select-1"], {
+    @snap;
+});
+insta_test!(opt_exit_0_enter, ["1", "2", "3"], &["-q", "1", "--exit-0"], {
     @snap;
 });
