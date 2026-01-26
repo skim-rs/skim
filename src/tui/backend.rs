@@ -143,7 +143,6 @@ where
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
         if crossterm::terminal::is_raw_mode_enabled()? {
-            self.flush()?;
             crossterm::execute!(
                 std::io::stderr(),
                 DisableMouseCapture,
