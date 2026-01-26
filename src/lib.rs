@@ -478,7 +478,7 @@ impl Skim {
             }
 
             if should_enter {
-            let backend = CrosstermBackend::new(std::io::stderr());
+            let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
             let mut tui = tui::Tui::new_with_height(backend, height)?;
             let event_tx_clone = tui.event_tx.clone();
             tui.enter()?;
