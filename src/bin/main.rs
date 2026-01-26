@@ -199,6 +199,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     }) else {
         return Ok(135);
     };
+    log::debug!("result: {result:?}");
 
     if result.is_abort {
         return Ok(130);

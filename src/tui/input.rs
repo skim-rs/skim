@@ -66,7 +66,7 @@ impl StatusInfo {
         }
 
         // Progress percentage
-        if self.show_spinner && self.total > 0 {
+        if self.show_spinner && self.total > 0 && self.processed != self.total {
             let pct = self.processed.saturating_mul(100) / self.total;
             parts.push_str(&format!(" ({}%)", pct));
         }

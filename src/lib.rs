@@ -45,6 +45,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
 use tokio::select;
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tui::App;
 use tui::Event;
@@ -351,8 +352,6 @@ impl Skim {
     /// Panics if the tui fails to initilize
     pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         let height = Size::try_from(options.height.as_str())?;
-        let backend = CrosstermBackend::new(std::io::stderr());
-        let mut tui = tui::Tui::new_with_height(backend, height)?;
 
         // application state
         // Initialize theme from options
@@ -372,8 +371,6 @@ impl Skim {
         let mut final_event: Event = Event::Quit;
         let mut final_key: KeyEvent = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
         rt.block_on(async {
-            tui.enter()?;
-
             //------------------------------------------------------------------------------
             // reader
             // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
@@ -398,12 +395,21 @@ impl Skim {
             let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
             let reader_done = Arc::new(AtomicBool::new(false));
             let reader_done_clone = reader_done.clone();
+            let (reader_interrupt_tx, mut reader_interrupt_rx) = unbounded_channel();
 
             let item_pool = app.item_pool.clone();
             tokio::spawn(async move {
                 const BATCH: usize = 4096; // Smaller batches for more responsive updates
                 loop {
+                    if reader_interrupt_rx
+                        .try_recv()
+                        .unwrap_or_else(|e| e == TryRecvError::Disconnected)
+                    {
+                        debug!("stopping reader receiver thread");
+                        break;
+                    }
                     let mut buf = Vec::with_capacity(BATCH);
+                    trace!("getting items");
                     if item_rx.recv_many(&mut buf, BATCH).await > 0 {
                         item_pool.append(buf);
                         trace!("Got new items, len {}", item_pool.len());
@@ -415,6 +421,15 @@ impl Skim {
 
             // Start matcher initially
             app.restart_matcher(true);
+
+            // Deal with read-0 / select-1
+            let min_items_before_enter = if app.options.exit_0 {
+                1
+            } else if app.options.select_1 {
+                2
+            } else {
+                0
+            };
 
             let listener = if let Some(socket_name) = &listen_socket {
                 debug!("starting listener on socket at {socket_name}");
@@ -434,8 +449,39 @@ impl Skim {
             } else {
                 None
             };
-            let event_tx_clone = tui.event_tx.clone();
 
+            let mut should_enter = true;
+            if min_items_before_enter > 0 {
+                while app.matcher_control.get_num_matched() < min_items_before_enter && app.item_pool.num_not_taken() > 0 && !app.matcher_control.stopped() {
+                    let curr = app.matcher_control.get_num_matched();
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    trace!(
+                        "waiting for matcher, stopped: {}, processed: {}, pool: {}, matched: {}, query: {}, reader_done: {}, reader_control_done: {}",
+                        app.matcher_control.stopped(),
+                        app.matcher_control.get_num_processed(),
+                        app.item_pool.num_not_taken(),
+                        curr,
+                        app.input.value,
+                        reader_done.load(std::sync::atomic::Ordering::Relaxed),
+                        reader_control.is_done()
+                    );
+                    app.restart_matcher(false);
+                };
+                trace!("checking for matched item count before entering: {}/{min_items_before_enter}", app.matcher_control.get_num_matched());
+                if app.matcher_control.stopped() && app.matcher_control.get_num_matched() == min_items_before_enter - 1
+                {
+                    app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
+                    debug!("early exit, result: {:?}", app.results());
+                    should_enter = false;
+                    final_event = Event::Action(Action::Accept(None));
+                }
+            }
+
+            if should_enter {
+            let backend = CrosstermBackend::new(std::io::stderr());
+            let mut tui = tui::Tui::new_with_height(backend, height)?;
+            let event_tx_clone = tui.event_tx.clone();
+            tui.enter()?;
             loop {
                 select! {
                     event = tui.next() => {
@@ -503,7 +549,9 @@ impl Skim {
                     break;
                 }
             }
+            }
             reader_control.kill();
+            let _ = reader_interrupt_tx.send(true);
             eyre::Ok(())
         })?;
 
