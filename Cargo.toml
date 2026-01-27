@@ -42,7 +42,7 @@ derive_builder = "0.20.2"
 env_logger = { version = "0.11.6", optional = true }
 indexmap = "2.8.0"
 log = "0.4.27"
-nix = { version = "0.30.1", features = ["fs"] }
+nix = { version = "0.31.1", features = ["fs"] }
 rand = "0.9.0"
 rayon = "1.5.3"
 regex = "1.6.0"
