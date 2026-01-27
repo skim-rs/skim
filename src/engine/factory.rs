@@ -17,7 +17,6 @@ pub struct ExactOrFuzzyEngineFactory {
     exact_mode: bool,
     fuzzy_algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
-    normalize: bool,
 }
 
 impl ExactOrFuzzyEngineFactory {
@@ -27,7 +26,6 @@ impl ExactOrFuzzyEngineFactory {
             exact_mode: false,
             fuzzy_algorithm: FuzzyAlgorithm::SkimV2,
             rank_builder: Default::default(),
-            normalize: false,
         }
     }
 
@@ -46,12 +44,6 @@ impl ExactOrFuzzyEngineFactory {
     /// Sets the rank builder for scoring matches
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
-        self
-    }
-
-    /// Sets whether to normalize unicode characters
-    pub fn normalize(mut self, normalize: bool) -> Self {
-        self.normalize = normalize;
         self
     }
 
@@ -75,7 +67,6 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
         let mut exact = self.exact_mode;
         let mut param = ExactMatchingParam::default();
         param.case = case;
-        param.normalize = self.normalize;
 
         if query.starts_with('\'') {
             exact = !exact;
@@ -121,7 +112,6 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
                     .query(query)
                     .algorithm(self.fuzzy_algorithm)
                     .case(case)
-                    .normalize(self.normalize)
                     .rank_builder(self.rank_builder.clone())
                     .build(),
             )
@@ -203,7 +193,6 @@ impl MatchEngineFactory for AndOrEngineFactory {
 /// Factory for creating regex-based match engines
 pub struct RegexEngineFactory {
     rank_builder: Arc<RankBuilder>,
-    normalize: bool,
 }
 
 impl RegexEngineFactory {
@@ -211,19 +200,12 @@ impl RegexEngineFactory {
     pub fn builder() -> Self {
         Self {
             rank_builder: Default::default(),
-            normalize: false,
         }
     }
 
     /// Sets the rank builder for scoring matches
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
-        self
-    }
-
-    /// Sets whether to normalize unicode characters
-    pub fn normalize(mut self, normalize: bool) -> Self {
-        self.normalize = normalize;
         self
     }
 
@@ -236,7 +218,7 @@ impl RegexEngineFactory {
 impl MatchEngineFactory for RegexEngineFactory {
     fn create_engine_with_case(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
         Box::new(
-            RegexEngine::builder(query, case, self.normalize)
+            RegexEngine::builder(query, case)
                 .rank_builder(self.rank_builder.clone())
                 .build(),
         )

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
 
-use crate::engine::util::{map_char_indices_to_original, normalize_with_char_mapping};
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
 use crate::{MatchRange, MatchResult, SkimItem};
@@ -39,7 +38,6 @@ pub struct FuzzyEngineBuilder {
     case: CaseMatching,
     algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
-    normalize: bool,
 }
 
 impl FuzzyEngineBuilder {
@@ -60,11 +58,6 @@ impl FuzzyEngineBuilder {
 
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
-        self
-    }
-
-    pub fn normalize(mut self, normalize: bool) -> Self {
-        self.normalize = normalize;
         self
     }
 
@@ -115,7 +108,6 @@ impl FuzzyEngineBuilder {
             matcher,
             query: self.query,
             rank_builder: self.rank_builder,
-            normalize: self.normalize,
         }
     }
 }
@@ -125,7 +117,6 @@ pub struct FuzzyEngine {
     query: String,
     matcher: Box<dyn FuzzyMatcher>,
     rank_builder: Arc<RankBuilder>,
-    normalize: bool,
 }
 
 impl FuzzyEngine {
@@ -151,35 +142,18 @@ impl MatchEngine for FuzzyEngine {
         let mut matched_result = None;
         let item_text = item.text();
 
-        // Get normalized text and char mapping if normalization is enabled
-        let (item_text_for_match, char_mapping): (std::borrow::Cow<str>, Option<Vec<usize>>) = if self.normalize {
-            let (normalized, mapping) = normalize_with_char_mapping(&item_text);
-            (std::borrow::Cow::Owned(normalized), Some(mapping))
-        } else {
-            (std::borrow::Cow::Borrowed(&*item_text), None)
-        };
-
-        let query_for_match: std::borrow::Cow<str> = if self.normalize {
-            let (normalized, _) = normalize_with_char_mapping(&self.query);
-            std::borrow::Cow::Owned(normalized)
-        } else {
-            std::borrow::Cow::Borrowed(&self.query)
-        };
-
-        let default_range = [(0, item_text_for_match.len())];
+        let default_range = [(0, item_text.len())];
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-            let start = min(start, item_text_for_match.len());
-            let end = min(end, item_text_for_match.len());
-            matched_result = self
-                .fuzzy_match(&item_text_for_match[start..end], &query_for_match)
-                .map(|(s, vec)| {
-                    if start != 0 {
-                        let start_char = &item_text_for_match[..start].chars().count();
-                        (s, vec.iter().map(|x| x + start_char).collect())
-                    } else {
-                        (s, vec)
-                    }
-                });
+            let start = min(start, item_text.len());
+            let end = min(end, item_text.len());
+            matched_result = self.fuzzy_match(&item_text[start..end], &self.query).map(|(s, vec)| {
+                if start != 0 {
+                    let start_char = &item_text[..start].chars().count();
+                    (s, vec.iter().map(|x| x + start_char).collect())
+                } else {
+                    (s, vec)
+                }
+            });
 
             if matched_result.is_some() {
                 break;
@@ -187,13 +161,6 @@ impl MatchEngine for FuzzyEngine {
         }
 
         let (score, matched_range) = matched_result?;
-
-        // Map indices back to original string if we normalized
-        let matched_range = if let Some(ref mapping) = char_mapping {
-            map_char_indices_to_original(&matched_range, mapping)
-        } else {
-            matched_range
-        };
 
         trace!("matched range {matched_range:?}");
         let begin = *matched_range.first().unwrap_or(&0);

@@ -1,8 +1,7 @@
-use crate::engine::util::{contains_upper, map_byte_range_to_original, normalize_with_byte_mapping, regex_match};
+use crate::engine::util::{contains_upper, regex_match};
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, SkimItem};
 use regex::{Regex, escape};
-use std::borrow::Cow;
 use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
@@ -15,7 +14,6 @@ pub struct ExactMatchingParam {
     pub postfix: bool,
     pub inverse: bool,
     pub case: CaseMatching,
-    pub normalize: bool,
     __non_exhaustive: bool,
 }
 
@@ -26,7 +24,6 @@ pub struct ExactEngine {
     query_regex: Option<Regex>,
     rank_builder: Arc<RankBuilder>,
     inverse: bool,
-    normalize: bool,
 }
 
 impl ExactEngine {
@@ -35,14 +32,6 @@ impl ExactEngine {
             CaseMatching::Respect => true,
             CaseMatching::Ignore => false,
             CaseMatching::Smart => contains_upper(query),
-        };
-
-        // Normalize query if requested
-        let query_for_regex = if param.normalize {
-            let (normalized, _) = normalize_with_byte_mapping(query);
-            normalized
-        } else {
-            query.to_string()
         };
 
         let mut query_builder = String::new();
@@ -54,7 +43,7 @@ impl ExactEngine {
             query_builder.push('^');
         }
 
-        query_builder.push_str(&escape(&query_for_regex));
+        query_builder.push_str(&escape(query));
 
         if param.postfix {
             query_builder.push('$');
@@ -71,7 +60,6 @@ impl ExactEngine {
             query_regex,
             rank_builder: Default::default(),
             inverse: param.inverse,
-            normalize: param.normalize,
         }
     }
 
@@ -90,25 +78,17 @@ impl MatchEngine for ExactEngine {
         let mut matched_result = None;
         let item_text = item.text();
 
-        // Get normalized text and byte mapping if normalization is enabled
-        let (item_text_for_match, byte_mapping): (Cow<str>, Option<Vec<usize>>) = if self.normalize {
-            let (normalized, mapping) = normalize_with_byte_mapping(&item_text);
-            (Cow::Owned(normalized), Some(mapping))
-        } else {
-            (Cow::Borrowed(&*item_text), None)
-        };
-
-        let default_range = [(0, item_text_for_match.len())];
+        let default_range = [(0, item_text.len())];
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-            let start = min(start, item_text_for_match.len());
-            let end = min(end, item_text_for_match.len());
+            let start = min(start, item_text.len());
+            let end = min(end, item_text.len());
             if self.query_regex.is_none() {
                 matched_result = Some((0, 0));
                 break;
             }
 
             matched_result =
-                regex_match(&item_text_for_match[start..end], &self.query_regex).map(|(s, e)| (s + start, e + start));
+                regex_match(&item_text[start..end], &self.query_regex).map(|(s, e)| (s + start, e + start));
 
             if self.inverse {
                 matched_result = matched_result.xor(Some((0, 0)))
@@ -120,13 +100,6 @@ impl MatchEngine for ExactEngine {
         }
 
         let (begin, end) = matched_result?;
-
-        // Map byte range back to original string if we normalized
-        let (begin, end) = if let Some(ref mapping) = byte_mapping {
-            map_byte_range_to_original(begin, end, mapping, &item_text)
-        } else {
-            (begin, end)
-        };
 
         let score = (end - begin) as i32;
         let item_len = item_text.len();

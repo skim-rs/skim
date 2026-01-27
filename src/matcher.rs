@@ -5,6 +5,7 @@ use std::thread;
 
 use rayon::prelude::*;
 
+use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
@@ -103,24 +104,35 @@ impl Matcher {
     /// without creating a full Matcher instance.
     pub fn create_engine_factory(options: &SkimOptions) -> Rc<dyn MatchEngineFactory> {
         if options.regex {
-            Rc::new(RegexEngineFactory::builder().normalize(options.normalize))
+            let regex_factory = RegexEngineFactory::builder();
+            if options.normalize {
+                Rc::new(NormalizedEngineFactory::new(regex_factory))
+            } else {
+                Rc::new(regex_factory)
+            }
         } else {
             let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
             log::debug!("Creating matcher for algo {:?}", options.algorithm);
             let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
                 .fuzzy_algorithm(options.algorithm)
                 .exact_mode(options.exact)
-                .normalize(options.normalize)
                 .rank_builder(rank_builder)
                 .build();
 
             // If split_match is enabled, wrap the fuzzy factory with SplitMatchEngineFactory
             // Then wrap with AndOrEngineFactory so that queries like "foo:bar baz:qux" work
-            if let Some(delimiter) = options.split_match {
+            let andor_factory = if let Some(delimiter) = options.split_match {
                 let split_factory = SplitMatchEngineFactory::new(fuzzy_engine_factory, delimiter);
-                Rc::new(AndOrEngineFactory::new(split_factory))
+                AndOrEngineFactory::new(split_factory)
             } else {
-                Rc::new(AndOrEngineFactory::new(fuzzy_engine_factory))
+                AndOrEngineFactory::new(fuzzy_engine_factory)
+            };
+
+            // Wrap with NormalizedEngineFactory if normalization is requested
+            if options.normalize {
+                Rc::new(NormalizedEngineFactory::new(andor_factory))
+            } else {
+                Rc::new(andor_factory)
             }
         }
     }
