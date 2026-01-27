@@ -1902,7 +1902,7 @@ checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
 
 [[package]]
 name = "skim"
-version = "1.9.1"
+version = "1.10.0"
 dependencies = [
  "ansi-to-tui",
  "assert_enum_variants",
