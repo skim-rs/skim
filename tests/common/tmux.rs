@@ -55,6 +55,7 @@ pub enum Keys<'a> {
     BSpace,
     Up,
     Down,
+    Escape,
 }
 
 impl Display for Keys<'_> {
@@ -73,6 +74,7 @@ impl Display for Keys<'_> {
             BSpace => write!(f, "BSpace"),
             Up => write!(f, "Up"),
             Down => write!(f, "Down"),
+            Escape => write!(f, "Escape"),
         }
     }
 }
