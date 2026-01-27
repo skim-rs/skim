@@ -11,10 +11,7 @@ pub struct FrizbeeMatcher {}
 
 fn adaptive(pattern: &str) -> Config {
     Config {
-        max_typos: match pattern.chars().count() / 4 {
-            0 => None,
-            n => Some(n.try_into().unwrap()),
-        },
+        max_typos: Some(pattern.chars().count().saturating_div(4).try_into().unwrap()),
         prefilter: true,
         sort: false,
         scoring: Scoring::default(),
