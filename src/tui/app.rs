@@ -1051,6 +1051,9 @@ impl<'a> App<'a> {
                 self.input.insert_str(&self.yank_register);
                 return self.on_query_changed();
             }
+            Custom(cb) => {
+                return cb.call(self).map_err(|e| color_eyre::eyre::eyre!("{}", e));
+            }
         }
         Ok(Vec::default())
     }

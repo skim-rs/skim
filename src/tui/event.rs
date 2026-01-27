@@ -1,5 +1,61 @@
+use std::sync::{Arc, Mutex};
+
 use crate::exhaustive_match;
 use crossterm::event::{KeyEvent, MouseEvent};
+use derive_more::{Debug, Eq, PartialEq};
+
+type ActionCallbackFn = dyn Fn(*mut ()) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> + Send;
+
+/// The custom action callback
+///
+/// The callback is wrapped in a helper that handles lifetime erasure safely.
+/// Users create callbacks using `ActionCallback::new()` which ensures safety.
+#[derive(Clone)]
+pub struct ActionCallback(Arc<Mutex<ActionCallbackFn>>);
+
+impl std::fmt::Debug for ActionCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ActionCallback").finish()
+    }
+}
+
+impl ActionCallback {
+    /// Create a new action callback from a closure
+    ///
+    ///
+    /// The closure will be called with a mutable reference to App and return a vec of events that
+    /// will be run after the callback is done.
+    /// The lifetime is erased internally in a safe manner.
+    pub fn new<F>(f: F) -> Self
+    where
+        F: Fn(&mut crate::tui::App<'static>) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>>
+            + Send
+            + 'static,
+    {
+        Self(Arc::new(Mutex::new(move |ptr| {
+            // SAFETY: This is safe because:
+            // 1. The pointer comes from a valid &mut App reference
+            // 2. We immediately cast it back to the reference
+            // 3. The lifetime 'static is a lie but the reference doesn't outlive this call
+            let app = unsafe { &mut *(ptr as *mut crate::tui::App<'static>) };
+            f(app)
+        })))
+    }
+
+    /// Call the callback with an App reference
+    ///
+    /// SAFETY: This method erases the lifetime of the App reference by converting it to a raw pointer.
+    /// This is safe because the callback is called immediately and doesn't store the reference.
+    pub(crate) fn call(
+        &self,
+        app: &mut crate::tui::App<'_>,
+    ) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> {
+        let callback = self.0.lock().unwrap();
+        // Erase the lifetime by converting to a raw pointer
+        let ptr = app as *mut crate::tui::App<'_> as *mut ();
+        callback(ptr)
+    }
+}
 
 /// Events that can occur during skim's execution
 #[derive(Clone, Debug)]
@@ -39,7 +95,7 @@ pub enum Event {
 }
 
 /// Actions that can be performed in skim
-#[derive(Debug, Clone, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Action {
     /// Abort and exit with error
     Abort,
@@ -173,6 +229,12 @@ pub enum Action {
     Up(u16),
     /// Yank (paste)
     Yank,
+    /// Custom action from lib
+    #[debug("custom")]
+    #[eq(skip)]
+    #[partial_eq(skip)]
+    #[serde(skip)]
+    Custom(ActionCallback),
 }
 
 /// Parses an action string into an Action enum
@@ -291,7 +353,8 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "yank" => Some(Yank),
                 "unreachable-if-non-matched" => Some(IfNonMatched(Default::default(), None)),
                 "unreachable-if-query-empty" => Some(IfQueryEmpty(Default::default(), None)),
-                "unreachable-if-query-not-empty" => Some(IfQueryNotEmpty(Default::default(), None))
+                "unreachable-if-query-not-empty" => Some(IfQueryNotEmpty(Default::default(), None)),
+                "custom-do-not-use-from-cli" => Some(Custom(ActionCallback::new(|_: &mut crate::tui::App<'static>| { Ok(Vec::new()) }))),
             }
             default _ => None
         }
