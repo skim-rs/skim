@@ -3,7 +3,7 @@
 # Benchmark script to measure ingestion + matching rate in skim interactive mode
 # This measures how fast skim can ingest items and display matched results
 #
-# Usage: bench.sh [BINARY_PATH] [-n|--num-items NUM] [-q|--query QUERY] [-r|--runs RUNS] 
+# Usage: bench.sh [BINARY_PATH] [-n|--num-items NUM] [-q|--query QUERY] [-r|--runs RUNS]
 #                 [-f|--file FILE] [-g|--generate-file FILE] [-- EXTRA_ARGS...]
 #
 # Arguments:
@@ -100,7 +100,7 @@ fi
 generate_test_data() {
     local output_file="$1"
     local num_items="$2"
-    
+
     awk -v num="$num_items" 'BEGIN {
         srand()
         words[1]="home"; words[2]="usr"; words[3]="etc"; words[4]="var"; words[5]="opt"
@@ -109,7 +109,7 @@ generate_test_data() {
         words[16]="src"; words[17]="test"; words[18]="config"; words[19]="data"; words[20]="logs"
         words[21]="cache"; words[22]="backup"; words[23]="docs"; words[24]="images"; words[25]="videos"
         words[26]="audio"; words[27]="downloads"; words[28]="uploads"; words[29]="temp"; words[30]="shared"
-    
+
         for (i = 1; i <= num; i++) {
             depth = int(rand() * 9) + 2  # 2-10 depth
             path = ""
@@ -176,24 +176,24 @@ for RUN in $(seq 1 $RUNS); do
     fi
 
     SESSION_NAME="skim_bench_$$_$RUN"
-    
+
     # Create a new tmux session in the background
     tmux new-session -s "$SESSION_NAME" -d
-    
+
     # Unset HISTFILE in the tmux session to prevent command from appearing in shell history
     tmux send-keys -t "$SESSION_NAME" "unset HISTFILE" Enter
     sleep 0.1
-    
+
     # Prepare to capture the start time as close to data ingestion as possible
     # Run skim with the query already set, and measure until matcher completes
     tmux send-keys -t "$SESSION_NAME" "cat $TMP_FILE | $BINARY_PATH --query '$QUERY' $EXTRA_ARGS" Enter
-    
+
     # Record start time
     START=$(date +%s%N)
-    
+
     # Wait a bit for skim to actually start
     sleep 0.2
-    
+
     # Find skim PID for resource monitoring
     SK_PID=""
     for i in 1 2 3 4 5; do
@@ -203,7 +203,7 @@ for RUN in $(seq 1 $RUNS); do
             break
         fi
     done
-    
+
     if [ -n "$SK_PID" ]; then
         # Start background monitoring of CPU and RAM
         MONITOR_LOG="/tmp/skim-monitor-$SK_PID.log"
@@ -233,7 +233,7 @@ for RUN in $(seq 1 $RUNS); do
     else
         MONITOR_PID=""
     fi
-    
+
     # Monitor for matcher completion by checking status line
     # Wait for matched count to stabilize for 2 seconds
     COMPLETED=0
@@ -241,21 +241,21 @@ for RUN in $(seq 1 $RUNS); do
     TOTAL_INGESTED=0
     PREV_MATCHED_COUNT=-1
     STABLE_START_TIME=0
-    REQUIRED_STABLE_DURATION_NS=2000000000  # 2 seconds in nanoseconds
+    REQUIRED_STABLE_DURATION_NS=5000000000  # 2 seconds in nanoseconds
     MAX_WAIT=60
     CHECK_INTERVAL=0.05  # 50ms for <0.05s precision
     ELAPSED_CHECKS=0
     MAX_CHECKS=$((MAX_WAIT * 20))  # 60 seconds * 20 checks per second = 1200 checks
     END=0
-    
+
     while [ $ELAPSED_CHECKS -lt $MAX_CHECKS ]; do
         sleep $CHECK_INTERVAL
         ELAPSED_CHECKS=$((ELAPSED_CHECKS + 1))
-    
+
         # Capture and check status using bench.sh's method
         tmux capture-pane -b "status-$SESSION_NAME" -t "$SESSION_NAME" 2>/dev/null || true
         tmux save-buffer -b "status-$SESSION_NAME" "$STATUS_FILE" 2>/dev/null || true
-    
+
         if [ -f "$STATUS_FILE" ]; then
             # Skim status line format is typically: "  > query  matched/total"
             # We need to find the last occurrence of the pattern matched/total
@@ -264,7 +264,7 @@ for RUN in $(seq 1 $RUNS); do
             if [ -n "$STATUS_LINE" ]; then
                 MATCHED_COUNT=$(echo "$STATUS_LINE" | cut -d'/' -f1)
                 TOTAL_INGESTED=$(echo "$STATUS_LINE" | cut -d'/' -f2)
-    
+
                 # Check if ingestion is complete
                 if [ "$TOTAL_INGESTED" = "$NUM_ITEMS" ]; then
                     # Check if matched count has changed
@@ -278,7 +278,7 @@ for RUN in $(seq 1 $RUNS); do
                         if [ $STABLE_START_TIME -gt 0 ]; then
                             CURRENT_TIME=$(date +%s%N)
                             STABLE_NS=$((CURRENT_TIME - STABLE_START_TIME))
-                            
+
                             if [ $STABLE_NS -ge $REQUIRED_STABLE_DURATION_NS ]; then
                                 COMPLETED=1
                                 break
@@ -289,28 +289,28 @@ for RUN in $(seq 1 $RUNS); do
             fi
         fi
     done
-    
+
     # If we didn't capture an end time, set it now
     if [ $END -eq 0 ]; then
         END=$(date +%s%N)
     fi
-    
+
     # Exit skim
     tmux send-keys -t "$SESSION_NAME" Escape
     sleep 0.1
-    
+
     # Wait for monitor to finish if it was started
     if [ -n "$MONITOR_PID" ]; then
         wait "$MONITOR_PID" 2>/dev/null || true
     fi
-    
+
     # Clean up session
     tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
-    
+
     ELAPSED_NS=$((END - START))
     ELAPSED_SEC=$(awk "BEGIN {printf \"%.3f\", $ELAPSED_NS / 1000000000}")
     RATE=$(awk "BEGIN {printf \"%.0f\", $NUM_ITEMS / $ELAPSED_SEC}")
-    
+
     # Extract peak CPU and RAM usage
     PEAK_MEM=0
     PEAK_CPU=0
@@ -322,18 +322,18 @@ for RUN in $(seq 1 $RUNS); do
         fi
         rm -f "$MONITOR_LOG"
     fi
-    
+
     # Store results
     ELAPSED_TIMES+=("$ELAPSED_SEC")
     RATES+=("$RATE")
     MATCHED_COUNTS+=("$MATCHED_COUNT")
     PEAK_MEMS+=("$PEAK_MEM")
     PEAK_CPUS+=("$PEAK_CPU")
-    
+
     if [ $COMPLETED -eq 1 ]; then
         COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
     fi
-    
+
     # Print individual run results
     if [ $RUNS -gt 1 ]; then
         echo "Status: $(if [ $COMPLETED -eq 1 ]; then echo 'COMPLETED'; else echo 'TIMEOUT'; fi)"
@@ -353,7 +353,7 @@ echo "=== Results ==="
 
 if [ $RUNS -gt 1 ]; then
     echo "Completed runs: $COMPLETED_COUNT / $RUNS"
-    
+
     # Calculate averages
     AVG_TIME=$(awk -v times="${ELAPSED_TIMES[*]}" 'BEGIN {
         n = split(times, arr, " ")
@@ -361,21 +361,21 @@ if [ $RUNS -gt 1 ]; then
         for (i = 1; i <= n; i++) sum += arr[i]
         printf "%.3f", sum / n
     }')
-    
+
     AVG_RATE=$(awk -v rates="${RATES[*]}" 'BEGIN {
         n = split(rates, arr, " ")
         sum = 0
         for (i = 1; i <= n; i++) sum += arr[i]
         printf "%.0f", sum / n
     }')
-    
+
     AVG_MATCHED=$(awk -v counts="${MATCHED_COUNTS[*]}" 'BEGIN {
         n = split(counts, arr, " ")
         sum = 0
         for (i = 1; i <= n; i++) sum += arr[i]
         printf "%.0f", sum / n
     }')
-    
+
     AVG_MEM=$(awk -v mems="${PEAK_MEMS[*]}" 'BEGIN {
         n = split(mems, arr, " ")
         sum = 0
@@ -389,7 +389,7 @@ if [ $RUNS -gt 1 ]; then
         if (count > 0) printf "%.0f", sum / count
         else print "0"
     }')
-    
+
     AVG_CPU=$(awk -v cpus="${PEAK_CPUS[*]}" 'BEGIN {
         n = split(cpus, arr, " ")
         sum = 0
@@ -403,7 +403,7 @@ if [ $RUNS -gt 1 ]; then
         if (count > 0) printf "%.1f", sum / count
         else print "0"
     }')
-    
+
     echo "Average items matched: $AVG_MATCHED / $NUM_ITEMS"
     echo "Average time: ${AVG_TIME}s"
     echo "Average items/second: ${AVG_RATE}"
