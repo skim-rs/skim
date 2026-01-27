@@ -38,20 +38,20 @@ pub fn main() {
 
     let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
 
-    tx.send(Arc::new(Item {
-        text: "a".to_string(),
-        index: 0,
-    }))
-    .unwrap();
-    tx.send(Arc::new(Item {
-        text: "b".to_string(),
-        index: 1,
-    }))
-    .unwrap();
-    tx.send(Arc::new(Item {
-        text: "c".to_string(),
-        index: 2,
-    }))
+    tx.send(vec![
+        Arc::new(Item {
+            text: "a".to_string(),
+            index: 0,
+        }) as Arc<dyn SkimItem>,
+        Arc::new(Item {
+            text: "b".to_string(),
+            index: 1,
+        }) as Arc<dyn SkimItem>,
+        Arc::new(Item {
+            text: "c".to_string(),
+            index: 2,
+        }) as Arc<dyn SkimItem>,
+    ])
     .unwrap();
 
     drop(tx);
