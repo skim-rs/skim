@@ -260,21 +260,6 @@ impl ColorTheme {
     fn set_color(&mut self, name: &str, spec: &str) {
         let spec_parts: Vec<_> = spec.split(&['+', ':']).collect();
 
-        // Compute color
-        let raw_color = spec_parts[0];
-        let new_color = if raw_color.len() == 7 && raw_color.starts_with('#') {
-            // RGB Hex color
-            let r = u8::from_str_radix(&raw_color[1..3], 16).unwrap_or(255);
-            let g = u8::from_str_radix(&raw_color[3..5], 16).unwrap_or(255);
-            let b = u8::from_str_radix(&raw_color[5..7], 16).unwrap_or(255);
-            Some(Color::Rgb(r, g, b))
-        } else {
-            raw_color.parse::<u8>().ok().map(Color::Indexed).or_else(|| {
-                debug!("Unknown color '{}'", spec_parts[0]);
-                None
-            })
-        };
-
         // Compute modifiers
         let mut modifier = Modifier::empty();
         for part in spec_parts.iter().skip(1) {
@@ -310,48 +295,47 @@ impl ColorTheme {
             (name, "fg")
         };
 
-        match component_name {
-            "" | "normal" => {
-                set_style(&mut self.normal, layer, new_color, modifier);
+        let target_style = match component_name {
+            "" | "normal" => &mut self.normal,
+            "matched" | "hl" => &mut self.matched,
+            "current" | "fg+" => &mut self.current,
+            "bg+" => &mut self.current,
+            "current_match" | "hl+" => &mut self.current_match,
+            "query" => &mut self.query,
+            "spinner" => &mut self.spinner,
+            "info" => &mut self.info,
+            "prompt" => &mut self.prompt,
+            "cursor" | "pointer" => &mut self.cursor,
+            "selected" | "marker" => &mut self.selected,
+            "header" => &mut self.header,
+            "border" => &mut self.border,
+            _ => return,
+        };
+
+        // Handle color reset with `-1`
+        let raw_color = spec_parts[0];
+        // Compute color
+        let new_color = if raw_color.len() == 7 && raw_color.starts_with('#') {
+            // RGB Hex color
+            let r = u8::from_str_radix(&raw_color[1..3], 16).unwrap_or(255);
+            let g = u8::from_str_radix(&raw_color[3..5], 16).unwrap_or(255);
+            let b = u8::from_str_radix(&raw_color[5..7], 16).unwrap_or(255);
+            Some(Color::Rgb(r, g, b))
+        } else {
+            if raw_color == "-1" {
+                Some(Color::Reset)
+            } else {
+                raw_color.parse::<u8>().ok().map(Color::Indexed).or_else(|| {
+                    if !raw_color.is_empty() {
+                        debug!("Unknown color '{}'", spec_parts[0]);
+                    }
+                    None
+                })
             }
-            "matched" | "hl" => {
-                set_style(&mut self.matched, layer, new_color, modifier);
-            }
-            "current" | "fg+" => {
-                set_style(&mut self.current, layer, new_color, modifier);
-            }
-            "bg+" => {
-                set_style(&mut self.current, "bg", new_color, modifier);
-            }
-            "current_match" | "hl+" => {
-                set_style(&mut self.current_match, layer, new_color, modifier);
-            }
-            "query" => {
-                set_style(&mut self.query, layer, new_color, modifier);
-            }
-            "spinner" => {
-                set_style(&mut self.spinner, layer, new_color, modifier);
-            }
-            "info" => {
-                set_style(&mut self.info, layer, new_color, modifier);
-            }
-            "prompt" => {
-                set_style(&mut self.prompt, layer, new_color, modifier);
-            }
-            "cursor" | "pointer" => {
-                set_style(&mut self.cursor, layer, new_color, modifier);
-            }
-            "selected" | "marker" => {
-                set_style(&mut self.selected, layer, new_color, modifier);
-            }
-            "header" => {
-                set_style(&mut self.header, layer, new_color, modifier);
-            }
-            "border" => {
-                set_style(&mut self.border, layer, new_color, modifier);
-            }
-            _ => {}
-        }
+        };
+
+        let layer_override = if component_name == "bg+" { "bg" } else { layer };
+        set_style(target_style, layer_override, new_color, modifier);
     }
 
     fn from_options(color: &str) -> Self {
@@ -660,5 +644,22 @@ mod tests {
         assert!(theme.prompt.add_modifier.contains(Modifier::UNDERLINED));
         assert_eq!(theme.current.fg, Some(Color::Rgb(255, 255, 0)));
         assert!(theme.current.add_modifier.contains(Modifier::ITALIC));
+    }
+
+    #[test]
+    fn test_minus_one_color_reset() {
+        // `hl:-1:reverse` should not have foreground or background color, but keep the reverse modifier
+        let theme = ColorTheme::from_options("dark,hl:-1:reverse,hl-bg:-1,hl+:-1:bold,bg+:-1");
+        assert_eq!(theme.matched.fg, Some(Color::Reset));
+        assert_eq!(theme.matched.bg, Some(Color::Reset));
+        assert!(theme.matched.add_modifier.contains(Modifier::REVERSED));
+        assert_eq!(theme.current_match.fg, Some(Color::Reset));
+        assert_ne!(theme.current_match.bg, Some(Color::Reset));
+        assert!(theme.current_match.add_modifier.contains(Modifier::BOLD));
+        let theme = ColorTheme::from_options("dark,prompt:-1:underlined");
+        assert_eq!(theme.prompt.fg, Some(Color::Reset));
+        assert!(theme.prompt.add_modifier.contains(Modifier::UNDERLINED));
+        let theme = ColorTheme::from_options("dark,bg+:-1");
+        assert_eq!(theme.current.bg, Some(Color::Reset));
     }
 }
