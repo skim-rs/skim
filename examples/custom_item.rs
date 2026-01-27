@@ -28,15 +28,17 @@ fn main() {
         .unwrap();
 
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
-    let _ = tx_item.send(Arc::new(MyItem {
-        inner: "color aaaa".to_string(),
-    }));
-    let _ = tx_item.send(Arc::new(MyItem {
-        inner: "bbbb".to_string(),
-    }));
-    let _ = tx_item.send(Arc::new(MyItem {
-        inner: "ccc".to_string(),
-    }));
+    let _ = tx_item.send(vec![
+        Arc::new(MyItem {
+            inner: "color aaaa".to_string(),
+        }) as Arc<dyn SkimItem>,
+        Arc::new(MyItem {
+            inner: "bbbb".to_string(),
+        }) as Arc<dyn SkimItem>,
+        Arc::new(MyItem {
+            inner: "ccc".to_string(),
+        }) as Arc<dyn SkimItem>,
+    ]);
     drop(tx_item); // so that skim could know when to stop waiting for more items.
 
     let selected_items = Skim::run_with(options, Some(rx_item))

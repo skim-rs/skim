@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 
 use regex::Regex;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use crate::field::FieldRange;
 use crate::helper::item::DefaultSkimItem;
@@ -17,6 +17,7 @@ use crate::{SkimItem, SkimItemReceiver, SkimItemSender, SkimOptions};
 
 const DELIMITER_STR: &str = r"[\t\n ]+";
 const READ_BUFFER_SIZE: usize = 1024;
+const ITEMS_BUFFER_SIZE: usize = 128;
 
 pub enum CollectorInput {
     Pipe(Box<dyn BufRead + Send>),
@@ -200,6 +201,7 @@ impl SkimItemReader {
         thread::spawn(move || {
             let mut buffer = Vec::with_capacity(1024);
             let mut idx = 0;
+            let mut items_to_send = Vec::with_capacity(ITEMS_BUFFER_SIZE);
             loop {
                 buffer.clear();
                 // start reading
@@ -218,21 +220,31 @@ impl SkimItemReader {
 
                         let string = String::from_utf8_lossy(&buffer);
                         //let result = tx_item.send(Arc::new(string.into_owned()));
-                        let result = tx_item.send(Arc::new(DefaultSkimItem::new(
+                        items_to_send.push(Arc::new(DefaultSkimItem::new(
                             string.to_string(),
                             use_ansi,
                             &[],
                             &[],
                             &delimiter,
                             idx,
-                        )));
-                        if result.is_err() {
-                            break;
-                        }
+                        )) as Arc<dyn SkimItem>);
                         idx += 1;
                     }
                     Err(_err) => {} // String not UTF8 or other error, skip.
                 }
+                if items_to_send.len() == ITEMS_BUFFER_SIZE {
+                    let batch = std::mem::replace(&mut items_to_send, Vec::with_capacity(ITEMS_BUFFER_SIZE));
+                    match tx_item.send(batch) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            warn!("Failed to send items: {e:?}");
+                            break;
+                        }
+                    }
+                }
+            }
+            if items_to_send.len() > 0 {
+                let _ = tx_item.send(items_to_send);
             }
         });
         rx_item
@@ -244,7 +256,7 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
-    ) -> (UnboundedReceiver<Arc<dyn SkimItem>>, UnboundedSender<i32>) {
+    ) -> (SkimItemReceiver, UnboundedSender<i32>) {
         let send_error = self.option.show_error;
         let (command, mut source) = match input {
             CollectorInput::Pipe(pipe) => (None, pipe),
@@ -252,7 +264,7 @@ impl SkimItemReader {
         };
 
         let (tx_interrupt, mut rx_interrupt) = unbounded_channel();
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded_channel::<Arc<dyn SkimItem>>();
+        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded_channel();
 
         let started = Arc::new(AtomicBool::new(false));
         let started_clone = started.clone();
@@ -278,9 +290,21 @@ impl SkimItemReader {
                     if has_error {
                         trace!("collector: sending error");
                         let output = child.wait_with_output().expect("could not retrieve error message");
-                        for line in String::from_utf8_lossy(&output.stderr).lines() {
-                            let _ = tx_item_clone.send(Arc::new(line.to_string()));
-                        }
+                        let error_text = String::from_utf8_lossy(&output.stderr).to_string();
+                        let error_items: Vec<Arc<dyn SkimItem>> = error_text
+                            .lines()
+                            .map(|line| {
+                                Arc::new(DefaultSkimItem::new(
+                                    line.to_string(),
+                                    false,
+                                    &[],
+                                    &[],
+                                    &Regex::new(DELIMITER_STR).unwrap(),
+                                    0,
+                                )) as Arc<dyn SkimItem>
+                            })
+                            .collect();
+                        let _ = tx_item_clone.send(error_items);
                     }
                 }
             }
@@ -304,6 +328,7 @@ impl SkimItemReader {
 
             let mut buffer = Vec::with_capacity(option.buf_size);
             let mut line_idx = 0;
+            let mut items_to_send = Vec::with_capacity(ITEMS_BUFFER_SIZE);
             loop {
                 buffer.clear();
 
@@ -330,20 +355,27 @@ impl SkimItemReader {
                             &option.delimiter,
                             line_idx,
                         );
+                        items_to_send.push(Arc::new(raw_item) as Arc<dyn SkimItem>);
 
-                        match tx_item.send(Arc::new(raw_item)) {
-                            Ok(_) => {}
-                            Err(_) => {
-                                debug!("collector: failed to send item, quit");
-                                break;
-                            }
-                        }
                         line_idx += 1;
                     }
                     Err(err) => {
                         trace!("Got {err:?} when reading from command collector, skipping");
                     } // String not UTF8 or other error, skip.
                 }
+                if items_to_send.len() == ITEMS_BUFFER_SIZE {
+                    let batch = std::mem::replace(&mut items_to_send, Vec::with_capacity(ITEMS_BUFFER_SIZE));
+                    match tx_item.send(batch) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            warn!("collector: failed to send item, quit");
+                            break;
+                        }
+                    }
+                }
+            }
+            if items_to_send.len() > 0 {
+                let _ = tx_item.send(items_to_send);
             }
 
             let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit

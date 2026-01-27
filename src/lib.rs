@@ -328,9 +328,9 @@ pub trait Selector {
 
 //------------------------------------------------------------------------------
 /// Sender for streaming items to skim
-pub type SkimItemSender = UnboundedSender<Arc<dyn SkimItem>>;
+pub type SkimItemSender = UnboundedSender<Vec<Arc<dyn SkimItem>>>;
 /// Receiver for streaming items to skim
-pub type SkimItemReceiver = UnboundedReceiver<Arc<dyn SkimItem>>;
+pub type SkimItemReceiver = UnboundedReceiver<Vec<Arc<dyn SkimItem>>>;
 
 /// Main entry point for running skim
 pub struct Skim {}
@@ -399,7 +399,6 @@ impl Skim {
 
             let item_pool = app.item_pool.clone();
             tokio::spawn(async move {
-                const BATCH: usize = 4096; // Smaller batches for more responsive updates
                 loop {
                     if reader_interrupt_rx
                         .try_recv()
@@ -408,13 +407,16 @@ impl Skim {
                         debug!("stopping reader receiver thread");
                         break;
                     }
-                    let mut buf = Vec::with_capacity(BATCH);
                     trace!("getting items");
-                    if item_rx.recv_many(&mut buf, BATCH).await > 0 {
-                        item_pool.append(buf);
-                        trace!("Got new items, len {}", item_pool.len());
-                    } else {
-                        reader_done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    match item_rx.recv().await {
+                        Some(batch) => {
+                            item_pool.append(batch);
+                            trace!("Got new items, len {}", item_pool.len());
+                        }
+                        None => {
+                            reader_done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                            break;
+                        }
                     }
                 }
             });
