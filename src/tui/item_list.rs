@@ -640,19 +640,6 @@ impl SkimWidget for ItemList {
             false
         };
 
-        if this.items.is_empty() {
-            // Still render border if enabled, even with no items
-            if let Some(border_type) = this.border {
-                let block = Block::default()
-                    .borders(Borders::ALL)
-                    .border_type(border_type.into())
-                    .border_style(this.theme.border);
-                Widget::render(Clear, area, buf);
-                Widget::render(block, area, buf);
-            }
-            return SkimRender { items_updated };
-        }
-
         let theme = &this.theme;
         let selector_icon = &this.selector_icon;
         let multi_select_icon = &this.multi_select_icon;
