@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
@@ -8,6 +7,7 @@ use crate::engine::util::regex_match;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
 use crate::{MatchRange, MatchResult, SkimItem};
+use std::cmp::min;
 
 //------------------------------------------------------------------------------
 // Regular Expression engine
@@ -49,7 +49,6 @@ impl MatchEngine for RegexEngine {
     fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult> {
         let mut matched_result = None;
         let item_text = item.text();
-
         let default_range = [(0, item_text.len())];
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
             let start = min(start, item_text.len());
@@ -68,7 +67,6 @@ impl MatchEngine for RegexEngine {
         }
 
         let (begin, end) = matched_result?;
-
         let score = (end - begin) as i32;
         let item_len = item_text.len();
 

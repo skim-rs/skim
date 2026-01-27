@@ -141,7 +141,6 @@ impl MatchEngine for FuzzyEngine {
         // iterate over all matching fields:
         let mut matched_result = None;
         let item_text = item.text();
-
         let default_range = [(0, item_text.len())];
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
             let start = min(start, item_text.len());

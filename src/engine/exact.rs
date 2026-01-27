@@ -77,7 +77,6 @@ impl MatchEngine for ExactEngine {
     fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult> {
         let mut matched_result = None;
         let item_text = item.text();
-
         let default_range = [(0, item_text.len())];
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
             let start = min(start, item_text.len());
@@ -100,7 +99,6 @@ impl MatchEngine for ExactEngine {
         }
 
         let (begin, end) = matched_result?;
-
         let score = (end - begin) as i32;
         let item_len = item_text.len();
         Some(MatchResult {
