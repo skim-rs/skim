@@ -164,6 +164,12 @@ pub struct SkimOptions {
     )]
     pub case: CaseMatching,
 
+    /// Normalize unicode characters
+    ///
+    /// When set, normalize accents and other unicode diacritics/others
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
+    pub normalize: bool,
+
     /// Enable split matching and set delimiter
     ///
     /// Split matching runs the matcher in splits: `foo:bar` will match all items matching `foo`, then
@@ -779,6 +785,7 @@ impl Default for SkimOptions {
             regex: Default::default(),
             algorithm: Default::default(),
             case: Default::default(),
+            normalize: false,
             bind: Default::default(),
             multi: Default::default(),
             no_multi: Default::default(),

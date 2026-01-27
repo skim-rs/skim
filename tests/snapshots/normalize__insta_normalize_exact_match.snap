@@ -1,0 +1,29 @@
+---
+source: tests/normalize.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  cafeína                                                                       "
+"  cafe                                                                          "
+"> café                                                                          "
+"  3/3                                                                        0/0"
+">                                                                               "
+cursor: (24, 3)

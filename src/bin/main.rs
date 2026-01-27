@@ -18,7 +18,6 @@ use interprocess::local_socket::ToNsName as _;
 use interprocess::local_socket::traits::Stream as _;
 use log::trace;
 use skim::binds::parse_action_chain;
-use skim::item::RankBuilder;
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
@@ -295,6 +294,8 @@ pub struct BinOptions {
 
 /// Runs skim in filter mode, matching items against a fixed query without interactive UI
 pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<SkimItemReceiver>) -> i32 {
+    use skim::matcher::Matcher;
+
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
         Ok("") | Err(_) => "find .".to_owned(),
         Ok(val) => val.to_owned(),
@@ -312,19 +313,8 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     }
 
     //------------------------------------------------------------------------------
-    // matcher
-    let engine_factory: Box<dyn MatchEngineFactory> = if options.regex {
-        Box::new(RegexEngineFactory::builder())
-    } else {
-        let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
-        let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
-            .fuzzy_algorithm(options.algorithm)
-            .exact_mode(options.exact)
-            .rank_builder(rank_builder)
-            .build();
-        Box::new(AndOrEngineFactory::new(fuzzy_engine_factory))
-    };
-
+    // matcher - use the unified factory creation from Matcher
+    let engine_factory = Matcher::create_engine_factory(options);
     let engine = engine_factory.create_engine_with_case(&query, options.case);
 
     //------------------------------------------------------------------------------

@@ -1,0 +1,29 @@
+---
+source: tests/normalize.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  naive                                                                         "
+"> naïve                                                                         "
+"  2/4                                                                        0/0"
+"> naive                                                                         "
+cursor: (24, 8)

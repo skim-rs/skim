@@ -87,6 +87,7 @@ zsh\:"Zsh"))' \
 '-e[Run in exact mode]' \
 '--exact[Run in exact mode]' \
 '--regex[Start in regex mode instead of fuzzy-match]' \
+'--normalize[Normalize unicode characters]' \
 '-m[Enable multiple selection]' \
 '--multi[Enable multiple selection]' \
 '(-m --multi)--no-multi[Disable multiple selection]' \
