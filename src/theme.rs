@@ -205,11 +205,6 @@ impl ColorTheme {
 
         // Handle color reset with `-1`
         let raw_color = spec_parts[0];
-        if raw_color == "-1" {
-            *target_style = Style::default().add_modifier(modifier);
-            return;
-        }
-
         // Compute color
         let new_color = if raw_color.len() == 7 && raw_color.starts_with('#') {
             // RGB Hex color
@@ -218,12 +213,16 @@ impl ColorTheme {
             let b = u8::from_str_radix(&raw_color[5..7], 16).unwrap_or(255);
             Some(Color::Rgb(r, g, b))
         } else {
-            raw_color.parse::<u8>().ok().map(Color::Indexed).or_else(|| {
-                if !raw_color.is_empty() {
-                    debug!("Unknown color '{}'", spec_parts[0]);
-                }
-                None
-            })
+            if raw_color == "-1" {
+                Some(Color::Reset)
+            } else {
+                raw_color.parse::<u8>().ok().map(Color::Indexed).or_else(|| {
+                    if !raw_color.is_empty() {
+                        debug!("Unknown color '{}'", spec_parts[0]);
+                    }
+                    None
+                })
+            }
         };
 
         let layer_override = if component_name == "bg+" { "bg" } else { layer };
@@ -537,17 +536,17 @@ mod tests {
     #[test]
     fn test_minus_one_color_reset() {
         // `hl:-1:reverse` should not have foreground or background color, but keep the reverse modifier
-        let theme = ColorTheme::from_options("dark,hl:-1:reverse,hl+:-1:bold,bg+:-1");
-        assert_eq!(theme.matched.fg, None);
-        assert_eq!(theme.matched.bg, None);
+        let theme = ColorTheme::from_options("dark,hl:-1:reverse,hl-bg:-1,hl+:-1:bold,bg+:-1");
+        assert_eq!(theme.matched.fg, Some(Color::Reset));
+        assert_eq!(theme.matched.bg, Some(Color::Reset));
         assert!(theme.matched.add_modifier.contains(Modifier::REVERSED));
-        assert_eq!(theme.current_match.fg, None);
-        assert_eq!(theme.current_match.bg, None);
+        assert_eq!(theme.current_match.fg, Some(Color::Reset));
+        assert_ne!(theme.current_match.bg, Some(Color::Reset));
         assert!(theme.current_match.add_modifier.contains(Modifier::BOLD));
         let theme = ColorTheme::from_options("dark,prompt:-1:underlined");
-        assert_eq!(theme.prompt.fg, None);
+        assert_eq!(theme.prompt.fg, Some(Color::Reset));
         assert!(theme.prompt.add_modifier.contains(Modifier::UNDERLINED));
         let theme = ColorTheme::from_options("dark,bg+:-1");
-        assert_eq!(theme.current.bg, None);
+        assert_eq!(theme.current.bg, Some(Color::Reset));
     }
 }
