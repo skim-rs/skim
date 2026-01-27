@@ -48,3 +48,9 @@ insta_test!(issue_929_double_width_chars, [""], &["-q", "中文测试"], {
     @char '|';
     @snap;
 });
+
+sk_test!(issue_1120_height_mode_clears_on_exit, @cmd "seq 1 10", &["--height=50%"], {
+    @capture[0] starts_with(">");
+    @keys Key('\x1b');
+    @lines |l| (!l.iter().any(|line| line.starts_with(">")));
+});

@@ -262,3 +262,9 @@ sk_test!(bind_reload_cmd, "a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello
   @keys Ctrl(&Key('a'));
   @capture[2] eq("> hello");
 });
+
+sk_test!(inline_clear_on_exit, @cmd "seq 1 10", &["--height=50%"], {
+    @capture[0] starts_with(">");
+    @keys Escape;
+    @lines |l| (!l.iter().any(|line| line.starts_with(">")));
+});
