@@ -154,6 +154,7 @@ where
         // When using the inline layout, we want to remove all previous output
         //  -> reset cursor at the top of the drawing area
         if !self.is_fullscreen {
+            self.clear()?;
             let area = self.get_frame().area();
             let orig = ratatui::layout::Position { x: area.x, y: area.y };
             self.set_cursor_position(orig)?;

@@ -148,6 +148,115 @@ impl ColorTheme {
         }
     }
 
+    #[allow(unused_variables)]
+    fn catppuccin_mocha() -> Self {
+        let base = ColorTheme::none();
+        let text = Color::Rgb(205, 214, 244);
+        let subtext0 = Color::Rgb(166, 173, 200);
+        let subtext1 = Color::Rgb(186, 194, 222);
+        let overlay0 = Color::Rgb(108, 112, 134);
+        let surface0 = Color::Rgb(49, 50, 68);
+        let blue = Color::Rgb(137, 180, 250);
+        let red = Color::Rgb(243, 139, 168);
+        let lavender = Color::Rgb(180, 190, 254);
+        let sapphire = Color::Rgb(116, 199, 236);
+        Self {
+            normal: base.normal.fg(text),
+            matched: base.matched.fg(blue).underlined(),
+            current: base.current.bg(surface0),
+            current_match: base.current_match.fg(red).underlined(),
+            query: base.query.fg(text),
+            spinner: base.spinner.fg(subtext1).bold(),
+            info: base.info.fg(subtext1),
+            prompt: base.prompt.fg(lavender),
+            cursor: base.cursor.fg(red),
+            selected: base.selected.fg(red),
+            header: base.header.fg(subtext1),
+            border: base.header.fg(lavender),
+        }
+    }
+    #[allow(unused_variables)]
+    fn catppuccin_macchiato() -> Self {
+        let base = ColorTheme::none();
+        let text = Color::Rgb(202, 211, 245);
+        let subtext0 = Color::Rgb(165, 173, 203);
+        let subtext1 = Color::Rgb(184, 192, 224);
+        let overlay0 = Color::Rgb(110, 115, 141);
+        let surface0 = Color::Rgb(54, 58, 79);
+        let blue = Color::Rgb(138, 173, 244);
+        let red = Color::Rgb(237, 135, 150);
+        let lavender = Color::Rgb(183, 189, 248);
+        let sapphire = Color::Rgb(125, 196, 228);
+        Self {
+            normal: base.normal.fg(text),
+            matched: base.matched.fg(blue).underlined(),
+            current: base.current.bg(surface0),
+            current_match: base.current_match.fg(red).underlined(),
+            query: base.query.fg(text),
+            spinner: base.spinner.fg(subtext1).bold(),
+            info: base.info.fg(subtext1),
+            prompt: base.prompt.fg(lavender),
+            cursor: base.cursor.fg(red),
+            selected: base.selected.fg(red),
+            header: base.header.fg(subtext1),
+            border: base.header.fg(lavender),
+        }
+    }
+    #[allow(unused_variables)]
+    fn catppuccin_latte() -> Self {
+        let base = ColorTheme::none();
+        let text = Color::Rgb(76, 79, 105);
+        let subtext0 = Color::Rgb(108, 111, 133);
+        let subtext1 = Color::Rgb(92, 95, 119);
+        let overlay0 = Color::Rgb(156, 160, 176);
+        let surface0 = Color::Rgb(204, 208, 218);
+        let blue = Color::Rgb(30, 102, 245);
+        let red = Color::Rgb(210, 15, 57);
+        let lavender = Color::Rgb(114, 135, 253);
+        let sapphire = Color::Rgb(32, 159, 181);
+        Self {
+            normal: base.normal.fg(text),
+            matched: base.matched.fg(blue).underlined(),
+            current: base.current.bg(surface0),
+            current_match: base.current_match.fg(red).underlined(),
+            query: base.query.fg(text),
+            spinner: base.spinner.fg(subtext1).bold(),
+            info: base.info.fg(subtext1),
+            prompt: base.prompt.fg(lavender),
+            cursor: base.cursor.fg(red),
+            selected: base.selected.fg(red),
+            header: base.header.fg(subtext1),
+            border: base.header.fg(lavender),
+        }
+    }
+    #[allow(unused_variables)]
+    fn catppuccin_frappe() -> Self {
+        let base = ColorTheme::none();
+        let text = Color::Rgb(198, 208, 245);
+        let subtext0 = Color::Rgb(165, 173, 206);
+        let subtext1 = Color::Rgb(181, 191, 226);
+        let overlay0 = Color::Rgb(115, 121, 148);
+        let surface0 = Color::Rgb(65, 69, 89);
+        let blue = Color::Rgb(140, 170, 238);
+        let red = Color::Rgb(231, 130, 132);
+        let lavender = Color::Rgb(186, 187, 241);
+        let sapphire = Color::Rgb(133, 193, 220);
+        Self {
+            normal: base.normal.fg(text),
+            matched: base.matched.fg(blue).underlined(),
+            current: base.current.bg(surface0),
+            current_match: base.current_match.fg(red).underlined(),
+            query: base.query.fg(text),
+            spinner: base.spinner.fg(subtext1).bold(),
+            info: base.info.fg(subtext1),
+            prompt: base.prompt.fg(lavender),
+            cursor: base.cursor.fg(red),
+            selected: base.selected.fg(red),
+            header: base.header.fg(subtext1),
+            border: base.header.fg(lavender),
+        }
+    }
+
     fn set_color(&mut self, name: &str, spec: &str) {
         let spec_parts: Vec<_> = spec.split(&['+', ':']).collect();
 
@@ -242,6 +351,10 @@ impl ColorTheme {
                     "bw" => ColorTheme::bw(),
                     "none" | "empty" => ColorTheme::none(),
                     "dark" | "default" => ColorTheme::dark256(),
+                    "catppuccin_mocha" | "catppuccin-mocha" => ColorTheme::catppuccin_mocha(),
+                    "catppuccin_macchiato" | "catppuccin-macchiato" => ColorTheme::catppuccin_macchiato(),
+                    "catppuccin_latte" | "catppuccin-latte" => ColorTheme::catppuccin_latte(),
+                    "catppuccin_frappe" | "catppuccin-frappe" => ColorTheme::catppuccin_frappe(),
                     t => {
                         debug!("Unknown color theme '{t}'");
                         ColorTheme::dark256()

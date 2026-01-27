@@ -6,26 +6,24 @@ use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType};
 /// Matcher using frizbee,
 /// the same one that `blink.cmp` uses in neovim
 /// credits to @saghen
-pub struct FrizbeeMatcher {
-    config: Config,
-}
+#[derive(Default)]
+pub struct FrizbeeMatcher {}
 
-impl Default for FrizbeeMatcher {
-    fn default() -> Self {
-        Self {
-            config: Config {
-                prefilter: true,
-                max_typos: Some(2),
-                sort: false,
-                scoring: Scoring::default(),
-            },
-        }
+fn adaptive(pattern: &str) -> Config {
+    Config {
+        max_typos: match pattern.chars().count() / 4 {
+            0 => None,
+            n => Some(n.try_into().unwrap()),
+        },
+        prefilter: true,
+        sort: false,
+        scoring: Scoring::default(),
     }
 }
 
 impl FuzzyMatcher for FrizbeeMatcher {
     fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
-        let matches = match_indices(pattern, choice, &self.config)?;
+        let matches = match_indices(pattern, choice, &adaptive(pattern))?;
 
         let mut indices = Vec::new();
         for matched_idx in matches.indices {
