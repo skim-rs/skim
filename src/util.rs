@@ -322,7 +322,16 @@ mod test {
 
         let expected_one = if cfg!(windows) { r#""1""# } else { "'1'" };
         assert_eq!(
-            printf("{+}", &Regex::new(" ").unwrap(), "{}", vec![].into_iter(), Some(Arc::new("1")), "q", "cq", true),
+            printf(
+                "{+}",
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![].into_iter(),
+                Some(Arc::new("1")),
+                "q",
+                "cq",
+                true
+            ),
             expected_one
         );
     }
@@ -330,7 +339,19 @@ mod test {
     #[test]
     fn test_printf_norec() {
         let expected = if cfg!(windows) { r#""{..2}""# } else { "'{..2}'" };
-        assert_eq!(printf("{}", &Regex::new(" ").unwrap(), "{}", vec![].into_iter(), Some(Arc::new("{..2}")), "q", "cq", true), expected);
+        assert_eq!(
+            printf(
+                "{}",
+                &Regex::new(" ").unwrap(),
+                "{}",
+                vec![].into_iter(),
+                Some(Arc::new("{..2}")),
+                "q",
+                "cq",
+                true
+            ),
+            expected
+        );
     }
 
     #[test]
