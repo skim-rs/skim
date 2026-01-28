@@ -306,10 +306,10 @@ pub struct BinOptions {
 pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<SkimItemReceiver>) -> i32 {
     use skim::matcher::Matcher;
 
-    let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
-        Ok("") | Err(_) => (if cfg!(windows) { "dir /s /b" } else { "find ." }).to_owned(),
-        Ok(val) => val.to_owned(),
-    };
+    let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
+        Err(_) | Ok("") => skim::platform_default_command(),
+        Ok(v) => v,
+    });
     let query = bin_option.filter.clone().unwrap_or_default();
     let cmd = options.cmd.clone().unwrap_or(default_command);
 

@@ -100,7 +100,10 @@ pub(crate) fn shell_command(cmd: &str) -> Command {
     }
 }
 
-pub(crate) fn platform_default_command() -> &'static str {
+/// Returns the platform-specific default command used to generate the initial item list.
+///
+/// This is used when `SKIM_DEFAULT_COMMAND` is not set (or is set to an empty string).
+pub fn platform_default_command() -> &'static str {
     if cfg!(windows) { "dir /s /b" } else { "find ." }
 }
 

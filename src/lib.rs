@@ -81,6 +81,7 @@ mod util;
 pub mod completions;
 #[cfg(feature = "cli")]
 pub mod manpage;
+pub use crate::util::platform_default_command;
 
 //------------------------------------------------------------------------------
 /// Trait for downcasting to concrete types from trait objects
