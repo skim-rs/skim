@@ -1,6 +1,8 @@
-use std::io::IsTerminal;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
+
+#[cfg(unix)]
+use std::io::IsTerminal;
 
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEventKind;
@@ -11,8 +13,6 @@ use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
-use termion::cursor::DetectCursorPos;
-use termion::raw::IntoRawMode as _;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -25,6 +25,11 @@ use super::{Event, Size};
 const TICK_RATE: f64 = 12.;
 const FRAME_RATE: f64 = 120.;
 static PANIC_HOOK_SET: Once = Once::new();
+
+#[cfg(unix)]
+use termion::cursor::DetectCursorPos;
+#[cfg(unix)]
+use termion::raw::IntoRawMode as _;
 
 /// Terminal user interface handler for skim
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>>
@@ -53,22 +58,16 @@ impl<B: Backend> Tui<B>
 where
     B::Error: Send + Sync + 'static,
 {
+    fn cursor_pos_one_based() -> Result<(u16, u16)> {
+        cursor_pos_one_based()
+    }
+
     /// Creates a new TUI with the specified backend and height
     pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
 
         // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
-        let cursor_pos = if std::io::stdout().is_terminal() {
-            let mut stdout = std::io::stdout().into_raw_mode()?;
-            let res = stdout.cursor_pos()?;
-            drop(stdout);
-            res
-        } else {
-            let mut tty = termion::get_tty()?.into_raw_mode()?;
-            let res = tty.cursor_pos()?;
-            drop(tty);
-            res
-        };
+        let cursor_pos = Self::cursor_pos_one_based()?;
 
         let term_height = backend.size().expect("Failed to get terminal height").height;
         let lines = match height {
@@ -264,4 +263,98 @@ fn set_panic_hook() {
             hook(panic_info);
         }));
     });
+}
+
+#[cfg(unix)]
+fn cursor_pos_one_based() -> Result<(u16, u16)> {
+    if std::io::stdout().is_terminal() {
+        let mut stdout = std::io::stdout().into_raw_mode()?;
+        let res = stdout.cursor_pos()?;
+        drop(stdout);
+        Ok(res)
+    } else {
+        let mut tty = termion::get_tty()?.into_raw_mode()?;
+        let res = tty.cursor_pos()?;
+        drop(tty);
+        Ok(res)
+    }
+}
+
+#[cfg(windows)]
+fn cursor_pos_one_based() -> Result<(u16, u16)> {
+    if let Ok((x, y)) = crossterm::cursor::position() {
+        return Ok((x.saturating_add(1), y.saturating_add(1)));
+    }
+
+    if let Some(pos) = winapi_cursor_pos_one_based(winapi_std_handle::STD_ERROR_HANDLE)
+        .or_else(|| winapi_cursor_pos_one_based(winapi_std_handle::STD_OUTPUT_HANDLE))
+    {
+        return Ok(pos);
+    }
+
+    Ok((1, 1))
+}
+
+#[cfg(windows)]
+mod winapi_std_handle {
+    pub(super) const STD_OUTPUT_HANDLE: i32 = -11;
+    pub(super) const STD_ERROR_HANDLE: i32 = -12;
+}
+
+#[cfg(windows)]
+fn winapi_cursor_pos_one_based(std_handle: i32) -> Option<(u16, u16)> {
+    use std::mem::MaybeUninit;
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    struct Coord {
+        x: i16,
+        y: i16,
+    }
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    struct SmallRect {
+        left: i16,
+        top: i16,
+        right: i16,
+        bottom: i16,
+    }
+
+    #[repr(C)]
+    #[derive(Copy, Clone)]
+    struct ConsoleScreenBufferInfo {
+        size: Coord,
+        cursor_position: Coord,
+        attributes: u16,
+        window: SmallRect,
+        maximum_window_size: Coord,
+    }
+
+    type Handle = isize;
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetStdHandle(n_std_handle: i32) -> Handle;
+        fn GetConsoleScreenBufferInfo(
+            h_console_output: Handle,
+            lp_console_screen_buffer_info: *mut ConsoleScreenBufferInfo,
+        ) -> i32;
+    }
+
+    let handle = unsafe { GetStdHandle(std_handle) };
+    if handle == 0 || handle == -1 {
+        return None;
+    }
+
+    let mut info = MaybeUninit::<ConsoleScreenBufferInfo>::uninit();
+    let ok = unsafe { GetConsoleScreenBufferInfo(handle, info.as_mut_ptr()) };
+    if ok == 0 {
+        return None;
+    }
+
+    let info = unsafe { info.assume_init() };
+    let x = u16::try_from(i32::from(info.cursor_position.x).saturating_add(1)).unwrap_or(1);
+    let y = u16::try_from(i32::from(info.cursor_position.y).saturating_add(1)).unwrap_or(1);
+    Some((x, y))
 }

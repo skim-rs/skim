@@ -6,6 +6,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
+use std::process::Command;
 use std::sync::Arc;
 
 #[cfg(feature = "cli")]
@@ -78,6 +79,37 @@ pub fn unescape_delimiter(s: &str) -> String {
 pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::io::Error> {
     let file = File::open(filename)?;
     BufReader::new(file).lines().collect()
+}
+
+pub(crate) fn shell_command(cmd: &str) -> Command {
+    #[cfg(windows)]
+    {
+        let shell = std::env::var_os("COMSPEC")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "cmd.exe".into());
+        let mut command = Command::new(shell);
+        command.args(["/C", cmd]);
+        command
+    }
+
+    #[cfg(not(windows))]
+    {
+        let mut command = Command::new("sh");
+        command.args(["-c", cmd]);
+        command
+    }
+}
+
+pub(crate) fn platform_default_command() -> &'static str {
+    if cfg!(windows) {
+        "dir /s /b"
+    } else {
+        "find ."
+    }
+}
+
+fn escape_arg(a: &str) -> String {
+    format!("'{}'", a.replace('\0', "\\0").replace("'", "'\\''"))
 }
 
 /// Replace the fields in `pattern` with the items, expanding {...} patterns

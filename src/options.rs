@@ -642,7 +642,7 @@ pub struct SkimOptions {
     ///
     /// Supported shells: bash, zsh, fish, powershell, elvish
     ///
-    /// Note: While PowerShell completions are supported, Windows is not supported for now.
+    /// Note: PowerShell completions are supported. The `--tmux` popup mode is Unix-only.
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",

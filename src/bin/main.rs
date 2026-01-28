@@ -8,7 +8,6 @@ extern crate log;
 extern crate shlex;
 extern crate skim;
 
-use crate::Event;
 use clap::{Error, Parser};
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
@@ -26,6 +25,17 @@ use std::{env, io};
 use thiserror::Error;
 
 use skim::prelude::*;
+use skim::tui::Event;
+
+#[cfg(unix)]
+fn run_tmux(opts: &SkimOptions) -> Option<SkimOutput> {
+    skim::tmux::run_with(opts)
+}
+
+#[cfg(not(unix))]
+fn run_tmux(_opts: &SkimOptions) -> Option<SkimOutput> {
+    None
+}
 
 fn parse_args() -> Result<SkimOptions, Error> {
     let mut args = Vec::new();
@@ -181,7 +191,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     // output
 
     let Some(result) = (if opts.tmux.is_some() && env::var("TMUX").is_ok() {
-        crate::tmux::run_with(&opts)
+        run_tmux(&opts)
     } else {
         // read from pipe or command
         let rx_item = if io::stdin().is_terminal() || (opts.interactive && opts.cmd.is_some()) {
@@ -297,7 +307,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     use skim::matcher::Matcher;
 
     let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
-        Ok("") | Err(_) => "find .".to_owned(),
+        Ok("") | Err(_) => (if cfg!(windows) { "dir /s /b" } else { "find ." }).to_owned(),
         Ok(val) => val.to_owned(),
     };
     let query = bin_option.filter.clone().unwrap_or_default();
