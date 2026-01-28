@@ -88,7 +88,7 @@ impl Reader {
     }
 
     /// Starts the reader and returns a control handle
-    pub fn run(&mut self, app_tx: UnboundedSender<Arc<dyn SkimItem>>, cmd: &str) -> ReaderControl {
+    pub fn run(&mut self, app_tx: UnboundedSender<Vec<Arc<dyn SkimItem>>>, cmd: &str) -> ReaderControl {
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));
 
@@ -113,7 +113,7 @@ impl Reader {
 fn collect_item(
     components_to_stop: Arc<AtomicUsize>,
     mut rx_item: SkimItemReceiver,
-    app_tx: UnboundedSender<Arc<dyn SkimItem>>,
+    app_tx: UnboundedSender<Vec<Arc<dyn SkimItem>>>,
 ) -> UnboundedSender<i32> {
     let (tx_interrupt, mut rx_interrupt) = unbounded_channel();
 
@@ -128,8 +128,8 @@ fn collect_item(
             select! {
                 new_item = rx_item.recv() => {
                     match new_item {
-                      Some(item) => {
-                          let _ = app_tx.send(item);
+                      Some(items) => {
+                          let _ = app_tx.send(items);
                       }
                       None => break,
                   }
