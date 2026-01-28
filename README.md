@@ -457,8 +457,9 @@ You get things like this:
 ### How does it work?
 
 If the preview command is given by the `--preview` option, skim will replace the
-`{}` with the current highlighted line surrounded by single quotes, call the
-command to get the output, and print the output on the preview window.
+`{}` with the current highlighted line surrounded by single quotes on Unix (and
+double quotes on Windows), call the command to get the output, and print the
+output on the preview window.
 
 Sometimes you don't need the whole line for invoking the command. In this case
 you can use `{}`, `{1..}`, `{..3}` or `{1..5}` to select the fields. The

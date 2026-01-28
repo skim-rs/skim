@@ -58,16 +58,12 @@ impl<B: Backend> Tui<B>
 where
     B::Error: Send + Sync + 'static,
 {
-    fn cursor_pos_one_based() -> Result<(u16, u16)> {
-        cursor_pos_one_based()
-    }
-
     /// Creates a new TUI with the specified backend and height
     pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
 
         // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
-        let cursor_pos = Self::cursor_pos_one_based()?;
+        let cursor_pos = cursor_pos_one_based()?;
 
         let term_height = backend.size().expect("Failed to get terminal height").height;
         let lines = match height {
