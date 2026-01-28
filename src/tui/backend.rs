@@ -282,75 +282,38 @@ fn cursor_pos_one_based() -> Result<(u16, u16)> {
         return Ok((x.saturating_add(1), y.saturating_add(1)));
     }
 
-    if let Some(pos) = winapi_cursor_pos_one_based(winapi_std_handle::STD_ERROR_HANDLE)
-        .or_else(|| winapi_cursor_pos_one_based(winapi_std_handle::STD_OUTPUT_HANDLE))
-    {
-        return Ok(pos);
-    }
-
     Ok((1, 1))
 }
 
-#[cfg(windows)]
-mod winapi_std_handle {
-    pub(super) const STD_OUTPUT_HANDLE: i32 = -11;
-    pub(super) const STD_ERROR_HANDLE: i32 = -12;
-}
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[cfg(windows)]
+    fn windows_backend_does_not_use_raw_kernel32_ffi_for_cursor_pos() {
+        const SRC: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/tui/backend.rs"));
+        let get_console_screen_buffer_info: String = [
+            'G', 'e', 't', 'C', 'o', 'n', 's', 'o', 'l', 'e', 'S', 'c', 'r', 'e', 'e', 'n', 'B', 'u', 'f', 'f', 'e',
+            'r', 'I', 'n', 'f', 'o',
+        ]
+        .into_iter()
+        .collect();
+        assert!(
+            !SRC.contains(&get_console_screen_buffer_info),
+            "cursor position should not rely on raw kernel32 FFI"
+        );
 
-#[cfg(windows)]
-fn winapi_cursor_pos_one_based(std_handle: i32) -> Option<(u16, u16)> {
-    use std::mem::MaybeUninit;
-
-    #[repr(C)]
-    #[derive(Copy, Clone)]
-    struct Coord {
-        x: i16,
-        y: i16,
+        let get_std_handle: String = ['G', 'e', 't', 'S', 't', 'd', 'H', 'a', 'n', 'd', 'l', 'e']
+            .into_iter()
+            .collect();
+        assert!(
+            !SRC.contains(&get_std_handle),
+            "cursor position should not rely on raw kernel32 FFI"
+        );
+        let kernel32: String = ['k', 'e', 'r', 'n', 'e', 'l', '3', '2'].into_iter().collect();
+        let kernel32_attr = format!("#[link(name = \"{kernel32}\")]");
+        assert!(
+            !SRC.contains(&kernel32_attr),
+            "cursor position should not rely on raw kernel32 FFI"
+        );
     }
-
-    #[repr(C)]
-    #[derive(Copy, Clone)]
-    struct SmallRect {
-        left: i16,
-        top: i16,
-        right: i16,
-        bottom: i16,
-    }
-
-    #[repr(C)]
-    #[derive(Copy, Clone)]
-    struct ConsoleScreenBufferInfo {
-        size: Coord,
-        cursor_position: Coord,
-        attributes: u16,
-        window: SmallRect,
-        maximum_window_size: Coord,
-    }
-
-    type Handle = isize;
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn GetStdHandle(n_std_handle: i32) -> Handle;
-        fn GetConsoleScreenBufferInfo(
-            h_console_output: Handle,
-            lp_console_screen_buffer_info: *mut ConsoleScreenBufferInfo,
-        ) -> i32;
-    }
-
-    let handle = unsafe { GetStdHandle(std_handle) };
-    if handle == 0 || handle == -1 {
-        return None;
-    }
-
-    let mut info = MaybeUninit::<ConsoleScreenBufferInfo>::uninit();
-    let ok = unsafe { GetConsoleScreenBufferInfo(handle, info.as_mut_ptr()) };
-    if ok == 0 {
-        return None;
-    }
-
-    let info = unsafe { info.assume_init() };
-    let x = u16::try_from(i32::from(info.cursor_position.x).saturating_add(1)).unwrap_or(1);
-    let y = u16::try_from(i32::from(info.cursor_position.y).saturating_add(1)).unwrap_or(1);
-    Some((x, y))
 }
