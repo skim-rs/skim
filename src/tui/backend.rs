@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 use super::{Event, Size};
 
 const TICK_RATE: f64 = 12.;
-const FRAME_RATE: f64 = 120.;
+const FRAME_RATE: f64 = 30.;
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
