@@ -26,6 +26,10 @@ pub struct TestHarness<'a> {
     pub app: App<'a>,
     /// Tokio runtime for async operations (preview commands, etc.)
     pub runtime: tokio::runtime::Runtime,
+    /// The exit status of the last command executed (for @cmd tests)
+    pub exit_status: Option<i32>,
+    /// The final event that caused the app to quit (for determining exit code)
+    pub final_event: Option<Event>,
 }
 
 impl<'a> TestHarness<'a> {
@@ -66,6 +70,12 @@ impl<'a> TestHarness<'a> {
         // Enter the runtime context so that tokio::spawn() calls work
         let _guard = self.runtime.enter();
         self.app.handle_event(&mut self.tui, &event)?;
+
+        // Track if app should quit and what the final event was
+        if self.app.should_quit && self.final_event.is_none() {
+            self.final_event = Some(event);
+        }
+
         Ok(())
     }
 
@@ -208,15 +218,16 @@ impl<'a> TestHarness<'a> {
     /// Execute a shell command and add its output lines as items.
     /// This is an internal method that doesn't restart the matcher.
     fn run_command_internal(&mut self, cmd: &str) -> Result<()> {
-        let output = Command::new("sh")
+        let mut child = Command::new("sh")
             .arg("-c")
             .arg(cmd)
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?;
 
-        let stdout = output
+        let stdout = child
             .stdout
+            .take()
             .ok_or_else(|| color_eyre::eyre::eyre!("Failed to capture stdout"))?;
         let reader = BufReader::new(stdout);
 
@@ -254,6 +265,11 @@ impl<'a> TestHarness<'a> {
             .collect();
 
         self.app.handle_items(items);
+
+        // Wait for the command to complete and capture its exit status
+        let status = child.wait()?;
+        self.exit_status = status.code();
+
         Ok(())
     }
 
@@ -353,6 +369,28 @@ impl<'a> TestHarness<'a> {
         self.send(Event::Heartbeat)?;
         self.tick()
     }
+
+    /// Get the exit code that skim would return based on the final event.
+    ///
+    /// This mimics the logic in `bin/main.rs`:
+    /// - 130 if the app aborted (Ctrl+C, Ctrl+D, Esc, etc.)
+    /// - 0 if the app accepted (Enter)
+    /// - None if the app hasn't quit yet
+    pub fn app_exit_code(&self) -> Option<i32> {
+        if !self.app.should_quit {
+            return None;
+        }
+
+        // Check if the final event was an Accept action
+        // This matches the logic in lib.rs:560
+        let is_abort = self
+            .final_event
+            .as_ref()
+            .map(|event| !matches!(event, Event::Action(Action::Accept(_))))
+            .unwrap_or(true);
+
+        Some(if is_abort { 130 } else { 0 })
+    }
 }
 
 // ============================================================================
@@ -371,7 +409,13 @@ pub fn enter_sized<'a>(options: SkimOptions, width: u16, height: u16) -> Result<
     // We use multi-threaded so spawned tasks can execute on background threads
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
 
-    Ok(TestHarness { tui, app, runtime })
+    Ok(TestHarness {
+        tui,
+        app,
+        runtime,
+        exit_status: None,
+        final_event: None,
+    })
 }
 
 /// Initialize a test harness with default dimensions (80x24).
@@ -466,6 +510,7 @@ macro_rules! snap {
 ///     @type "foo";        // Type string
 ///     @action Down(1);    // Send action
 ///     @key Enter;         // Send special key
+///     @exited 0;          // Assert command exited with status code 0
 /// });
 /// ```
 #[macro_export]
@@ -651,6 +696,20 @@ macro_rules! insta_test {
     //        @assert(|h| h.app.item_list.selected().unwrap().text() == "1");
     (@expand $h:ident; @assert ( $assertion:expr ) ; $($rest:tt)*) => {
         assert!(($assertion)(&$h));
+        insta_test!(@expand $h; $($rest)*);
+    };
+
+    // @exited - assert that the app would exit with a specific status code
+    // Usage: @exited 0;      // Assert successful exit (Accept)
+    //        @exited 130;    // Assert abort (Ctrl+C, Ctrl+D, Esc)
+    (@expand $h:ident; @exited $code:expr ; $($rest:tt)*) => {
+        assert_eq!(
+            $h.app_exit_code(),
+            Some($code),
+            "Expected app to exit with status code {}, but got {:?}",
+            $code,
+            $h.app_exit_code()
+        );
         insta_test!(@expand $h; $($rest)*);
     };
 }

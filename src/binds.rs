@@ -104,7 +104,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL), vec![Action::BeginningOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL), vec![Action::BackwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL), vec![Action::Abort]);
-    ret.insert(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL), vec![Action::DeleteCharEof]);
+    ret.insert(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL), vec![Action::Abort]);
     ret.insert(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL), vec![Action::EndOfLine]);
     ret.insert(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL), vec![Action::ForwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL), vec![Action::Abort]);

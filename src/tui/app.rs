@@ -657,8 +657,9 @@ impl<'a> App<'a> {
                 self.input.move_cursor(-1);
             }
             BackwardDeleteChar => {
-                self.input.delete(-1);
-                return self.on_query_changed();
+                if self.input.delete(-1).is_some() {
+                    return self.on_query_changed();
+                }
             }
             BackwardDeleteCharEof => {
                 if self.input.is_empty() {
@@ -670,9 +671,11 @@ impl<'a> App<'a> {
                 }
             }
             BackwardKillWord => {
-                let deleted = Cow::Owned(self.input.delete_backward_word());
-                self.yank(deleted);
-                return self.on_query_changed();
+                let deleted: Cow<'_, str> = Cow::Owned(self.input.delete_backward_word());
+                if !deleted.is_empty() {
+                    self.yank(deleted);
+                    return self.on_query_changed();
+                }
             }
             BackwardWord => {
                 self.input.move_cursor_backward_word();
@@ -691,15 +694,15 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::Clear]);
             }
             DeleteChar => {
-                self.input.delete(0);
-                return self.on_query_changed();
+                if self.input.delete(0).is_some() {
+                    return self.on_query_changed();
+                }
             }
             DeleteCharEof => {
                 if self.input.is_empty() {
                     self.should_quit = true;
                     return Ok(vec![]);
-                } else {
-                    self.input.delete(0);
+                } else if self.input.delete(0).is_some() {
                     return self.on_query_changed();
                 }
             }
@@ -1032,12 +1035,14 @@ impl<'a> App<'a> {
                 self.restart_matcher(true);
             }
             UnixLineDiscard => {
-                self.input.delete_to_beginning();
-                return self.on_query_changed();
+                if !self.input.delete_to_beginning().is_empty() {
+                    return self.on_query_changed();
+                }
             }
             UnixWordRubout => {
-                self.input.delete_backward_to_whitespace();
-                return self.on_query_changed();
+                if !self.input.delete_backward_to_whitespace().is_empty() {
+                    return self.on_query_changed();
+                }
             }
             Up(n) => {
                 use ratatui::widgets::ListDirection::*;

@@ -104,14 +104,15 @@ insta_test!(keys_interactive_bspace, @interactive, &["-i", "--cmd-query", "foo b
     @snap;
 });
 
+insta_test!(keys_interactive_ctrl_c, @interactive, &["-i", "--cmd-query", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'c';
+    @exited 130;
+});
 insta_test!(keys_interactive_ctrl_d, @interactive, &["-i", "--cmd-query", "foo bar foo-bar"], {
     @snap;
-    @ctrl 'a';
-    @char '|';
-    @snap;
     @ctrl 'd';
-    @char '|';
-    @snap;
+    @exited 130;
 });
 
 insta_test!(keys_interactive_ctrl_u, @interactive, &["-i", "--cmd-query", "foo bar foo-bar"], {
