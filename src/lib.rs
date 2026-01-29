@@ -72,6 +72,7 @@ pub mod reader;
 mod skim_item;
 pub mod spinlock;
 pub mod theme;
+#[cfg(unix)]
 pub mod tmux;
 pub mod tui;
 mod util;
@@ -80,6 +81,7 @@ mod util;
 pub mod completions;
 #[cfg(feature = "cli")]
 pub mod manpage;
+pub use crate::util::platform_default_command;
 
 //------------------------------------------------------------------------------
 /// Trait for downcasting to concrete types from trait objects
@@ -357,9 +359,8 @@ impl Skim {
         // Initialize theme from options
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
         let mut reader = Reader::from_options(&options).source(source);
-        const SKIM_DEFAULT_COMMAND: &str = "find .";
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
-            Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
+            Err(_) | Ok("") => crate::util::platform_default_command(),
             Ok(v) => v,
         });
         let cmd = options.cmd.clone().unwrap_or(default_command);

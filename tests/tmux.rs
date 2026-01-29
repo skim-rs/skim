@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 #[allow(dead_code)]
 mod common;
 

@@ -6,6 +6,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
+use std::process::Command;
 use std::sync::Arc;
 
 #[cfg(feature = "cli")]
@@ -80,6 +81,42 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
     BufReader::new(file).lines().collect()
 }
 
+pub(crate) fn shell_command(cmd: &str) -> Command {
+    #[cfg(windows)]
+    {
+        let shell = std::env::var_os("COMSPEC")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "cmd.exe".into());
+        let mut command = Command::new(shell);
+        command.args(["/C", cmd]);
+        command
+    }
+
+    #[cfg(not(windows))]
+    {
+        let mut command = Command::new("sh");
+        command.args(["-c", cmd]);
+        command
+    }
+}
+
+/// Returns the platform-specific default command used to generate the initial item list.
+///
+/// This is used when `SKIM_DEFAULT_COMMAND` is not set (or is set to an empty string).
+pub fn platform_default_command() -> &'static str {
+    if cfg!(windows) { "dir /s /b" } else { "find ." }
+}
+
+#[cfg(windows)]
+fn escape_arg(a: &str) -> String {
+    format!("\"{}\"", a.replace('\0', "\\0").replace('"', "\"\""))
+}
+
+#[cfg(not(windows))]
+fn escape_arg(a: &str) -> String {
+    format!("'{}'", a.replace('\0', "\\0").replace('\'', "'\\''"))
+}
+
 /// Replace the fields in `pattern` with the items, expanding {...} patterns
 ///
 /// Replaces:
@@ -100,23 +137,25 @@ pub fn printf(
     command_query: &str,
     quote_args: bool,
 ) -> String {
-    let escape_arg = if quote_args {
-        |s: &str| format!("'{}'", s.replace('\0', "\\0").replace("'", "'\\''"))
-    } else {
-        |s: &str| s.replace('\0', "\\0").to_string()
+    let escape_value = |s: &str| {
+        if quote_args {
+            escape_arg(s)
+        } else {
+            s.replace('\0', "\\0")
+        }
     };
     let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
-    let escaped_item = escape_arg(&item_text);
-    let escaped_query = escape_arg(query);
-    let escaped_cmd_query = escape_arg(command_query);
+    let escaped_item = escape_value(item_text.as_ref());
+    let escaped_query = escape_value(query);
+    let escaped_cmd_query = escape_value(command_query);
 
     let mut selection_str = selected
         .clone()
-        .map(|i| escape_arg(&strip_ansi(&i.output()).0))
+        .map(|i| escape_value(strip_ansi(&i.output()).0.as_ref()))
         .reduce(|a, b| a + " " + &b)
         .unwrap_or_default();
     if selection_str.is_empty() {
-        selection_str = escaped_item;
+        selection_str = escaped_item.clone();
     }
 
     // Split on replstr first
@@ -146,7 +185,10 @@ pub fn printf(
             } else if s.starts_with("+n}") {
                 replaced += &selected
                     .clone()
-                    .map(|i| escape_arg(&i.get_index().to_string()))
+                    .map(|i| {
+                        let index = i.get_index().to_string();
+                        escape_value(&index)
+                    })
                     .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " ");
                 replaced += s.get(3..).unwrap_or_default()
             } else {
@@ -159,8 +201,8 @@ pub fn printf(
                                 replaced.push_str("{}");
                             } else if let Some(range) = FieldRange::from_str(&content) {
                                 let replacement =
-                                    get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
-                                replaced.push_str(&escape_arg(replacement));
+                                    get_string_by_field(delimiter, item_text.as_ref(), &range).unwrap_or_default();
+                                replaced.push_str(&escape_value(replacement));
                             } else {
                                 log::warn!("Failed to build field range from {content}");
                                 replaced.push_str(&format!("{{{content}}}"));
@@ -185,7 +227,7 @@ pub fn printf(
     // Join back the replstr parts into the res
     replaced_parts
         .into_iter()
-        .reduce(|a: String, b| a + &escape_arg(&item_text) + &b)
+        .reduce(|a: String, b| a + &escaped_item + &b)
         .unwrap_or_default()
 }
 
@@ -194,6 +236,7 @@ mod test {
     use super::*;
     use crate::SkimItem;
     use regex::Regex;
+    use std::ffi::{OsStr, OsString};
 
     #[test]
     fn test_unescape_delimiter() {
@@ -238,6 +281,11 @@ mod test {
             Arc::new("item 4"),
         ];
         let delimiter = Regex::new(" ").unwrap();
+        let expected = if cfg!(windows) {
+            r#"[1] "item 2" [2] "item 2" [3] "2" [4] "item 1" "item 2" "item 3" "item 4" [5] "query" [6] "cmd query""#
+        } else {
+            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query'"
+        };
         assert_eq!(
             &printf(
                 pattern,
@@ -249,11 +297,13 @@ mod test {
                 "cmd query",
                 true
             ),
-            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query'"
+            expected
         );
     }
+
     #[test]
     fn test_printf_plus() {
+        let expected_two = if cfg!(windows) { r#""1" "2""# } else { "'1' '2'" };
         assert_eq!(
             printf(
                 "{+}",
@@ -267,8 +317,10 @@ mod test {
                 "cq",
                 true
             ),
-            "'1' '2'"
+            expected_two
         );
+
+        let expected_one = if cfg!(windows) { r#""1""# } else { "'1'" };
         assert_eq!(
             printf(
                 "{+}",
@@ -280,11 +332,13 @@ mod test {
                 "cq",
                 true
             ),
-            "'1'"
+            expected_one
         );
     }
+
     #[test]
     fn test_printf_norec() {
+        let expected = if cfg!(windows) { r#""{..2}""# } else { "'{..2}'" };
         assert_eq!(
             printf(
                 "{}",
@@ -296,7 +350,42 @@ mod test {
                 "cq",
                 true
             ),
-            "'{..2}'"
+            expected
         );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_shell_command_uses_cmd() {
+        let cmd = shell_command("echo hello");
+        let expected_shell = std::env::var_os("COMSPEC")
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| OsString::from("cmd.exe"));
+
+        assert_eq!(cmd.get_program(), expected_shell.as_os_str());
+        let args = cmd.get_args().map(OsString::from).collect::<Vec<_>>();
+        assert_eq!(args, [OsString::from("/C"), OsString::from("echo hello")]);
+        assert_ne!(cmd.get_program(), OsStr::new("sh"));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_shell_command_uses_sh() {
+        let cmd = shell_command("echo hello");
+        assert_eq!(cmd.get_program(), OsStr::new("sh"));
+        let args = cmd.get_args().map(OsString::from).collect::<Vec<_>>();
+        assert_eq!(args, [OsString::from("-c"), OsString::from("echo hello")]);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_platform_default_command_windows() {
+        assert_eq!(platform_default_command(), "dir /s /b");
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_platform_default_command_unix() {
+        assert_eq!(platform_default_command(), "find .");
     }
 }

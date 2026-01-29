@@ -186,7 +186,7 @@ To enable these features, source the `key-bindings.{shell}` file and set up comp
 
 You can generate shell completions for your preferred shell using the `--shell` flag with one of the supported shells: `bash`, `zsh`, `fish`, `powershell`, or `elvish`:
 
-> **Note:** While PowerShell completions are supported, Windows is not supported for now.
+> **Note:** PowerShell completions are supported. The `--tmux` popup mode is Unix-only.
 
 #### Option 1: Source directly in your current shell session
 
@@ -457,8 +457,9 @@ You get things like this:
 ### How does it work?
 
 If the preview command is given by the `--preview` option, skim will replace the
-`{}` with the current highlighted line surrounded by single quotes, call the
-command to get the output, and print the output on the preview window.
+`{}` with the current highlighted line surrounded by single quotes on Unix (and
+double quotes on Windows), call the command to get the output, and print the
+output on the preview window.
 
 Sometimes you don't need the whole line for invoking the command. In this case
 you can use `{}`, `{1..}`, `{..3}` or `{1..5}` to select the fields. The
