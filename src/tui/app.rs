@@ -1013,6 +1013,7 @@ impl<'a> App<'a> {
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
                 self.input.switch_mode();
+                self.restart_matcher(true);
             }
             ToggleOut => {
                 self.item_list.toggle();
@@ -1101,18 +1102,7 @@ impl<'a> App<'a> {
         }
 
         let matcher_stopped = self.matcher_control.stopped();
-
-        // If a matcher is still running, don't start a new one - just mark pending
-        // This prevents race conditions where a killed matcher's empty results
-        // overwrite a successful matcher's results
-        if !matcher_stopped {
-            if force || self.item_pool.num_not_taken() > 0 {
-                self.pending_matcher_restart = true;
-            }
-            return;
-        }
-
-        if force || self.pending_matcher_restart || self.item_pool.num_not_taken() > 0 {
+        if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;

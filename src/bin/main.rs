@@ -331,8 +331,8 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     let mut items = Vec::new();
 
     // Collect all items from the stream until the channel is closed
-    while let Some(item) = stream_of_item.blocking_recv() {
-        items.push(item);
+    while let Some(batch) = stream_of_item.blocking_recv() {
+        items.extend(batch);
     }
 
     let mut matched_items: Vec<_> = items

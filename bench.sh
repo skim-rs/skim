@@ -182,6 +182,8 @@ for RUN in $(seq 1 $RUNS); do
 
 	# Unset HISTFILE in the tmux session to prevent command from appearing in shell history
 	tmux send-keys -t "$SESSION_NAME" "unset HISTFILE" Enter
+	tmux send-keys -t "$SESSION_NAME" "unset FZF_DEFAULT_OPTS" Enter
+	tmux send-keys -t "$SESSION_NAME" "unset SKIM_DEFAULT_OPTIONS" Enter
 	sleep 0.1
 
 	# Prepare to capture the start time as close to data ingestion as possible

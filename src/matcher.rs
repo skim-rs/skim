@@ -28,11 +28,10 @@ pub struct MatcherControl {
 impl Default for MatcherControl {
     fn default() -> Self {
         Self {
-            // Default to stopped=true so initial state indicates "no matcher running"
             stopped: Arc::new(AtomicBool::new(true)),
-            processed: Arc::new(AtomicUsize::new(0)),
-            matched: Arc::new(AtomicUsize::new(0)),
-            items: Arc::new(SpinLock::new(Vec::new())),
+            processed: Default::default(),
+            matched: Default::default(),
+            items: Default::default(),
         }
     }
 }
