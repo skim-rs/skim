@@ -6,7 +6,6 @@ use ratatui::{
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
-use std::process::Command;
 use tokio::task::JoinHandle;
 
 use super::Direction;
@@ -152,13 +151,11 @@ impl Preview {
         self.cmd = cmd.to_string();
         debug!("running preview cmd `{cmd}`");
         let event_tx_clone = tui.event_tx.clone();
-        let mut shell_cmd = Command::new("/bin/sh");
+        let mut shell_cmd = crate::util::shell_command(cmd);
         shell_cmd
             .env("ROWS", self.rows.to_string())
             .env("COLUMNS", self.cols.to_string())
-            .env("PAGER", "")
-            .arg("-c")
-            .arg(cmd);
+            .env("PAGER", "");
         if let Some(th) = &self.thread_handle {
             th.abort();
         }

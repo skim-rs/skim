@@ -249,7 +249,7 @@ pub struct SkimOptions {
 
     /// Command to invoke dynamically in interactive mode
     ///
-    /// Will be invoked using `sh -c`
+    /// Will be invoked using `sh -c` on Unix and `cmd.exe /C` on Windows.
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub cmd: Option<String>,
 
@@ -642,7 +642,7 @@ pub struct SkimOptions {
     ///
     /// Supported shells: bash, zsh, fish, powershell, elvish
     ///
-    /// Note: While PowerShell completions are supported, Windows is not supported for now.
+    /// Note: PowerShell completions are supported. The `--tmux` popup mode is Unix-only.
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",
@@ -685,7 +685,11 @@ pub struct SkimOptions {
     /// Depending on the direction, the order and behavior of the sizes varies:
     ///
     /// Default: center,50%
-    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
+    #[cfg_attr(
+        all(feature = "cli", unix),
+        arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args = 0..)
+    )]
+    #[cfg_attr(all(feature = "cli", not(unix)), clap(skip))]
     pub tmux: Option<String>,
 
     /// Pipe log output to a file

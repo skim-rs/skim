@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -722,10 +722,9 @@ impl<'a> App<'a> {
                 self.input.move_to_end();
             }
             Execute(cmd) => {
-                let mut command = Command::new("sh");
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {}", expanded_cmd);
-                command.args(["-c", &expanded_cmd]);
+                let mut command = crate::util::shell_command(&expanded_cmd);
                 let in_raw_mode = crossterm::terminal::is_raw_mode_enabled()?;
                 if in_raw_mode {
                     crossterm::terminal::disable_raw_mode()?;
@@ -747,9 +746,8 @@ impl<'a> App<'a> {
                 return Ok(vec![Event::Redraw]);
             }
             ExecuteSilent(cmd) => {
-                let mut command = Command::new("sh");
                 let expanded_cmd = self.expand_cmd(cmd, true);
-                command.args(["-c", &expanded_cmd]);
+                let mut command = crate::util::shell_command(&expanded_cmd);
                 command.stdout(Stdio::null());
                 command.stderr(Stdio::null());
                 let _ = command.spawn();

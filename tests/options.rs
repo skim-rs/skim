@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use crate::common::tmux::SK;
 use std::process::Command;
 

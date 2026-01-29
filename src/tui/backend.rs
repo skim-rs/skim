@@ -1,6 +1,8 @@
-use std::io::IsTerminal;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
+
+#[cfg(unix)]
+use std::io::IsTerminal;
 
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEventKind;
@@ -11,8 +13,6 @@ use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
-use termion::cursor::DetectCursorPos;
-use termion::raw::IntoRawMode as _;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -25,6 +25,11 @@ use super::{Event, Size};
 const TICK_RATE: f64 = 12.;
 const FRAME_RATE: f64 = 30.;
 static PANIC_HOOK_SET: Once = Once::new();
+
+#[cfg(unix)]
+use termion::cursor::DetectCursorPos;
+#[cfg(unix)]
+use termion::raw::IntoRawMode as _;
 
 /// Terminal user interface handler for skim
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>>
@@ -58,17 +63,7 @@ where
         let event_channel = unbounded_channel();
 
         // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
-        let cursor_pos = if std::io::stdout().is_terminal() {
-            let mut stdout = std::io::stdout().into_raw_mode()?;
-            let res = stdout.cursor_pos()?;
-            drop(stdout);
-            res
-        } else {
-            let mut tty = termion::get_tty()?.into_raw_mode()?;
-            let res = tty.cursor_pos()?;
-            drop(tty);
-            res
-        };
+        let cursor_pos = cursor_pos_one_based()?;
 
         let term_height = backend.size().expect("Failed to get terminal height").height;
         let lines = match height {
@@ -264,4 +259,61 @@ fn set_panic_hook() {
             hook(panic_info);
         }));
     });
+}
+
+#[cfg(unix)]
+fn cursor_pos_one_based() -> Result<(u16, u16)> {
+    if std::io::stdout().is_terminal() {
+        let mut stdout = std::io::stdout().into_raw_mode()?;
+        let res = stdout.cursor_pos()?;
+        drop(stdout);
+        Ok(res)
+    } else {
+        let mut tty = termion::get_tty()?.into_raw_mode()?;
+        let res = tty.cursor_pos()?;
+        drop(tty);
+        Ok(res)
+    }
+}
+
+#[cfg(windows)]
+fn cursor_pos_one_based() -> Result<(u16, u16)> {
+    if let Ok((x, y)) = crossterm::cursor::position() {
+        return Ok((x.saturating_add(1), y.saturating_add(1)));
+    }
+
+    Ok((1, 1))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[cfg(windows)]
+    fn windows_backend_does_not_use_raw_kernel32_ffi_for_cursor_pos() {
+        const SRC: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/tui/backend.rs"));
+        let get_console_screen_buffer_info: String = [
+            'G', 'e', 't', 'C', 'o', 'n', 's', 'o', 'l', 'e', 'S', 'c', 'r', 'e', 'e', 'n', 'B', 'u', 'f', 'f', 'e',
+            'r', 'I', 'n', 'f', 'o',
+        ]
+        .into_iter()
+        .collect();
+        assert!(
+            !SRC.contains(&get_console_screen_buffer_info),
+            "cursor position should not rely on raw kernel32 FFI"
+        );
+
+        let get_std_handle: String = ['G', 'e', 't', 'S', 't', 'd', 'H', 'a', 'n', 'd', 'l', 'e']
+            .into_iter()
+            .collect();
+        assert!(
+            !SRC.contains(&get_std_handle),
+            "cursor position should not rely on raw kernel32 FFI"
+        );
+        let kernel32: String = ['k', 'e', 'r', 'n', 'e', 'l', '3', '2'].into_iter().collect();
+        let kernel32_attr = format!("#[link(name = \"{kernel32}\")]");
+        assert!(
+            !SRC.contains(&kernel32_attr),
+            "cursor position should not rely on raw kernel32 FFI"
+        );
+    }
 }

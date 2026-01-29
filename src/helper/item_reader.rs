@@ -2,7 +2,7 @@
 
 use std::error::Error;
 use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
@@ -385,8 +385,8 @@ type CommandOutput = (Option<Child>, Box<dyn BufRead + Send>);
 
 fn get_command_output(cmd: &str, send_error: bool) -> Result<CommandOutput, Box<dyn Error>> {
     let (reader, writer) = std::io::pipe()?;
-    let mut sh = Command::new("sh");
-    let command = sh.arg("-c").arg(cmd).stdout(writer.try_clone()?);
+    let mut command = crate::util::shell_command(cmd);
+    command.stdout(writer.try_clone()?);
     if send_error {
         trace!("redirecting stderr to the output");
         command.stderr(writer);
