@@ -431,28 +431,11 @@ impl Skim {
                 0
             };
 
-            let listener = if let Some(socket_name) = &listen_socket {
-                debug!("starting listener on socket at {socket_name}");
-                Some(
-                    interprocess::local_socket::ListenerOptions::new()
-                        .name(
-                            interprocess::local_socket::ToNsName::to_ns_name::<
-                                interprocess::local_socket::GenericNamespaced,
-                            >(socket_name.as_str())
-                            .unwrap_or_else(|e| {
-                                panic!("Failed to build full name for IPC listener from {socket_name}: {e}")
-                            }),
-                        )
-                        .create_tokio()
-                        .unwrap_or_else(|e| panic!("Failed to create tokio IPC listener at {socket_name}: {e}")),
-                )
-            } else {
-                None
-            };
-
             let mut should_enter = true;
             if min_items_before_enter > 0 {
-                while app.matcher_control.get_num_matched() < min_items_before_enter && app.item_pool.num_not_taken() > 0 && !app.matcher_control.stopped() {
+                while app.matcher_control.get_num_matched() < min_items_before_enter
+                    && !app.matcher_control.stopped()
+                    && !reader_done.load(std::sync::atomic::Ordering::Relaxed) {
                     let curr = app.matcher_control.get_num_matched();
                     tokio::time::sleep(Duration::from_millis(10)).await;
                     trace!(
@@ -468,7 +451,7 @@ impl Skim {
                     app.restart_matcher(false);
                 };
                 trace!("checking for matched item count before entering: {}/{min_items_before_enter}", app.matcher_control.get_num_matched());
-                if app.matcher_control.stopped() && app.matcher_control.get_num_matched() == min_items_before_enter - 1
+                if app.matcher_control.get_num_matched() == min_items_before_enter - 1
                 {
                     app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
                     debug!("early exit, result: {:?}", app.results());
@@ -478,77 +461,95 @@ impl Skim {
             }
 
             if should_enter {
-            let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
-            let mut tui = tui::Tui::new_with_height(backend, height)?;
-            let event_tx_clone = tui.event_tx.clone();
-            tui.enter()?;
-            loop {
-                select! {
-                    event = tui.next() => {
-                        let evt = event.ok_or_eyre("Could not acquire next event")?;
+                let listener = if let Some(socket_name) = &listen_socket {
+                    debug!("starting listener on socket at {socket_name}");
+                    Some(
+                        interprocess::local_socket::ListenerOptions::new()
+                            .name(
+                                interprocess::local_socket::ToNsName::to_ns_name::<
+                                    interprocess::local_socket::GenericNamespaced,
+                                >(socket_name.as_str())
+                                .unwrap_or_else(|e| {
+                                    panic!("Failed to build full name for IPC listener from {socket_name}: {e}")
+                                }),
+                            )
+                            .create_tokio()
+                            .unwrap_or_else(|e| panic!("Failed to create tokio IPC listener at {socket_name}: {e}")),
+                    )
+                } else {
+                    None
+                };
+                let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
+                let mut tui = tui::Tui::new_with_height(backend, height)?;
+                let event_tx_clone = tui.event_tx.clone();
+                tui.enter()?;
+                loop {
+                    select! {
+                        event = tui.next() => {
+                            let evt = event.ok_or_eyre("Could not acquire next event")?;
 
-                        // Handle reload event
-                        if let Event::Reload(new_cmd) = &evt {
-                            debug!("reloading with cmd {new_cmd}");
-                            // Kill the current reader
-                            reader_control.kill();
-                            // Clear items
-                            app.item_pool.clear();
-                            // Clear displayed items unless no_clear_if_empty is set
-                            // (in which case the item_list will handle keeping stale items)
-                            if !app.options.no_clear_if_empty {
-                                app.item_list.clear();
-                            }
-                            app.restart_matcher(true);
-                            // Start a new reader with the new command (no source, using cmd)
-                            reader_control = reader.run(item_tx.clone(), new_cmd);
-                            reader_done.store(false, std::sync::atomic::Ordering::Relaxed);
-                        }
-                        if let Event::Key(k) = &evt {
-                          final_key = k.to_owned();
-                        } else {
-                          final_event = evt.to_owned();
-                        }
-
-                        // Check reader status and update
-                        if !reader_control.is_done() {
-                          app.reader_timer = Instant::now();
-                        } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
-                            reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
-                            app.restart_matcher(true);
-                        }
-                        app.handle_event(&mut tui, &evt)?;
-                    }
-                    _ = matcher_interval.tick() => {
-                      app.restart_matcher(false);
-                    }
-                    Ok(stream) = async {
-                        match &listener {
-                            Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
-                            None => std::future::pending().await,
-                        }
-                    } => {
-                        let event_tx_clone_ipc = event_tx_clone.clone();
-                        tokio::spawn(async move {
-                            use tokio::io::AsyncBufReadExt;
-                            let reader = tokio::io::BufReader::new(stream);
-                            let mut lines = reader.lines();
-                            while let Ok(Some(line)) = lines.next_line().await {
-                                debug!("listener: got {line}");
-                                if let Ok(act) = ron::from_str::<Action>(&line) {
-                                    debug!("listener: parsed into action {act:?}");
-                                    _ = event_tx_clone_ipc.send(Event::Action(act));
-                                    _ = event_tx_clone_ipc.send(Event::Render);
+                            // Handle reload event
+                            if let Event::Reload(new_cmd) = &evt {
+                                debug!("reloading with cmd {new_cmd}");
+                                // Kill the current reader
+                                reader_control.kill();
+                                // Clear items
+                                app.item_pool.clear();
+                                // Clear displayed items unless no_clear_if_empty is set
+                                // (in which case the item_list will handle keeping stale items)
+                                if !app.options.no_clear_if_empty {
+                                    app.item_list.clear();
                                 }
+                                app.restart_matcher(true);
+                                // Start a new reader with the new command (no source, using cmd)
+                                reader_control = reader.run(item_tx.clone(), new_cmd);
+                                reader_done.store(false, std::sync::atomic::Ordering::Relaxed);
                             }
-                        });
+                            if let Event::Key(k) = &evt {
+                              final_key = k.to_owned();
+                            } else {
+                              final_event = evt.to_owned();
+                            }
+
+                            // Check reader status and update
+                            if !reader_control.is_done() {
+                              app.reader_timer = Instant::now();
+                            } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
+                                reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
+                                app.restart_matcher(true);
+                            }
+                            app.handle_event(&mut tui, &evt)?;
+                        }
+                        _ = matcher_interval.tick() => {
+                          app.restart_matcher(false);
+                        }
+                        Ok(stream) = async {
+                            match &listener {
+                                Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
+                                None => std::future::pending().await,
+                            }
+                        } => {
+                            let event_tx_clone_ipc = event_tx_clone.clone();
+                            tokio::spawn(async move {
+                                use tokio::io::AsyncBufReadExt;
+                                let reader = tokio::io::BufReader::new(stream);
+                                let mut lines = reader.lines();
+                                while let Ok(Some(line)) = lines.next_line().await {
+                                    debug!("listener: got {line}");
+                                    if let Ok(act) = ron::from_str::<Action>(&line) {
+                                        debug!("listener: parsed into action {act:?}");
+                                        _ = event_tx_clone_ipc.send(Event::Action(act));
+                                        _ = event_tx_clone_ipc.send(Event::Render);
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    if app.should_quit {
+                        break;
                     }
                 }
-
-                if app.should_quit {
-                    break;
-                }
-            }
             }
             reader_control.kill();
             let _ = reader_interrupt_tx.send(true);
