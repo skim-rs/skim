@@ -6,6 +6,10 @@
 - Test (all): `cargo nextest --features test-utils`
 - Test (single): `cargo nextest test_name --features test-utils`
 - Integration/E2E tests: `cargo nextest --tests --features test-utils` (will need tmux under the hood)
+- Memory leak detection: `cargo nextest run --profile valgrind --features test-utils`
+- Thread leak/race detection: 
+  1. Build: `RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests --features test-utils -Zbuild-std --target x86_64-unknown-linux-gnu`
+  2. Run: `TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --features test-utils --target x86_64-unknown-linux-gnu`
 - Lint: `cargo clippy`
 - Format: `cargo fmt` (check only: `cargo fmt --check`)
 
