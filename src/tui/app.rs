@@ -1010,6 +1010,7 @@ impl<'a> App<'a> {
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
                 self.input.switch_mode();
+                self.restart_matcher(true);
             }
             ToggleOut => {
                 self.item_list.toggle();

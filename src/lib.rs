@@ -518,7 +518,7 @@ impl Skim {
                               app.reader_timer = Instant::now();
                             } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
                                 reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
-                                app.restart_matcher(true);
+                                app.restart_matcher(false);
                             }
                             app.handle_event(&mut tui, &evt)?;
                         }
