@@ -18,23 +18,12 @@ use std::rc::Rc;
 /// Control handle for a running matcher operation.
 ///
 /// Provides methods to check status, retrieve results, and stop the matcher.
+#[derive(Default)]
 pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
     items: Arc<SpinLock<Vec<MatchedItem>>>,
-}
-
-impl Default for MatcherControl {
-    fn default() -> Self {
-        Self {
-            // Default to stopped=true so initial state indicates "no matcher running"
-            stopped: Arc::new(AtomicBool::new(true)),
-            processed: Arc::new(AtomicUsize::new(0)),
-            matched: Arc::new(AtomicUsize::new(0)),
-            items: Arc::new(SpinLock::new(Vec::new())),
-        }
-    }
 }
 
 impl MatcherControl {
