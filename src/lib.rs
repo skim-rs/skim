@@ -547,6 +547,8 @@ impl Skim {
                     }
 
                     if app.should_quit {
+                        app.preview.kill();
+                        app.matcher_control.kill();
                         break;
                     }
                 }
@@ -579,6 +581,7 @@ impl Skim {
         };
         // Explicitely drop app to make sure we stop all components
         drop(app);
+        debug!("output: {output:?}");
 
         Ok(output)
     }

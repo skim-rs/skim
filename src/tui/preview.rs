@@ -162,6 +162,23 @@ impl Preview {
         let page_size = self.rows.saturating_sub(2); // Account for borders
         self.scroll_down(page_size);
     }
+    pub fn kill(&mut self) {
+        debug!("killing preview");
+        if let Some(pty) = self.pty.take() {
+            let w = pty.master.take_writer();
+            drop(w);
+        }
+        if let Some(th) = self.thread_handle.take() {
+            debug!("aborting preview thread");
+            th.abort();
+            debug!("aborted preview thread");
+        }
+        if let Some(mut killer) = self.pty_killer.take() {
+            debug!("killing PTY child");
+            let _ = killer.kill();
+            debug!("killed PTY child");
+        }
+    }
 
     pub fn run<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str)
     where
@@ -274,17 +291,7 @@ impl Preview {
 
 impl Drop for Preview {
     fn drop(&mut self) {
-        debug!("dropping preview");
-        if let Some(mut killer) = self.pty_killer.take() {
-            debug!("killing PTY child");
-            let _ = killer.kill();
-        }
-
-        // Abort the preview thread first
-        if let Some(th) = self.thread_handle.take() {
-            debug!("Dropping Preview: Aborting preview thread");
-            th.abort();
-        }
+        self.kill();
     }
 }
 
@@ -305,6 +312,7 @@ impl SkimWidget for Preview {
             pty: None,
             pty_killer: None,
         };
+        #[cfg(target_os = "linux")]
         res.init_pty();
         res
     }
