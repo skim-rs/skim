@@ -1,0 +1,29 @@
+---
+source: tests/keys.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  0/1                                                                        0/0"
+"> foo bar foo-bar                                                               "
+cursor: (24, 18)

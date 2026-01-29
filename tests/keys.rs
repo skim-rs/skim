@@ -115,14 +115,15 @@ insta_test!(keys_bspace, [""], &["-q", "foo bar foo-bar"], {
     @snap;
 });
 
+insta_test!(keys_ctrl_c, [""], &["-q", "foo bar foo-bar"], {
+    @snap;
+    @ctrl 'c';
+    @exited 130;
+});
 insta_test!(keys_ctrl_d, [""], &["-q", "foo bar foo-bar"], {
     @snap;
-    @ctrl 'a';
-    @char '|';
-    @snap;
     @ctrl 'd';
-    @char '|';
-    @snap;
+    @exited 130;
 });
 
 insta_test!(keys_ctrl_u, [""], &["-q", "foo bar foo-bar"], {
