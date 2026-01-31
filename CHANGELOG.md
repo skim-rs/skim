@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-31
+
+### 🚀 Features
+
+- [**breaking**] **library** Send & receive items in batches (#938)
+	This should not affect TUI users other than in improving the app's performance
+
+### ⚙️ Miscellaneous Tasks
+
+- Add valgrind and thread sanitizer test profiles [skip ci]
+
 ## [1.11.2] - 2026-01-29
 
 ### 🐛 Bug Fixes

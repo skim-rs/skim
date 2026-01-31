@@ -1,0 +1,53 @@
+# Valgrind suppressions for skim tests
+# This file suppresses known false positives from Rust stdlib and system libraries
+
+# Rust std allocations that are intentionally not freed at program exit
+{
+   rust_std_exit_cleanup
+   Memcheck:Leak
+   ...
+   fun:*std*
+}
+
+# Thread-local storage cleanup
+{
+   thread_local_cleanup
+   Memcheck:Leak
+   ...
+   fun:pthread_create*
+}
+
+# Tokio runtime allocations
+{
+   tokio_runtime
+   Memcheck:Leak
+   ...
+   fun:*tokio*runtime*
+}
+
+# Crossterm/terminal allocations
+{
+   crossterm_terminal
+   Memcheck:Leak
+   ...
+   fun:*crossterm*
+}
+
+# Libc thread initialization
+{
+   libc_thread_init
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:calloc
+   fun:allocate_dtv
+}
+
+# DL allocations
+{
+   dl_init
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:*dl_*
+}

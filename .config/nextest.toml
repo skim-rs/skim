@@ -1,13 +1,68 @@
-experimental = ["setup-scripts"]
+experimental = ["setup-scripts", "wrapper-scripts"]
 
 [scripts.setup.stop-tmux]
 command = "sh -c 'tmux kill-session -t skim_e2e || true'"
 [scripts.setup.start-tmux]
 command = "tmux new-session -d -s skim_e2e -n skim_e2e"
 
+# Valgrind wrapper for memory leak detection
+[scripts.wrapper.valgrind]
+command = [
+    "valgrind",
+    "--leak-check=full",
+    "--show-leak-kinds=all",
+    "--track-origins=yes",
+    "--error-exitcode=1",
+    "--suppressions=.config/valgrind.supp"
+]
+
 [profile.default]
 fail-fast = false
 retries = 9
 [[profile.default.scripts]]
+platform = "cfg(unix)"
+setup = ["stop-tmux", "start-tmux"]
+
+# Valgrind profile for memory leak detection
+# Usage: cargo nextest run --profile valgrind --features test-utils
+#
+# Note: Valgrind can detect memory leaks but does NOT detect dangling threads.
+# For thread leak detection, use ThreadSanitizer instead (see below).
+[profile.valgrind]
+fail-fast = false
+retries = 2
+test-threads = 1  # Run tests serially to avoid interleaved valgrind output
+[[profile.valgrind.scripts]]
+platform = "cfg(unix)"
+setup = ["stop-tmux", "start-tmux"]
+run-wrapper = "valgrind"
+
+# ThreadSanitizer profile for detecting data races and thread issues
+# Usage:
+#   1. First build with sanitizer (rebuilds stdlib and all deps):
+#      RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests --features test-utils -Zbuild-std --target x86_64-unknown-linux-gnu
+#   2. Then run tests:
+#      TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --features test-utils --target x86_64-unknown-linux-gnu
+#
+# Note: ThreadSanitizer can detect:
+#   - Data races (concurrent unsynchronized access to memory)
+#   - Deadlocks (with TSAN_OPTIONS=detect_deadlocks=1)
+#   - Thread leaks (threads not joined before program exit)
+#
+# Requirements:
+#   - Rust nightly (for -Zsanitizer and -Zbuild-std flags)
+#   - The -Zbuild-std flag rebuilds the standard library with ThreadSanitizer
+#     instrumentation to avoid ABI mismatch errors
+#
+# Important: This takes a long time on first build as it recompiles everything
+# including the standard library with ThreadSanitizer instrumentation.
+#
+# Environment variables:
+#   TSAN_OPTIONS="detect_deadlocks=1 second_deadlock_stack=1"
+[profile.tsan]
+fail-fast = false
+retries = 3
+test-threads = 1  # TSan requires running tests serially
+[[profile.tsan.scripts]]
 platform = "cfg(unix)"
 setup = ["stop-tmux", "start-tmux"]

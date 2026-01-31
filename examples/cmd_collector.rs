@@ -20,9 +20,13 @@ impl CommandCollector for BasicCmdCollector {
     fn invoke(&mut self, _cmd: &str, _components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, Sender<i32>) {
         let (tx, rx) = unbounded();
         let (tx_interrupt, _rx_interrupt) = unbounded();
+        let mut batch = Vec::new();
         while let Some(value) = self.items.pop() {
             let item = BasicSkimItem { value };
-            tx.send(Arc::from(item) as Arc<dyn SkimItem>).unwrap();
+            batch.push(Arc::from(item) as Arc<dyn SkimItem>);
+        }
+        if !batch.is_empty() {
+            tx.send(batch).unwrap();
         }
 
         (rx, tx_interrupt)

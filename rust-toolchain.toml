@@ -1,4 +1,4 @@
 [toolchain]
-channel = "nightly"
+channel = "nightly-2026-01-16" # https://releases.rs/docs/1.94.0/
 profile = "default"
 components = ["rust-analyzer"]
