@@ -62,3 +62,8 @@ insta_test!(preview_plus, ["a", "b", "c"], &["--preview", "echo {+}", "-m"], {
     @action DeselectAll;
     @snap;
 });
+
+#[cfg(target_os = "linux")]
+insta_test!(preview_pty_linux, ["x"], &["--preview", "tty -s && echo YES || echo NO"], {
+    @snap;
+});
