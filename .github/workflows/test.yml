@@ -98,5 +98,6 @@ jobs:
         run: |
           cargo +stable build --no-default-features --features cli
       - name: Build with frizbee feature
+        # Do not use +nightly to make sure we use the correct toolchain date
         run: |
-          cargo +nightly build --no-default-features --features nightly-frizbee
+          cargo build --no-default-features --features nightly-frizbee
