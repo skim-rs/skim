@@ -286,7 +286,7 @@ pub struct SkimOptions {
     /// Line  will  start  with  the  start of the matched pattern. Effective only when the query
     /// string is empty. Was designed to skip showing starts of paths of rg/grep results.
     ///
-    /// e.g. sk -i -c "rg {} --color=always" --skip-to-pattern '[^/]*:' --ansi
+    /// e.g. sk -i -c "rg {q} --color=always" --skip-to-pattern '[^/]*:' --ansi
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub skip_to_pattern: Option<String>,
 

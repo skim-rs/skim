@@ -155,16 +155,16 @@ project directory:
 
 ```sh
 # works with grep
-sk --ansi -i -c 'grep -rI --color=always --line-number "{}" .'
+sk --ansi -i -c 'grep -rI --color=always --line-number {q} .'
 # works with ack
-sk --ansi -i -c 'ack --color "{}"'
+sk --ansi -i -c 'ack --color {q}'
 # works with ag
-sk --ansi -i -c 'ag --color "{}"'
+sk --ansi -i -c 'ag --color {q}'
 # works with rg
-sk --ansi -i -c 'rg --color=always --line-number "{}"'
+sk --ansi -i -c 'rg --color=always --line-number {q}'
 ```
 
-> **Note**: In these examples, `{}` will be literally expanded to the current input query.
+> **Note**: In these examples, `{q}` will be literally expanded to the current input query (wrapped in single quotes).
 > This means these examples will search for the exact query string, not fuzzily.
 > For fuzzy searching, pipe the command output into `sk` without using interactive mode.
 
@@ -410,7 +410,7 @@ For more details, check the man page (`man sk`).
 In **interactive mode**, you can invoke a command dynamically. Try it out:
 
 ```sh
-sk --ansi -i -c 'rg --color=always --line-number "{}"'
+sk --ansi -i -c 'rg --color=always --line-number {q}'
 ```
 
 ### How does it work?
@@ -445,7 +445,7 @@ finally decide which lines to pick by checking the context around the line.
 a better preview window. For example:
 
 ```sh
-sk --ansi -i -c 'ag --color "{}"' --preview "preview.sh {}"
+sk --ansi -i -c 'ag --color {q}' --preview "preview.sh {}"
 ```
 
 (Note that [preview.sh](https://github.com/junegunn/fzf.vim/blob/master/bin/preview.sh) is a script to print the context given filename:lines:columns)
