@@ -685,10 +685,7 @@ impl<'a> App<'a> {
             }
             Cancel => {
                 self.matcher_control.kill();
-
-                if let Some(th) = &self.preview.thread_handle {
-                    th.abort();
-                }
+                self.preview.kill();
             }
             ClearScreen => {
                 return Ok(vec![Event::Clear]);
