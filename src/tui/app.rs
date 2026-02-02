@@ -31,6 +31,9 @@ use ratatui::widgets::Widget;
 
 use super::{input, preview};
 
+const MATCHER_DEBOUNCE_MS: u128 = 200;
+const HIDE_GRACE_MS: u128 = 500;
+
 /// Application state for skim's TUI
 pub struct App<'a> {
     /// Pool of items to be filtered
@@ -133,7 +136,8 @@ impl Widget for &mut App<'_> {
         let remaining_height = heights.input + heights.header;
 
         // Determine if preview should be split from the root area (for left/right) or from list area (for up/down)
-        let preview_visible = self.options.preview.is_some() && !self.options.preview_window.hidden;
+        let preview_visible = (self.options.preview.is_some() || self.options.preview_fn.is_some())
+            && !self.options.preview_window.hidden;
 
         // Split preview from root area if it's on left/right
         let (work_area, preview_area_opt) = if preview_visible {
@@ -377,21 +381,17 @@ impl<'a> App<'a> {
     }
 
     /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
-    /// Status info is computed on-demand during render, so this is a no-op.
     fn on_items_updated(&mut self) {
-        // Status info is computed on-demand during render
+        self.pending_matcher_restart = true;
+        trace!("Got new items, len {}", self.item_pool.len());
+        // mark reader activity and reset reader timer
+        self.reader_timer = std::time::Instant::now();
+        self.items_just_updated = true;
     }
 
     /// Call after selection changes (e.g., selection actions, Event::Key)
-    /// Status info is computed on-demand during render, so this is a no-op.
-    fn on_selection_changed(&mut self) {
-        // Status info is computed on-demand during render
-    }
-
-    /// Call when matcher state changes (start/stop)
-    /// Status info is computed on-demand during render, so this is a no-op.
-    fn on_matcher_state_changed(&mut self) {
-        // Status info is computed on-demand during render
+    fn on_selection_changed(&mut self) -> Result<Vec<Event>> {
+        Ok(vec![Event::RunPreview])
     }
 
     /// Call when query changes (e.g., AddChar, BackwardDeleteChar, etc.)
@@ -406,6 +406,23 @@ impl<'a> App<'a> {
             Event::Key(KeyEvent::new(KeyCode::F(255), KeyModifiers::NONE)), // Send F255 which is the change bind
             Event::RunPreview,
         ])
+    }
+
+    fn on_matcher_state_changed(&mut self) {
+        let matcher_running = !self.matcher_control.stopped();
+        let time_since_match = self.matcher_timer.elapsed();
+        let reading = self.item_pool.num_not_taken() != 0;
+
+        let should_show_spinner = reading || (matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS);
+
+        if should_show_spinner && !self.show_spinner {
+            self.toggle_spinner();
+        } else if !should_show_spinner && self.show_spinner {
+            // Hide spinner only after grace period to avoid flickering
+            if self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
+                self.toggle_spinner();
+            }
+        }
     }
 
     fn run_preview<B: Backend>(&mut self, tui: &mut Tui<B>) -> Result<()>
@@ -476,6 +493,16 @@ impl<'a> App<'a> {
                     .content_with_position(t.bytes().collect(), preview_position)?,
                 ItemPreview::Global => self.preview.run(tui, &self.expand_cmd(preview_opt, true)),
             }
+        } else if let Some(cb) = &self.options.preview_fn {
+            let selection: Vec<Arc<dyn SkimItem>>;
+            if self.options.multi {
+                selection = self.item_list.selection.iter().map(|i| i.item.clone()).collect();
+            } else if let Some(sel) = self.item_list.selected() {
+                selection = vec![sel];
+            } else {
+                selection = Vec::new();
+            }
+            self.preview.content(cb(selection).join("\n").into_bytes())?;
         }
         Ok(())
     }
@@ -498,25 +525,6 @@ impl<'a> App<'a> {
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
                 self.on_matcher_state_changed();
-
-                const MATCHER_DEBOUNCE_MS: u128 = 200;
-                const HIDE_GRACE_MS: u128 = 500;
-
-                let matcher_running = !self.matcher_control.stopped();
-                let time_since_match = self.matcher_timer.elapsed();
-                let reading = self.item_pool.num_not_taken() != 0;
-
-                let should_show_spinner =
-                    reading || (matcher_running && time_since_match.as_millis() > MATCHER_DEBOUNCE_MS);
-
-                if should_show_spinner && !self.show_spinner {
-                    self.toggle_spinner();
-                } else if !should_show_spinner && self.show_spinner {
-                    // Hide spinner only after grace period to avoid flickering
-                    if self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
-                        self.toggle_spinner();
-                    }
-                }
                 self.on_items_updated();
             }
             Event::RunPreview => {
@@ -548,8 +556,6 @@ impl<'a> App<'a> {
                 for evt in self.handle_action(act)? {
                     tui.event_tx.send(evt)?;
                 }
-                self.on_selection_changed();
-                self.on_matcher_state_changed();
             }
             Event::Key(key) => {
                 for evt in self.handle_key(key) {
@@ -651,7 +657,7 @@ impl<'a> App<'a> {
                 }]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher_debounced();
-                return Ok(vec![Event::RunPreview]);
+                return self.on_selection_changed();
             }
             BackwardChar => {
                 self.input.move_cursor(-1);
@@ -704,8 +710,10 @@ impl<'a> App<'a> {
                 }
             }
             DeselectAll => {
-                self.item_list.selection = Default::default();
-                return Ok(vec![Event::RunPreview]);
+                if !self.item_list.selection.is_empty() {
+                    self.item_list.selection = Default::default();
+                    return self.on_selection_changed();
+                }
             }
             Down(n) => {
                 use ratatui::widgets::ListDirection::*;
@@ -713,7 +721,9 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(*n as i32),
                     BottomToTop => self.item_list.scroll_by(-(*n as i32)),
                 }
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             EndOfLine => {
                 self.input.move_to_end();
@@ -754,7 +764,9 @@ impl<'a> App<'a> {
             First | Top => {
                 // Jump to first item (considering reserved items)
                 self.item_list.jump_to_first();
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             ForwardChar => {
                 self.input.move_cursor(1);
@@ -800,7 +812,7 @@ impl<'a> App<'a> {
                 let cursor = self.input.cursor_pos as usize;
                 let deleted = Cow::Owned(self.input.split_off(cursor));
                 self.yank(deleted);
-                return Ok(vec![Event::RunPreview]);
+                return self.on_query_changed();
             }
             KillWord => {
                 let deleted = Cow::Owned(self.input.delete_forward_word());
@@ -810,7 +822,9 @@ impl<'a> App<'a> {
             Last => {
                 // Jump to last item
                 self.item_list.jump_to_last();
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             NextHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
@@ -857,7 +871,9 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             HalfPageUp(n) => {
                 let offset = self.item_list.height as i32 / 2;
@@ -866,7 +882,9 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             PageDown(n) => {
                 let offset = self.item_list.height as i32;
@@ -875,7 +893,9 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             PageUp(n) => {
                 let offset = self.item_list.height as i32;
@@ -884,7 +904,9 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             PreviewUp(n) => {
                 self.preview.scroll_up(*n as u16);
@@ -988,16 +1010,31 @@ impl<'a> App<'a> {
             ScrollRight(n) => {
                 self.item_list.manual_hscroll = self.item_list.manual_hscroll.saturating_add(*n);
             }
-            SelectAll => self.item_list.select_all(),
-            SelectRow(row) => self.item_list.select_row(*row),
-            Select => self.item_list.select(),
+            SelectAll => {
+                self.item_list.select_all();
+                return self.on_selection_changed();
+            }
+            SelectRow(row) => {
+                self.item_list.select_row(*row);
+                return self.on_selection_changed();
+            }
+            Select => {
+                self.item_list.select();
+                return self.on_selection_changed();
+            }
             SetQuery(value) => {
                 self.input.value = self.expand_cmd(value, false);
                 self.input.move_to_end();
                 return self.on_query_changed();
             }
-            Toggle => self.item_list.toggle(),
-            ToggleAll => self.item_list.toggle_all(),
+            Toggle => {
+                self.item_list.toggle();
+                return self.on_selection_changed();
+            }
+            ToggleAll => {
+                self.item_list.toggle_all();
+                return self.on_selection_changed();
+            }
             ToggleIn => {
                 self.item_list.toggle();
                 use ratatui::widgets::ListDirection::*;
@@ -1005,7 +1042,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.select_next(),
                     BottomToTop => self.item_list.select_previous(),
                 }
-                return Ok(vec![Event::RunPreview]);
+                return self.on_selection_changed();
             }
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
@@ -1019,7 +1056,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.select_previous(),
                     BottomToTop => self.item_list.select_next(),
                 }
-                return Ok(vec![Event::RunPreview]);
+                return self.on_selection_changed();
             }
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
@@ -1047,7 +1084,9 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(-(*n as i32)),
                     BottomToTop => self.item_list.scroll_by(*n as i32),
                 }
-                return Ok(vec![Event::RunPreview]);
+                if !self.options.multi {
+                    return self.on_selection_changed();
+                }
             }
             Yank => {
                 // Insert from yank register at cursor position
