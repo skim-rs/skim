@@ -63,7 +63,7 @@ pub fn wrap_text(input: Text, width: usize) -> Text {
 /// contrary to ratatui's Style::patch, this will override `Reset` with the new style if set
 pub(crate) fn merge_styles(left: Style, right: Style) -> Style {
     use ratatui::style::Color::*;
-    let mut res = left.patch(right);
+    let mut res = Style::default();
     macro_rules! set_field {
         ($res:ident, $left:ident, $right:ident, $field:ident) => {
             if left.$field == Some(Reset) {
@@ -79,6 +79,7 @@ pub(crate) fn merge_styles(left: Style, right: Style) -> Style {
     set_field!(res, left, right, fg);
     set_field!(res, left, right, bg);
     set_field!(res, left, right, underline_color);
+    res.add_modifier = left.add_modifier | right.add_modifier;
 
     res
 }
@@ -255,10 +256,23 @@ mod tests {
         let input = "before \x1b[1;34mline1\x1b[0m nocol";
         let styled = input.into_text().unwrap().lines[0].clone();
         let red = Style::new().red();
+        let underline = Style::new().underlined();
         assert_eq!(merge_styles(red, styled.spans[0].style).fg, Some(Red));
         assert_eq!(merge_styles(red, styled.spans[1].style).fg, Some(Blue));
         assert_eq!(merge_styles(red, styled.spans[1].style).add_modifier, Modifier::BOLD);
         assert_eq!(merge_styles(red, styled.spans[2].style).fg, Some(Red));
+        assert_eq!(
+            merge_styles(underline, styled.spans[0].style).add_modifier & Modifier::UNDERLINED,
+            Modifier::UNDERLINED
+        );
+        assert_eq!(
+            merge_styles(underline, styled.spans[1].style).add_modifier & Modifier::UNDERLINED,
+            Modifier::UNDERLINED
+        );
+        assert_eq!(
+            merge_styles(underline, styled.spans[2].style).add_modifier & Modifier::UNDERLINED,
+            Modifier::UNDERLINED
+        );
     }
 
     #[test]
