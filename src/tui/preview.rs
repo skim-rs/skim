@@ -197,6 +197,9 @@ impl Preview {
             shell_cmd.env("COLUMNS", self.cols.to_string());
             shell_cmd.env("PAGER", "");
             shell_cmd.arg("-c");
+            if let Ok(cwd) = nix::unistd::getcwd() {
+                shell_cmd.cwd(cwd);
+            }
             shell_cmd.arg(cmd);
             if let Some(mut killer) = self.pty_killer.take() {
                 let _ = killer.kill();
