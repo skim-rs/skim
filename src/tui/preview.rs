@@ -1,5 +1,5 @@
 use ansi_to_tui::IntoText;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, eyre};
 use portable_pty::{PtyPair, PtySize, native_pty_system};
 use ratatui::{
     prelude::Backend,
@@ -8,7 +8,8 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
 use std::process::Command;
-use tokio::task::JoinHandle;
+use std::sync::mpsc;
+use std::thread::JoinHandle;
 
 use super::Direction;
 use super::Event;
@@ -55,13 +56,15 @@ pub struct Preview {
     pub scroll_y: u16,
     pub scroll_x: u16,
     pub thread_handle: Option<JoinHandle<()>>,
+    /// Channel to signal thread interruption
+    interrupt_tx: Option<mpsc::Sender<()>>,
     pub theme: Arc<ColorTheme>,
     /// Border type, if borders are enabled
     pub border: Option<BorderType>,
     pub direction: Direction,
     pub wrap: bool,
     pty: Option<PtyPair>,
-    pty_killer: Option<Box<dyn portable_pty::ChildKiller + Send + Sync>>,
+    pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
 }
 
 impl Default for Preview {
@@ -74,12 +77,13 @@ impl Default for Preview {
             scroll_y: 0,
             scroll_x: 0,
             thread_handle: None,
+            interrupt_tx: None,
             theme: Arc::new(ColorTheme::default()),
             border: None,
             direction: Direction::Right,
             wrap: false,
             pty: None,
-            pty_killer: None,
+            pty_child: None,
         }
     }
 }
@@ -98,15 +102,16 @@ impl Preview {
 
     fn init_pty(&mut self) {
         let pty_system = native_pty_system();
-        let pair = pty_system
-            .openpty(PtySize {
-                rows: 0,
-                cols: 0,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .ok();
-        self.pty = pair;
+        let pair = pty_system.openpty(PtySize {
+            rows: self.rows,
+            cols: self.cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        });
+        match pair {
+            Ok(p) => self.pty = Some(p),
+            Err(e) => warn!("failed to init preview pty: {e:?}"),
+        }
     }
 
     pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
@@ -162,25 +167,45 @@ impl Preview {
         let page_size = self.rows.saturating_sub(2); // Account for borders
         self.scroll_down(page_size);
     }
+    /// Kill the preview child process and interrupt the reader thread.
     pub fn kill(&mut self) {
-        if let Some(th) = self.thread_handle.take() {
-            th.abort();
+        if let Some(tx) = self.interrupt_tx.take() {
+            let _ = tx.send(());
         }
-        if let Some(mut killer) = self.pty_killer.take() {
-            let _ = killer.kill();
+
+        if let Some(mut child) = self.pty_child.take() {
+            trace!("killing pty child process");
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    trace!("child already exited with status: {status:?}");
+                }
+                Ok(None) => {
+                    trace!("child still running, sending kill signal");
+                    if let Err(e) = child.kill() {
+                        trace!("failed to kill pty child: {e:?}");
+                    }
+                }
+                Err(e) => {
+                    debug!("error checking child status: {e:?}");
+                    let _ = child.kill();
+                }
+            }
         }
     }
 
-    pub fn run<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str)
+    pub fn spawn<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
     {
         self.kill();
         self.cmd = cmd.to_string();
+
         let event_tx_clone = tui.event_tx.clone();
         let content = self.content.clone();
 
-        if let Some(ref pty) = self.pty {
+        if let Some(pty) = self.pty.take() {
+            self.init_pty();
+            trace!("spawning preview cmd {cmd} in pty");
             let mut shell_cmd = portable_pty::CommandBuilder::new("/bin/sh");
             shell_cmd.env("ROWS", self.rows.to_string());
             shell_cmd.env("COLUMNS", self.cols.to_string());
@@ -190,39 +215,77 @@ impl Preview {
                 shell_cmd.cwd(cwd);
             }
             shell_cmd.arg(cmd);
-            let Ok(child) = pty.slave.spawn_command(shell_cmd) else {
-                warn!("Failed to spawn shell command");
-                return;
-            };
-            let Ok(mut reader) = pty.master.try_clone_reader() else {
-                warn!("Failed to acquire pty reader");
-                return;
-            };
-            self.pty_killer = Some(child.clone_killer());
-            self.thread_handle = Some(tokio::spawn(async move {
+            self.pty_child = Some(pty.slave.spawn_command(shell_cmd).map_err(|e| {
+                warn!("{:#?}", e.backtrace());
+                eyre!(Box::<dyn std::error::Error + Send + Sync + 'static>::from(e))
+            })?);
+
+            let mut reader = pty
+                .master
+                .try_clone_reader()
+                .map_err(|e| eyre!(Box::<dyn std::error::Error + Send + Sync + 'static>::from(e)))?;
+
+            let (interrupt_tx, interrupt_rx) = mpsc::channel();
+            self.interrupt_tx = Some(interrupt_tx);
+
+            self.thread_handle = Some(std::thread::spawn(move || {
                 let mut res = Vec::with_capacity(PREVIEW_MAX_BYTES);
-                let mut n = 0;
-                while n < PREVIEW_MAX_BYTES {
-                    let mut buf = [0; 1024];
-                    let Ok(k) = reader.read(&mut buf) else {
-                        break;
-                    };
-                    res.extend_from_slice(&buf[..k]);
-                    if k < 1024 {
+
+                trace!("[{:?}] preview reader thread started", std::thread::current().id(),);
+
+                // Read what's available with a simple timeout
+                let mut buf = [0; 1];
+                loop {
+                    if interrupt_rx.try_recv().is_ok() {
+                        trace!("[{:?}] interrupt signal received, exiting", std::thread::current().id());
+                        return;
+                    }
+
+                    if res.len() >= PREVIEW_MAX_BYTES {
+                        trace!("[{:?}] reached PREVIEW_MAX_BYTES, exiting", std::thread::current().id());
                         break;
                     }
-                    n += k;
+
+                    // Use a small read with immediate processing
+                    match reader.read_exact(&mut buf) {
+                        Ok(()) => {
+                            trace!("[{:?}] read 1 byte", std::thread::current().id());
+                            res.push(buf[0]);
+
+                            // Check interrupt before updating shared state
+                            if interrupt_rx.try_recv().is_ok() {
+                                trace!(
+                                    "[{:?}] interrupt signal received during read block, exiting",
+                                    std::thread::current().id(),
+                                );
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                                trace!("[{:?}] reached EOF", std::thread::current().id());
+                            } else {
+                                trace!("[{:?}] read error {:?}", std::thread::current().id(), e);
+                            }
+                            break;
+                        }
+                    }
                 }
 
-                let Ok(mut c) = content.write() else {
-                    return;
-                };
-                *c = res.into_text().unwrap_or_default();
-                event_tx_clone
-                    .send(Event::PreviewReady)
-                    .unwrap_or_else(|e| warn!("Failed on pty: {e}"));
+                trace!(
+                    "[{:?}] read complete, {} bytes total",
+                    std::thread::current().id(),
+                    res.len()
+                );
+
+                // Final update
+                if let Ok(mut c) = content.write() {
+                    *c = res.into_text().unwrap_or_default();
+                }
+                let _ = event_tx_clone.send(Event::PreviewReady);
             }));
         } else {
+            trace!("spawning preview cmd {cmd}");
             let mut shell_cmd = Command::new("/bin/sh");
             shell_cmd
                 .env("ROWS", self.rows.to_string())
@@ -233,39 +296,49 @@ impl Preview {
             if let Ok(cwd) = nix::unistd::getcwd() {
                 shell_cmd.current_dir(cwd);
             }
-            self.thread_handle = Some(tokio::spawn(async move {
+
+            let (interrupt_tx, interrupt_rx) = mpsc::channel();
+            self.interrupt_tx = Some(interrupt_tx);
+
+            self.thread_handle = Some(std::thread::spawn(move || {
+                if interrupt_rx.try_recv().is_ok() {
+                    return;
+                }
+
                 let try_out = shell_cmd.output();
                 if try_out.is_err() {
                     println!("Shell cmd in error: {:?}", try_out);
-                    // let _ = _event_tx.send(Event::Error(try_out.unwrap_err().to_string()));
                     return;
                 };
 
                 let out = try_out.unwrap();
 
-                let Ok(mut c) = content.write() else {
+                if interrupt_rx.try_recv().is_ok() {
                     return;
-                };
-                if out.status.success() {
-                    *c = out.stdout[..PREVIEW_MAX_BYTES.min(out.stdout.len())]
-                        .iter()
-                        .copied()
-                        .filter(|c| *c != b'\r')
-                        .collect::<Vec<u8>>()
-                        .into_text()
-                        .unwrap_or_default();
-                    event_tx_clone
-                        .send(Event::PreviewReady)
-                        .unwrap_or_else(|e| println!("Failed on success: {e}"));
-                } else {
-                    *c = out.stderr.to_owned().into_text().unwrap_or_default();
-                    event_tx_clone
-                        .send(Event::PreviewReady)
-                        .unwrap_or_else(|e| println!("Failed on error: {e}"));
-                    // .unwrap_or_else(|e| _event_tx.send(Event::Error(e.to_string())).unwrap());
                 }
+
+                {
+                    let Ok(mut c) = content.write() else {
+                        return;
+                    };
+                    if out.status.success() {
+                        *c = out.stdout[..PREVIEW_MAX_BYTES.min(out.stdout.len())]
+                            .iter()
+                            .copied()
+                            .filter(|c| *c != b'\r')
+                            .collect::<Vec<u8>>()
+                            .into_text()
+                            .unwrap_or_default();
+                    } else {
+                        *c = out.stderr.to_owned().into_text().unwrap_or_default();
+                    }
+                }
+
+                trace!("sending ready ping");
+                let _ = event_tx_clone.send(Event::PreviewReady);
             }));
         }
+        Ok(())
     }
 }
 
@@ -293,8 +366,9 @@ impl SkimWidget for Preview {
             scroll_y: 0,
             scroll_x: 0,
             thread_handle: None,
+            interrupt_tx: None,
             pty: None,
-            pty_killer: None,
+            pty_child: None,
         };
         #[cfg(target_os = "linux")]
         res.init_pty();

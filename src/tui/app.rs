@@ -100,6 +100,8 @@ pub struct App<'a> {
     pub cmd: String,
     /// Preview area rectangle for mouse event handling
     pub preview_area: Option<Rect>,
+    /// Last time preview was spawned (for debouncing)
+    pub last_preview_spawn: std::time::Instant,
 }
 
 impl Widget for &mut App<'_> {
@@ -308,6 +310,7 @@ impl Default for App<'_> {
             options: SkimOptions::default(),
             cmd: String::new(),
             preview_area: None,
+            last_preview_spawn: std::time::Instant::now(),
         }
     }
 }
@@ -345,6 +348,7 @@ impl<'a> App<'a> {
             options,
             cmd,
             preview_area: None,
+            last_preview_spawn: std::time::Instant::now() - std::time::Duration::from_secs(1),
         }
     }
 }
@@ -429,6 +433,17 @@ impl<'a> App<'a> {
     where
         B::Error: Send + Sync + 'static,
     {
+        // Debounce preview spawning to prevent overwhelming the system during rapid scrolling
+        const DEBOUNCE_MS: u64 = 50;
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.last_preview_spawn);
+
+        if elapsed.as_millis() < DEBOUNCE_MS as u128 {
+            return Ok(());
+        }
+
+        self.last_preview_spawn = now;
+
         if let Some(preview_opt) = &self.options.preview
             && let Some(item) = self.item_list.selected()
         {
@@ -459,11 +474,11 @@ impl<'a> App<'a> {
             };
             let preview = item.preview(ctx);
             match preview {
-                ItemPreview::Command(cmd) => self.preview.run(tui, &self.expand_cmd(&cmd, true)),
+                ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
-                    self.preview.run(tui, &self.expand_cmd(&cmd, true));
+                    self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?;
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -491,7 +506,7 @@ impl<'a> App<'a> {
                 ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(t.bytes().collect(), preview_position)?,
-                ItemPreview::Global => self.preview.run(tui, &self.expand_cmd(preview_opt, true)),
+                ItemPreview::Global => self.preview.spawn(tui, &self.expand_cmd(preview_opt, true))?,
             }
         } else if let Some(cb) = &self.options.preview_fn {
             let selection: Vec<Arc<dyn SkimItem>>;
@@ -528,7 +543,9 @@ impl<'a> App<'a> {
                 self.on_items_updated();
             }
             Event::RunPreview => {
-                self.run_preview(tui)?;
+                if let Err(e) = self.run_preview(tui) {
+                    warn!("RunPreview: error {e:?}");
+                }
             }
             Event::Clear => {
                 tui.clear()?;
