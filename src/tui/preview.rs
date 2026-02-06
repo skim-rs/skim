@@ -163,20 +163,11 @@ impl Preview {
         self.scroll_down(page_size);
     }
     pub fn kill(&mut self) {
-        debug!("killing preview");
-        if let Some(pty) = self.pty.take() {
-            let w = pty.master.take_writer();
-            drop(w);
-        }
         if let Some(th) = self.thread_handle.take() {
-            debug!("aborting preview thread");
             th.abort();
-            debug!("aborted preview thread");
         }
         if let Some(mut killer) = self.pty_killer.take() {
-            debug!("killing PTY child");
             let _ = killer.kill();
-            debug!("killed PTY child");
         }
     }
 
@@ -184,9 +175,7 @@ impl Preview {
     where
         B::Error: Send + Sync + 'static,
     {
-        if let Some(th) = &self.thread_handle {
-            th.abort();
-        }
+        self.kill();
         self.cmd = cmd.to_string();
         let event_tx_clone = tui.event_tx.clone();
         let content = self.content.clone();
@@ -201,10 +190,7 @@ impl Preview {
                 shell_cmd.cwd(cwd);
             }
             shell_cmd.arg(cmd);
-            if let Some(mut killer) = self.pty_killer.take() {
-                let _ = killer.kill();
-            }
-            let Ok(mut child) = pty.slave.spawn_command(shell_cmd) else {
+            let Ok(child) = pty.slave.spawn_command(shell_cmd) else {
                 warn!("Failed to spawn shell command");
                 return;
             };
@@ -214,17 +200,6 @@ impl Preview {
             };
             self.pty_killer = Some(child.clone_killer());
             self.thread_handle = Some(tokio::spawn(async move {
-                let Ok(status) = child.wait() else {
-                    warn!("Failed to get child status");
-                    return;
-                };
-
-                if status.success() {
-                    debug!("preview cmd success");
-                } else {
-                    debug!("preview cmd error: {status:?}");
-                }
-
                 let mut res = Vec::with_capacity(PREVIEW_MAX_BYTES);
                 let mut n = 0;
                 while n < PREVIEW_MAX_BYTES {
@@ -238,7 +213,6 @@ impl Preview {
                     }
                     n += k;
                 }
-                trace!("pty read {} bytes: {res:?}", res.len());
 
                 let Ok(mut c) = content.write() else {
                     return;
@@ -256,6 +230,9 @@ impl Preview {
                 .env("PAGER", "")
                 .arg("-c")
                 .arg(cmd);
+            if let Ok(cwd) = nix::unistd::getcwd() {
+                shell_cmd.current_dir(cwd);
+            }
             self.thread_handle = Some(tokio::spawn(async move {
                 let try_out = shell_cmd.output();
                 if try_out.is_err() {
@@ -294,6 +271,10 @@ impl Preview {
 
 impl Drop for Preview {
     fn drop(&mut self) {
+        if let Some(pty) = self.pty.take() {
+            let w = pty.master.take_writer();
+            drop(w);
+        }
         self.kill();
     }
 }
