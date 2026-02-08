@@ -33,7 +33,7 @@ use std::env;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use color_eyre::eyre::{self, OptionExt};
@@ -514,9 +514,7 @@ impl Skim {
                             }
 
                             // Check reader status and update
-                            if !reader_control.is_done() {
-                              app.reader_timer = Instant::now();
-                            } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
+                            if reader_control.is_done() && ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
                                 reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
                                 app.restart_matcher(false);
                             }

@@ -92,6 +92,8 @@ pub enum Event {
     Redraw,
     /// Reload with a new command
     Reload(String),
+    /// Resize the widgets
+    Resize,
 }
 
 /// Actions that can be performed in skim

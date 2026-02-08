@@ -65,8 +65,6 @@ pub struct App<'a> {
     /// Color theme
     pub theme: Arc<crate::theme::ColorTheme>,
 
-    /// Timer for tracking reader activity
-    pub reader_timer: std::time::Instant,
     /// Timer for tracking matcher activity
     pub matcher_timer: std::time::Instant,
 
@@ -76,9 +74,6 @@ pub struct App<'a> {
     pub show_spinner: bool,
     /// Start time for spinner animation (set once at app creation, never reset)
     pub spinner_start: std::time::Instant,
-
-    /// Track when items were just updated to avoid unnecessary status updates
-    pub items_just_updated: bool,
 
     /// Query history navigation
     pub query_history: Vec<String>,
@@ -100,6 +95,12 @@ pub struct App<'a> {
     pub cmd: String,
     /// Preview area rectangle for mouse event handling
     pub preview_area: Option<Rect>,
+    /// Last time preview was spawned (for debouncing)
+    pub last_preview_spawn: std::time::Instant,
+    /// Whether a preview run was debounced and needs to be retried
+    pub pending_preview_run: bool,
+    reader_timer: std::time::Instant,
+    items_just_updated: bool,
 }
 
 impl Widget for &mut App<'_> {
@@ -250,8 +251,7 @@ impl Widget for &mut App<'_> {
         } else {
             self.preview_area = None;
         }
-        self.items_just_updated = self.item_list.render(list_area, buf).items_updated;
-
+        self.item_list.render(list_area, buf);
         // Cursor position needs to account for input border and title
         // Always +1 for title line (whether bordered or not)
         self.cursor_pos = (
@@ -290,7 +290,6 @@ impl Default for App<'_> {
                 .build(),
             yank_register: Cow::default(),
             matcher_control: MatcherControl::default(),
-            reader_timer: std::time::Instant::now(),
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
@@ -298,7 +297,6 @@ impl Default for App<'_> {
             spinner_last_change: std::time::Instant::now(),
             show_spinner: false,
             spinner_start: std::time::Instant::now(),
-            items_just_updated: false,
             query_history: Vec::new(),
             history_index: None,
             saved_input: String::new(),
@@ -308,6 +306,10 @@ impl Default for App<'_> {
             options: SkimOptions::default(),
             cmd: String::new(),
             preview_area: None,
+            last_preview_spawn: std::time::Instant::now(),
+            pending_preview_run: false,
+            reader_timer: std::time::Instant::now(),
+            items_just_updated: false,
         }
     }
 }
@@ -345,6 +347,8 @@ impl<'a> App<'a> {
             options,
             cmd,
             preview_area: None,
+            last_preview_spawn: std::time::Instant::now() - std::time::Duration::from_secs(1),
+            pending_preview_run: false,
         }
     }
 }
@@ -408,7 +412,7 @@ impl<'a> App<'a> {
         ])
     }
 
-    fn on_matcher_state_changed(&mut self) {
+    fn update_spinner(&mut self) {
         let matcher_running = !self.matcher_control.stopped();
         let time_since_match = self.matcher_timer.elapsed();
         let reading = self.item_pool.num_not_taken() != 0;
@@ -429,6 +433,20 @@ impl<'a> App<'a> {
     where
         B::Error: Send + Sync + 'static,
     {
+        // Debounce preview spawning to prevent overwhelming the system during rapid scrolling
+        const DEBOUNCE_MS: u64 = 50;
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.last_preview_spawn);
+
+        if elapsed.as_millis() < DEBOUNCE_MS as u128 {
+            // Mark that we have a pending preview to run after the debounce period
+            self.pending_preview_run = true;
+            return Ok(());
+        }
+
+        self.pending_preview_run = false;
+        self.last_preview_spawn = now;
+
         if let Some(preview_opt) = &self.options.preview
             && let Some(item) = self.item_list.selected()
         {
@@ -459,11 +477,11 @@ impl<'a> App<'a> {
             };
             let preview = item.preview(ctx);
             match preview {
-                ItemPreview::Command(cmd) => self.preview.run(tui, &self.expand_cmd(&cmd, true)),
+                ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
-                    self.preview.run(tui, &self.expand_cmd(&cmd, true));
+                    self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?;
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -473,7 +491,8 @@ impl<'a> App<'a> {
                         crate::tui::Size::Fixed(n) => n,
                         crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
                     };
-                    self.preview.scroll_y = v_scroll.saturating_add(v_offset);
+                    self.preview.scroll_y = v_scroll;
+                    self.preview.scroll_down(v_offset);
 
                     let h_scroll = match preview_position.h_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -491,7 +510,7 @@ impl<'a> App<'a> {
                 ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(t.bytes().collect(), preview_position)?,
-                ItemPreview::Global => self.preview.run(tui, &self.expand_cmd(preview_opt, true)),
+                ItemPreview::Global => self.preview.spawn(tui, &self.expand_cmd(preview_opt, true))?,
             }
         } else if let Some(cb) = &self.options.preview_fn {
             let selection: Vec<Arc<dyn SkimItem>>;
@@ -524,11 +543,18 @@ impl<'a> App<'a> {
             }
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
-                self.on_matcher_state_changed();
-                self.on_items_updated();
+                self.update_spinner();
+                // Check if a debounced preview run needs to be executed
+                if self.pending_preview_run
+                    && let Err(e) = self.run_preview(tui)
+                {
+                    warn!("Heartbeat RunPreview: error {e:?}");
+                }
             }
             Event::RunPreview => {
-                self.run_preview(tui)?;
+                if let Err(e) = self.run_preview(tui) {
+                    warn!("RunPreview: error {e:?}");
+                }
             }
             Event::Clear => {
                 tui.clear()?;
@@ -565,6 +591,11 @@ impl<'a> App<'a> {
             Event::Redraw => {
                 tui.clear()?;
             }
+            Event::Resize => {
+                if let Err(e) = self.run_preview(tui) {
+                    warn!("error while rerunnig preview after resize: {e}");
+                }
+            }
             Event::Mouse(mouse_event) => {
                 self.handle_mouse(mouse_event, tui)?;
             }
@@ -587,13 +618,7 @@ impl<'a> App<'a> {
     /// Handles new items received from the reader
     pub fn handle_items(&mut self, items: Vec<Arc<dyn SkimItem>>) {
         self.item_pool.append(items);
-        // Don't restart matcher immediately - use debounced restart instead
-        self.pending_matcher_restart = true;
         trace!("Got new items, len {}", self.item_pool.len());
-        // mark reader activity and reset reader timer
-        self.reader_timer = std::time::Instant::now();
-        self.items_just_updated = true;
-        // Update status to reflect new pool state
         self.on_items_updated();
     }
     /// Called when the selected item changes

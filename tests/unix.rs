@@ -5,7 +5,7 @@ mod common;
 use common::tmux::{Keys, TmuxController, sk};
 use std::io::Result;
 
-sk_test!(vanilla_basic, "1\n2\n3", &[], {
+sk_test!(vanilla_basic_tmux, "1\n2\n3", &[], {
   @capture[0] eq(">");
   @capture[1] trim().starts_with("3/3");
   @capture[1] ends_with("0/0");
