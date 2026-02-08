@@ -467,7 +467,7 @@ impl SkimWidget for Preview {
             total_lines: 0,
         };
         #[cfg(target_os = "linux")]
-        if !res.wrap && matches!(std::env::var("SKIM_FLAG_NO_PREVIEW_PTY").as_deref(), Ok("") | Err(_)) {
+        if !res.wrap && !crate::options::feature_flag!(options, NoPreviewPty) {
             res.init_pty();
         }
         res
@@ -557,7 +557,7 @@ impl SkimWidget for Preview {
 
                     // Add scroll position indicator if scrolled
                     if self.scroll_y > 0 && self.total_lines > 0 {
-                        let title = format!("{}/{}", self.scroll_y, self.total_lines);
+                        let title = format!("{}/{}", self.scroll_y + 1, self.total_lines);
                         use ratatui::layout::Alignment;
                         block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
                     }

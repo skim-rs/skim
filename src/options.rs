@@ -518,7 +518,9 @@ pub struct SkimOptions {
     ///
     /// Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by
     /// default until toggle-preview action is triggered. Long lines are truncated by default.  Line wrap can be enabled with
-    ///: wrap flag.
+    /// `:wrap` flag.
+    ///
+    /// Note: the preview will run in a PTY (interactive session) on linux and when `wrap` is unset
     ///
     /// If size is given as 0, preview window will not be visible, but sk will still execute the command in the background.
     ///
@@ -692,6 +694,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub log_file: Option<String>,
 
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Scripting"))]
+    /// Feature flags
+    pub flags: Vec<FeatureFlag>,
+
     /// Reserved for later use
     #[cfg_attr(
         feature = "cli",
@@ -863,6 +869,7 @@ impl Default for SkimOptions {
             man: false,
             #[cfg(feature = "cli")]
             shell_bindings: false,
+            flags: Default::default(),
         }
     }
 }
@@ -921,3 +928,19 @@ impl SkimOptions {
         }
     }
 }
+
+/// Feature flags
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub enum FeatureFlag {
+    /// Disable preview PTY on linux
+    NoPreviewPty,
+}
+
+macro_rules! feature_flag {
+    ($options:ident, $name:ident) => {
+        (std::env::var(stringify!(SKIM_FLAG_$name).replace(' ', "")).is_ok_and(|x| x.len() > 0)
+            || $options.flags.contains(&crate::options::FeatureFlag::$name))
+    };
+}
+pub(crate) use feature_flag;

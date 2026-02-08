@@ -1,5 +1,6 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use std::ops::BitOrAssign;
 use std::sync::Arc;
 
 use crate::options::SkimOptions;
@@ -10,6 +11,15 @@ use crate::theme::ColorTheme;
 pub struct SkimRender {
     /// Whether the items in the list have been updated
     pub items_updated: bool,
+    /// Whether or not we need to reload the preview
+    pub run_preview: bool,
+}
+
+impl BitOrAssign for SkimRender {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.items_updated |= rhs.items_updated;
+        self.run_preview |= rhs.run_preview;
+    }
 }
 
 /// Trait for Skim TUI widgets

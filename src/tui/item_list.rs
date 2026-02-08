@@ -590,6 +590,7 @@ impl SkimWidget for ItemList {
         } else if this.offset + inner_area.height as usize <= this.current {
             this.offset = this.current - inner_area.height as usize + 1;
         }
+        let initial_current = this.selected();
 
         // Check for pre-processed items from background thread (non-blocking)
         let items_updated = if let Some(processed) = this.processed_items.lock().take() {
@@ -753,7 +754,17 @@ impl SkimWidget for ItemList {
             buf,
             &mut ListState::default().with_selected(Some(this.current.saturating_sub(this.offset))),
         );
-        SkimRender { items_updated }
+        let run_preview = if let Some(curr) = self.selected()
+            && let Some(prev) = initial_current
+        {
+            curr.text() != prev.text()
+        } else {
+            self.selected().is_some() != initial_current.is_some()
+        };
+        SkimRender {
+            items_updated,
+            run_preview,
+        }
     }
 }
 

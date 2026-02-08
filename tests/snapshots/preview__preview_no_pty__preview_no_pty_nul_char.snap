@@ -2,7 +2,8 @@
 source: tests/preview.rs
 expression: buf + & cursor_pos
 ---
-"                                        │NO                                     "
+"                                        │00000000  27 61 00 62 27               "
+"                                        │00000005                               "
 "                                        │                                       "
 "                                        │                                       "
 "                                        │                                       "
@@ -22,8 +23,7 @@ expression: buf + & cursor_pos
 "                                        │                                       "
 "                                        │                                       "
 "                                        │                                       "
-"                                        │                                       "
-"> x                                     │                                       "
+"> ab                                    │                                       "
 "  1/1                                0/0│                                       "
 ">                                       │                                       "
 cursor: (24, 3)

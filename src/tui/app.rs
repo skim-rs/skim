@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
+use crate::tui::SkimRender;
 use crate::tui::input::StatusInfo;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
@@ -105,6 +106,7 @@ pub struct App<'a> {
 
 impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let mut res = SkimRender::default();
         let has_border = self.options.border.is_some();
 
         // Update header with reserved items (from --header-lines)
@@ -192,7 +194,7 @@ impl Widget for &mut App<'_> {
                     a
                 }
             };
-            self.header.render(header_area, buf);
+            res |= self.header.render(header_area, buf);
         }
 
         // Build status info for the input's title
@@ -219,13 +221,13 @@ impl Widget for &mut App<'_> {
 
         // Render input (status is now shown as its title)
         let input_area = remaining_area;
-        self.input.render(input_area, buf);
+        res |= self.input.render(input_area, buf);
 
         // Render preview if enabled
         if let Some(preview_area) = preview_area_opt {
             // Preview was already split at the root level (left/right)
             self.preview_area = Some(preview_area);
-            self.preview.render(preview_area, buf);
+            res |= self.preview.render(preview_area, buf);
         } else if self.options.preview.is_some() && !self.options.preview_window.hidden {
             // Preview needs to be split from list area (up/down)
             let direction = Direction::Vertical;
@@ -247,11 +249,11 @@ impl Widget for &mut App<'_> {
                 _ => unreachable!(),
             };
             self.preview_area = Some(preview_area);
-            self.preview.render(preview_area, buf);
+            res |= self.preview.render(preview_area, buf);
         } else {
             self.preview_area = None;
         }
-        self.item_list.render(list_area, buf);
+        res |= self.item_list.render(list_area, buf);
         // Cursor position needs to account for input border and title
         // Always +1 for title line (whether bordered or not)
         self.cursor_pos = (
@@ -263,6 +265,9 @@ impl Widget for &mut App<'_> {
                     1
                 },
         );
+        if res.run_preview {
+            self.pending_preview_run = true;
+        }
     }
 }
 
@@ -531,7 +536,6 @@ impl<'a> App<'a> {
     where
         B::Error: Send + Sync + 'static,
     {
-        let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
                 // Always render to avoid freezing, but the render function itself can optimize
@@ -579,12 +583,14 @@ impl<'a> App<'a> {
                 bail!(msg.to_owned());
             }
             Event::Action(act) => {
-                for evt in self.handle_action(act)? {
+                let events = self.handle_action(act)?;
+                for evt in events {
                     tui.event_tx.send(evt)?;
                 }
             }
             Event::Key(key) => {
-                for evt in self.handle_key(key) {
+                let events = self.handle_key(key);
+                for evt in events {
                     tui.event_tx.send(evt)?;
                 }
             }
@@ -602,17 +608,6 @@ impl<'a> App<'a> {
             _ => (),
         };
 
-        // Check if item changed
-        let new_item = self.item_list.selected();
-        if let Some(new) = new_item {
-            if let Some(prev) = prev_item {
-                if prev.text() != new.text() || prev.get_index() != new.get_index() {
-                    self.on_item_changed(tui)?;
-                }
-            } else {
-                self.on_item_changed(tui)?;
-            }
-        }
         Ok(())
     }
     /// Handles new items received from the reader
@@ -620,15 +615,6 @@ impl<'a> App<'a> {
         self.item_pool.append(items);
         trace!("Got new items, len {}", self.item_pool.len());
         self.on_items_updated();
-    }
-    /// Called when the selected item changes
-    pub fn on_item_changed<B: Backend>(&mut self, tui: &mut Tui<B>) -> Result<()>
-    where
-        B::Error: Send + Sync + 'static,
-    {
-        tui.event_tx.send(Event::RunPreview)?;
-
-        Ok(())
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         debug!("key event: {:?}", key);
@@ -746,7 +732,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(*n as i32),
                     BottomToTop => self.item_list.scroll_by(-(*n as i32)),
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -789,7 +775,7 @@ impl<'a> App<'a> {
             First | Top => {
                 // Jump to first item (considering reserved items)
                 self.item_list.jump_to_first();
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -847,7 +833,7 @@ impl<'a> App<'a> {
             Last => {
                 // Jump to last item
                 self.item_list.jump_to_last();
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -896,7 +882,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -907,7 +893,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -918,7 +904,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -929,7 +915,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -1109,7 +1095,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(-(*n as i32)),
                     BottomToTop => self.item_list.scroll_by(*n as i32),
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
