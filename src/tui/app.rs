@@ -484,7 +484,8 @@ impl<'a> App<'a> {
                         crate::tui::Size::Fixed(n) => n,
                         crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
                     };
-                    self.preview.scroll_y = v_scroll.saturating_add(v_offset);
+                    self.preview.scroll_y = v_scroll;
+                    self.preview.scroll_down(v_offset);
 
                     let h_scroll = match preview_position.h_scroll {
                         crate::tui::Size::Fixed(n) => n,

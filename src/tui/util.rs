@@ -94,6 +94,112 @@ pub(crate) fn style_text(text: &mut Text, style: Style) {
     text.iter_mut().for_each(|line| style_line(line, style));
 }
 
+/// Find the end of an OSC sequence (terminated by ESC \ or BEL)
+pub(crate) fn find_osc_end(data: &[u8]) -> Option<usize> {
+    for i in 2..data.len() {
+        if data[i] == b'\x07' {
+            // BEL terminator
+            return Some(i + 1);
+        }
+        if i + 1 < data.len() && data[i] == b'\x1b' && data[i + 1] == b'\\' {
+            // ESC \ terminator
+            return Some(i + 2);
+        }
+    }
+    None
+}
+
+/// Find the end of a CSI sequence
+pub(crate) fn find_csi_end(data: &[u8]) -> Option<usize> {
+    for i in 2..data.len() {
+        let c = data[i];
+        // CSI sequences end with a byte in the range 0x40-0x7E
+        if (0x40..=0x7E).contains(&c) {
+            return Some(i + 1);
+        }
+    }
+    None
+}
+
+/// Handle OSC query sequences and respond to them
+pub(crate) fn handle_osc_query(seq: &[u8], writer: &mut Box<dyn std::io::Write + Send>) {
+    // Check if it's a query (contains '?')
+    if !seq.contains(&b'?') {
+        return;
+    }
+
+    // OSC 10 ; ? - Query foreground color
+    if seq.starts_with(b"\x1b]10;?") {
+        let _ = writer.write_all(b"\x1b]10;rgb:ffff/ffff/ffff\x1b\\");
+        let _ = writer.flush();
+        trace!("responded to OSC 10 foreground color query");
+    }
+    // OSC 11 ; ? - Query background color
+    else if seq.starts_with(b"\x1b]11;?") {
+        let _ = writer.write_all(b"\x1b]11;rgb:0000/0000/0000\x1b\\");
+        let _ = writer.flush();
+        trace!("responded to OSC 11 background color query");
+    }
+    // OSC 4 ; num ; ? - Query color palette
+    else if seq.starts_with(b"\x1b]4;") {
+        // Extract the color number and respond with a default color
+        // Format: ESC ] 4 ; num ; rgb:rr/gg/bb ST
+        if let Some(idx) = seq.iter().position(|&b| b == b';') {
+            if let Some(idx2) = seq[idx + 1..].iter().position(|&b| b == b';') {
+                let color_num = &seq[idx + 1..idx + 1 + idx2];
+                let mut response = b"\x1b]4;".to_vec();
+                response.extend_from_slice(color_num);
+                response.extend_from_slice(b";rgb:8080/8080/8080\x1b\\");
+                let _ = writer.write_all(&response);
+                let _ = writer.flush();
+                trace!("responded to OSC 4 color palette query");
+            }
+        }
+    }
+}
+
+/// Handle CSI query sequences and respond to them.
+/// Returns true if the sequence was a query (and should be filtered out).
+pub(crate) fn handle_csi_query(seq: &[u8], writer: &mut Box<dyn std::io::Write + Send>) -> bool {
+    // CSI c or CSI 0 c - Primary Device Attributes (DA1)
+    if seq == b"\x1b[c" || seq == b"\x1b[0c" {
+        let _ = writer.write_all(b"\x1b[?1;2c");
+        let _ = writer.flush();
+        trace!("responded to CSI c (DA1) query");
+        return true;
+    }
+    // CSI > c or CSI > 0 c - Secondary Device Attributes (DA2)
+    else if seq == b"\x1b[>c" || seq == b"\x1b[>0c" {
+        let _ = writer.write_all(b"\x1b[>0;0;0c");
+        let _ = writer.flush();
+        trace!("responded to CSI > c (DA2) query");
+        return true;
+    }
+    // CSI 5 n - Device Status Report
+    else if seq == b"\x1b[5n" {
+        let _ = writer.write_all(b"\x1b[0n");
+        let _ = writer.flush();
+        trace!("responded to CSI 5 n (DSR) query");
+        return true;
+    }
+    // CSI 6 n - Cursor Position Report
+    else if seq == b"\x1b[6n" {
+        let _ = writer.write_all(b"\x1b[1;1R");
+        let _ = writer.flush();
+        trace!("responded to CSI 6 n (CPR) query");
+        return true;
+    }
+    // CSI ? 6 n - Extended Cursor Position Report
+    else if seq.starts_with(b"\x1b[?") && seq.ends_with(b"n") {
+        let _ = writer.write_all(b"\x1b[?1;1;1R");
+        let _ = writer.flush();
+        trace!("responded to CSI ? n (DECXCPR) query");
+        return true;
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

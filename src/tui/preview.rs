@@ -7,26 +7,26 @@ use ratatui::{
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
-use std::io::Read;
-use std::process::Command;
-use std::sync::mpsc;
-use std::thread::JoinHandle;
 use tui_term::vt100;
 use tui_term::widget::PseudoTerminal;
 
-use super::Direction;
-use super::Event;
-use super::Tui;
+use std::io::Read;
+use std::process::Command;
+use std::sync::mpsc;
+use std::sync::{Arc, RwLock};
+use std::thread::JoinHandle;
+
+use super::util::{find_csi_end, find_osc_end, handle_csi_query, handle_osc_query};
+use super::widget::{SkimRender, SkimWidget};
+use super::{BorderType, Direction, Event, Tui};
 
 use crate::theme::ColorTheme;
-use crate::tui::BorderType;
-use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimItem, SkimOptions};
-use std::sync::{Arc, RwLock};
 
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
-const PREVIEW_MAX_BYTES: usize = 100 * 1024;
+const PREVIEW_MAX_BYTES: usize = 1024 * 1024;
+const VT_SCROLLBACK: usize = 100000;
 
 /// Preview content can be either parsed text or a terminal screen
 pub(crate) enum PreviewContent {
@@ -82,6 +82,7 @@ pub struct Preview {
     pub wrap: bool,
     pty: Option<PtyPair>,
     pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+    pub total_lines: u16,
 }
 
 impl Default for Preview {
@@ -101,6 +102,7 @@ impl Default for Preview {
             wrap: false,
             pty: None,
             pty_child: None,
+            total_lines: 0,
         }
     }
 }
@@ -119,9 +121,10 @@ impl Preview {
 
     fn init_pty(&mut self) {
         let pty_system = native_pty_system();
+        let cols = if self.wrap { self.cols } else { 1024 };
         let pair = pty_system.openpty(PtySize {
             rows: self.rows,
-            cols: self.cols,
+            cols,
             pixel_width: 0,
             pixel_height: 0,
         });
@@ -131,11 +134,53 @@ impl Preview {
         }
     }
 
+    /// Filter out terminal query sequences from the output and respond to them.
+    /// This prevents programs like delta from waiting for responses and timing out.
+    /// Returns the filtered output with query sequences removed.
+    fn filter_and_respond_to_queries(data: &[u8], writer: &mut Box<dyn std::io::Write + Send>) -> Vec<u8> {
+        let mut result = Vec::new();
+        let mut i = 0;
+
+        while i < data.len() {
+            if data[i] == b'\x1b' && i + 1 < data.len() {
+                match data[i + 1] {
+                    b']' => {
+                        // OSC sequences: ESC ] ... ST (where ST is ESC \ or BEL)
+                        if let Some(end) = find_osc_end(&data[i..]) {
+                            let seq = &data[i..i + end];
+                            handle_osc_query(seq, writer);
+                            i += end;
+                            continue;
+                        }
+                    }
+                    b'[' => {
+                        // CSI sequences: ESC [ ... final_byte
+                        if let Some(end) = find_csi_end(&data[i..]) {
+                            let seq = &data[i..i + end];
+                            if handle_csi_query(seq, writer) {
+                                // It was a query, filter it out
+                                i += end;
+                                continue;
+                            }
+                            // Not a query, keep it in output
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            result.push(data[i]);
+            i += 1;
+        }
+
+        result
+    }
+
     pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
         let text = content.to_owned().into_text()?;
         let Ok(mut content) = self.content.write() else {
             return Err(color_eyre::eyre::eyre!("Failed to acquire content for writing"));
         };
+        self.total_lines = text.lines.len().try_into().unwrap();
         *content = PreviewContent::Text(text);
         self.scroll_y = 0;
         self.scroll_x = 0;
@@ -160,7 +205,19 @@ impl Preview {
     }
 
     pub fn scroll_down(&mut self, lines: u16) {
-        self.scroll_y = self.scroll_y.saturating_add(lines);
+        trace!(
+            "scrolling down by {lines} lines, ({} total, {} rows)",
+            self.total_lines, self.rows
+        );
+        if self.total_lines > 0 {
+            self.scroll_y = self
+                .scroll_y
+                .saturating_add(lines)
+                .min(self.total_lines.saturating_sub(self.rows.saturating_sub(1)));
+        } else {
+            // We might not have the actual total_lines value
+            self.scroll_y = self.scroll_y.saturating_add(lines)
+        }
     }
 
     pub fn scroll_left(&mut self, cols: u16) {
@@ -217,6 +274,10 @@ impl Preview {
         self.kill();
         self.cmd = cmd.to_string();
 
+        // Reset scroll position and manual_scroll flag for new preview
+        self.scroll_y = 0;
+        self.scroll_x = 0;
+
         let event_tx_clone = tui.event_tx.clone();
         let content = self.content.clone();
 
@@ -243,11 +304,18 @@ impl Preview {
                 .try_clone_reader()
                 .map_err(|e| eyre!(Box::<dyn std::error::Error + Send + Sync + 'static>::from(e)))?;
 
+            // Get a writer to respond to terminal queries
+            let mut esc_writer = pty
+                .master
+                .take_writer()
+                .map_err(|e| eyre!(Box::<dyn std::error::Error + Send + Sync + 'static>::from(e)))?;
+
             let (interrupt_tx, interrupt_rx) = mpsc::channel();
             self.interrupt_tx = Some(interrupt_tx);
 
-            // Create vt100 parser for PTY output
-            let parser = Arc::new(RwLock::new(vt100::Parser::new(self.rows, self.cols, 0)));
+            // Create vt100 parser for PTY output with large scrollback buffer
+            let cols = if self.wrap { self.cols } else { 1024 };
+            let parser = Arc::new(RwLock::new(vt100::Parser::new(self.rows, cols, VT_SCROLLBACK)));
 
             // Update content to use the parser
             if let Ok(mut c) = content.write() {
@@ -256,7 +324,7 @@ impl Preview {
 
             self.thread_handle = Some(std::thread::spawn(move || {
                 let mut buf = [0u8; 8192];
-                let mut processed_buf = Vec::new();
+                let mut unprocessed_buf = Vec::new();
 
                 trace!("preview reader thread started");
 
@@ -273,15 +341,19 @@ impl Preview {
                         }
                         Ok(size) => {
                             trace!("read {} bytes", size);
-                            processed_buf.extend_from_slice(&buf[..size]);
+                            unprocessed_buf.extend_from_slice(&buf[..size]);
+
+                            // Filter out terminal query sequences and respond to them
+                            // This prevents programs like delta from waiting for responses
+                            let filtered = Self::filter_and_respond_to_queries(&unprocessed_buf, &mut esc_writer);
 
                             if let Ok(mut parser_guard) = parser.write() {
-                                let parser_ref: &mut vt100::Parser = &mut parser_guard;
-                                parser_ref.process(&processed_buf);
+                                parser_guard.process(&filtered);
+                                parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
                             }
 
                             // Clear the processed portion of the buffer
-                            processed_buf.clear();
+                            unprocessed_buf.clear();
 
                             // Check interrupt after processing
                             if interrupt_rx.try_recv().is_ok() {
@@ -376,10 +448,12 @@ impl SkimWidget for Preview {
             interrupt_tx: None,
             pty: None,
             pty_child: None,
+            total_lines: 0,
         };
         #[cfg(target_os = "linux")]
-        if std::env::var("SKIM_FLAG_NO_PREVIEW_PTY").is_err() {
-            res.init_pty();
+        match std::env::var("SKIM_FLAG_NO_PREVIEW_PTY").as_deref() {
+            Err(_) | Ok("") => res.init_pty(),
+            _ => (),
         }
         res
     }
@@ -420,7 +494,7 @@ impl SkimWidget for Preview {
         match &*content {
             PreviewContent::Text(text) => {
                 // Calculate total lines in content
-                let total_lines = text.lines.len();
+                self.total_lines = text.lines.len().try_into().unwrap();
 
                 // Create paragraph with optional block
                 let mut paragraph = Paragraph::new(text.clone()).scroll((self.scroll_y, self.scroll_x));
@@ -431,9 +505,9 @@ impl SkimWidget for Preview {
                 }
 
                 // Add scroll position indicator at top-right if scrolled
-                if self.scroll_y > 0 && total_lines > 0 {
+                if self.scroll_y > 0 && self.total_lines > 0 {
                     let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
-                    let title = format!("{}/{}", current_line, total_lines);
+                    let title = format!("{}/{}", current_line, self.total_lines);
                     use ratatui::layout::Alignment;
 
                     block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
@@ -443,12 +517,46 @@ impl SkimWidget for Preview {
                 paragraph.render(area, buf);
             }
             PreviewContent::Terminal(parser) => {
-                // For terminal content, use PseudoTerminal widget
+                // For terminal content, manipulate scrollback to implement scrolling
+                if let Ok(mut parser_guard) = parser.try_write() {
+                    let scrollback_len = parser_guard.screen().scrollback();
+                    // Reset scrollback to its full size first
+                    parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
+                    // If the scrollback is not empty, we seem to be off by one
+                    self.total_lines = (scrollback_len.saturating_sub(1)
+                        + parser_guard.screen().contents().lines().count())
+                    .try_into()
+                    .unwrap();
+                    if self.scroll_y > 0 {
+                        trace!("scrolling in vt buffer: {}/{}", self.scroll_y, self.total_lines);
+                        // Reduce scrollback by scroll_y to show earlier content
+                        parser_guard
+                            .screen_mut()
+                            .set_scrollback(scrollback_len.saturating_sub(self.scroll_y.into()))
+                    }
+                }
+
+                // Render using PseudoTerminal widget for proper terminal emulation
                 if let Ok(parser_guard) = parser.try_read() {
-                    let parser_ref: &vt100::Parser = &parser_guard;
-                    let screen = parser_ref.screen();
+                    let screen = parser_guard.screen();
+
+                    // Add scroll position indicator if scrolled
+                    if self.scroll_y > 0 && self.total_lines > 0 {
+                        let title = format!("{}/{}", self.scroll_y, self.total_lines);
+                        use ratatui::layout::Alignment;
+                        block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
+                    }
+
+                    // Use PseudoTerminal widget to render the vt100 screen
                     let pseudo_term = PseudoTerminal::new(screen).block(block);
                     pseudo_term.render(area, buf);
+                }
+
+                // Reset scrollback after rendering
+                if self.scroll_y > 0
+                    && let Ok(mut parser_guard) = parser.try_write()
+                {
+                    parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
                 }
             }
         }
