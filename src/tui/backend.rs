@@ -57,19 +57,6 @@ where
     pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
         let event_channel = unbounded_channel();
 
-        // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
-        let cursor_pos = if std::io::stdout().is_terminal() {
-            let mut stdout = std::io::stdout().into_raw_mode()?;
-            let res = stdout.cursor_pos()?;
-            drop(stdout);
-            res
-        } else {
-            let mut tty = termion::get_tty()?.into_raw_mode()?;
-            let res = tty.cursor_pos()?;
-            drop(tty);
-            res
-        };
-
         let term_height = backend.size().expect("Failed to get terminal height").height;
         let lines = match height {
             Size::Percent(100) => None,
@@ -78,6 +65,18 @@ where
         };
 
         let viewport = if let Some(mut height) = lines {
+            // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
+            let cursor_pos = if std::io::stdout().is_terminal() {
+                let mut stdout = std::io::stdout().into_raw_mode()?;
+                let res = stdout.cursor_pos()?;
+                drop(stdout);
+                res
+            } else {
+                let mut tty = termion::get_tty()?.into_raw_mode()?;
+                let res = tty.cursor_pos()?;
+                drop(tty);
+                res
+            };
             let mut y = cursor_pos.1 - 1;
             height = height.min(term_height);
             if term_height - cursor_pos.1 < height {
@@ -200,6 +199,10 @@ where
                         }
                         Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
                           _ = event_tx_clone.send(Event::Mouse(mouse));
+                        }
+                        Some(Ok(crossterm::event::Event::Resize(_, _))) => {
+                          _ = event_tx_clone.send(Event::Resize);
+                          _ = event_tx_clone.send(Event::Render);
                         }
                         Some(Err(e)) => {
                           _ = event_tx_clone.send(Event::Error(e.to_string()));

@@ -79,7 +79,23 @@ fn main() -> Result<()> {
     } else {
         env_logger::Target::Stdout
     };
-    env_logger::builder().target(log_target).format_timestamp_nanos().init();
+    env_logger::builder()
+        .target(log_target)
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "[{} {} {} ({}:{})] [{}/{:?}] {}",
+                buf.timestamp_nanos(),
+                record.level().as_str(),
+                record.module_path().unwrap_or("sk"),
+                record.file().unwrap_or_default(),
+                record.line().unwrap_or_default(),
+                std::thread::current().name().unwrap_or("?"),
+                std::thread::current().id(),
+                record.args()
+            )
+        })
+        .init();
     // Build the options after setting the log target
     opts = opts.build();
     trace!("Command line: {:?}", std::env::args());

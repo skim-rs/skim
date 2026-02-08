@@ -7,9 +7,12 @@ use ratatui::{
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
+use std::io::Read;
 use std::process::Command;
 use std::sync::mpsc;
 use std::thread::JoinHandle;
+use tui_term::vt100;
+use tui_term::widget::PseudoTerminal;
 
 use super::Direction;
 use super::Event;
@@ -24,6 +27,20 @@ use std::sync::{Arc, RwLock};
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
 const PREVIEW_MAX_BYTES: usize = 100 * 1024;
+
+/// Preview content can be either parsed text or a terminal screen
+pub(crate) enum PreviewContent {
+    /// Simple text content (for non-PTY previews and callbacks)
+    Text(Text<'static>),
+    /// Terminal screen (for PTY previews with cursor positioning)
+    Terminal(Arc<RwLock<vt100::Parser>>),
+}
+
+impl Default for PreviewContent {
+    fn default() -> Self {
+        PreviewContent::Text(Text::default())
+    }
+}
 
 /// Callback function for generating preview content
 #[derive(Clone)]
@@ -49,7 +66,7 @@ impl std::ops::Deref for PreviewCallback {
 }
 
 pub struct Preview {
-    pub content: Arc<RwLock<Text<'static>>>,
+    pub(crate) content: Arc<RwLock<PreviewContent>>,
     pub cmd: String,
     pub rows: u16,
     pub cols: u16,
@@ -70,7 +87,7 @@ pub struct Preview {
 impl Default for Preview {
     fn default() -> Self {
         Self {
-            content: Arc::new(RwLock::new(Text::default())),
+            content: Arc::new(RwLock::new(PreviewContent::Text(Text::default()))),
             cmd: String::default(),
             rows: 0,
             cols: 0,
@@ -119,7 +136,7 @@ impl Preview {
         let Ok(mut content) = self.content.write() else {
             return Err(color_eyre::eyre::eyre!("Failed to acquire content for writing"));
         };
-        *content = text;
+        *content = PreviewContent::Text(text);
         self.scroll_y = 0;
         self.scroll_x = 0;
         Ok(())
@@ -204,8 +221,9 @@ impl Preview {
         let content = self.content.clone();
 
         if let Some(pty) = self.pty.take() {
-            self.init_pty();
             trace!("spawning preview cmd {cmd} in pty");
+            self.init_pty();
+            trace!("initalized pty");
             let mut shell_cmd = portable_pty::CommandBuilder::new("/bin/sh");
             shell_cmd.env("ROWS", self.rows.to_string());
             shell_cmd.env("COLUMNS", self.cols.to_string());
@@ -228,60 +246,57 @@ impl Preview {
             let (interrupt_tx, interrupt_rx) = mpsc::channel();
             self.interrupt_tx = Some(interrupt_tx);
 
+            // Create vt100 parser for PTY output
+            let parser = Arc::new(RwLock::new(vt100::Parser::new(self.rows, self.cols, 0)));
+
+            // Update content to use the parser
+            if let Ok(mut c) = content.write() {
+                *c = PreviewContent::Terminal(parser.clone());
+            }
+
             self.thread_handle = Some(std::thread::spawn(move || {
-                let mut res = Vec::with_capacity(PREVIEW_MAX_BYTES);
+                let mut buf = [0u8; 8192];
+                let mut processed_buf = Vec::new();
 
-                trace!("[{:?}] preview reader thread started", std::thread::current().id(),);
+                trace!("preview reader thread started");
 
-                // Read what's available with a simple timeout
-                let mut buf = [0; 1];
                 loop {
                     if interrupt_rx.try_recv().is_ok() {
-                        trace!("[{:?}] interrupt signal received, exiting", std::thread::current().id());
+                        trace!("interrupt signal received, exiting");
                         return;
                     }
 
-                    if res.len() >= PREVIEW_MAX_BYTES {
-                        trace!("[{:?}] reached PREVIEW_MAX_BYTES, exiting", std::thread::current().id());
-                        break;
-                    }
+                    match reader.read(&mut buf) {
+                        Ok(0) => {
+                            trace!("reached EOF");
+                            break;
+                        }
+                        Ok(size) => {
+                            trace!("read {} bytes", size);
+                            processed_buf.extend_from_slice(&buf[..size]);
 
-                    // Use a small read with immediate processing
-                    match reader.read_exact(&mut buf) {
-                        Ok(()) => {
-                            trace!("[{:?}] read 1 byte", std::thread::current().id());
-                            res.push(buf[0]);
+                            if let Ok(mut parser_guard) = parser.write() {
+                                let parser_ref: &mut vt100::Parser = &mut parser_guard;
+                                parser_ref.process(&processed_buf);
+                            }
 
-                            // Check interrupt before updating shared state
+                            // Clear the processed portion of the buffer
+                            processed_buf.clear();
+
+                            // Check interrupt after processing
                             if interrupt_rx.try_recv().is_ok() {
-                                trace!(
-                                    "[{:?}] interrupt signal received during read block, exiting",
-                                    std::thread::current().id(),
-                                );
-                                break;
+                                trace!("interrupt signal received during read block, exiting");
+                                return;
                             }
                         }
                         Err(e) => {
-                            if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                                trace!("[{:?}] reached EOF", std::thread::current().id());
-                            } else {
-                                trace!("[{:?}] read error {:?}", std::thread::current().id(), e);
-                            }
+                            trace!("read error {:?}", e);
                             break;
                         }
                     }
                 }
 
-                trace!(
-                    "[{:?}] read complete, {} bytes total",
-                    std::thread::current().id(),
-                    res.len()
-                );
-
-                // Final update
-                if let Ok(mut c) = content.write() {
-                    *c = res.into_text().unwrap_or_default();
-                }
+                trace!("read complete");
                 let _ = event_tx_clone.send(Event::PreviewReady);
             }));
         } else {
@@ -311,26 +326,18 @@ impl Preview {
                     return;
                 };
 
-                let out = try_out.unwrap();
+                let mut out = try_out.unwrap();
 
                 if interrupt_rx.try_recv().is_ok() {
                     return;
                 }
 
-                {
-                    let Ok(mut c) = content.write() else {
-                        return;
-                    };
+                if let Ok(mut c) = content.write() {
                     if out.status.success() {
-                        *c = out.stdout[..PREVIEW_MAX_BYTES.min(out.stdout.len())]
-                            .iter()
-                            .copied()
-                            .filter(|c| *c != b'\r')
-                            .collect::<Vec<u8>>()
-                            .into_text()
-                            .unwrap_or_default();
+                        out.stdout.resize(PREVIEW_MAX_BYTES.min(out.stdout.len()), 0);
+                        *c = PreviewContent::Text(out.stdout.into_text().unwrap_or_default());
                     } else {
-                        *c = out.stderr.to_owned().into_text().unwrap_or_default();
+                        *c = PreviewContent::Text(out.stderr.to_owned().into_text().unwrap_or_default());
                     }
                 }
 
@@ -359,7 +366,7 @@ impl SkimWidget for Preview {
             border: options.border,
             direction: options.preview_window.direction,
             wrap: options.preview_window.wrap,
-            content: Default::default(),
+            content: Arc::new(RwLock::new(PreviewContent::default())),
             cmd: Default::default(),
             rows: 0,
             cols: 0,
@@ -371,7 +378,9 @@ impl SkimWidget for Preview {
             pty_child: None,
         };
         #[cfg(target_os = "linux")]
-        res.init_pty();
+        if std::env::var("SKIM_FLAG_NO_PREVIEW_PTY").is_err() {
+            res.init_pty();
+        }
         res
     }
 
@@ -391,27 +400,9 @@ impl SkimWidget for Preview {
             return SkimRender::default();
         };
 
-        // Calculate total lines in content
-        let total_lines = content.lines.len();
-
-        // Create paragraph with optional block
-        let mut paragraph = Paragraph::new(content.clone()).scroll((self.scroll_y, self.scroll_x));
-
-        // Enable wrapping if wrap is true
-        if self.wrap {
-            paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });
-        }
         let mut block = Block::new().style(self.theme.normal).border_style(self.theme.border);
 
-        // Add scroll position indicator at bottom if scrolled
-        if self.scroll_y > 0 && total_lines > 0 {
-            let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
-            let title = format!("{}/{}", current_line, total_lines);
-            use ratatui::layout::Alignment;
-
-            block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
-        }
-
+        // Add borders based on direction and border setting
         if let Some(border_type) = self.border {
             block = block.borders(Borders::ALL).border_type(border_type.into());
         } else {
@@ -423,10 +414,44 @@ impl SkimWidget for Preview {
                 Direction::Right => block = block.borders(Borders::LEFT),
             };
         }
-        paragraph = paragraph.block(block);
 
         Clear.render(area, buf);
-        paragraph.render(area, buf);
+
+        match &*content {
+            PreviewContent::Text(text) => {
+                // Calculate total lines in content
+                let total_lines = text.lines.len();
+
+                // Create paragraph with optional block
+                let mut paragraph = Paragraph::new(text.clone()).scroll((self.scroll_y, self.scroll_x));
+
+                // Enable wrapping if wrap is true
+                if self.wrap {
+                    paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });
+                }
+
+                // Add scroll position indicator at top-right if scrolled
+                if self.scroll_y > 0 && total_lines > 0 {
+                    let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
+                    let title = format!("{}/{}", current_line, total_lines);
+                    use ratatui::layout::Alignment;
+
+                    block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
+                }
+
+                paragraph = paragraph.block(block);
+                paragraph.render(area, buf);
+            }
+            PreviewContent::Terminal(parser) => {
+                // For terminal content, use PseudoTerminal widget
+                if let Ok(parser_guard) = parser.try_read() {
+                    let parser_ref: &vt100::Parser = &parser_guard;
+                    let screen = parser_ref.screen();
+                    let pseudo_term = PseudoTerminal::new(screen).block(block);
+                    pseudo_term.render(area, buf);
+                }
+            }
+        }
 
         SkimRender::default()
     }
