@@ -546,9 +546,10 @@ impl<'a> App<'a> {
                 self.update_spinner();
                 // Check if a debounced preview run needs to be executed
                 if self.pending_preview_run
-                    && let Err(e) = self.run_preview(tui) {
-                        warn!("Heartbeat RunPreview: error {e:?}");
-                    }
+                    && let Err(e) = self.run_preview(tui)
+                {
+                    warn!("Heartbeat RunPreview: error {e:?}");
+                }
             }
             Event::RunPreview => {
                 if let Err(e) = self.run_preview(tui) {

@@ -111,7 +111,7 @@ pub(crate) fn find_osc_end(data: &[u8]) -> Option<usize> {
 
 /// Find the end of a CSI sequence
 pub(crate) fn find_csi_end(data: &[u8]) -> Option<usize> {
-    for (i, c) in data.iter().skip(2).enumerate() {
+    for (i, c) in data.iter().enumerate().skip(2) {
         // CSI sequences end with a byte in the range 0x40-0x7E
         if (0x40..=0x7E).contains(c) {
             return Some(i + 1);
