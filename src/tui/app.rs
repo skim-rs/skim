@@ -97,6 +97,8 @@ pub struct App<'a> {
     pub preview_area: Option<Rect>,
     /// Last time preview was spawned (for debouncing)
     pub last_preview_spawn: std::time::Instant,
+    /// Whether a preview run was debounced and needs to be retried
+    pub pending_preview_run: bool,
     reader_timer: std::time::Instant,
     items_just_updated: bool,
 }
@@ -305,6 +307,7 @@ impl Default for App<'_> {
             cmd: String::new(),
             preview_area: None,
             last_preview_spawn: std::time::Instant::now(),
+            pending_preview_run: false,
             reader_timer: std::time::Instant::now(),
             items_just_updated: false,
         }
@@ -345,6 +348,7 @@ impl<'a> App<'a> {
             cmd,
             preview_area: None,
             last_preview_spawn: std::time::Instant::now() - std::time::Duration::from_secs(1),
+            pending_preview_run: false,
         }
     }
 }
@@ -435,9 +439,12 @@ impl<'a> App<'a> {
         let elapsed = now.duration_since(self.last_preview_spawn);
 
         if elapsed.as_millis() < DEBOUNCE_MS as u128 {
+            // Mark that we have a pending preview to run after the debounce period
+            self.pending_preview_run = true;
             return Ok(());
         }
 
+        self.pending_preview_run = false;
         self.last_preview_spawn = now;
 
         if let Some(preview_opt) = &self.options.preview
@@ -537,6 +544,11 @@ impl<'a> App<'a> {
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
                 self.update_spinner();
+                // Check if a debounced preview run needs to be executed
+                if self.pending_preview_run
+                    && let Err(e) = self.run_preview(tui) {
+                        warn!("Heartbeat RunPreview: error {e:?}");
+                    }
             }
             Event::RunPreview => {
                 if let Err(e) = self.run_preview(tui) {

@@ -282,7 +282,23 @@ impl Preview {
         let content = self.content.clone();
 
         if let Some(pty) = self.pty.take() {
-            trace!("spawning preview cmd {cmd} in pty");
+            // Ensure the PTY has the correct display dimensions before spawning.
+            // init_pty() creates PTYs with 1024 cols for non-wrap mode (for the vt100 parser's
+            // horizontal scrolling), but the child process needs to see the actual display size.
+            // render() only resizes when the area changes, so if spawn() is called twice at the
+            // same area size, the second PTY would still have 1024 cols.
+            if self.rows > 0 && self.cols > 0 {
+                let _ = pty.master.resize(PtySize {
+                    rows: self.rows,
+                    cols: self.cols,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                });
+            }
+            trace!(
+                "spawning preview cmd {cmd} in pty (rows={}, cols={})",
+                self.rows, self.cols
+            );
             self.init_pty();
             trace!("initalized pty");
             let mut shell_cmd = portable_pty::CommandBuilder::new("/bin/sh");
@@ -451,9 +467,8 @@ impl SkimWidget for Preview {
             total_lines: 0,
         };
         #[cfg(target_os = "linux")]
-        match std::env::var("SKIM_FLAG_NO_PREVIEW_PTY").as_deref() {
-            Err(_) | Ok("") => res.init_pty(),
-            _ => (),
+        if !res.wrap && matches!(std::env::var("SKIM_FLAG_NO_PREVIEW_PTY").as_deref(), Ok("") | Err(_)) {
+            res.init_pty();
         }
         res
     }
@@ -548,7 +563,9 @@ impl SkimWidget for Preview {
                     }
 
                     // Use PseudoTerminal widget to render the vt100 screen
-                    let pseudo_term = PseudoTerminal::new(screen).block(block);
+                    let pseudo_term = PseudoTerminal::new(screen)
+                        .cursor(tui_term::widget::Cursor::default().visibility(false))
+                        .block(block);
                     pseudo_term.render(area, buf);
                 }
 

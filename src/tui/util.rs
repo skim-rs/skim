@@ -111,10 +111,9 @@ pub(crate) fn find_osc_end(data: &[u8]) -> Option<usize> {
 
 /// Find the end of a CSI sequence
 pub(crate) fn find_csi_end(data: &[u8]) -> Option<usize> {
-    for i in 2..data.len() {
-        let c = data[i];
+    for (i, c) in data.iter().skip(2).enumerate() {
         // CSI sequences end with a byte in the range 0x40-0x7E
-        if (0x40..=0x7E).contains(&c) {
+        if (0x40..=0x7E).contains(c) {
             return Some(i + 1);
         }
     }
@@ -144,16 +143,16 @@ pub(crate) fn handle_osc_query(seq: &[u8], writer: &mut Box<dyn std::io::Write +
     else if seq.starts_with(b"\x1b]4;") {
         // Extract the color number and respond with a default color
         // Format: ESC ] 4 ; num ; rgb:rr/gg/bb ST
-        if let Some(idx) = seq.iter().position(|&b| b == b';') {
-            if let Some(idx2) = seq[idx + 1..].iter().position(|&b| b == b';') {
-                let color_num = &seq[idx + 1..idx + 1 + idx2];
-                let mut response = b"\x1b]4;".to_vec();
-                response.extend_from_slice(color_num);
-                response.extend_from_slice(b";rgb:8080/8080/8080\x1b\\");
-                let _ = writer.write_all(&response);
-                let _ = writer.flush();
-                trace!("responded to OSC 4 color palette query");
-            }
+        if let Some(idx) = seq.iter().position(|&b| b == b';')
+            && let Some(idx2) = seq[idx + 1..].iter().position(|&b| b == b';')
+        {
+            let color_num = &seq[idx + 1..idx + 1 + idx2];
+            let mut response = b"\x1b]4;".to_vec();
+            response.extend_from_slice(color_num);
+            response.extend_from_slice(b";rgb:8080/8080/8080\x1b\\");
+            let _ = writer.write_all(&response);
+            let _ = writer.flush();
+            trace!("responded to OSC 4 color palette query");
         }
     }
 }
