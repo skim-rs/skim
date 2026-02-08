@@ -404,7 +404,9 @@ Preview window layout
 
 Format: [up|down|left|right][:SIZE[%]][:hidden][:+SCROLL[\-OFFSET]]
 
-Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by default until toggle\-preview action is triggered. Long lines are truncated by default.  Line wrap can be enabled with : wrap flag.
+Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by default until toggle\-preview action is triggered. Long lines are truncated by default.  Line wrap can be enabled with :wrap flag.
+
+Note: the preview will run in a PTY (interactive session) on linux and when wrap is unset
 
 If size is given as 0, preview window will not be visible, but sk will still execute the command in the background.
 

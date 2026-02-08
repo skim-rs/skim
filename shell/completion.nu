@@ -28,6 +28,10 @@ module completions {
     [ "bash" "elvish" "fish" "nushell" "power-shell" "zsh" ]
   }
 
+  def "nu-complete sk flags" [] {
+    [ "no-preview-pty" ]
+  }
+
   # Fuzzy Finder in rust!
   export extern sk [
     --tac                     # Show results in reverse order
@@ -109,6 +113,7 @@ module completions {
     --remote: string          # Send commands to an IPC socket with optional name (defaults to sk)
     --tmux: string            # Run in a tmux popup
     --log-file: string        # Pipe log output to a file
+    --flags: string@"nu-complete sk flags" # Feature flags
     --extended(-x)            # Reserved for later use
     --literal                 # Reserved for later use
     --hscroll-off: string     # Reserved for later use
