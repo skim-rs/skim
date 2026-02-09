@@ -67,6 +67,11 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/nextest/default/junit.xml
   clippy:
     runs-on: ubuntu-latest
     steps:
