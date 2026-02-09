@@ -5,7 +5,7 @@ mod common;
 use common::tmux::{Keys, TmuxController, sk};
 use std::io::Result;
 
-sk_test!(vanilla_basic, "1\n2\n3", &[], {
+sk_test!(vanilla_basic_tmux, "1\n2\n3", &[], {
   @capture[0] eq(">");
   @capture[1] trim().starts_with("3/3");
   @capture[1] ends_with("0/0");
@@ -266,5 +266,26 @@ sk_test!(bind_reload_cmd, "a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello
 sk_test!(inline_clear_on_exit, @cmd "seq 1 10", &["--height=50%"], {
     @capture[0] starts_with(">");
     @keys Escape;
+    @lines |l| (!l.iter().any(|line| line.starts_with(">")));
+});
+
+sk_test!(issue_xxx_null_delimiter_with_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", "--with-nth", "2"], {
+  @capture[0] starts_with(">");
+  @capture[2] starts_with("> b");
+});
+
+sk_test!(issue_xxx_null_delimiter_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", "--nth", "2"], {
+  @capture[0] starts_with(">");
+  @keys Key('c');
+  @capture[0] starts_with("> c");
+  @capture[1] contains("0/1");
+  @keys BSpace, Key('b');
+  @capture[0] starts_with("> b");
+  @capture[2] starts_with("> abc");
+});
+
+sk_test!(issue_1120_height_mode_clears_on_exit, @cmd "seq 1 10", &["--height=50%"], {
+    @capture[0] starts_with(">");
+    @keys Key('\x1b');
     @lines |l| (!l.iter().any(|line| line.starts_with(">")));
 });

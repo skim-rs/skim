@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
+use crate::tui::SkimRender;
 use crate::tui::input::StatusInfo;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
@@ -20,7 +21,6 @@ use super::header::Header;
 use super::item_list::ItemList;
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
-use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
@@ -37,7 +37,7 @@ const HIDE_GRACE_MS: u128 = 500;
 /// Application state for skim's TUI
 pub struct App<'a> {
     /// Pool of items to be filtered
-    pub item_pool: Arc<DeferDrop<ItemPool>>,
+    pub item_pool: Arc<ItemPool>,
     /// Whether the application should quit
     pub should_quit: bool,
 
@@ -65,8 +65,6 @@ pub struct App<'a> {
     /// Color theme
     pub theme: Arc<crate::theme::ColorTheme>,
 
-    /// Timer for tracking reader activity
-    pub reader_timer: std::time::Instant,
     /// Timer for tracking matcher activity
     pub matcher_timer: std::time::Instant,
 
@@ -76,9 +74,6 @@ pub struct App<'a> {
     pub show_spinner: bool,
     /// Start time for spinner animation (set once at app creation, never reset)
     pub spinner_start: std::time::Instant,
-
-    /// Track when items were just updated to avoid unnecessary status updates
-    pub items_just_updated: bool,
 
     /// Query history navigation
     pub query_history: Vec<String>,
@@ -100,10 +95,17 @@ pub struct App<'a> {
     pub cmd: String,
     /// Preview area rectangle for mouse event handling
     pub preview_area: Option<Rect>,
+    /// Last time preview was spawned (for debouncing)
+    pub last_preview_spawn: std::time::Instant,
+    /// Whether a preview run was debounced and needs to be retried
+    pub pending_preview_run: bool,
+    reader_timer: std::time::Instant,
+    items_just_updated: bool,
 }
 
 impl Widget for &mut App<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let mut res = SkimRender::default();
         let has_border = self.options.border.is_some();
 
         // Update header with reserved items (from --header-lines)
@@ -191,7 +193,7 @@ impl Widget for &mut App<'_> {
                     a
                 }
             };
-            self.header.render(header_area, buf);
+            res |= self.header.render(header_area, buf);
         }
 
         // Build status info for the input's title
@@ -218,13 +220,13 @@ impl Widget for &mut App<'_> {
 
         // Render input (status is now shown as its title)
         let input_area = remaining_area;
-        self.input.render(input_area, buf);
+        res |= self.input.render(input_area, buf);
 
         // Render preview if enabled
         if let Some(preview_area) = preview_area_opt {
             // Preview was already split at the root level (left/right)
             self.preview_area = Some(preview_area);
-            self.preview.render(preview_area, buf);
+            res |= self.preview.render(preview_area, buf);
         } else if self.options.preview.is_some() && !self.options.preview_window.hidden {
             // Preview needs to be split from list area (up/down)
             let direction = Direction::Vertical;
@@ -246,12 +248,11 @@ impl Widget for &mut App<'_> {
                 _ => unreachable!(),
             };
             self.preview_area = Some(preview_area);
-            self.preview.render(preview_area, buf);
+            res |= self.preview.render(preview_area, buf);
         } else {
             self.preview_area = None;
         }
-        self.items_just_updated = self.item_list.render(list_area, buf).items_updated;
-
+        res |= self.item_list.render(list_area, buf);
         // Cursor position needs to account for input border and title
         // Always +1 for title line (whether bordered or not)
         self.cursor_pos = (
@@ -263,6 +264,9 @@ impl Widget for &mut App<'_> {
                     1
                 },
         );
+        if res.run_preview {
+            self.pending_preview_run = true;
+        }
     }
 }
 
@@ -290,7 +294,6 @@ impl Default for App<'_> {
                 .build(),
             yank_register: Cow::default(),
             matcher_control: MatcherControl::default(),
-            reader_timer: std::time::Instant::now(),
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
@@ -298,7 +301,6 @@ impl Default for App<'_> {
             spinner_last_change: std::time::Instant::now(),
             show_spinner: false,
             spinner_start: std::time::Instant::now(),
-            items_just_updated: false,
             query_history: Vec::new(),
             history_index: None,
             saved_input: String::new(),
@@ -308,6 +310,10 @@ impl Default for App<'_> {
             options: SkimOptions::default(),
             cmd: String::new(),
             preview_area: None,
+            last_preview_spawn: std::time::Instant::now(),
+            pending_preview_run: false,
+            reader_timer: std::time::Instant::now(),
+            items_just_updated: false,
         }
     }
 }
@@ -319,7 +325,7 @@ impl<'a> App<'a> {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
-            item_pool: Arc::new(DeferDrop::new(ItemPool::from_options(&options))),
+            item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             should_quit: false,
@@ -345,6 +351,8 @@ impl<'a> App<'a> {
             options,
             cmd,
             preview_area: None,
+            last_preview_spawn: std::time::Instant::now() - std::time::Duration::from_secs(1),
+            pending_preview_run: false,
         }
     }
 }
@@ -408,7 +416,7 @@ impl<'a> App<'a> {
         ])
     }
 
-    fn on_matcher_state_changed(&mut self) {
+    fn update_spinner(&mut self) {
         let matcher_running = !self.matcher_control.stopped();
         let time_since_match = self.matcher_timer.elapsed();
         let reading = self.item_pool.num_not_taken() != 0;
@@ -429,6 +437,20 @@ impl<'a> App<'a> {
     where
         B::Error: Send + Sync + 'static,
     {
+        // Debounce preview spawning to prevent overwhelming the system during rapid scrolling
+        const DEBOUNCE_MS: u64 = 50;
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.last_preview_spawn);
+
+        if elapsed.as_millis() < DEBOUNCE_MS as u128 {
+            // Mark that we have a pending preview to run after the debounce period
+            self.pending_preview_run = true;
+            return Ok(());
+        }
+
+        self.pending_preview_run = false;
+        self.last_preview_spawn = now;
+
         if let Some(preview_opt) = &self.options.preview
             && let Some(item) = self.item_list.selected()
         {
@@ -459,11 +481,11 @@ impl<'a> App<'a> {
             };
             let preview = item.preview(ctx);
             match preview {
-                ItemPreview::Command(cmd) => self.preview.run(tui, &self.expand_cmd(&cmd, true)),
+                ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
-                    self.preview.run(tui, &self.expand_cmd(&cmd, true));
+                    self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?;
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -473,7 +495,8 @@ impl<'a> App<'a> {
                         crate::tui::Size::Fixed(n) => n,
                         crate::tui::Size::Percent(p) => (self.preview.rows as u32 * p as u32 / 100) as u16,
                     };
-                    self.preview.scroll_y = v_scroll.saturating_add(v_offset);
+                    self.preview.scroll_y = v_scroll;
+                    self.preview.scroll_down(v_offset);
 
                     let h_scroll = match preview_position.h_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -491,7 +514,7 @@ impl<'a> App<'a> {
                 ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(t.bytes().collect(), preview_position)?,
-                ItemPreview::Global => self.preview.run(tui, &self.expand_cmd(preview_opt, true)),
+                ItemPreview::Global => self.preview.spawn(tui, &self.expand_cmd(preview_opt, true))?,
             }
         } else if let Some(cb) = &self.options.preview_fn {
             let selection: Vec<Arc<dyn SkimItem>>;
@@ -512,7 +535,6 @@ impl<'a> App<'a> {
     where
         B::Error: Send + Sync + 'static,
     {
-        let prev_item = self.item_list.selected();
         match event {
             Event::Render => {
                 // Always render to avoid freezing, but the render function itself can optimize
@@ -524,11 +546,23 @@ impl<'a> App<'a> {
             }
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
-                self.on_matcher_state_changed();
-                self.on_items_updated();
+                self.update_spinner();
+
+                if self.pending_matcher_restart {
+                    self.restart_matcher(true);
+                }
+
+                // Check if a debounced preview run needs to be executed
+                if self.pending_preview_run
+                    && let Err(e) = self.run_preview(tui)
+                {
+                    warn!("Heartbeat RunPreview: error {e:?}");
+                }
             }
             Event::RunPreview => {
-                self.run_preview(tui)?;
+                if let Err(e) = self.run_preview(tui) {
+                    warn!("RunPreview: error {e:?}");
+                }
             }
             Event::Clear => {
                 tui.clear()?;
@@ -553,17 +587,24 @@ impl<'a> App<'a> {
                 bail!(msg.to_owned());
             }
             Event::Action(act) => {
-                for evt in self.handle_action(act)? {
+                let events = self.handle_action(act)?;
+                for evt in events {
                     tui.event_tx.send(evt)?;
                 }
             }
             Event::Key(key) => {
-                for evt in self.handle_key(key) {
+                let events = self.handle_key(key);
+                for evt in events {
                     tui.event_tx.send(evt)?;
                 }
             }
             Event::Redraw => {
                 tui.clear()?;
+            }
+            Event::Resize => {
+                if let Err(e) = self.run_preview(tui) {
+                    warn!("error while rerunnig preview after resize: {e}");
+                }
             }
             Event::Mouse(mouse_event) => {
                 self.handle_mouse(mouse_event, tui)?;
@@ -571,39 +612,13 @@ impl<'a> App<'a> {
             _ => (),
         };
 
-        // Check if item changed
-        let new_item = self.item_list.selected();
-        if let Some(new) = new_item {
-            if let Some(prev) = prev_item {
-                if prev.text() != new.text() || prev.get_index() != new.get_index() {
-                    self.on_item_changed(tui)?;
-                }
-            } else {
-                self.on_item_changed(tui)?;
-            }
-        }
         Ok(())
     }
     /// Handles new items received from the reader
     pub fn handle_items(&mut self, items: Vec<Arc<dyn SkimItem>>) {
         self.item_pool.append(items);
-        // Don't restart matcher immediately - use debounced restart instead
-        self.pending_matcher_restart = true;
         trace!("Got new items, len {}", self.item_pool.len());
-        // mark reader activity and reset reader timer
-        self.reader_timer = std::time::Instant::now();
-        self.items_just_updated = true;
-        // Update status to reflect new pool state
         self.on_items_updated();
-    }
-    /// Called when the selected item changes
-    pub fn on_item_changed<B: Backend>(&mut self, tui: &mut Tui<B>) -> Result<()>
-    where
-        B::Error: Send + Sync + 'static,
-    {
-        tui.event_tx.send(Event::RunPreview)?;
-
-        Ok(())
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
         debug!("key event: {:?}", key);
@@ -721,7 +736,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(*n as i32),
                     BottomToTop => self.item_list.scroll_by(-(*n as i32)),
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -764,7 +779,7 @@ impl<'a> App<'a> {
             First | Top => {
                 // Jump to first item (considering reserved items)
                 self.item_list.jump_to_first();
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -822,7 +837,7 @@ impl<'a> App<'a> {
             Last => {
                 // Jump to last item
                 self.item_list.jump_to_last();
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -871,7 +886,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -882,7 +897,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -893,7 +908,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -904,7 +919,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -1084,7 +1099,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(-(*n as i32)),
                     BottomToTop => self.item_list.scroll_by(*n as i32),
                 }
-                if !self.options.multi {
+                if !self.options.multi || self.item_list.selection.is_empty() {
                     return self.on_selection_changed();
                 }
             }
@@ -1139,11 +1154,11 @@ impl<'a> App<'a> {
 
         let matcher_stopped = self.matcher_control.stopped();
         if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
+            trace!("restarting matcher");
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;
             self.matcher_control.kill();
-            let tx = self.item_list.tx.clone();
             self.item_pool.reset();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
@@ -1157,12 +1172,16 @@ impl<'a> App<'a> {
                 &self.input
             };
             let item_pool = self.item_pool.clone();
-            self.matcher_control = self.matcher.run(query, item_pool.clone(), move |matches| {
-                let m = matches.lock();
-                debug!("Got {} results from matcher, sending to item list...", m.len());
+            let processed_items = self.item_list.processed_items.clone();
+            let no_sort = self.options.no_sort;
+            self.matcher_control = self.matcher.run(query, item_pool.clone(), move |mut matches| {
+                debug!("Got {} results from matcher, sending to item list...", matches.len());
 
                 // Send matched items directly (header_lines are now handled by the Header widget)
-                let _ = tx.send(m.to_vec());
+                if !no_sort {
+                    matches.sort_by_key(|item| item.rank);
+                }
+                *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
             });
         }
     }

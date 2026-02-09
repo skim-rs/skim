@@ -6,7 +6,7 @@ use common::tmux::Keys::*;
 
 sk_test!(highlight_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=matched:9,current_match:1"], {
     @capture[2] contains("apple");
-    @keys Str("pp");
+    @keys Key('p'), Key('p');
 
     // Wait for filtering to complete - should only show apple
     @capture[1] contains("1/3");
@@ -28,7 +28,7 @@ sk_test!(highlight_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=ma
 sk_test!(highlight_split_match, @cmd "echo -e 'apple\\nbanana\\ngrape'", &["--color=matched:9,current_match:1,current_bg:236"], {
     @capture[2] contains("apple");
 
-    @keys Str("aaa");
+    @keys Key('a'), Key('a'), Key('a');
 
     // Wait for filtering to complete - should only show banana
     @capture[1] contains("1/3");

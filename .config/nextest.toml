@@ -22,6 +22,8 @@ retries = 9
 [[profile.default.scripts]]
 platform = "cfg(unix)"
 setup = ["stop-tmux", "start-tmux"]
+[profile.default.junit]
+path = "junit.xml"
 
 # Valgrind profile for memory leak detection
 # Usage: cargo nextest run --profile valgrind --features test-utils

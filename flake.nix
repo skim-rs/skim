@@ -19,6 +19,7 @@
           packages = with pkgs; [
             cargo-nextest
             cargo-insta
+            cargo-llvm-cov
             git-cliff
             tmux
             rustup

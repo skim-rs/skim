@@ -1,4 +1,5 @@
 //! This module contains the matching coordinator
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
@@ -9,10 +10,7 @@ use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
-use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
-use defer_drop::DeferDrop;
-use std::rc::Rc;
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -22,7 +20,6 @@ pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
-    items: Arc<SpinLock<Vec<MatchedItem>>>,
 }
 
 impl Default for MatcherControl {
@@ -31,7 +28,6 @@ impl Default for MatcherControl {
             stopped: Arc::new(AtomicBool::new(true)),
             processed: Default::default(),
             matched: Default::default(),
-            items: Default::default(),
         }
     }
 }
@@ -56,17 +52,11 @@ impl MatcherControl {
     pub fn stopped(&self) -> bool {
         self.stopped.load(Ordering::Relaxed)
     }
-
-    /// Blocks until the matcher has stopped, then returns the matched items.
-    pub fn items(&self) -> Arc<SpinLock<Vec<MatchedItem>>> {
-        while !self.stopped() {}
-        self.items.clone()
-    }
 }
 
 impl Drop for MatcherControl {
     fn drop(&mut self) {
-        self.stopped.store(true, Ordering::Relaxed);
+        self.kill();
     }
 }
 
@@ -156,9 +146,9 @@ impl Matcher {
     ///
     /// The callback is invoked when matching is complete with the matched items.
     /// Returns a MatcherControl that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(&self, query: &str, item_pool: Arc<DeferDrop<ItemPool>>, callback: C) -> MatcherControl
+    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, callback: C) -> MatcherControl
     where
-        C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
+        C: Fn(Vec<MatchedItem>) + Send + 'static,
     {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {matcher_engine}");
@@ -168,8 +158,7 @@ impl Matcher {
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
-        let matched_items = Arc::new(SpinLock::new(Vec::new()));
-        let matched_items_clone = matched_items.clone();
+        let mut matched_items = Vec::new();
 
         thread::spawn(move || {
             let _num_taken = item_pool.num_taken();
@@ -202,20 +191,20 @@ impl Matcher {
                 .collect();
 
             if let Ok(items) = result {
-                let mut pool = matched_items.lock();
-                *pool = items;
-                trace!("matcher stop, total matched: {}", pool.len());
+                matched_items = items;
+                trace!("matcher stop, total matched: {}", matched_items.len());
             }
 
-            callback(matched_items.clone());
-            stopped.store(true, Ordering::Relaxed);
+            if !stopped.load(Ordering::Relaxed) {
+                callback(matched_items);
+                stopped.store(true, Ordering::Relaxed);
+            }
         });
 
         MatcherControl {
             stopped: stopped_clone,
             matched: matched_clone,
             processed: processed_clone,
-            items: matched_items_clone,
         }
     }
 }

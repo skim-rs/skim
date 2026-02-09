@@ -79,7 +79,23 @@ fn main() -> Result<()> {
     } else {
         env_logger::Target::Stdout
     };
-    env_logger::builder().target(log_target).format_timestamp_nanos().init();
+    env_logger::builder()
+        .target(log_target)
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "[{} {} {} ({}:{})] [{}/{:?}] {}",
+                buf.timestamp_nanos(),
+                record.level().as_str(),
+                record.module_path().unwrap_or("sk"),
+                record.file().unwrap_or_default(),
+                record.line().unwrap_or_default(),
+                std::thread::current().name().unwrap_or("?"),
+                std::thread::current().id(),
+                record.args()
+            )
+        })
+        .init();
     // Build the options after setting the log target
     opts = opts.build();
     trace!("Command line: {:?}", std::env::args());
@@ -321,7 +337,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     // start
     let components_to_stop = Arc::new(AtomicUsize::new(0));
 
-    let mut stream_of_item = source.unwrap_or_else(|| {
+    let stream_of_item = source.unwrap_or_else(|| {
         let (ret, _control) = options.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
         ret
     });
@@ -331,7 +347,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     let mut items = Vec::new();
 
     // Collect all items from the stream until the channel is closed
-    while let Some(batch) = stream_of_item.blocking_recv() {
+    while let Ok(batch) = stream_of_item.recv() {
         items.extend(batch);
     }
 

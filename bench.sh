@@ -406,12 +406,21 @@ if [ $RUNS -gt 1 ]; then
         else print "0"
     }')
 
-	echo "Average items matched: $AVG_MATCHED / $NUM_ITEMS"
-	echo "Average time: ${AVG_TIME}s"
-	echo "Average items/second: ${AVG_RATE}"
+	# Calculate min/max for several metrics so we can show them alongside averages
+	read -r MIN_TIME MAX_TIME <<<"$(awk -v times="${ELAPSED_TIMES[*]}" 'BEGIN { n=split(times,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.3f %.3f", min, max }')"
+	read -r MIN_RATE MAX_RATE <<<"$(awk -v rates="${RATES[*]}" 'BEGIN { n=split(rates,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.0f %.0f", min, max }')"
+	read -r MIN_MATCHED MAX_MATCHED <<<"$(awk -v counts="${MATCHED_COUNTS[*]}" 'BEGIN { n=split(counts,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.0f %.0f", min, max }')"
+
+	# For memory and CPU, ignore zero entries (meaning not measured)
+	read -r MIN_MEM MAX_MEM <<<"$(awk -v mems="${PEAK_MEMS[*]}" 'BEGIN { n=split(mems,a," "); min=1e18; max=0; found=0; for(i=1;i<=n;i++){ if(a[i] > 0){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; found=1 } } if(found) printf "%.0f %.0f", min, max; else print "0 0" }')"
+	read -r MIN_CPU MAX_CPU <<<"$(awk -v cpus="${PEAK_CPUS[*]}" 'BEGIN { n=split(cpus,a," "); min=1e18; max=0; found=0; for(i=1;i<=n;i++){ if(a[i] > 0){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; found=1 } } if(found) printf "%.1f %.1f", min, max; else print "0 0" }')"
+
+	echo "Average items matched: $AVG_MATCHED / $NUM_ITEMS (min: $MIN_MATCHED, max: $MAX_MATCHED)"
+	echo "Average time: ${AVG_TIME}s (min: ${MIN_TIME}s, max: ${MAX_TIME}s)"
+	echo "Average items/second: ${AVG_RATE} (min: ${MIN_RATE}, max: ${MAX_RATE})"
 	if [ "$AVG_MEM" != "0" ] && [ -n "$AVG_MEM" ]; then
-		echo "Average peak memory usage: $((AVG_MEM / 1024)) MB"
-		echo "Average peak CPU usage: ${AVG_CPU}%"
+		echo "Average peak memory usage: $((AVG_MEM / 1024)) MB (min: $((MIN_MEM / 1024)) MB, max: $((MAX_MEM / 1024)) MB)"
+		echo "Average peak CPU usage: ${AVG_CPU}% (min: ${MIN_CPU}%, max: ${MAX_CPU}%)"
 	fi
 else
 	# Single run - display results

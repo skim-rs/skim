@@ -26,6 +26,8 @@ pub struct PreviewLayout {
     pub offset: Option<String>,
     /// Whether or not to wrap the preview contents
     pub wrap: bool,
+    /// Whether or not to run the preview in a PTY
+    pub pty: bool,
 }
 
 impl Default for PreviewLayout {
@@ -36,6 +38,7 @@ impl Default for PreviewLayout {
             hidden: false,
             offset: None,
             wrap: false,
+            pty: false,
         }
     }
 }
@@ -62,6 +65,10 @@ impl From<&str> for PreviewLayout {
                 res.wrap = true;
             } else if part == "nowrap" {
                 res.wrap = false;
+            } else if part == "pty" {
+                res.pty = true;
+            } else if part == "nopty" {
+                res.pty = false;
             } else {
                 // Try to parse as size
                 if let Ok(size) = part.try_into() {
@@ -81,6 +88,7 @@ impl From<&str> for PreviewLayout {
 // }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
 

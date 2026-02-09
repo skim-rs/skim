@@ -11,7 +11,7 @@ use std::{
 
 use common::tmux::TmuxController;
 
-use crate::common::tmux::SK;
+use crate::common::SK;
 
 fn connect(name: &str) -> Result<Child> {
     Command::new("/bin/sh")

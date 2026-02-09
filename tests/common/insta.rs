@@ -145,15 +145,18 @@ impl<'a> TestHarness<'a> {
     /// This ensures the state is up-to-date before taking a snapshot.
     /// Call `render()` and `buffer_view()` afterward to actually take the snapshot.
     pub fn prepare_snap(&mut self) -> Result<()> {
-        // Wait for preview if configured - do this BEFORE heartbeat so we don't
-        // accidentally consume PreviewReady events
+        // Send heartbeat first to trigger any debounced pending preview runs.
+        // The debounce logic in run_preview() sets pending_preview_run=true when
+        // a RunPreview is dropped. The Heartbeat handler checks this flag and
+        // spawns the preview. We need this to happen BEFORE wait_for_preview()
+        // so it can detect and wait for the spawned preview task.
+        self.send(Event::Heartbeat)?;
+        self.tick()?;
+
+        // Now wait for preview if configured
         if self.app.options.preview.is_some() {
             self.wait_for_preview()?;
         }
-
-        // Send heartbeat to update status counters (item counts, spinner, etc.)
-        self.send(Event::Heartbeat)?;
-        self.tick()?;
 
         self.render()?;
         Ok(())

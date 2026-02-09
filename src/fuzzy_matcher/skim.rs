@@ -1043,6 +1043,7 @@ impl FuzzyMatcher for SkimMatcherV2 {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use crate::fuzzy_matcher::util::{assert_order, wrap_matches};
 

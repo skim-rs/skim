@@ -152,6 +152,7 @@ impl From<BorderType> for ratatui::widgets::BorderType {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod size_test {
     use super::*;
     use std::num::IntErrorKind;

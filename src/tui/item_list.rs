@@ -4,7 +4,6 @@ use indexmap::IndexSet;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, ListState, StatefulWidget, Widget};
 use regex::Regex;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use unicode_display_width::width as display_width;
 
 use crate::tui::util::char_display_width;
@@ -29,7 +28,6 @@ pub(crate) struct ProcessedItems {
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: IndexSet<MatchedItem>,
-    pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
     pub(crate) processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
@@ -58,11 +56,9 @@ pub struct ItemList {
 
 impl Default for ItemList {
     fn default() -> Self {
-        let (tx, _rx) = unbounded_channel();
         let processed_items = Arc::new(SpinLock::new(None));
 
         Self {
-            tx,
             processed_items,
             direction: ListDirection::BottomToTop,
             items: Default::default(),
@@ -93,30 +89,6 @@ impl Default for ItemList {
 }
 
 impl ItemList {
-    /// Background task that processes incoming items from matcher
-    /// Performs expensive operations (sorting) in background to keep render path fast
-    fn process_items_task(
-        mut rx: UnboundedReceiver<Vec<MatchedItem>>,
-        processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
-        no_sort: bool,
-    ) {
-        while let Some(mut items) = rx.blocking_recv() {
-            debug!("Background task: Got {} items to process", items.len());
-
-            // Sort items immediately - use stable sort to preserve order for equal ranks
-            if !no_sort {
-                items.sort_by_key(|item| item.rank);
-            }
-
-            // Write processed items to shared state for render thread
-            // Move items instead of cloning for efficiency
-            let processed = ProcessedItems { items };
-
-            *processed_items.lock() = Some(processed);
-        }
-        debug!("Background task: rx channel closed, exiting");
-    }
-
     fn cursor(&self) -> usize {
         self.current
     }
@@ -522,7 +494,6 @@ impl SkimWidget for ItemList {
             (None, 0)
         };
 
-        let (tx, rx) = unbounded_channel();
         let processed_items = Arc::new(SpinLock::new(None));
 
         let interactive = options.interactive;
@@ -530,14 +501,7 @@ impl SkimWidget for ItemList {
         let multi_select = options.multi;
 
         // Spawn background processing thread with the appropriate configuration
-        let processed_items_clone = processed_items.clone();
-        let no_sort = options.no_sort;
-        std::thread::spawn(move || {
-            Self::process_items_task(rx, processed_items_clone, no_sort);
-        });
-
         Self {
-            tx,
             processed_items,
             reserved: 0, // header_lines are now displayed in the Header widget, not ItemList
             direction: match options.layout {
@@ -590,6 +554,7 @@ impl SkimWidget for ItemList {
         } else if this.offset + inner_area.height as usize <= this.current {
             this.offset = this.current - inner_area.height as usize + 1;
         }
+        let initial_current = this.selected();
 
         // Check for pre-processed items from background thread (non-blocking)
         let items_updated = if let Some(processed) = this.processed_items.lock().take() {
@@ -753,7 +718,17 @@ impl SkimWidget for ItemList {
             buf,
             &mut ListState::default().with_selected(Some(this.current.saturating_sub(this.offset))),
         );
-        SkimRender { items_updated }
+        let run_preview = if let Some(curr) = self.selected()
+            && let Some(prev) = initial_current
+        {
+            curr.text() != prev.text()
+        } else {
+            self.selected().is_some() != initial_current.is_some()
+        };
+        SkimRender {
+            items_updated,
+            run_preview,
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+#![cfg_attr(coverage, feature(coverage_attribute))]
 //! Skim is a fuzzy finder library for Rust.
 //!
 //! It provides a fast and customizable way to filter and select items interactively,
@@ -32,8 +33,7 @@ use std::borrow::Cow;
 use std::env;
 use std::fmt::Display;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use color_eyre::eyre::Result;
 use color_eyre::eyre::{self, OptionExt};
@@ -45,8 +45,6 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
 use tokio::select;
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -55,6 +53,7 @@ pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
+use crate::reader::ReaderControl;
 pub use crate::skim_item::SkimItem;
 use crate::tui::event::Action;
 
@@ -328,9 +327,9 @@ pub trait Selector {
 
 //------------------------------------------------------------------------------
 /// Sender for streaming items to skim
-pub type SkimItemSender = UnboundedSender<Vec<Arc<dyn SkimItem>>>;
+pub type SkimItemSender = kanal::Sender<Vec<Arc<dyn SkimItem>>>;
 /// Receiver for streaming items to skim
-pub type SkimItemReceiver = UnboundedReceiver<Vec<Arc<dyn SkimItem>>>;
+pub type SkimItemReceiver = kanal::Receiver<Vec<Arc<dyn SkimItem>>>;
 
 /// Main entry point for running skim
 pub struct Skim {}
@@ -370,120 +369,39 @@ impl Skim {
         let rt = tokio::runtime::Runtime::new()?;
         let mut final_event: Event = Event::Quit;
         let mut final_key: KeyEvent = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
-        rt.block_on(async {
-            //------------------------------------------------------------------------------
-            // reader
-            // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
-            let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
-                let expanded = app.expand_cmd(&cmd, true);
-                log::debug!(
-                    "Interactive mode: initial_cmd = {:?} (from template {:?})",
-                    expanded,
-                    cmd
-                );
-                expanded
-            } else {
-                cmd.clone()
-            };
-            log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
-            let (item_tx, mut item_rx) = unbounded_channel();
-            let mut reader_control = reader.run(item_tx.clone(), &initial_cmd);
 
-            //------------------------------------------------------------------------------
-            // model + previewer
+        //------------------------------------------------------------------------------
+        // reader
+        // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
+        let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
+            let expanded = app.expand_cmd(&cmd, true);
+            log::debug!(
+                "Interactive mode: initial_cmd = {:?} (from template {:?})",
+                expanded,
+                cmd
+            );
+            expanded
+        } else {
+            cmd.clone()
+        };
+        let mut reader_control = reader.collect(app.item_pool.clone(), &initial_cmd);
 
-            let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
-            let reader_done = Arc::new(AtomicBool::new(false));
-            let reader_done_clone = reader_done.clone();
-            let (reader_interrupt_tx, mut reader_interrupt_rx) = unbounded_channel();
+        log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
 
-            let item_pool = app.item_pool.clone();
-            tokio::spawn(async move {
-                loop {
-                    if reader_interrupt_rx
-                        .try_recv()
-                        .unwrap_or_else(|e| e == TryRecvError::Disconnected)
-                    {
-                        debug!("stopping reader receiver thread");
-                        break;
-                    }
-                    trace!("getting items");
-                    match item_rx.recv().await {
-                        Some(batch) => {
-                            item_pool.append(batch);
-                            trace!("Got new items, len {}", item_pool.len());
-                        }
-                        None => {
-                            reader_done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-                            break;
-                        }
-                    }
-                }
-            });
+        //------------------------------------------------------------------------------
+        // model + previewer
 
-            // Start matcher initially
-            app.restart_matcher(true);
+        // Start matcher initially
+        app.restart_matcher(true);
 
-            // Deal with read-0 / select-1
-            let min_items_before_enter = if app.options.exit_0 {
-                1
-            } else if app.options.select_1 {
-                2
-            } else {
-                0
-            };
-
-            let mut should_enter = true;
-            if min_items_before_enter > 0 {
-                while app.matcher_control.get_num_matched() < min_items_before_enter
-                    && !app.matcher_control.stopped()
-                    && !reader_done.load(std::sync::atomic::Ordering::Relaxed) {
-                    let curr = app.matcher_control.get_num_matched();
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                    trace!(
-                        "waiting for matcher, stopped: {}, processed: {}, pool: {}, matched: {}, query: {}, reader_done: {}, reader_control_done: {}",
-                        app.matcher_control.stopped(),
-                        app.matcher_control.get_num_processed(),
-                        app.item_pool.num_not_taken(),
-                        curr,
-                        app.input.value,
-                        reader_done.load(std::sync::atomic::Ordering::Relaxed),
-                        reader_control.is_done()
-                    );
-                    app.restart_matcher(false);
-                };
-                trace!("checking for matched item count before entering: {}/{min_items_before_enter}", app.matcher_control.get_num_matched());
-                if app.matcher_control.get_num_matched() == min_items_before_enter - 1
-                {
-                    app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
-                    debug!("early exit, result: {:?}", app.results());
-                    should_enter = false;
-                    final_event = Event::Action(Action::Accept(None));
-                }
-            }
-
-            if should_enter {
-                let listener = if let Some(socket_name) = &listen_socket {
-                    debug!("starting listener on socket at {socket_name}");
-                    Some(
-                        interprocess::local_socket::ListenerOptions::new()
-                            .name(
-                                interprocess::local_socket::ToNsName::to_ns_name::<
-                                    interprocess::local_socket::GenericNamespaced,
-                                >(socket_name.as_str())
-                                .unwrap_or_else(|e| {
-                                    panic!("Failed to build full name for IPC listener from {socket_name}: {e}")
-                                }),
-                            )
-                            .create_tokio()
-                            .unwrap_or_else(|e| panic!("Failed to create tokio IPC listener at {socket_name}: {e}")),
-                    )
-                } else {
-                    None
-                };
-                let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
-                let mut tui = tui::Tui::new_with_height(backend, height)?;
-                let event_tx_clone = tui.event_tx.clone();
+        if Self::should_enter(&mut app, &reader_control) {
+            let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
+            let mut tui = tui::Tui::new_with_height(backend, height)?;
+            let event_tx_clone = tui.event_tx.clone();
+            let mut reader_done = false;
+            rt.block_on(async {
+                let listener = listen_socket.map(|s| Self::init_listener(&s));
+                let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
                 tui.enter()?;
                 loop {
                     select! {
@@ -504,8 +422,8 @@ impl Skim {
                                 }
                                 app.restart_matcher(true);
                                 // Start a new reader with the new command (no source, using cmd)
-                                reader_control = reader.run(item_tx.clone(), new_cmd);
-                                reader_done.store(false, std::sync::atomic::Ordering::Relaxed);
+                                reader_control = reader.collect(app.item_pool.clone(), new_cmd);
+                                reader_done = false;
                             }
                             if let Event::Key(k) = &evt {
                               final_key = k.to_owned();
@@ -514,10 +432,7 @@ impl Skim {
                             }
 
                             // Check reader status and update
-                            if !reader_control.is_done() {
-                              app.reader_timer = Instant::now();
-                            } else if ! reader_done.load(std::sync::atomic::Ordering::Relaxed) {
-                                reader_done.store(true, std::sync::atomic::Ordering::Relaxed);
+                            if reader_control.is_done() && !reader_done {
                                 app.restart_matcher(false);
                             }
                             app.handle_event(&mut tui, &evt)?;
@@ -549,17 +464,16 @@ impl Skim {
                     }
 
                     if app.should_quit {
-                        app.preview.kill();
-                        app.matcher_control.kill();
                         break;
                     }
                 }
-            }
-            reader_control.kill();
-            let _ = reader_interrupt_tx.send(true);
-            eyre::Ok(())
-        })?;
-
+                eyre::Ok(())
+            })?;
+        } else {
+            // We didn't enter
+            final_event = Event::Action(Action::Accept(None));
+        }
+        reader_control.kill();
         // Extract final_key and is_abort from final_event
         let is_abort = !matches!(&final_event, Event::Action(Action::Accept(_)));
 
@@ -581,10 +495,71 @@ impl Skim {
             selected_items: app.results(),
             header: app.header.header.clone(),
         };
-        // Explicitely drop app to make sure we stop all components
-        drop(app);
+
         debug!("output: {output:?}");
 
         Ok(output)
+    }
+    /// Checks read-0 and select-1 to wait and returns whether or not we should enter
+    fn should_enter(app: &mut App<'_>, reader_control: &ReaderControl) -> bool {
+        // Deal with read-0 / select-1
+        let min_items_before_enter = if app.options.exit_0 {
+            1
+        } else if app.options.select_1 {
+            2
+        } else {
+            0
+        };
+        if min_items_before_enter > 0 {
+            trace!(
+                "checking matcher, stopped: {}, processed: {}, matched: {}/{}, pool: {}, query: {}, reader_control_done: {}",
+                app.matcher_control.stopped(),
+                app.matcher_control.get_num_processed(),
+                app.matcher_control.get_num_matched(),
+                min_items_before_enter,
+                app.item_pool.num_not_taken(),
+                app.input.value,
+                reader_control.is_done()
+            );
+            while app.matcher_control.get_num_matched() < min_items_before_enter
+                && (!app.matcher_control.stopped() || !reader_control.is_done())
+            {
+                trace!("still waiting");
+                std::thread::sleep(Duration::from_millis(10));
+                app.restart_matcher(false);
+            }
+            trace!(
+                "checked matcher, stopped: {}, processed: {}, pool: {}, query: {}, reader_control_done: {}",
+                app.matcher_control.stopped(),
+                app.matcher_control.get_num_processed(),
+                app.item_pool.num_not_taken(),
+                app.input.value,
+                reader_control.is_done()
+            );
+            trace!(
+                "checking for matched item count before entering: {}/{min_items_before_enter}",
+                app.matcher_control.get_num_matched()
+            );
+            if app.matcher_control.get_num_matched() == min_items_before_enter - 1 {
+                app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
+                debug!("early exit, result: {:?}", app.results());
+                return false;
+            };
+        }
+        true
+    }
+
+    /// Initialize the IPC socket listener
+    fn init_listener(socket_name: &str) -> interprocess::local_socket::tokio::Listener {
+        debug!("starting listener on socket at {socket_name}");
+        interprocess::local_socket::ListenerOptions::new()
+            .name(
+                interprocess::local_socket::ToNsName::to_ns_name::<interprocess::local_socket::GenericNamespaced>(
+                    socket_name,
+                )
+                .unwrap_or_else(|e| panic!("Failed to build full name for IPC listener from {socket_name}: {e}")),
+            )
+            .create_tokio()
+            .unwrap_or_else(|e| panic!("Failed to create tokio IPC listener at {socket_name}: {e}"))
     }
 }

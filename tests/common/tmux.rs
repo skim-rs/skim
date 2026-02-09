@@ -13,10 +13,7 @@ use rand::distr::Alphanumeric;
 use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
-#[cfg(debug_assertions)]
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ./target/debug/sk";
-#[cfg(not(debug_assertions))]
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ./target/release/sk";
+use crate::common::SK;
 
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
@@ -43,6 +40,7 @@ where
 }
 
 pub enum Keys<'a> {
+    /// Do not use, send multiple `Key`s instead
     Str(&'a str),
     Key(char),
     Ctrl(&'a Keys<'a>),
