@@ -195,8 +195,10 @@ impl Matcher {
                 trace!("matcher stop, total matched: {}", matched_items.len());
             }
 
-            callback(matched_items);
-            stopped.store(true, Ordering::Relaxed);
+            if !stopped.load(Ordering::Relaxed) {
+                callback(matched_items);
+                stopped.store(true, Ordering::Relaxed);
+            }
         });
 
         MatcherControl {
