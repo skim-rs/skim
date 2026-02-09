@@ -11,10 +11,8 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
     thread,
-    time::Duration,
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -126,7 +124,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let line_ending = if opts.read0 { b'\0' } else { b'\n' };
 
     let stop_reading = Arc::new(AtomicBool::new(false));
-    let stdin_handle = if has_piped_input {
+    let _stdin_handle = if has_piped_input {
         debug!("Reading stdin and piping to fifo");
 
         // Create a named pipe (FIFO)
@@ -232,23 +230,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         .unwrap_or_else(|e| panic!("Tmux invocation failed with {e}"));
 
     // Signal the stdin thread to stop and wait for it to exit
-    if let Some(handle) = stdin_handle {
-        stop_reading.store(true, Ordering::Relaxed);
-        debug!("Signaled stdin thread to stop");
-
-        // Use a channel-based timeout since JoinHandle doesn't have join_timeout
-        let (tx, rx) = mpsc::channel();
-        thread::spawn(move || {
-            let _ = tx.send(handle.join());
-        });
-
-        // Give the thread a short time to finish gracefully
-        // If it's blocked on read, this will timeout and the thread will be dropped
-        match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(_) => debug!("Stdin thread exited cleanly"),
-            Err(_) => debug!("Stdin thread did not exit within timeout, dropping handle"),
-        }
-    }
+    stop_reading.store(true, Ordering::Relaxed);
 
     let output_ending = if opts.print0 { "\0" } else { "\n" };
     let mut stdout_bytes = std::fs::read_to_string(tmp_stdout).unwrap_or_default();

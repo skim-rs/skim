@@ -1,4 +1,5 @@
 //! This module contains the matching coordinator
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
@@ -11,8 +12,6 @@ use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
-use defer_drop::DeferDrop;
-use std::rc::Rc;
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -156,7 +155,7 @@ impl Matcher {
     ///
     /// The callback is invoked when matching is complete with the matched items.
     /// Returns a MatcherControl that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(&self, query: &str, item_pool: Arc<DeferDrop<ItemPool>>, callback: C) -> MatcherControl
+    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, callback: C) -> MatcherControl
     where
         C: Fn(Arc<SpinLock<Vec<MatchedItem>>>) + Send + 'static,
     {

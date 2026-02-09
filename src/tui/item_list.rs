@@ -29,7 +29,7 @@ pub(crate) struct ProcessedItems {
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: IndexSet<MatchedItem>,
-    pub(crate) tx: UnboundedSender<Vec<MatchedItem>>,
+    pub(crate) tx: UnboundedSender<Option<Vec<MatchedItem>>>,
     pub(crate) processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
@@ -96,11 +96,11 @@ impl ItemList {
     /// Background task that processes incoming items from matcher
     /// Performs expensive operations (sorting) in background to keep render path fast
     fn process_items_task(
-        mut rx: UnboundedReceiver<Vec<MatchedItem>>,
+        mut rx: UnboundedReceiver<Option<Vec<MatchedItem>>>,
         processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
         no_sort: bool,
     ) {
-        while let Some(mut items) = rx.blocking_recv() {
+        while let Some(Some(mut items)) = rx.blocking_recv() {
             debug!("Background task: Got {} items to process", items.len());
 
             // Sort items immediately - use stable sort to preserve order for equal ranks
@@ -532,7 +532,7 @@ impl SkimWidget for ItemList {
         // Spawn background processing thread with the appropriate configuration
         let processed_items_clone = processed_items.clone();
         let no_sort = options.no_sort;
-        std::thread::spawn(move || {
+        let _thread_handle = std::thread::spawn(move || {
             Self::process_items_task(rx, processed_items_clone, no_sort);
         });
 
@@ -765,6 +765,12 @@ impl SkimWidget for ItemList {
             items_updated,
             run_preview,
         }
+    }
+}
+
+impl Drop for ItemList {
+    fn drop(&mut self) {
+        let _ = self.tx.send(None); // Send sentinel to unblock if waiting
     }
 }
 

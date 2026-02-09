@@ -21,7 +21,6 @@ use super::header::Header;
 use super::item_list::ItemList;
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
-use defer_drop::DeferDrop;
 use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
@@ -38,7 +37,7 @@ const HIDE_GRACE_MS: u128 = 500;
 /// Application state for skim's TUI
 pub struct App<'a> {
     /// Pool of items to be filtered
-    pub item_pool: Arc<DeferDrop<ItemPool>>,
+    pub item_pool: Arc<ItemPool>,
     /// Whether the application should quit
     pub should_quit: bool,
 
@@ -326,7 +325,7 @@ impl<'a> App<'a> {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
-            item_pool: Arc::new(DeferDrop::new(ItemPool::from_options(&options))),
+            item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             should_quit: false,
@@ -1173,7 +1172,7 @@ impl<'a> App<'a> {
                 debug!("Got {} results from matcher, sending to item list...", m.len());
 
                 // Send matched items directly (header_lines are now handled by the Header widget)
-                let _ = tx.send(m.to_vec());
+                _ = tx.send(Some(m.to_vec()));
             });
         }
     }
@@ -1267,5 +1266,13 @@ impl<'a> App<'a> {
     fn toggle_spinner(&mut self) {
         self.show_spinner = !self.show_spinner;
         self.spinner_last_change = std::time::Instant::now();
+    }
+}
+
+impl Drop for App<'_> {
+    fn drop(&mut self) {
+        self.preview.kill();
+        self.matcher_control.kill();
+        _ = self.item_list.tx.send(None);
     }
 }

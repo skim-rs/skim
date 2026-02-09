@@ -4,6 +4,7 @@
 use tokio::select;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
+use crate::item::ItemPool;
 use crate::options::SkimOptions;
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
@@ -99,7 +100,32 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, app_tx);
+        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, move |items| _ = app_tx.send(items));
+
+        ReaderControl {
+            tx_interrupt,
+            tx_interrupt_cmd,
+            components_to_stop,
+            items,
+        }
+    }
+
+    /// Starts collecting items and sending them to the pool directly
+    /// Returns a control handle
+    pub fn collect(&mut self, item_pool: Arc<ItemPool>, cmd: &str) -> ReaderControl {
+        let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        let items = Arc::new(SpinLock::new(Vec::new()));
+
+        let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
+            let components_to_stop_clone = components_to_stop.clone();
+            let (rx_item, tx_interrupt_cmd) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
+            (rx_item, Some(tx_interrupt_cmd))
+        });
+
+        let components_to_stop_clone = components_to_stop.clone();
+        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, move |items| {
+            item_pool.append(items);
+        });
 
         ReaderControl {
             tx_interrupt,
@@ -110,11 +136,14 @@ impl Reader {
     }
 }
 
-fn collect_item(
+fn collect_item<F>(
     components_to_stop: Arc<AtomicUsize>,
     mut rx_item: SkimItemReceiver,
-    app_tx: UnboundedSender<Vec<Arc<dyn SkimItem>>>,
-) -> UnboundedSender<i32> {
+    callback: F,
+) -> UnboundedSender<i32>
+where
+    F: Fn(Vec<Arc<dyn SkimItem>>) + Send + 'static,
+{
     let (tx_interrupt, mut rx_interrupt) = unbounded_channel();
 
     let started = Arc::new(AtomicBool::new(false));
@@ -129,7 +158,7 @@ fn collect_item(
                 new_item = rx_item.recv() => {
                     match new_item {
                       Some(items) => {
-                          let _ = app_tx.send(items);
+                          callback(items);
                       }
                       None => break,
                   }
