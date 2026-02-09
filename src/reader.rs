@@ -102,7 +102,7 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, move |items| _ = app_tx.send(items));
+        let tx_interrupt = collect_items(components_to_stop_clone, rx_item, move |items| _ = app_tx.send(items));
 
         ReaderControl {
             tx_interrupt,
@@ -125,9 +125,10 @@ impl Reader {
         });
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_item(components_to_stop_clone, rx_item, move |items| {
+        let tx_interrupt = collect_items(components_to_stop_clone, rx_item, move |items| {
             item_pool.append(items);
         });
+        debug!("collect: started ({components_to_stop:?} components)");
 
         ReaderControl {
             tx_interrupt,
@@ -138,7 +139,7 @@ impl Reader {
     }
 }
 
-fn collect_item<F>(components_to_stop: Arc<AtomicUsize>, rx_item: SkimItemReceiver, callback: F) -> Sender<i32>
+fn collect_items<F>(components_to_stop: Arc<AtomicUsize>, rx_item: SkimItemReceiver, callback: F) -> Sender<i32>
 where
     F: Fn(Vec<Arc<dyn SkimItem>>) + Send + 'static,
 {
@@ -158,11 +159,13 @@ where
             }
             match rx_item.try_recv() {
                 Ok(Some(items)) => {
+                    trace!("collect_item: got {} items", items.len());
                     callback(items);
                 }
-                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
-                Err(e) => {
-                    debug!("rx_item: err {e}");
+                Ok(None) => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(_) => {
                     break;
                 }
             }

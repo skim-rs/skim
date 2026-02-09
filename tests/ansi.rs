@@ -21,7 +21,7 @@ sk_test!(test_ansi_flag_disabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n
     @capture[0] starts_with(">");
     @capture[*] contains("plain");
 
-    @keys Str("red");
+    @keys Key('r'), Key('e'), Key('d');
 
     @capture[2] eq("> ?[31mred?[0m");
 
@@ -31,14 +31,14 @@ sk_test!(test_ansi_flag_disabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n
 sk_test!(test_ansi_matching_on_stripped_text, @cmd "echo -e '\\x1b[32mgreen\\x1b[0m text\\n\\x1b[31mred\\x1b[0m text\\nplain text'", &["--ansi"], {
     @capture[0] starts_with(">");
     @lines |l| (l.len() >= 3 && l.iter().any(|line| line.contains("plain")));
-    @keys Str("text");
+    @keys Key('t'), Key('e'), Key('x'), Key('t');
     // Tiebreak will reorder items
     @capture[2] contains("red text");
     @capture[3] contains("green text");
     @capture[4] contains("plain text");
 
 
-    @keys Ctrl(&Key('u')), Str("green");
+    @keys Ctrl(&Key('u')), Key('g'), Key('r'), Key('e'), Key('e'), Key('n');
     @capture[2] contains("green");
 
     @lines |l| (l.len() == 3);

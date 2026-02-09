@@ -1,0 +1,29 @@
+---
+source: tests/issues.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"> ああa                                                                         " Hidden by multi-width symbols: [(3, " "), (5, " ")]
+"  1/1/RE                                                                     0/0"
+"> a                                                                             "
+cursor: (24, 4)

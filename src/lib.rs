@@ -394,12 +394,12 @@ impl Skim {
         app.restart_matcher(true);
 
         if Self::should_enter(&mut app, &reader_control) {
-            let listener = listen_socket.map(|s| Self::init_listener(&s));
             let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
             let mut tui = tui::Tui::new_with_height(backend, height)?;
             let event_tx_clone = tui.event_tx.clone();
             let mut reader_done = false;
             rt.block_on(async {
+                let listener = listen_socket.map(|s| Self::init_listener(&s));
                 let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
                 tui.enter()?;
                 loop {
@@ -510,23 +510,31 @@ impl Skim {
             0
         };
         if min_items_before_enter > 0 {
+            trace!(
+                "checking matcher, stopped: {}, processed: {}, matched: {}/{}, pool: {}, query: {}, reader_control_done: {}",
+                app.matcher_control.stopped(),
+                app.matcher_control.get_num_processed(),
+                app.matcher_control.get_num_matched(),
+                min_items_before_enter,
+                app.item_pool.num_not_taken(),
+                app.input.value,
+                reader_control.is_done()
+            );
             while app.matcher_control.get_num_matched() < min_items_before_enter
-                && !app.matcher_control.stopped()
-                && !reader_control.is_done()
+                && (!app.matcher_control.stopped() || !reader_control.is_done())
             {
-                let curr = app.matcher_control.get_num_matched();
+                trace!("still waiting");
                 std::thread::sleep(Duration::from_millis(10));
-                trace!(
-                    "waiting for matcher, stopped: {}, processed: {}, pool: {}, matched: {}, query: {}, reader_control_done: {}",
-                    app.matcher_control.stopped(),
-                    app.matcher_control.get_num_processed(),
-                    app.item_pool.num_not_taken(),
-                    curr,
-                    app.input.value,
-                    reader_control.is_done()
-                );
                 app.restart_matcher(false);
             }
+            trace!(
+                "checked matcher, stopped: {}, processed: {}, pool: {}, query: {}, reader_control_done: {}",
+                app.matcher_control.stopped(),
+                app.matcher_control.get_num_processed(),
+                app.item_pool.num_not_taken(),
+                app.input.value,
+                reader_control.is_done()
+            );
             trace!(
                 "checking for matched item count before entering: {}/{min_items_before_enter}",
                 app.matcher_control.get_num_matched()

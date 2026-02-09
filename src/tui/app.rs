@@ -547,6 +547,11 @@ impl<'a> App<'a> {
             Event::Heartbeat => {
                 // Heartbeat is used for periodic UI updates
                 self.update_spinner();
+
+                if self.pending_matcher_restart {
+                    self.restart_matcher(true);
+                }
+
                 // Check if a debounced preview run needs to be executed
                 if self.pending_preview_run
                     && let Err(e) = self.run_preview(tui)
@@ -1149,6 +1154,7 @@ impl<'a> App<'a> {
 
         let matcher_stopped = self.matcher_control.stopped();
         if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
+            trace!("restarting matcher");
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;
