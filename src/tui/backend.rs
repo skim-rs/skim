@@ -13,9 +13,8 @@ use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
 use termion::cursor::DetectCursorPos;
 use termion::raw::IntoRawMode as _;
-use tokio::sync::mpsc::unbounded_channel;
 use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;

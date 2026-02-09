@@ -9,7 +9,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use regex::Regex;
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use crate::field::FieldRange;
 use crate::helper::item::DefaultSkimItem;
@@ -271,7 +270,7 @@ impl SkimItemReader {
 
     /// helper: convert bufread into SkimItemReceiver
     fn raw_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded_channel();
+        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = kanal::bounded(1024 * 1024);
         let option = self.option.clone();
 
         thread::spawn(move || {
@@ -287,15 +286,15 @@ impl SkimItemReader {
         &self,
         components_to_stop: Arc<AtomicUsize>,
         input: CollectorInput,
-    ) -> (SkimItemReceiver, UnboundedSender<i32>) {
+    ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
         let send_error = self.option.show_error;
         let (command, source) = match input {
             CollectorInput::Pipe(pipe) => (None, pipe),
             CollectorInput::Command(cmd) => get_command_output(&cmd, send_error).expect("command not found"),
         };
 
-        let (tx_interrupt, mut rx_interrupt) = unbounded_channel();
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded_channel();
+        let (tx_interrupt, rx_interrupt) = crate::prelude::bounded(8);
+        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = crate::prelude::bounded(1024 * 1024);
 
         let started = Arc::new(AtomicBool::new(false));
         let started_clone = started.clone();
@@ -307,7 +306,7 @@ impl SkimItemReader {
             components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
             started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
-            let _ = rx_interrupt.blocking_recv();
+            let _ = rx_interrupt.recv();
             if let Some(mut child) = command {
                 // clean up resources
                 let _ = child.kill();
@@ -376,7 +375,11 @@ impl SkimItemReader {
 }
 
 impl CommandCollector for SkimItemReader {
-    fn invoke(&mut self, cmd: &str, components_to_stop: Arc<AtomicUsize>) -> (SkimItemReceiver, UnboundedSender<i32>) {
+    fn invoke(
+        &mut self,
+        cmd: &str,
+        components_to_stop: Arc<AtomicUsize>,
+    ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
         self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
     }
 }

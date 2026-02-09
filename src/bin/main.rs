@@ -337,7 +337,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     // start
     let components_to_stop = Arc::new(AtomicUsize::new(0));
 
-    let mut stream_of_item = source.unwrap_or_else(|| {
+    let stream_of_item = source.unwrap_or_else(|| {
         let (ret, _control) = options.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
         ret
     });
@@ -347,7 +347,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
     let mut items = Vec::new();
 
     // Collect all items from the stream until the channel is closed
-    while let Some(batch) = stream_of_item.blocking_recv() {
+    while let Ok(batch) = stream_of_item.recv() {
         items.extend(batch);
     }
 

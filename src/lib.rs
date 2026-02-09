@@ -44,7 +44,6 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
 use tokio::select;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -327,9 +326,9 @@ pub trait Selector {
 
 //------------------------------------------------------------------------------
 /// Sender for streaming items to skim
-pub type SkimItemSender = UnboundedSender<Vec<Arc<dyn SkimItem>>>;
+pub type SkimItemSender = kanal::Sender<Vec<Arc<dyn SkimItem>>>;
 /// Receiver for streaming items to skim
-pub type SkimItemReceiver = UnboundedReceiver<Vec<Arc<dyn SkimItem>>>;
+pub type SkimItemReceiver = kanal::Receiver<Vec<Arc<dyn SkimItem>>>;
 
 /// Main entry point for running skim
 pub struct Skim {}
@@ -384,27 +383,25 @@ impl Skim {
         } else {
             cmd.clone()
         };
+        let mut reader_control = reader.collect(app.item_pool.clone(), &initial_cmd);
 
-        rt.block_on(async {
-            log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
-            let mut reader_control = reader.collect(app.item_pool.clone(), &initial_cmd);
+        log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
 
-            //------------------------------------------------------------------------------
-            // model + previewer
+        //------------------------------------------------------------------------------
+        // model + previewer
 
-            let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
+        // Start matcher initially
+        app.restart_matcher(true);
 
-            // Start matcher initially
-            app.restart_matcher(true);
-
-            if Self::should_enter(&mut app, &reader_control) {
-                let listener = listen_socket.map(|s| Self::init_listener(&s));
-                let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
-                let mut tui = tui::Tui::new_with_height(backend, height)?;
-                let event_tx_clone = tui.event_tx.clone();
-                let mut reader_done = false;
+        if Self::should_enter(&mut app, &reader_control) {
+            let listener = listen_socket.map(|s| Self::init_listener(&s));
+            let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
+            let mut tui = tui::Tui::new_with_height(backend, height)?;
+            let event_tx_clone = tui.event_tx.clone();
+            let mut reader_done = false;
+            rt.block_on(async {
+                let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
                 tui.enter()?;
-
                 loop {
                     select! {
                         event = tui.next() => {
@@ -469,14 +466,13 @@ impl Skim {
                         break;
                     }
                 }
-            } else {
-                // We didn't enter
-                final_event = Event::Action(Action::Accept(None));
-            }
-            reader_control.kill();
-            eyre::Ok(())
-        })?;
-
+                eyre::Ok(())
+            })?;
+        } else {
+            // We didn't enter
+            final_event = Event::Action(Action::Accept(None));
+        }
+        reader_control.kill();
         // Extract final_key and is_abort from final_event
         let is_abort = !matches!(&final_event, Event::Action(Action::Accept(_)));
 

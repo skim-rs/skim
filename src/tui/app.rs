@@ -1153,7 +1153,6 @@ impl<'a> App<'a> {
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;
             self.matcher_control.kill();
-            let tx = self.item_list.tx.clone();
             self.item_pool.reset();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
@@ -1167,12 +1166,16 @@ impl<'a> App<'a> {
                 &self.input
             };
             let item_pool = self.item_pool.clone();
-            self.matcher_control = self.matcher.run(query, item_pool.clone(), move |matches| {
-                let m = matches.lock();
-                debug!("Got {} results from matcher, sending to item list...", m.len());
+            let processed_items = self.item_list.processed_items.clone();
+            let no_sort = self.options.no_sort;
+            self.matcher_control = self.matcher.run(query, item_pool.clone(), move |mut matches| {
+                debug!("Got {} results from matcher, sending to item list...", matches.len());
 
                 // Send matched items directly (header_lines are now handled by the Header widget)
-                _ = tx.send(Some(m.to_vec()));
+                if !no_sort {
+                    matches.sort_by_key(|item| item.rank);
+                }
+                *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
             });
         }
     }
@@ -1266,13 +1269,5 @@ impl<'a> App<'a> {
     fn toggle_spinner(&mut self) {
         self.show_spinner = !self.show_spinner;
         self.spinner_last_change = std::time::Instant::now();
-    }
-}
-
-impl Drop for App<'_> {
-    fn drop(&mut self) {
-        self.preview.kill();
-        self.matcher_control.kill();
-        _ = self.item_list.tx.send(None);
     }
 }
