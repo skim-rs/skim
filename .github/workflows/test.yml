@@ -58,7 +58,7 @@ jobs:
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo llvm-cov nextest --release --features test-utils --all-targets  --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --release --features test-utils --all-targets --codecov --output-path codecov.json
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
@@ -66,7 +66,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: lcov.info
+          files: codecov.json
   clippy:
     runs-on: ubuntu-latest
     steps:

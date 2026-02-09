@@ -237,7 +237,7 @@ pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use event::Action::*;

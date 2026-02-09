@@ -1,4 +1,4 @@
-use crate::common::tmux::SK;
+use crate::common::SK;
 use std::process::Command;
 
 #[allow(dead_code)]

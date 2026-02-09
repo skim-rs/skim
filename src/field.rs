@@ -179,7 +179,7 @@ pub fn parse_transform_fields(delimiter: &Regex, text: &str, fields: &[FieldRang
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(coverage, coverage(off))]
 mod test {
     use super::FieldRange::*;
     #[test]

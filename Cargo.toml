@@ -85,4 +85,4 @@ test-utils = []
 insta = "1.43"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils"))', 'cfg(coverage_nightly)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils"))', 'cfg(coverage, coverage_nightly)'] }

@@ -449,6 +449,7 @@ impl Drop for Preview {
 
 impl SkimWidget for Preview {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
+        #[cfg_attr(target_os = "macos", allow(unused_mut))]
         let mut res = Self {
             theme,
             border: options.border,

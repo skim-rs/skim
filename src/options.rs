@@ -937,10 +937,12 @@ pub enum FeatureFlag {
     NoPreviewPty,
 }
 
+#[allow(unused_macros)]
 macro_rules! feature_flag {
     ($options:ident, $name:ident) => {
         (std::env::var(stringify!(SKIM_FLAG_$name).replace(' ', "")).is_ok_and(|x| x.len() > 0)
             || $options.flags.contains(&crate::options::FeatureFlag::$name))
     };
 }
+#[allow(unused_imports)]
 pub(crate) use feature_flag;

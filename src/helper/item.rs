@@ -476,7 +476,7 @@ fn escape_ansi(raw: &str) -> String {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(coverage, coverage(off))]
 mod test {
     use super::*;
 

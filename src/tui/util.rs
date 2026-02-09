@@ -200,7 +200,7 @@ pub(crate) fn handle_csi_query(seq: &[u8], writer: &mut Box<dyn std::io::Write +
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use ansi_to_tui::IntoText as _;

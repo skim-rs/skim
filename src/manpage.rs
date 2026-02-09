@@ -1,4 +1,4 @@
-#![cfg_attr(coverage_nightly, coverage(off))]
+#![cfg_attr(coverage, coverage(off))]
 //! Provides what's needed to generate skim's man page
 use std::io::Write;
 
