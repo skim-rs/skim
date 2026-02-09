@@ -468,7 +468,7 @@ impl SkimWidget for Preview {
             total_lines: 0,
         };
         #[cfg(target_os = "linux")]
-        if !res.wrap && !crate::options::feature_flag!(options, NoPreviewPty) {
+        if options.preview_window.pty {
             res.init_pty();
         }
         res
