@@ -1,0 +1,29 @@
+---
+source: tests/matcher.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  src/tui/item_list.rs                                                          "
+"> src/tui/mod.rs                                                                "
+"  2/49                                                                       0/0"
+"> stum                                                                          "
+cursor: (24, 7)

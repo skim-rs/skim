@@ -529,6 +529,17 @@ macro_rules! insta_test {
         }
     };
 
+    // Simple variant with items expression (identifier or expression) - just snapshot
+    ($name:ident, $items:expr, $options:expr) => {
+        #[test]
+        fn $name() -> color_eyre::Result<()> {
+            let options = $crate::common::insta::parse_options($options);
+            let mut h = $crate::common::insta::enter_items($items, options)?;
+            $crate::snap!(h);
+            Ok(())
+        }
+    };
+
     // Simple variant with @cmd - just snapshot
     ($name:ident, @cmd $cmd:expr, $options:expr) => {
         #[test]
@@ -551,12 +562,12 @@ macro_rules! insta_test {
         }
     };
 
-    // DSL variant with items array
-    ($name:ident, [$($item:expr),* $(,)?], $options:expr, { $($content:tt)* }) => {
+    // DSL variant with items expression (identifier or expression)
+    ($name:ident, $items:expr, $options:expr, { $($content:tt)* }) => {
         #[test]
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
-            let mut h = $crate::common::insta::enter_items([$($item),*], options)?;
+            let mut h = $crate::common::insta::enter_items($items, options)?;
 
             insta_test!(@expand h; $($content)*);
 
