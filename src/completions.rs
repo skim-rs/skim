@@ -1,3 +1,4 @@
+#![cfg_attr(coverage_nightly, coverage(off))]
 //! Provides helpers to easily generate shell completions
 use clap::CommandFactory;
 

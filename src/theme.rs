@@ -379,6 +379,7 @@ fn set_style(s: &mut Style, layer: &str, color: Option<Color>, modifier: Modifie
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
 

@@ -1,3 +1,4 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 //! Skim is a fuzzy finder library for Rust.
 //!
 //! It provides a fast and customizable way to filter and select items interactively,

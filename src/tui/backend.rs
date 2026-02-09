@@ -112,6 +112,7 @@ where
     /// raw mode, scrolling) that don't work with `TestBackend`. Use this when
     /// writing snapshot tests or other tests that need to render the UI.
     #[cfg(any(test, feature = "test-utils"))]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn new_for_test(backend: B) -> Result<Self> {
         let event_channel = unbounded_channel();
         Ok(Self {

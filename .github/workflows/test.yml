@@ -52,14 +52,21 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest@0.9
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.8
       - name: Cache
         uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo nextest run --release --all-targets --features test-utils
+        run: cargo llvm-cov nextest --release --features test-utils --all-targets  --lcov --output-path lcov.info
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
-
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
   clippy:
     runs-on: ubuntu-latest
     steps:
