@@ -15,3 +15,7 @@
 .ropeproject/
 bench_data.txt
 .direnv
+
+# Coverage
+lcov.info
+codecov.json
