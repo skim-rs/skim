@@ -18,7 +18,7 @@ use std::{
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nix::sys::stat::Mode;
 use nix::unistd::mkfifo;
-use rand::{Rng, distr::Alphanumeric};
+use rand::{RngExt as _, distr::Alphanumeric};
 use which::which;
 
 use crate::{
