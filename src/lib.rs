@@ -44,7 +44,6 @@ use ratatui::prelude::CrosstermBackend;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
-use tokio::select;
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -404,7 +403,11 @@ impl Skim {
                 let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
                 tui.enter()?;
                 loop {
-                    select! {
+                    if app.should_quit {
+                        break;
+                    }
+
+                    tokio::select! {
                         event = tui.next() => {
                             let evt = event.ok_or_eyre("Could not acquire next event")?;
 
@@ -461,10 +464,6 @@ impl Skim {
                                 }
                             });
                         }
-                    }
-
-                    if app.should_quit {
-                        break;
                     }
                 }
                 eyre::Ok(())

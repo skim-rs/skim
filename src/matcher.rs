@@ -2,7 +2,6 @@
 use rayon::ThreadPool;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use rayon::prelude::*;
@@ -13,16 +12,6 @@ use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
-
-static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
-    std::thread::available_parallelism()
-        .ok()
-        .map(|inner| inner.get())
-        .unwrap_or_else(|| 0)
-});
-
-static OPT_MATCHER_THREAD_POOL: LazyLock<Option<ThreadPool>> =
-    LazyLock::new(|| rayon::ThreadPoolBuilder::new().num_threads(*NUM_THREADS).build().ok());
 
 static PLACEHOLDER_RANK: [i32; 5] = [0, 0, 0, 0, 0];
 static PLACEHOLDER_RANGE: Option<MatchRange> = None;
@@ -161,7 +150,13 @@ impl Matcher {
     ///
     /// The callback is invoked when matching is complete with the matched items.
     /// Returns a MatcherControl that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, callback: C) -> MatcherControl
+    pub fn run<C>(
+        &self,
+        query: &str,
+        item_pool: Arc<ItemPool>,
+        thread_pool: Arc<ThreadPool>,
+        callback: C,
+    ) -> MatcherControl
     where
         C: Fn(Vec<MatchedItem>) + Send + 'static,
     {
@@ -235,12 +230,7 @@ impl Matcher {
             });
         };
 
-        match OPT_MATCHER_THREAD_POOL.as_ref() {
-            Some(pool) => {
-                pool.install(|| run_matcher());
-            }
-            None => run_matcher(),
-        }
+        thread_pool.install(|| run_matcher());
 
         MatcherControl {
             stopped: stopped_clone,
