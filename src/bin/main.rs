@@ -353,7 +353,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
 
     let mut matched_items: Vec<_> = items
         .iter()
-        .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
+        .filter_map(|item| engine.match_item(item.as_ref()).map(|result| (item, result)))
         .collect();
 
     if options.tac {

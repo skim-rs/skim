@@ -5,7 +5,6 @@
 
 use std::borrow::Cow;
 use std::fmt::{Display, Error, Formatter};
-use std::sync::Arc;
 
 use crate::engine::util::{map_byte_range_to_original, map_char_indices_to_original};
 use crate::engine::util::{normalize_with_byte_mapping, normalize_with_char_mapping};
@@ -25,7 +24,7 @@ impl NormalizedEngine {
 }
 
 impl MatchEngine for NormalizedEngine {
-    fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult> {
+    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         let item_text = item.text();
 
         // Normalize the item text
@@ -33,7 +32,7 @@ impl MatchEngine for NormalizedEngine {
         let (_, byte_mapping) = normalize_with_byte_mapping(&item_text);
 
         // Create a wrapper item with normalized text
-        let normalized_item: Arc<dyn SkimItem> = Arc::new(NormalizedItem(normalized_text));
+        let normalized_item: &dyn SkimItem = &NormalizedItem(normalized_text);
 
         // Match using the inner engine
         let mut result = self.inner.match_item(normalized_item)?;

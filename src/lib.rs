@@ -303,7 +303,7 @@ impl MatchResult {
 /// A matching engine that can match queries against items
 pub trait MatchEngine: Sync + Send + Display {
     /// Matches an item against the query, returning a result if matched
-    fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult>;
+    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult>;
 }
 
 /// Factory for creating match engines
