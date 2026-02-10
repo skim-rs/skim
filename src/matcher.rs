@@ -13,13 +13,15 @@ use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
 
-static OPT_NUM_THREADS: LazyLock<Option<usize>> =
-    LazyLock::new(|| std::thread::available_parallelism().ok().map(|inner| inner.get()));
-
-static OPT_MATCHER_THREAD_POOL: LazyLock<Option<ThreadPool>> = LazyLock::new(|| {
-    let num_threads = OPT_NUM_THREADS.unwrap_or_else(|| 0);
-    rayon::ThreadPoolBuilder::new().num_threads(num_threads).build().ok()
+static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
+    std::thread::available_parallelism()
+        .ok()
+        .map(|inner| inner.get())
+        .unwrap_or_else(|| 0)
 });
+
+static OPT_MATCHER_THREAD_POOL: LazyLock<Option<ThreadPool>> =
+    LazyLock::new(|| rayon::ThreadPoolBuilder::new().num_threads(*NUM_THREADS).build().ok());
 
 //==============================================================================
 /// Control handle for a running matcher operation.
