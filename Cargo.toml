@@ -55,7 +55,7 @@ ansi-to-tui = "8.0.1"
 futures = "0.3.31"
 tokio-util = "0.7.17"
 thiserror = "2.0.17"
-tempfile = "3.20.0"
+tempfile = "3.25.0"
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
 thread_local = "1.1.9"
 termion = "4.0.6"
