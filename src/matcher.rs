@@ -1,8 +1,9 @@
 //! This module contains the matching coordinator
+use rayon::ThreadPool;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::thread;
 
 use rayon::prelude::*;
 
@@ -11,6 +12,9 @@ use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
+
+static MATCHER_THREAD_POOL: LazyLock<Option<ThreadPool>> =
+    LazyLock::new(|| rayon::ThreadPoolBuilder::new().build().ok());
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -160,46 +164,56 @@ impl Matcher {
         let matched_clone = matched.clone();
         let mut matched_items = Vec::new();
 
-        thread::spawn(move || {
-            let _num_taken = item_pool.num_taken();
-            let items = item_pool.take();
+        let run_matcher = || {
+            rayon::spawn(move || {
+                // let _num_taken = item_pool.num_taken();
+                let items = item_pool.take();
 
-            // 1. use rayon for parallel
-            // 2. return Err to skip iteration
-            //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
+                // 1. use rayon for parallel
+                // 2. return Err to skip iteration
+                //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
 
-            trace!("matcher start, total: {}", items.len());
-            let result: Result<Vec<_>, _> = items
-                .into_par_iter()
-                .enumerate()
-                .filter_map(|(_, item)| {
-                    processed.fetch_add(1, Ordering::Relaxed);
-                    if stopped.load(Ordering::Relaxed) {
-                        Some(Err("matcher killed"))
-                    } else if let Some(match_result) = matcher_engine.match_item(item.clone()) {
-                        matched.fetch_add(1, Ordering::Relaxed);
-                        // item is Arc but we get &Arc from iterator, so one clone is needed
-                        Some(Ok(MatchedItem {
-                            item: item.clone(),
-                            rank: match_result.rank,
-                            matched_range: Some(match_result.matched_range),
-                        }))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+                trace!("matcher start, total: {}", items.len());
+                let result: Result<Vec<_>, _> = items
+                    .into_par_iter()
+                    .enumerate()
+                    .filter_map(|(_, item)| {
+                        processed.fetch_add(1, Ordering::Relaxed);
 
-            if let Ok(items) = result {
-                matched_items = items;
-                trace!("matcher stop, total matched: {}", matched_items.len());
+                        if stopped.load(Ordering::Relaxed) {
+                            return Some(Err("matcher killed"));
+                        }
+
+                        matcher_engine.match_item(item.clone()).and_then(|match_result| {
+                            matched.fetch_add(1, Ordering::Relaxed);
+                            // item is Arc but we get &Arc from iterator, so one clone is needed
+                            Some(Ok(MatchedItem {
+                                item,
+                                rank: match_result.rank,
+                                matched_range: Some(match_result.matched_range),
+                            }))
+                        })
+                    })
+                    .collect();
+
+                if let Ok(items) = result {
+                    matched_items = items;
+                    trace!("matcher stop, total matched: {}", matched_items.len());
+                }
+
+                if !stopped.load(Ordering::Relaxed) {
+                    callback(matched_items);
+                    stopped.store(true, Ordering::Relaxed);
+                }
+            });
+        };
+
+        match MATCHER_THREAD_POOL.as_ref() {
+            Some(pool) => {
+                pool.install(|| run_matcher());
             }
-
-            if !stopped.load(Ordering::Relaxed) {
-                callback(matched_items);
-                stopped.store(true, Ordering::Relaxed);
-            }
-        });
+            None => run_matcher(),
+        }
 
         MatcherControl {
             stopped: stopped_clone,
