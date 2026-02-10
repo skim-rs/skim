@@ -34,7 +34,7 @@ required-features = ["cli"]
 [dependencies]
 assert_enum_variants = "0.1.2"
 beef = "0.5.2"
-clap = { version = "4.5.41" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
+clap = { version = "4.5.57" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { version = "4.5.55", optional = true }
 clap_mangen = { version = "0.2.29", optional = true }
 derive_builder = "0.20.2"
