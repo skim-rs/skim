@@ -203,7 +203,7 @@ impl Matcher {
                             .filter_map(|item| {
                                 if query_empty {
                                     return Some(MatchedItem {
-                                        item: item.clone(),
+                                        item: item,
                                         rank: PLACEHOLDER_RANK,
                                         matched_range: PLACEHOLDER_RANGE.clone(),
                                     });
