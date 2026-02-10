@@ -179,34 +179,44 @@ impl Matcher {
                 //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
 
                 trace!("matcher start, total: {}", items.len());
-                let result: Result<Vec<_>, _> = items
-                    .into_par_iter()
+                let par_iter = items
+                    .par_chunks(8192)
                     .enumerate()
-                    .filter_map(|(_, item)| {
-                        processed.fetch_add(1, Ordering::Relaxed);
-
+                    .take_any_while(|(_master_idx, chunk)| {
                         if stopped.load(Ordering::Relaxed) {
-                            return Some(Err("matcher killed"));
+                            return false;
                         }
 
-                        matcher_engine.match_item(item.clone()).and_then(|match_result| {
-                            matched.fetch_add(1, Ordering::Relaxed);
-                            // item is Arc but we get &Arc from iterator, so one clone is needed
-                            Some(Ok(MatchedItem {
-                                item,
-                                rank: match_result.rank,
-                                matched_range: Some(match_result.matched_range),
-                            }))
-                        })
+                        processed.fetch_add(chunk.len(), Ordering::Relaxed);
+                        true
                     })
-                    .collect();
+                    .map(|(master_idx, chunk)| {
+                        chunk
+                            .iter()
+                            .enumerate()
+                            .map(move |(idx, item)| {
+                                let item_idx = ((master_idx - 1) * 8192) + idx;
 
-                if let Ok(items) = result {
-                    matched_items = items;
+                                (item_idx, item)
+                            })
+                            .filter_map(|(_item_idx, item)| {
+                                matcher_engine.match_item(item.clone()).map(|match_result| {
+                                    matched.fetch_add(1, Ordering::Relaxed);
+                                    // item is Arc but we get &Arc from iterator, so one clone is needed
+                                    MatchedItem {
+                                        item: item.clone(),
+                                        rank: match_result.rank,
+                                        matched_range: Some(match_result.matched_range),
+                                    }
+                                })
+                            })
+                    })
+                    .flatten_iter();
+
+                if !stopped.load(Ordering::SeqCst) {
+                    matched_items.clear();
+                    matched_items.par_extend(par_iter);
                     trace!("matcher stop, total matched: {}", matched_items.len());
-                }
-
-                if !stopped.load(Ordering::Relaxed) {
                     callback(matched_items);
                     stopped.store(true, Ordering::Relaxed);
                 }
