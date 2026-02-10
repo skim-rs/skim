@@ -176,7 +176,7 @@ impl Matcher {
                     processed.fetch_add(1, Ordering::Relaxed);
                     if stopped.load(Ordering::Relaxed) {
                         Some(Err("matcher killed"))
-                    } else if let Some(match_result) = matcher_engine.match_item(item.clone()) {
+                    } else if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
                         matched.fetch_add(1, Ordering::Relaxed);
                         // item is Arc but we get &Arc from iterator, so one clone is needed
                         Some(Ok(MatchedItem {
