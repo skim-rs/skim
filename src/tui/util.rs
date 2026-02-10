@@ -2,6 +2,11 @@ use ratatui::{
     style::Style,
     text::{Line, Span, Text},
 };
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write};
+use std::os::fd::{AsFd, AsRawFd};
+use std::os::unix::fs::OpenOptionsExt;
+use termion::raw::IntoRawMode;
 use unicode_display_width::is_double_width;
 
 // Directly taken from https://docs.rs/unicode-display-width/0.3.0/src/unicode_display_width/lib.rs.html#77-81
@@ -197,6 +202,61 @@ pub(crate) fn handle_csi_query(seq: &[u8], writer: &mut Box<dyn std::io::Write +
     }
 
     false
+}
+
+pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
+    let tty = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(nix::fcntl::OFlag::O_NONBLOCK.bits())
+        .open("/dev/tty")?;
+    let mut tty = tty.into_raw_mode()?;
+    let delimiter = b'R';
+    // Where is the cursor?
+    // Use `ESC [ 6 n`.
+    write!(tty, "\x1B[6n")?;
+    let mut buf: [u8; 32] = [0; 32];
+    let mut read_pos = 0;
+
+    let mut timeout = nix::sys::time::TimeVal::new(3, 0);
+    loop {
+        let mut rfds = nix::sys::select::FdSet::new();
+        rfds.insert(tty.as_fd());
+        match nix::sys::select::select(
+            rfds.highest().unwrap().as_raw_fd() + 1,
+            Some(&mut rfds),
+            None,
+            None,
+            Some(&mut timeout),
+        ) {
+            Ok(0) => {
+                return Err(io::Error::other("Cursor position detection timed out."));
+            }
+            Ok(1) => match tty.read(&mut buf[read_pos..]) {
+                Ok(n) => {
+                    read_pos += n;
+                    if buf[read_pos - 1] == delimiter {
+                        break;
+                    }
+                }
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
+                Err(e) => return Err(e),
+            },
+            Err(nix::errno::Errno::EINTR) => continue,
+            Err(errno) => {
+                return Err(io::Error::from_raw_os_error(errno as i32));
+            }
+            Ok(_) => unreachable!(),
+        }
+    }
+    // The answer will look like `ESC [ Cy ; Cx R`.
+    let read_str = String::from_utf8(buf[..read_pos - 1].to_owned()).unwrap();
+    let beg = read_str.rfind('[').unwrap();
+    let coords: String = read_str.chars().skip(beg + 1).collect();
+    let mut nums = coords.split(';');
+    let cy = nums.next().unwrap().parse::<u16>().unwrap();
+    let cx = nums.next().unwrap().parse::<u16>().unwrap();
+    Ok((cx, cy))
 }
 
 #[cfg(test)]
