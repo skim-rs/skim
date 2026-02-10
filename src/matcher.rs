@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
+use crate::MatchRange;
 use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
@@ -22,6 +23,9 @@ static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
 
 static OPT_MATCHER_THREAD_POOL: LazyLock<Option<ThreadPool>> =
     LazyLock::new(|| rayon::ThreadPoolBuilder::new().num_threads(*NUM_THREADS).build().ok());
+
+static PLACEHOLDER_RANK: [i32; 5] = [0, 0, 0, 0, 0];
+static PLACEHOLDER_RANGE: Option<MatchRange> = None;
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -169,7 +173,8 @@ impl Matcher {
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
-        let mut matched_items = Vec::new();
+
+        let query_empty: bool = query.is_empty();
 
         let run_matcher = || {
             rayon::spawn(move || {
@@ -181,7 +186,7 @@ impl Matcher {
                 //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
 
                 trace!("matcher start, total: {}", items.len());
-                let par_iter = items
+                let matched_items: Vec<MatchedItem> = items
                     .par_chunks(8192)
                     .enumerate()
                     .take_any_while(|(_master_idx, chunk)| {
@@ -193,7 +198,7 @@ impl Matcher {
                         true
                     })
                     .map(|(master_idx, chunk)| {
-                        chunk
+                        let vec: Vec<MatchedItem> = chunk
                             .iter()
                             .enumerate()
                             .map(move |(idx, item)| {
@@ -202,8 +207,15 @@ impl Matcher {
                                 (item_idx, item)
                             })
                             .filter_map(|(_item_idx, item)| {
+                                if query_empty {
+                                    return Some(MatchedItem {
+                                        item: item.clone(),
+                                        rank: PLACEHOLDER_RANK,
+                                        matched_range: PLACEHOLDER_RANGE.clone(),
+                                    });
+                                }
+
                                 matcher_engine.match_item(item.clone()).map(|match_result| {
-                                    matched.fetch_add(1, Ordering::Relaxed);
                                     // item is Arc but we get &Arc from iterator, so one clone is needed
                                     MatchedItem {
                                         item: item.clone(),
@@ -212,12 +224,16 @@ impl Matcher {
                                     }
                                 })
                             })
+                            .collect();
+
+                        matched.fetch_add(vec.len(), Ordering::Relaxed);
+
+                        vec
                     })
-                    .flatten_iter();
+                    .flatten_iter()
+                    .collect();
 
                 if !stopped.load(Ordering::SeqCst) {
-                    matched_items.clear();
-                    matched_items.par_extend(par_iter);
                     trace!("matcher stop, total matched: {}", matched_items.len());
                     callback(matched_items);
                     stopped.store(true, Ordering::Relaxed);
