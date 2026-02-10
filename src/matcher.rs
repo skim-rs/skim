@@ -208,11 +208,13 @@ impl Matcher {
             });
         };
 
-        match MATCHER_THREAD_POOL.as_ref() {
-            Some(pool) => {
-                pool.install(|| run_matcher());
+        if !query.is_empty() {
+            match MATCHER_THREAD_POOL.as_ref() {
+                Some(pool) => {
+                    pool.install(|| run_matcher());
+                }
+                None => run_matcher(),
             }
-            None => run_matcher(),
         }
 
         MatcherControl {
