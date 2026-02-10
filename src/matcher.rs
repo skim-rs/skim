@@ -191,9 +191,9 @@ impl Matcher {
 
                 trace!("matcher start, total: {}", items.len());
                 let matched_items: Vec<MatchedItem> = items
-                    .par_chunks(8192)
-                    .enumerate()
-                    .take_any_while(|(_master_idx, chunk)| {
+                    .into_par_iter()
+                    .chunks(8196)
+                    .take_any_while(|chunk| {
                         if interrupt.load(Ordering::Relaxed) {
                             stopped.store(true, Ordering::Relaxed);
                             return false;
@@ -202,16 +202,10 @@ impl Matcher {
                         processed.fetch_add(chunk.len(), Ordering::Relaxed);
                         true
                     })
-                    .map(|(master_idx, chunk)| {
-                        let vec: Vec<MatchedItem> = chunk
-                            .iter()
-                            .enumerate()
-                            .map(move |(idx, item)| {
-                                let item_idx = ((master_idx - 1) * 8192) + idx;
-
-                                (item_idx, item)
-                            })
-                            .filter_map(|(_item_idx, item)| {
+                    .map(|chunk| {
+                        let matched_chunk: Vec<MatchedItem> = chunk
+                            .into_iter()
+                            .filter_map(|item| {
                                 if interrupt.load(Ordering::Relaxed) {
                                     stopped.store(true, Ordering::Relaxed);
                                     return None;
@@ -224,10 +218,10 @@ impl Matcher {
                                     });
                                 }
 
-                                matcher_engine.match_item(item.clone()).map(|match_result| {
+                                matcher_engine.match_item(item.as_ref()).map(|match_result| {
                                     // item is Arc but we get &Arc from iterator, so one clone is needed
                                     MatchedItem {
-                                        item: item.clone(),
+                                        item: item,
                                         rank: match_result.rank,
                                         matched_range: Some(match_result.matched_range),
                                     }
@@ -235,9 +229,9 @@ impl Matcher {
                             })
                             .collect();
 
-                        matched.fetch_add(vec.len(), Ordering::Relaxed);
+                        matched.fetch_add(matched_chunk.len(), Ordering::Relaxed);
 
-                        vec
+                        matched_chunk
                     })
                     .flatten_iter()
                     .collect();
