@@ -49,7 +49,6 @@ pub struct DefaultSkimItemMetadata {
     ansi_info: Option<Vec<(usize, usize)>>,
 
     // The ranges on which to perform matching
-    #[allow(clippy::box_collection)]
     matching_ranges: Option<Vec<(usize, usize)>>,
 }
 
@@ -852,7 +851,7 @@ mod test {
         let line = item.display(context);
 
         // Should have multiple spans for highlighting
-        assert!(line.spans.len() >= 1, "Should have spans");
+        assert!(!line.spans.is_empty(), "Should have spans");
 
         // At least one span should have the yellow background (the highlighted portion)
         let has_highlight = line.spans.iter().any(|span| span.style.bg == Some(Color::Yellow));

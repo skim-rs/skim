@@ -1,4 +1,3 @@
-#![cfg_attr(coverage, feature(coverage_attribute))]
 //! Skim is a fuzzy finder library for Rust.
 //!
 //! It provides a fast and customizable way to filter and select items interactively,
@@ -11,7 +10,7 @@
 //! use std::io::Cursor;
 //!
 //! let options = SkimOptionsBuilder::default()
-//!     .height(Some("50%"))
+//!     .height("50%")
 //!     .multi(true)
 //!     .build()
 //!     .unwrap();
@@ -20,10 +19,11 @@
 //! let item_reader = SkimItemReader::default();
 //! let items = item_reader.of_bufread(Cursor::new(input));
 //!
-//! let output = Skim::run_with(&options, Some(items)).unwrap();
+//! let output = Skim::run_with(options, Some(items)).unwrap();
 //! ```
 
 #![warn(missing_docs)]
+#![cfg_attr(coverage, feature(coverage_attribute))]
 
 #[macro_use]
 extern crate log;

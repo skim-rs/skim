@@ -80,8 +80,43 @@ zsh\:"Zsh"))' \
 '--tmux=[Run in a tmux popup]::TMUX:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"))' \
-'--hscroll-off=[Reserved for later use]:HSCROLL_OFF:_default' \
-'--jump-labels=[Reserved for later use]:JUMP_LABELS:_default' \
+'--hscroll-off=[]:HSCROLL_OFF:_default' \
+'--jump-labels=[]:JUMP_LABELS:_default' \
+'--scheme=[]:SCHEME:_default' \
+'--tail=[]:TAIL:_default' \
+'--style=[]:STYLE:_default' \
+'--padding=[]:PADDING:_default' \
+'--border-label=[]:BORDER_LABEL:_default' \
+'--border-label-pos=[]:BORDER_LABEL_POS:_default' \
+'--wrap-sign=[]:WRAP_SIGN:_default' \
+'--gap=[]:GAP:_default' \
+'--gap-line=[]:GAP_LINE:_default' \
+'--freeze-left=[]:FREEZE_LEFT:_default' \
+'--freeze-right=[]:FREEZE_RIGHT:_default' \
+'--scroll-off=[]:SCROLL_OFF:_default' \
+'--gutter=[]:GUTTER:_default' \
+'--gutter-raw=[]:GUTTER_RAW:_default' \
+'--marker-multi-line=[]:MARKER_MULTI_LINE:_default' \
+'--ellipsis=[]:ELLIPSIS:_default' \
+'--scrollbar=[]:SCROLLBAR:_default' \
+'--list-border=[]:LIST_BORDER:_default' \
+'--list-label=[]:LIST_LABEL:_default' \
+'--list-label-pos=[]:LIST_LABEL_POS:_default' \
+'--info-command=[]:INFO_COMMAND:_default' \
+'--separator=[]:SEPARATOR:_default' \
+'--ghost=[]:GHOST:_default' \
+'--input-border=[]:INPUT_BORDER:_default' \
+'--input-label=[]:INPUT_LABEL:_default' \
+'--input-label-pos=[]:INPUT_LABEL_POS:_default' \
+'--preview-label=[]:PREVIEW_LABEL:_default' \
+'--preview-label-pos=[]:PREVIEW_LABEL_POS:_default' \
+'--header-border=[]:HEADER_BORDER:_default' \
+'--header-lines-border=[]:HEADER_LINES_BORDER:_default' \
+'--footer=[]:FOOTER:_default' \
+'--footer-border=[]:FOOTER_BORDER:_default' \
+'--footer-label=[]:FOOTER_LABEL:_default' \
+'--footer-label-pos=[]:FOOTER_LABEL_POS:_default' \
+'--with-shell=[]:WITH_SHELL:_default' \
 '--expect=[Deprecated, kept for compatibility purposes. See accept() bind instead]:EXPECT:_default' \
 '--tac[Show results in reverse order]' \
 '--no-sort[Do not sort the results]' \
@@ -123,12 +158,21 @@ zsh\:"Zsh"))' \
 '--sync[Synchronous search for multi-staged filtering]' \
 '--shell-bindings[Generate shell key bindings - only for bash, zsh and fish]' \
 '--man[Generate man page and output it to stdout]' \
-'-x[Reserved for later use]' \
-'--extended[Reserved for later use]' \
-'--literal[Reserved for later use]' \
-'--filepath-word[Reserved for later use]' \
-'--no-bold[Reserved for later use]' \
-'--phony[Reserved for later use]' \
+'-x[]' \
+'--extended[]' \
+'--literal[]' \
+'--filepath-word[]' \
+'--no-bold[]' \
+'--phony[]' \
+'--no-color[]' \
+'--highlight-line[]' \
+'--no-multi-line[]' \
+'--raw[]' \
+'--track[]' \
+'--no-scrollbar[]' \
+'--no-input[]' \
+'--no-separator[]' \
+'--header-first[]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
 '-V[Print version]' \

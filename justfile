@@ -23,6 +23,6 @@ release version: (bump-version version) generate-files (changelog version) test
 auto-release:
     just release $(git cliff --bumped-version | sed 's/v\(.*\)/\1/')
 
-test target="":
+test target="--all-targets":
     -cargo nextest run --release --features test-utils {{ target }}
     tmux kill-session -t skim_e2e

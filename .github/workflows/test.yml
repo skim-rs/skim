@@ -57,6 +57,8 @@ jobs:
           tool: cargo-llvm-cov@0.8
       - name: Cache
         uses: Swatinem/rust-cache@v2
+      - name: Run doctests
+        run: cargo test --doc
       - name: Run tests
         run: cargo llvm-cov nextest --release --features test-utils --all-targets --codecov --output-path codecov.json
         env:

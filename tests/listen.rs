@@ -16,7 +16,7 @@ use crate::common::SK;
 fn connect(name: &str) -> Result<Child> {
     Command::new("/bin/sh")
         .arg("-c")
-        .arg(&format!("{SK} --remote {name}"))
+        .arg(format!("{SK} --remote {name}"))
         .stdin(Stdio::piped())
         .spawn()
 }
@@ -41,7 +41,7 @@ fn setup(name: &str, extra_args: &[&str]) -> Result<(TmuxController, Child)> {
         Some(&format!("echo -n -e '{}'", "a\\nb\\nc\\nd")),
         &[&["--listen", &socket_name], extra_args].concat(),
     )?;
-    tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+    tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
     let stream = connect(&socket_name)?;
     Ok((tmux, stream))
 }

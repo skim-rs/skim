@@ -153,7 +153,7 @@ impl TmuxController {
         print!("typing `");
         for key in keys {
             Self::run(&["send-keys", "-t", &self.window, &key.to_string()])?;
-            print!("{}", key.to_string());
+            print!("{}", key);
         }
         println!("`");
         Ok(())
@@ -236,10 +236,10 @@ impl TmuxController {
             if pred(&lines) {
                 return Ok(true);
             }
-            Err(std::io::Error::new(ErrorKind::Other, "pred not matched"))
+            Err(std::io::Error::other("pred not matched"))
         }) {
             Ok(true) => Ok(()),
-            Ok(false) => Err(std::io::Error::new(ErrorKind::Other, self.capture()?.join("\n"))),
+            Ok(false) => Err(std::io::Error::other(self.capture()?.join("\n"))),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 self.capture()?.join("\n"),

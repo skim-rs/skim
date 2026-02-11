@@ -77,8 +77,43 @@ complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'"
-complete -c sk -l hscroll-off -d 'Reserved for later use' -r
-complete -c sk -l jump-labels -d 'Reserved for later use' -r
+complete -c sk -l hscroll-off -r
+complete -c sk -l jump-labels -r
+complete -c sk -l scheme -r
+complete -c sk -l tail -r
+complete -c sk -l style -r
+complete -c sk -l padding -r
+complete -c sk -l border-label -r
+complete -c sk -l border-label-pos -r
+complete -c sk -l wrap-sign -r
+complete -c sk -l gap -r
+complete -c sk -l gap-line -r
+complete -c sk -l freeze-left -r
+complete -c sk -l freeze-right -r
+complete -c sk -l scroll-off -r
+complete -c sk -l gutter -r
+complete -c sk -l gutter-raw -r
+complete -c sk -l marker-multi-line -r
+complete -c sk -l ellipsis -r
+complete -c sk -l scrollbar -r
+complete -c sk -l list-border -r
+complete -c sk -l list-label -r
+complete -c sk -l list-label-pos -r
+complete -c sk -l info-command -r
+complete -c sk -l separator -r
+complete -c sk -l ghost -r
+complete -c sk -l input-border -r
+complete -c sk -l input-label -r
+complete -c sk -l input-label-pos -r
+complete -c sk -l preview-label -r
+complete -c sk -l preview-label-pos -r
+complete -c sk -l header-border -r
+complete -c sk -l header-lines-border -r
+complete -c sk -l footer -r
+complete -c sk -l footer-border -r
+complete -c sk -l footer-label -r
+complete -c sk -l footer-label-pos -r
+complete -c sk -l with-shell -r
 complete -c sk -l expect -d 'Deprecated, kept for compatibility purposes. See accept() bind instead' -r
 complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
@@ -115,10 +150,19 @@ complete -c sk -s 0 -l exit-0 -d 'Do not enter the TUI if the query passed in -q
 complete -c sk -l sync -d 'Synchronous search for multi-staged filtering'
 complete -c sk -l shell-bindings -d 'Generate shell key bindings - only for bash, zsh and fish'
 complete -c sk -l man -d 'Generate man page and output it to stdout'
-complete -c sk -s x -l extended -d 'Reserved for later use'
-complete -c sk -l literal -d 'Reserved for later use'
-complete -c sk -l filepath-word -d 'Reserved for later use'
-complete -c sk -l no-bold -d 'Reserved for later use'
-complete -c sk -l phony -d 'Reserved for later use'
+complete -c sk -s x -l extended
+complete -c sk -l literal
+complete -c sk -l filepath-word
+complete -c sk -l no-bold
+complete -c sk -l phony
+complete -c sk -l no-color
+complete -c sk -l highlight-line
+complete -c sk -l no-multi-line
+complete -c sk -l raw
+complete -c sk -l track
+complete -c sk -l no-scrollbar
+complete -c sk -l no-input
+complete -c sk -l no-separator
+complete -c sk -l header-first
 complete -c sk -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c sk -s V -l version -d 'Print version'

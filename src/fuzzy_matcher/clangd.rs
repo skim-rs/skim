@@ -2,9 +2,9 @@
 //! https://github.com/llvm-mirror/clang-tools-extra/blob/master/clangd/FuzzyMatch.cpp
 //!
 //! # Example:
-//! ```edition2018
-//! use crate::fuzzy_matcher::FuzzyMatcher;
-//! use crate::fuzzy_matcher::clangd::ClangdMatcher;
+//! ```
+//! use skim::fuzzy_matcher::FuzzyMatcher;
+//! use skim::fuzzy_matcher::clangd::ClangdMatcher;
 //!
 //! let matcher = ClangdMatcher::default();
 //!
@@ -419,6 +419,38 @@ fn match_bonus(
     score
 }
 
+#[allow(dead_code)]
+fn print_dp(line: &str, pattern: &str, dp: &[Vec<Score>]) {
+    let num_line_chars = line.chars().count();
+    let num_pattern_chars = pattern.chars().count();
+
+    print!("\t");
+    for (idx, ch) in line.chars().enumerate() {
+        print!("\t\t{}/{}", idx + 1, ch);
+    }
+
+    for (row_num, row) in dp.iter().enumerate().take(num_pattern_chars + 1) {
+        print!("\n{}\t", row_num);
+        for cell in row.iter().take(num_line_chars + 1) {
+            print!(
+                "({},{})/({},{})\t",
+                cell.miss_score,
+                if cell.last_action_miss == Action::Miss {
+                    'X'
+                } else {
+                    'O'
+                },
+                cell.match_score,
+                if cell.last_action_match == Action::Miss {
+                    'X'
+                } else {
+                    'O'
+                }
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 #[cfg_attr(coverage, coverage(off))]
 mod tests {
@@ -472,37 +504,5 @@ mod tests {
         assert_order(&matcher, "ast", &["ast", "AST", "INT_FAST16_MAX"]);
         // score(PRINT) > kMinScore
         assert_order(&matcher, "Int", &["int", "INT", "PRINT"]);
-    }
-}
-
-#[allow(dead_code)]
-fn print_dp(line: &str, pattern: &str, dp: &[Vec<Score>]) {
-    let num_line_chars = line.chars().count();
-    let num_pattern_chars = pattern.chars().count();
-
-    print!("\t");
-    for (idx, ch) in line.chars().enumerate() {
-        print!("\t\t{}/{}", idx + 1, ch);
-    }
-
-    for (row_num, row) in dp.iter().enumerate().take(num_pattern_chars + 1) {
-        print!("\n{}\t", row_num);
-        for cell in row.iter().take(num_line_chars + 1) {
-            print!(
-                "({},{})/({},{})\t",
-                cell.miss_score,
-                if cell.last_action_miss == Action::Miss {
-                    'X'
-                } else {
-                    'O'
-                },
-                cell.match_score,
-                if cell.last_action_match == Action::Miss {
-                    'X'
-                } else {
-                    'O'
-                }
-            );
-        }
     }
 }

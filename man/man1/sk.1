@@ -307,12 +307,12 @@ When using skim as a library, this has no effect and ansi parsing should be enab
   use skim::prelude::*;
   
   let _options = SkimOptionsBuilder::default()
-    .cmd(ls \-\-color)
+    .cmd("ls \-\-color")
     .cmd_collector(Rc::new(RefCell::new(SkimItemReader::new(
       SkimItemReaderOption::default().ansi(true),
       ))) as Rc<RefCell<dyn CommandCollector>>)
     .build()
-    .unwrap()
+    .unwrap();
 
 .TP
 \fB\-\-tabstop\fR \fI<TABSTOP>\fR [default: 8]
@@ -321,9 +321,9 @@ Number of spaces that make up a tab
 \fB\-\-info\fR \fI<INFO>\fR [default: default]
 Set matching result count display position
 
-  hidden: do not display info
-  inline: display info in the same row as the input
-  default: display info in a dedicated row above the input
+  \- hidden: do not display info
+  \- inline: display info in the same row as the input
+  \- default: display info in a dedicated row above the input
 .br
 
 .br
@@ -428,6 +428,7 @@ Examples:
                 sk \-\-delimiter : \\
                     \-\-preview \*(Aqbat \-\-style=numbers \-\-color=always \-\-highlight\-line {2} {1}\*(Aq \\
                     \-\-preview\-window +{2}\-/2
+
 .SH SCRIPTING
 .TP
 \fB\-q\fR, \fB\-\-query\fR \fI<QUERY>\fR
@@ -466,9 +467,7 @@ Do not enter the TUI if the query passed in \-q does not match any item
 \fB\-\-sync\fR
 Synchronous search for multi\-staged filtering
 
-Synchronous search for multi\-staged filtering. If specified, skim will launch ncurses finder only after the input stream is complete.
-
-  e.g. sk \-\-multi | sk \-\-sync
+Synchronous search for multi\-staged filtering. If specified, skim will launch ncurses finder only after the input stream is complete. e.g. sk \-\-multi | sk \-\-sync
 .TP
 \fB\-\-pre\-select\-n\fR \fI<PRE_SELECT_N>\fR [default: 0]
 Pre\-select the first n items in multi\-selection mode

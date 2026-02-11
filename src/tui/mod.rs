@@ -167,8 +167,7 @@ mod size_test {
     #[test]
     fn fixed_neg() {
         let SizeParseError::ParseError(err_value, internal_error) = Size::try_from("-10").unwrap_err() else {
-            assert!(false);
-            return;
+            panic!();
         };
         assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
         assert_eq!(err_value, String::from("-10"));
@@ -176,8 +175,7 @@ mod size_test {
     #[test]
     fn percent_neg() {
         let SizeParseError::ParseError(err_value, internal_error) = Size::try_from("-10%").unwrap_err() else {
-            assert!(false);
-            return;
+            panic!();
         };
         assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
         assert_eq!(err_value, String::from("-10%"));
@@ -185,16 +183,14 @@ mod size_test {
     #[test]
     fn percent_over_100() {
         let SizeParseError::InvalidPercent(internal_error) = Size::try_from("110%").unwrap_err() else {
-            assert!(false);
-            return;
+            panic!();
         };
         assert_eq!(internal_error, 110u16);
     }
     #[test]
     fn fixed_invalid_char() {
         let SizeParseError::ParseError(value, internal_error) = Size::try_from("1-0").unwrap_err() else {
-            assert!(false);
-            return;
+            panic!();
         };
         assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
         assert_eq!(value, String::from("1-0"));
@@ -202,8 +198,7 @@ mod size_test {
     #[test]
     fn percent_invalid_char() {
         let SizeParseError::ParseError(value, internal_error) = Size::try_from("1-0%").unwrap_err() else {
-            assert!(false);
-            return;
+            panic!();
         };
         assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
         assert_eq!(value, String::from("1-0%"));
@@ -211,8 +206,7 @@ mod size_test {
     #[test]
     fn percent_empty() {
         let SizeParseError::ParseError(value, internal_error) = Size::try_from("%").unwrap_err() else {
-            assert!(false);
-            return;
+            panic!();
         };
         assert_eq!(internal_error.kind(), &IntErrorKind::Empty);
         assert_eq!(value, String::from("%"));

@@ -14,7 +14,7 @@ fn query_history() -> Result<()> {
     let mut tmux = TmuxController::new()?;
     let histfile = tmux.tempfile()?;
 
-    File::create(&histfile)?.write(b"a\nb\nc")?;
+    File::create(&histfile)?.write_all(b"a\nb\nc")?;
 
     tmux.start_sk(Some("echo -e -n 'a\\nb\\nc'"), &["--history", &histfile])?;
     tmux.until(|l| l[0].starts_with(">"))?;
@@ -55,7 +55,7 @@ fn cmd_history() -> Result<()> {
     let mut tmux = TmuxController::new()?;
     let histfile = tmux.tempfile()?;
 
-    File::create(&histfile)?.write(b"a\nb\nc")?;
+    File::create(&histfile)?.write_all(b"a\nb\nc")?;
 
     tmux.start_sk(
         Some("echo -e -n 'a\\nb\\nc'"),

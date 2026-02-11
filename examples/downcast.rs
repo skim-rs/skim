@@ -30,9 +30,9 @@ impl SkimItem for Item {
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(String::from("50%"))
+        .height("50%")
         .multi(true)
-        .preview(Some(String::new()))
+        .preview("")
         .build()
         .unwrap();
 
@@ -40,15 +40,15 @@ pub fn main() {
 
     tx.send(vec![
         Arc::new(Item {
-            text: "a".to_string(),
+            text: "a".into(),
             index: 0,
         }) as Arc<dyn SkimItem>,
         Arc::new(Item {
-            text: "b".to_string(),
+            text: "b".into(),
             index: 1,
         }) as Arc<dyn SkimItem>,
         Arc::new(Item {
-            text: "c".to_string(),
+            text: "c".into(),
             index: 2,
         }) as Arc<dyn SkimItem>,
     ])

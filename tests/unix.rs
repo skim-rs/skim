@@ -51,7 +51,7 @@ sk_test!(opt_read0, "a\\0b\\0c", &["--read0"], {
 sk_test!(opt_print0, "a\\nb\\nc", &["-m", "--print0"], {
   @lines |l| (l.len() > 4);
   @keys BTab, BTab, Enter;
-  @lines |l| (l.len() > 0 && !l[0].starts_with(">"));
+  @lines |l| (!l.is_empty() && !l[0].starts_with(">"));
   @output[0] trim().eq("a\0b\0");
 });
 
@@ -152,8 +152,8 @@ sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
   for option in reserved_options {
       println!("Starting sk with opt {}", option);
       let mut tmux = TmuxController::new()?;
-      tmux.start_sk(Some(&format!("echo -n -e 'a\\nb'")), &[option])?;
-      tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+      tmux.start_sk(Some("echo -n -e 'a\\nb'"), &[option])?;
+      tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
   }
 });
 
@@ -197,8 +197,8 @@ sk_test!(opt_multiple_flags_basic, "a\\nb", &[], tmux => {
 
   for cmd_flags in basic_flags {
       let mut tmux = TmuxController::new()?;
-      tmux.start_sk(Some(&format!("echo -n -e 'a\\nb'")), &[cmd_flags])?;
-      tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+      tmux.start_sk(Some("echo -n -e 'a\\nb'"), &[cmd_flags])?;
+      tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
   }
 });
 
@@ -207,10 +207,10 @@ use tempfile::NamedTempFile;
 
 sk_test!(opt_pre_select_file, "a\\nb\\nc", &[], tmux => {
   let mut pre_select_file = NamedTempFile::new()?;
-  pre_select_file.write(b"b\nc")?;
+  pre_select_file.write_all(b"b\nc")?;
   let mut tmux = TmuxController::new()?;
   tmux.start_sk(
-      Some(&format!("echo -n -e 'a\\nb\\nc'")),
+      Some("echo -n -e 'a\\nb\\nc'"),
       &["-m", "--pre-select-file", pre_select_file.path().to_str().unwrap()],
   )?;
   tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")?;

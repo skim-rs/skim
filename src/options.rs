@@ -33,7 +33,7 @@ fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
 ///
 /// sk is a general purpose command-line fuzzy finder.
 #[derive(Builder)]
-#[builder(build_fn(name = "final_build"))]
+#[builder(build_fn(name = "final_build"), setter(into, strip_option))]
 #[builder(default)]
 #[cfg_attr(feature = "cli", derive(clap::Parser))]
 #[cfg_attr(
@@ -410,12 +410,12 @@ pub struct SkimOptions {
     /// use skim::prelude::*;
     ///
     /// let _options = SkimOptionsBuilder::default()
-    ///   .cmd(ls --color)
+    ///   .cmd("ls --color")
     ///   .cmd_collector(Rc::new(RefCell::new(SkimItemReader::new(
     ///     SkimItemReaderOption::default().ansi(true),
     ///     ))) as Rc<RefCell<dyn CommandCollector>>)
     ///   .build()
-    ///   .unwrap()
+    ///   .unwrap();
     /// ```
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
     pub ansi: bool,
@@ -426,12 +426,18 @@ pub struct SkimOptions {
 
     /// Set matching result count display position
     ///
-    ///     hidden: do not display info
-    ///     inline: display info in the same row as the input
-    ///     default: display info in a dedicated row above the input
+    ///   - hidden: do not display info
+    ///   - inline: display info in the same row as the input
+    ///   - default: display info in a dedicated row above the input
     #[cfg_attr(
         feature = "cli",
-        arg(long, help_heading = "Display", value_enum, default_value = "default")
+        arg(
+            long,
+            help_heading = "Display",
+            value_enum,
+            default_value = "default",
+            verbatim_doc_comment
+        )
     )]
     pub info: InfoDisplay,
 
@@ -546,6 +552,7 @@ pub struct SkimOptions {
     ///               sk --delimiter : \
     ///                   --preview 'bat --style=numbers --color=always --highlight-line {2} {1}' \
     ///                   --preview-window +{2}-/2
+    /// ```
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -606,8 +613,7 @@ pub struct SkimOptions {
     ///
     /// Synchronous search for multi-staged filtering. If specified,
     /// skim will launch ncurses finder only after the input stream is complete.
-    ///
-    ///     e.g. sk --multi | sk --sync
+    /// e.g. `sk --multi | sk --sync`
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub sync: bool,
 
@@ -695,58 +701,172 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub log_file: Option<String>,
 
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Scripting"))]
     /// Feature flags
+    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Scripting"))]
     pub flags: Vec<FeatureFlag>,
 
-    /// Reserved for later use
-    #[cfg_attr(
-        feature = "cli",
-        arg(short = 'x', long, hide = true, help_heading = "Reserved for later use")
-    )]
-    pub extended: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub literal: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(
-        feature = "cli",
-        arg(long, hide = true, default_value = "10", help_heading = "Reserved for later use")
-    )]
-    pub hscroll_off: usize,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub filepath_word: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(
-        feature = "cli",
-        arg(
-            long,
-            hide = true,
-            default_value = "abcdefghijklmnopqrstuvwxyz",
-            help_heading = "Reserved for later use"
-        )
-    )]
-    pub jump_labels: String,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub no_bold: bool,
-
-    /// Reserved for later use
-    #[cfg_attr(feature = "cli", arg(long, hide = true, help_heading = "Reserved for later use"))]
-    pub phony: bool,
+    // FZF compatibility args
+    #[cfg_attr(feature = "cli", arg(short = 'x', long, hide = true))]
+    #[builder(setter(skip))]
+    extended: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    literal: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = "10"))]
+    #[builder(setter(skip))]
+    hscroll_off: usize,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    filepath_word: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = ""))]
+    #[builder(setter(skip))]
+    jump_labels: String,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    no_bold: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    phony: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    scheme: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    tail: Option<usize>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    style: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    no_color: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    padding: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    border_label: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    border_label_pos: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    highlight_line: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    wrap_sign: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    no_multi_line: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    raw: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    track: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    gap: Option<usize>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    gap_line: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = "0"))]
+    #[builder(setter(skip))]
+    freeze_left: usize,
+    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = "0"))]
+    #[builder(setter(skip))]
+    freeze_right: usize,
+    #[cfg_attr(feature = "cli", arg(long, hide = true, default_value = "0"))]
+    #[builder(setter(skip))]
+    scroll_off: usize,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    gutter: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    gutter_raw: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    marker_multi_line: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    ellipsis: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    scrollbar: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    no_scrollbar: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    list_border: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    list_label: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    list_label_pos: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    no_input: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    info_command: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    separator: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    no_separator: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    ghost: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    input_border: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    input_label: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    input_label_pos: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    preview_label: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    preview_label_pos: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    header_first: bool,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    header_border: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    header_lines_border: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    footer: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    footer_border: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    footer_label: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    footer_label_pos: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, hide = true))]
+    #[builder(setter(skip))]
+    with_shell: Option<String>,
 
     /// Deprecated, kept for compatibility purposes. See accept() bind instead.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
-    pub expect: String,
+    expect: String,
 
     /// Command collector for reading items from commands
     #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
+    #[builder(setter(into = false))]
     pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     /// Query history entries loaded from history file
     #[cfg_attr(feature = "cli", clap(skip))]
@@ -756,6 +876,7 @@ pub struct SkimOptions {
     pub cmd_history: Vec<String>,
     /// Selector for pre-selecting items
     #[cfg_attr(feature = "cli", clap(skip))]
+    #[builder(setter(into = false))]
     pub selector: Option<Rc<dyn Selector>>,
     /// Preview Callback
     ///
@@ -857,6 +978,50 @@ impl Default for SkimOptions {
             border: Default::default(),
             no_bold: Default::default(),
             phony: Default::default(),
+            scheme: Default::default(),
+            tail: Default::default(),
+            style: Default::default(),
+            no_color: Default::default(),
+            padding: Default::default(),
+            border_label: Default::default(),
+            border_label_pos: Default::default(),
+            highlight_line: Default::default(),
+            wrap_sign: Default::default(),
+            no_multi_line: Default::default(),
+            raw: Default::default(),
+            track: Default::default(),
+            gap: Default::default(),
+            gap_line: Default::default(),
+            freeze_left: Default::default(),
+            freeze_right: Default::default(),
+            scroll_off: Default::default(),
+            gutter: Default::default(),
+            gutter_raw: Default::default(),
+            marker_multi_line: Default::default(),
+            ellipsis: Default::default(),
+            scrollbar: Default::default(),
+            no_scrollbar: Default::default(),
+            list_border: Default::default(),
+            list_label: Default::default(),
+            list_label_pos: Default::default(),
+            no_input: Default::default(),
+            info_command: Default::default(),
+            separator: Default::default(),
+            no_separator: Default::default(),
+            ghost: Default::default(),
+            input_border: Default::default(),
+            input_label: Default::default(),
+            input_label_pos: Default::default(),
+            preview_label: Default::default(),
+            preview_label_pos: Default::default(),
+            header_first: Default::default(),
+            header_border: Default::default(),
+            header_lines_border: Default::default(),
+            footer: Default::default(),
+            footer_border: Default::default(),
+            footer_label: Default::default(),
+            footer_label_pos: Default::default(),
+            with_shell: Default::default(),
             expect: Default::default(),
             cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
             query_history: Default::default(),

@@ -253,7 +253,7 @@ impl<'a> TestHarness<'a> {
 
         let items: Vec<Arc<dyn SkimItem>> = reader
             .lines()
-            .filter_map(|line| line.ok())
+            .map_while(Result::ok)
             .enumerate()
             .map(|(idx, s)| {
                 Arc::new(DefaultSkimItem::new(
@@ -344,18 +344,13 @@ impl<'a> TestHarness<'a> {
             std::thread::sleep(std::time::Duration::from_millis(50));
 
             // Try to process any pending events (including PreviewReady)
-            loop {
-                match self.tui.event_rx.try_recv() {
-                    Ok(event) => {
-                        let is_preview_ready = matches!(event, Event::PreviewReady);
-                        self.process_event(event)?;
-                        // If we got PreviewReady, render and return
-                        if is_preview_ready {
-                            self.render()?;
-                            return Ok(());
-                        }
-                    }
-                    Err(_) => break, // No more events
+            while let Ok(event) = self.tui.event_rx.try_recv() {
+                let is_preview_ready = matches!(event, Event::PreviewReady);
+                self.process_event(event)?;
+                // If we got PreviewReady, render and return
+                if is_preview_ready {
+                    self.render()?;
+                    return Ok(());
                 }
             }
 
@@ -457,7 +452,7 @@ pub fn enter_interactive<'a>(options: SkimOptions) -> Result<TestHarness<'a>> {
 
     // Run initial command with current (empty) query
     if let Some(ref cmd_template) = harness.app.options.cmd.clone() {
-        let expanded_cmd = harness.app.expand_cmd(&cmd_template, true);
+        let expanded_cmd = harness.app.expand_cmd(cmd_template, true);
         harness.run_command(&expanded_cmd)?;
     }
 

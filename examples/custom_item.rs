@@ -21,9 +21,9 @@ impl SkimItem for MyItem {
 
 fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(String::from("50%"))
+        .height("50%")
         .multi(true)
-        .preview(Some(String::new())) // preview should be specified to enable preview window
+        .preview(String::new()) // preview should be specified to enable preview window
         .build()
         .unwrap();
 
