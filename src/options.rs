@@ -1093,6 +1093,31 @@ impl SkimOptions {
                 .extend(read_file_lines(cmd_histfile).unwrap_or_default());
         }
     }
+    #[cfg(feature = "cli")]
+    /// Merges SKIM_DEFAULT_OPTIONS with the app's args
+    pub fn from_env() -> Result<Self, clap::Error> {
+        use clap::Parser;
+        use std::env;
+
+        let mut args = Vec::new();
+
+        args.push(
+            env::args()
+                .next()
+                .expect("there should be at least one arg: the application name"),
+        );
+        args.extend(
+            env::var("SKIM_DEFAULT_OPTIONS")
+                .ok()
+                .and_then(|val| shlex::split(&val))
+                .unwrap_or_default(),
+        );
+        for arg in env::args().skip(1) {
+            args.push(arg);
+        }
+
+        Self::try_parse_from(args)
+    }
 }
 
 /// Feature flags

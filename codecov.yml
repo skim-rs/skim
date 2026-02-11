@@ -1,0 +1,15 @@
+# Make Codecov statuses informational so coverage is visible but won't fail PRs
+coverage:
+  status:
+    default_rules:
+      flag_coverage_not_uploaded_behavior: pass
+    project:
+      default:
+        target: auto
+        threshold: 0
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 0
+        informational: true

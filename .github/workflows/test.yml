@@ -69,12 +69,16 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
+          fail_ci_if_error: false
+        continue-on-error: true
       - name: Upload test results to Codecov
         uses: codecov/codecov-action@v5
         with:
           report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }}
           files: target/nextest/default/junit.xml
+          fail_ci_if_error: false
+        continue-on-error: true
   clippy:
     runs-on: ubuntu-latest
     steps:
