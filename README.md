@@ -103,7 +103,7 @@ Any of the following applies:
     ```
 - Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
 - Install from [crates.io](https://crates.io/):
-    - For the frizbee typo-resistant matcher, we need nightly rust: `cargo +nightly-2026-01-16 install skim` (run `rustup toolchain install nightly-2026-01-16` if needed)
+    - For the frizbee typo-resistant matcher, we need nightly rust: `cargo +nightly-2026-02-11 install skim` (run `rustup toolchain install nightly-2026-02-11` if needed)
     - Otherwise, use `cargo install skim --no-default-features --features cli`
 - Build Manually:
     ```sh
