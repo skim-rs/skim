@@ -21,13 +21,23 @@ use std::borrow::Cow;
 /// more than one line.
 #[derive(Debug)]
 pub struct DefaultSkimItem {
+    /// The text that will be shown on screen.
+    text: String,
+
+    /// The index, for use in matching
+    index: usize,
+
+    /// Metadata containing miscellaneous fields when special options are used
+    metadata: Option<Box<DefaultSkimItemMetadata>>,
+}
+
+/// Additional metadata for a SkimItem
+#[derive(Debug)]
+pub struct DefaultSkimItemMetadata {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
     orig_text: Option<String>,
-
-    /// The text that will be shown on screen.
-    text: String,
 
     /// The text stripped of all ansi sequences, used for matching
     /// Will be Some when ANSI is enabled, None otherwise
@@ -38,11 +48,9 @@ pub struct DefaultSkimItem {
     /// Will be empty if ansi is disabled.
     ansi_info: Option<Vec<(usize, usize)>>,
 
-    // Option<Box<_>> to reduce memory use in normal cases where no matching ranges are specified.
+    // The ranges on which to perform matching
     #[allow(clippy::box_collection)]
-    matching_ranges: Option<Box<Vec<(usize, usize)>>>,
-    /// The index, for use in matching
-    index: usize,
+    matching_ranges: Option<Vec<(usize, usize)>>,
 }
 
 impl DefaultSkimItem {
@@ -138,25 +146,67 @@ impl DefaultSkimItem {
                         }
                     }
                 }
-                Some(Box::new(adjusted_ranges))
+                Some(adjusted_ranges)
             } else {
-                Some(Box::new(parse_matching_fields(
-                    delimiter,
-                    text_for_matching,
-                    matching_fields,
-                )))
+                Some(parse_matching_fields(delimiter, text_for_matching, matching_fields))
             }
         } else {
             None
         };
 
-        DefaultSkimItem {
-            text,
-            orig_text,
-            stripped_text,
-            ansi_info,
-            matching_ranges,
-            index,
+        let metadata =
+            if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
+                Some(Box::new(DefaultSkimItemMetadata {
+                    orig_text,
+                    stripped_text,
+                    ansi_info,
+                    matching_ranges,
+                }))
+            } else {
+                None
+            };
+
+        DefaultSkimItem { text, index, metadata }
+    }
+    /// Getter for stripped_text stored in the metadata
+    pub fn stripped_text(&self) -> Option<&String> {
+        if let Some(meta) = &self.metadata
+            && let Some(stripped_text) = &meta.stripped_text
+        {
+            Some(stripped_text)
+        } else {
+            None
+        }
+    }
+
+    /// Getter for orig_text stored in metadata
+    pub fn orig_text(&self) -> Option<&String> {
+        if let Some(meta) = &self.metadata
+            && let Some(orig) = &meta.orig_text
+        {
+            Some(orig)
+        } else {
+            None
+        }
+    }
+
+    /// Getter for ansi_info stored in metadata
+    pub fn ansi_info(&self) -> Option<&Vec<(usize, usize)>> {
+        if let Some(meta) = &self.metadata
+            && let Some(info) = &meta.ansi_info
+        {
+            Some(info)
+        } else {
+            None
+        }
+    }
+
+    /// Getter for matching_ranges stored in metadata
+    pub fn matching_ranges(&self) -> Option<&[(usize, usize)]> {
+        if let Some(meta) = &self.metadata {
+            meta.matching_ranges.as_ref().map(|v| v.as_ref() as &[(usize, usize)])
+        } else {
+            None
         }
     }
 }
@@ -174,7 +224,7 @@ impl SkimItem for DefaultSkimItem {
     #[inline]
     fn text(&self) -> Cow<'_, str> {
         // Return stripped text for matching when ANSI is enabled
-        if let Some(ref stripped) = self.stripped_text {
+        if let Some(stripped) = self.stripped_text() {
             Cow::Borrowed(stripped)
         } else {
             Cow::Borrowed(&self.text)
@@ -182,7 +232,7 @@ impl SkimItem for DefaultSkimItem {
     }
 
     fn output(&self) -> Cow<'_, str> {
-        if let Some(ref orig) = self.orig_text {
+        if let Some(orig) = self.orig_text() {
             Cow::Borrowed(orig)
         } else {
             Cow::Borrowed(&self.text)
@@ -190,12 +240,13 @@ impl SkimItem for DefaultSkimItem {
     }
 
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
-        self.matching_ranges.as_ref().map(|vec| vec as &[(usize, usize)])
+        // Return matching ranges if present in metadata
+        self.matching_ranges()
     }
 
     fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
         // If we have ANSI info, we need to handle ANSI codes properly and map matches
-        if self.ansi_info.is_some() {
+        if self.ansi_info().is_some() {
             // Parse the ANSI text using ansi-to-tui to get proper styled spans
             let text_bytes = self.text.as_bytes().to_vec();
             let parsed_text = match text_bytes.into_text() {
@@ -318,7 +369,7 @@ impl SkimItem for DefaultSkimItem {
                 }
                 crate::Matches::ByteRange(start, end) => {
                     // Convert byte positions to char positions in stripped text
-                    let stripped = self.stripped_text.as_ref().unwrap();
+                    let stripped = self.stripped_text().unwrap();
                     let char_start = stripped.get(0..start).map(|s| s.chars().count()).unwrap_or(0);
                     let char_end = stripped
                         .get(0..end)
@@ -598,7 +649,7 @@ mod test {
         assert_eq!(item.text(), "green text");
 
         // Verify we have ANSI info
-        assert!(item.ansi_info.is_some());
+        assert!(item.ansi_info().is_some());
 
         // Create a match context as if we matched "text" (positions 6-10 in stripped string)
         let context = DisplayContext {
@@ -836,9 +887,9 @@ mod test {
         assert!(item.get_matching_ranges().is_none());
 
         // Verify the stripped_text and ansi_info are populated correctly
-        assert!(item.stripped_text.is_some());
-        assert!(item.ansi_info.is_some());
-        assert_eq!(item.stripped_text.as_ref().unwrap(), "green_text");
+        assert!(item.stripped_text().is_some());
+        assert!(item.ansi_info().is_some());
+        assert_eq!(item.stripped_text().unwrap(), "green_text");
     }
 
     #[test]
