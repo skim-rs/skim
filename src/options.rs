@@ -519,7 +519,7 @@ pub struct SkimOptions {
     /// Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by
     /// default until toggle-preview action is triggered. Long lines are truncated by default.
     /// Line wrap can be enabled with `:wrap` flag.
-    /// For more interactive commands, the preview can use a PTY with the `:pty` flag.
+    /// For more interactive commands or previews that draw complex interfaces, the preview can use a PTY with the `:pty` flag.
     ///
     /// Note: the preview will run in a PTY (interactive session) on linux and when `wrap` is unset
     ///
