@@ -274,6 +274,7 @@ pub enum MatchRange {
 }
 
 /// Rank tuple used for sorting match results
+/// The field will be ordered based on the `tiebreak` parameter
 pub type Rank = [i32; 5];
 
 #[derive(Clone)]

@@ -9,7 +9,10 @@ fn main() {
             .build()
             .unwrap();
         let res = Skim::run_with(opts, None).unwrap();
-        println!("run {i}: {:?}", res.selected_items.iter().next().map(|x| x.output()));
+        println!(
+            "run {i}: {:?}, sleeping for 5 secs",
+            res.selected_items.iter().next().map(|x| x.output())
+        );
+        std::thread::sleep(std::time::Duration::from_secs(5));
     }
-    std::thread::sleep(std::time::Duration::from_secs(5));
 }

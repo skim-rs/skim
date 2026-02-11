@@ -203,10 +203,8 @@ where
 pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
     let mut actions: Vec<Action> = vec![];
     let mut split = action_chain.split("+");
-    loop {
-        let Some(mut s) = split.next().map(String::from) else {
-            break;
-        };
+
+    while let Some(mut s) = split.next().map(String::from) {
         if (s.starts_with("if-") || s.ends_with("{"))
             && let Some(otherwise) = split.next()
         {
