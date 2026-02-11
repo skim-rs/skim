@@ -1,3 +1,4 @@
+use crossterm::terminal;
 use ratatui::{
     style::Style,
     text::{Line, Span, Text},
@@ -6,7 +7,6 @@ use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::fs::OpenOptionsExt;
-use termion::raw::IntoRawMode;
 use unicode_display_width::is_double_width;
 
 // Directly taken from https://docs.rs/unicode-display-width/0.3.0/src/unicode_display_width/lib.rs.html#77-81
@@ -204,13 +204,28 @@ pub(crate) fn handle_csi_query(seq: &[u8], writer: &mut Box<dyn std::io::Write +
     false
 }
 
+struct RawMode;
+
+impl RawMode {
+    fn new() -> io::Result<Self> {
+        terminal::enable_raw_mode()?;
+        Ok(Self)
+    }
+}
+
+impl Drop for RawMode {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+    }
+}
+
 pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
-    let tty = OpenOptions::new()
+    let _guard = RawMode::new()?;
+    let mut tty = OpenOptions::new()
         .read(true)
         .write(true)
         .custom_flags(nix::fcntl::OFlag::O_NONBLOCK.bits())
         .open("/dev/tty")?;
-    let mut tty = tty.into_raw_mode()?;
     let delimiter = b'R';
     // Where is the cursor?
     // Use `ESC [ 6 n`.

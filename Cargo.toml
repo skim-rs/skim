@@ -58,7 +58,6 @@ thiserror = "2.0.17"
 tempfile = "3.25.0"
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
 thread_local = "1.1.9"
-termion = "4.0.6"
 clap_complete_nushell = "4.5.10"
 interprocess = { version = "2.3.1", features = ["tokio"] }
 serde = { version = "1.0.228", features = ["derive"] }
