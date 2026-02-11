@@ -6,15 +6,11 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
-use crate::MatchRange;
 use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
-
-static PLACEHOLDER_RANK: [i32; 5] = [0, 0, 0, 0, 0];
-static PLACEHOLDER_RANGE: Option<MatchRange> = None;
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -173,8 +169,6 @@ impl Matcher {
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
 
-        let query_empty: bool = query.is_empty();
-
         let run_matcher = || {
             rayon::spawn(move || {
                 // let _num_taken = item_pool.num_taken();
@@ -205,14 +199,6 @@ impl Matcher {
                                     stopped.store(true, Ordering::Relaxed);
                                     return None;
                                 }
-                                if query_empty {
-                                    return Some(MatchedItem {
-                                        item: item,
-                                        rank: PLACEHOLDER_RANK,
-                                        matched_range: PLACEHOLDER_RANGE.clone(),
-                                    });
-                                }
-
                                 matcher_engine.match_item(item.as_ref()).map(|match_result| {
                                     // item is Arc but we get &Arc from iterator, so one clone is needed
                                     MatchedItem {

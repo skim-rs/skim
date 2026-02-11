@@ -46,7 +46,7 @@ const HIDE_GRACE_MS: u128 = 500;
 pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,
-    /// Pool of items to be filtered
+    /// Separate thread pool for use by skim
     pub thread_pool: Arc<ThreadPool>,
     /// Whether the application should quit
     pub should_quit: bool,
