@@ -41,7 +41,7 @@ derive_builder = "0.20.2"
 env_logger = { version = "0.11.6", optional = true, features = ["humantime"] }
 indexmap = "2.8.0"
 log = "0.4.27"
-nix = { version = "0.31.1", features = ["fs"] }
+nix = { version = "0.31.1", features = ["fs", "poll"] }
 rand = "0.10.0"
 rayon = "1.5.3"
 regex = "1.12.3"
@@ -58,7 +58,6 @@ thiserror = "2.0.17"
 tempfile = "3.25.0"
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
 thread_local = "1.1.9"
-termion = "4.0.6"
 clap_complete_nushell = "4.5.10"
 interprocess = { version = "2.3.1", features = ["tokio"] }
 serde = { version = "1.0.228", features = ["derive"] }

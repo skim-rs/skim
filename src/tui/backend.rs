@@ -1,4 +1,3 @@
-use std::io::IsTerminal;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
@@ -11,14 +10,13 @@ use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::{TerminalOptions, Viewport};
-use termion::cursor::DetectCursorPos;
-use termion::raw::IntoRawMode as _;
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
 
+use super::util::cursor_pos_from_tty;
 use super::{Event, Size};
 
 const TICK_RATE: f64 = 12.;
@@ -65,17 +63,7 @@ where
 
         let viewport = if let Some(mut height) = lines {
             // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
-            let cursor_pos = if std::io::stdout().is_terminal() {
-                let mut stdout = std::io::stdout().into_raw_mode()?;
-                let res = stdout.cursor_pos()?;
-                drop(stdout);
-                res
-            } else {
-                let mut tty = termion::get_tty()?.into_raw_mode()?;
-                let res = tty.cursor_pos()?;
-                drop(tty);
-                res
-            };
+            let cursor_pos = cursor_pos_from_tty()?;
             let mut y = cursor_pos.1 - 1;
             height = height.min(term_height);
             if term_height - cursor_pos.1 < height {
