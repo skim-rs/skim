@@ -501,17 +501,19 @@ impl Skim {
 
         Ok(output)
     }
-    /// Checks read-0 and select-1 to wait and returns whether or not we should enter
+    /// Checks read-0 select-1, and sync to wait and returns whether or not we should enter
     fn should_enter(app: &mut App<'_>, reader_control: &ReaderControl) -> bool {
         // Deal with read-0 / select-1
         let min_items_before_enter = if app.options.exit_0 {
             1
         } else if app.options.select_1 {
             2
+        } else if app.options.sync {
+            usize::MAX
         } else {
             0
         };
-        if min_items_before_enter > 0 {
+        if min_items_before_enter > 0 || app.options.sync {
             trace!(
                 "checking matcher, stopped: {}, processed: {}, matched: {}/{}, pool: {}, query: {}, reader_control_done: {}",
                 app.matcher_control.stopped(),
