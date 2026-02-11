@@ -42,7 +42,7 @@ env_logger = { version = "0.11.6", optional = true, features = ["humantime"] }
 indexmap = "2.8.0"
 log = "0.4.27"
 nix = { version = "0.31.1", features = ["fs", "poll"] }
-rand = "0.9.0"
+rand = "0.10.0"
 rayon = "1.5.3"
 regex = "1.12.3"
 shell-quote = "0.7.2"

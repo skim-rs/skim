@@ -3,7 +3,7 @@
 mod common;
 
 use common::tmux::Keys::*;
-use rand::{Rng as _, distr::Alphabetic};
+use rand::{RngExt as _, distr::Alphabetic};
 use std::{
     io::{Result, Write as _},
     process::{Child, Command, Stdio},
