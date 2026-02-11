@@ -736,9 +736,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(*n as i32),
                     BottomToTop => self.item_list.scroll_by(-(*n as i32)),
                 }
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             EndOfLine => {
                 self.input.move_to_end();
@@ -779,9 +777,7 @@ impl<'a> App<'a> {
             First | Top => {
                 // Jump to first item (considering reserved items)
                 self.item_list.jump_to_first();
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             ForwardChar => {
                 self.input.move_cursor(1);
@@ -837,9 +833,7 @@ impl<'a> App<'a> {
             Last => {
                 // Jump to last item
                 self.item_list.jump_to_last();
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             NextHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
@@ -886,9 +880,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             HalfPageUp(n) => {
                 let offset = self.item_list.height as i32 / 2;
@@ -897,9 +889,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             PageDown(n) => {
                 let offset = self.item_list.height as i32;
@@ -908,9 +898,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(offset * n);
                 }
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             PageUp(n) => {
                 let offset = self.item_list.height as i32;
@@ -919,9 +907,7 @@ impl<'a> App<'a> {
                 } else {
                     self.item_list.scroll_by(-offset * n);
                 }
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             PreviewUp(n) => {
                 self.preview.scroll_up(*n as u16);
@@ -1099,9 +1085,7 @@ impl<'a> App<'a> {
                     TopToBottom => self.item_list.scroll_by(-(*n as i32)),
                     BottomToTop => self.item_list.scroll_by(*n as i32),
                 }
-                if !self.options.multi || self.item_list.selection.is_empty() {
-                    return self.on_selection_changed();
-                }
+                return self.on_selection_changed();
             }
             Yank => {
                 // Insert from yank register at cursor position

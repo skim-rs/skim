@@ -527,7 +527,7 @@ use std::io::Cursor;
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(String::from("50%"))
+        .height("50%")
         .multi(true)
         .build()
         .unwrap();
