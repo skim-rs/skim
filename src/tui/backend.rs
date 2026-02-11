@@ -1,3 +1,4 @@
+use std::io::BufWriter;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
@@ -8,12 +9,10 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
-use ratatui::prelude::Backend;
+use ratatui::prelude::{Backend, CrosstermBackend};
 use ratatui::{TerminalOptions, Viewport};
-use tokio::{
-    sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
-    task::JoinHandle,
-};
+use tokio::sync::mpsc::{Receiver, Sender, channel};
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::util::cursor_pos_from_tty;
@@ -24,7 +23,7 @@ const FRAME_RATE: f64 = 30.;
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
-pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<std::io::Stderr>>
+pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<BufWriter<std::io::Stderr>>>
 where
     B::Error: Send + Sync + 'static,
 {
@@ -33,9 +32,9 @@ where
     /// Background task handle for event polling
     pub task: Option<JoinHandle<()>>,
     /// Receiver for TUI events
-    pub event_rx: UnboundedReceiver<Event>,
+    pub event_rx: Receiver<Event>,
     /// Sender for TUI events
-    pub event_tx: UnboundedSender<Event>,
+    pub event_tx: Sender<Event>,
     /// Frame rate for rendering (frames per second)
     pub frame_rate: f64,
     /// Tick rate for updates (ticks per second)
@@ -46,13 +45,21 @@ where
     pub is_fullscreen: bool,
 }
 
+impl Tui {
+    /// Creates a TUI with the default backend (buffered stderr) and the specified height
+    pub fn new_with_height(height: Size) -> Result<Self> {
+        let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
+        Self::new_with_height_and_backend(backend, height)
+    }
+}
+
 impl<B: Backend> Tui<B>
 where
     B::Error: Send + Sync + 'static,
 {
     /// Creates a new TUI with the specified backend and height
-    pub fn new_with_height(backend: B, height: Size) -> Result<Self> {
-        let event_channel = unbounded_channel();
+    pub fn new_with_height_and_backend(backend: B, height: Size) -> Result<Self> {
+        let event_channel = channel(1024 * 1024);
 
         let term_height = backend.size().expect("Failed to get terminal height").height;
         let lines = match height {
@@ -102,7 +109,7 @@ where
     #[cfg(any(test, feature = "test-utils"))]
     #[cfg_attr(coverage, coverage(off))]
     pub fn new_for_test(backend: B) -> Result<Self> {
-        let event_channel = unbounded_channel();
+        let event_channel = channel(1024 * 1024);
         Ok(Self {
             terminal: ratatui::Terminal::new(backend)?,
             task: None,
@@ -182,27 +189,27 @@ where
                       match maybe_event {
                         Some(Ok(crossterm::event::Event::Key(key))) => {
                           if key.kind == KeyEventKind::Press {
-                            _ = event_tx_clone.send(Event::Key(key));
+                            _ = event_tx_clone.try_send(Event::Key(key));
                           }
                         }
                         Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
-                          _ = event_tx_clone.send(Event::Mouse(mouse));
+                          _ = event_tx_clone.try_send(Event::Mouse(mouse));
                         }
                         Some(Ok(crossterm::event::Event::Resize(_, _))) => {
-                          _ = event_tx_clone.send(Event::Resize);
-                          _ = event_tx_clone.send(Event::Render);
+                          _ = event_tx_clone.try_send(Event::Resize);
+                          _ = event_tx_clone.try_send(Event::Render);
                         }
                         Some(Err(e)) => {
-                          _ = event_tx_clone.send(Event::Error(e.to_string()));
+                          _ = event_tx_clone.try_send(Event::Error(e.to_string()));
                         }
                         None | Some(Ok(_)) => {},
                       }
                     },
                     _ = tick_delay => {
-                        _ = event_tx_clone.send(Event::Heartbeat);
+                        _ = event_tx_clone.try_send(Event::Heartbeat);
                     },
                     _ = render_delay => {
-                        _ = event_tx_clone.send(Event::Render);
+                        _ = event_tx_clone.try_send(Event::Render);
                     },
                 }
             }
