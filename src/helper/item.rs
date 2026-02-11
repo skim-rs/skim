@@ -37,11 +37,11 @@ pub struct DefaultSkimItemMetadata {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
-    orig_text: Option<String>,
+    orig_text: Option<Box<str>>,
 
     /// The text stripped of all ansi sequences, used for matching
     /// Will be Some when ANSI is enabled, None otherwise
-    stripped_text: Option<String>,
+    stripped_text: Option<Box<str>>,
 
     /// A mapping of positions from stripped text to original text.
     /// Each element is (byte_position, char_position) in the original raw text.
@@ -74,14 +74,14 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let (mut orig_text, mut text) = match (using_transform_fields, ansi_enabled) {
+        let (mut orig_text, mut text): (Option<String>, String) = match (using_transform_fields, ansi_enabled) {
             (true, true) => {
                 let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
-                (Some(orig_text), transformed)
+                (Some(orig_text.into()), transformed)
             }
             (true, false) => {
                 let transformed = parse_transform_fields(delimiter, &escape_ansi(&orig_text), trans_fields);
-                (Some(orig_text), transformed)
+                (Some(orig_text.into()), transformed)
             }
             (false, true) => (None, orig_text.to_string()),
             (false, false) => (None, escape_ansi(&orig_text).into()),
@@ -92,14 +92,15 @@ impl DefaultSkimItem {
 
         // Preserve original text with null bytes for output if needed
         if has_null_bytes && orig_text.is_none() {
-            orig_text = Some(&text);
+            orig_text = Some(text.clone());
         }
 
         // Strip null bytes from text used for display and matching
         // Null bytes are control characters that cause rendering issues (zero-width)
         // They are preserved in orig_text for output
         if has_null_bytes {
-            text = text.replace('\0', "");
+            let tmp = text.clone();
+            text = tmp.replace('\0', "");
         }
 
         let (stripped_text, ansi_info) = if ansi_enabled {
@@ -122,9 +123,9 @@ impl DefaultSkimItem {
             // Parse the original text with null bytes to determine field boundaries
             // Then extract those fields, strip null bytes, and recalculate positions
             let orig_text_for_fields = if has_null_bytes {
-                orig_text.unwrap()
+                orig_text.clone().unwrap()
             } else {
-                &text_for_matching
+                text_for_matching.to_string()
             };
 
             if has_null_bytes {
@@ -134,7 +135,7 @@ impl DefaultSkimItem {
 
                 for field in matching_fields {
                     // Get the field text from original (with null bytes)
-                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, orig_text_for_fields, field)
+                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, &orig_text_for_fields, field)
                     {
                         // Strip null bytes from this field
                         let cleaned_field = field_text.replace('\0', "");
@@ -156,8 +157,8 @@ impl DefaultSkimItem {
         let metadata =
             if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
                 Some(Box::new(DefaultSkimItemMetadata {
-                    orig_text: orig_text.into(),
-                    stripped_text,
+                    orig_text: orig_text.map(|inner| inner.into()),
+                    stripped_text: stripped_text.map(|inner| inner.into()),
                     ansi_info,
                     matching_ranges,
                 }))
@@ -168,7 +169,7 @@ impl DefaultSkimItem {
         DefaultSkimItem { text: text.into(), index, metadata }
     }
     /// Getter for stripped_text stored in the metadata
-    pub fn stripped_text(&self) -> Option<&String> {
+    pub fn stripped_text(&self) -> Option<&Box<str>> {
         if let Some(meta) = &self.metadata
             && let Some(stripped_text) = &meta.stripped_text
         {
@@ -179,7 +180,7 @@ impl DefaultSkimItem {
     }
 
     /// Getter for orig_text stored in metadata
-    pub fn orig_text(&self) -> Option<&String> {
+    pub fn orig_text(&self) -> Option<&Box<str>> {
         if let Some(meta) = &self.metadata
             && let Some(orig) = &meta.orig_text
         {
@@ -888,7 +889,7 @@ mod test {
         // Verify the stripped_text and ansi_info are populated correctly
         assert!(item.stripped_text().is_some());
         assert!(item.ansi_info().is_some());
-        assert_eq!(item.stripped_text().unwrap(), "green_text");
+        assert_eq!(item.stripped_text().unwrap().as_ref(), "green_text");
     }
 
     #[test]

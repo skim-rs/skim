@@ -3,8 +3,8 @@
 use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -228,7 +228,7 @@ impl SkimItemReader {
                     trace!("got item {} with index {}", line.clone(), line_idx);
 
                     let raw_item = DefaultSkimItem::new(
-                        line,
+                        &line,
                         option.use_ansi_color,
                         &transform_fields,
                         &matching_fields,
@@ -325,7 +325,7 @@ impl SkimItemReader {
                             .lines()
                             .map(|line| {
                                 Arc::new(DefaultSkimItem::new(
-                                    line.to_string(),
+                                    line,
                                     false,
                                     &[],
                                     &[],
