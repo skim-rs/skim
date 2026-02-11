@@ -616,7 +616,7 @@ impl App {
                 self.restart_matcher(true);
             }
             Event::Reload(_) => {
-                // Reload event is already handled by the TUI event loop
+                unreachable!("Reload is handled by the TUI event loop in lib.rs")
             }
         };
 

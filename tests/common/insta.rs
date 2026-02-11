@@ -64,12 +64,12 @@ impl TestHarness {
             // Run the command and add items
             self.run_command_internal(new_cmd)?;
             self.app.restart_matcher(true);
+        } else {
+            // Let the app handle the event (this may queue more events)
+            // Enter the runtime context so that tokio::spawn() calls work
+            let _guard = self.runtime.enter();
+            self.app.handle_event(&mut self.tui, &event)?;
         }
-
-        // Let the app handle the event (this may queue more events)
-        // Enter the runtime context so that tokio::spawn() calls work
-        let _guard = self.runtime.enter();
-        self.app.handle_event(&mut self.tui, &event)?;
 
         // Track if app should quit and what the final event was
         if self.app.should_quit && self.final_event.is_none() {

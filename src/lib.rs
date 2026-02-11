@@ -604,7 +604,14 @@ impl Skim {
             event = self.tui.as_mut().expect("TUI should be initialized before the event loop can start").next() => {
                 let evt = event.ok_or_eyre("Could not acquire next event")?;
 
-                // Handle reload event
+                if let Event::Key(k) = &evt {
+                  self.final_key = k.to_owned();
+                } else {
+                  self.final_event = evt.to_owned();
+                }
+
+
+                // Handle reload event separately
                 if let Event::Reload(new_cmd) = &evt {
                     debug!("reloading with cmd {new_cmd}");
                     // Kill the current reader
@@ -620,18 +627,14 @@ impl Skim {
                     // Start a new reader with the new command (no source, using cmd)
                     self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), new_cmd));
                     self.reader_done = false;
-                }
-                if let Event::Key(k) = &evt {
-                  self.final_key = k.to_owned();
                 } else {
-                  self.final_event = evt.to_owned();
+                    self.app.handle_event(self.tui.as_mut().expect("TUI should be initialized before handling events"), &evt)?;
                 }
 
                 // Check reader status and update
                 if self.reader_control.as_ref().is_some_and(|rc| rc.is_done()) && !self.reader_done {
                     self.app.restart_matcher(false);
                 }
-                self.app.handle_event(self.tui.as_mut().expect("TUI should be initialized before handling events"), &evt)?;
             }
             _ = async {
                 match matcher_interval {
