@@ -74,17 +74,17 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let (mut orig_text, mut temp_text): (Option<String>, Cow<str>) = match (using_transform_fields, ansi_enabled) {
+        let (mut orig_text, mut temp_text): (Option<String>, Box<str>) = match (using_transform_fields, ansi_enabled) {
             (true, true) => {
                 let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
-                (Some(orig_text.into()), Cow::Owned(transformed))
+                (Some(orig_text.into()), Box::from(transformed))
             }
             (true, false) => {
                 let transformed = parse_transform_fields(delimiter, &escape_ansi(&orig_text), trans_fields);
-                (Some(orig_text.into()), Cow::Owned(transformed))
+                (Some(orig_text.into()), Box::from(transformed))
             }
-            (false, true) => (None, Cow::Borrowed(orig_text)),
-            (false, false) => (None, Cow::Owned(escape_ansi(&orig_text).into())),
+            (false, true) => (None, Box::from(orig_text)),
+            (false, false) => (None, escape_ansi(&orig_text).into()),
         };
 
         // Keep track of whether we have null bytes for special handling
@@ -99,7 +99,7 @@ impl DefaultSkimItem {
         // Null bytes are control characters that cause rendering issues (zero-width)
         // They are preserved in orig_text for output
         if has_null_bytes {
-            temp_text = Cow::Owned(temp_text.to_string().replace('\0', ""));
+            temp_text = temp_text.to_string().replace('\0', "").into_boxed_str();
         }
 
         let (stripped_text, ansi_info) = if ansi_enabled {
@@ -172,22 +172,22 @@ impl DefaultSkimItem {
         }
     }
     /// Getter for stripped_text stored in the metadata
-    pub fn stripped_text(&self) -> Option<&Box<str>> {
+    pub fn stripped_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
             && let Some(stripped_text) = &meta.stripped_text
         {
-            Some(stripped_text)
+            Some(stripped_text.as_ref())
         } else {
             None
         }
     }
 
     /// Getter for orig_text stored in metadata
-    pub fn orig_text(&self) -> Option<&Box<str>> {
+    pub fn orig_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
             && let Some(orig) = &meta.orig_text
         {
-            Some(orig)
+            Some(orig.as_ref())
         } else {
             None
         }
@@ -892,7 +892,7 @@ mod test {
         // Verify the stripped_text and ansi_info are populated correctly
         assert!(item.stripped_text().is_some());
         assert!(item.ansi_info().is_some());
-        assert_eq!(item.stripped_text().unwrap().as_ref(), "green_text");
+        assert_eq!(item.stripped_text().unwrap(), "green_text");
     }
 
     #[test]
