@@ -156,8 +156,8 @@ impl DefaultSkimItem {
         let metadata =
             if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
                 Some(Box::new(DefaultSkimItemMetadata {
-                    orig_text: orig_text.map(|inner| inner.into()),
-                    stripped_text: stripped_text.map(|inner| inner.into()),
+                    orig_text: orig_text.map(|inner| inner.into_boxed_str()),
+                    stripped_text: stripped_text.map(|inner| inner.into_boxed_str()),
                     ansi_info,
                     matching_ranges,
                 }))
@@ -166,7 +166,7 @@ impl DefaultSkimItem {
             };
 
         DefaultSkimItem {
-            text: text.into(),
+            text: text.into_boxed_str(),
             index,
             metadata,
         }
