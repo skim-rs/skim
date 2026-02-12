@@ -166,7 +166,7 @@ impl DefaultSkimItem {
             };
 
         DefaultSkimItem {
-            text: Box::from(temp_text),
+            text: temp_text,
             index,
             metadata,
         }
