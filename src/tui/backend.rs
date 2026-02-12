@@ -4,6 +4,7 @@ use std::sync::Once;
 
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEventKind;
+use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
@@ -125,7 +126,7 @@ where
     /// Enters the TUI by enabling raw mode and starting event handling
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
-        crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+        crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
@@ -140,6 +141,7 @@ where
             crossterm::execute!(
                 std::io::stderr(),
                 DisableMouseCapture,
+                DisableBracketedPaste,
                 LeaveAlternateScreen,
                 cursor::Show
             )?;
@@ -191,6 +193,9 @@ where
                           if key.kind == KeyEventKind::Press {
                             _ = event_tx_clone.try_send(Event::Key(key));
                           }
+                        }
+                        Some(Ok(crossterm::event::Event::Paste(text))) => {
+                          _ = event_tx_clone.try_send(Event::Paste(text));
                         }
                         Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
                           _ = event_tx_clone.try_send(Event::Mouse(mouse));

@@ -547,6 +547,7 @@ impl App {
                 // Heartbeat is used for periodic UI updates
                 self.update_spinner();
 
+                debug!("pending_matcher_restart: {}", self.pending_matcher_restart);
                 if self.pending_matcher_restart {
                     self.restart_matcher(true);
                 }
@@ -595,6 +596,18 @@ impl App {
                 let events = self.handle_key(key);
                 for evt in events {
                     tui.event_tx.try_send(evt)?;
+                }
+            }
+            Event::Paste(text) => {
+                // Strip newlines/carriage returns from pasted text so they don't
+                // trigger Accept or get inserted as invisible characters.
+                let cleaned: String = text.chars().filter(|c| *c != '\n' && *c != '\r').collect();
+                if !cleaned.is_empty() {
+                    self.input.insert_str(&cleaned);
+                    let events = self.on_query_changed()?;
+                    for evt in events {
+                        tui.event_tx.try_send(evt)?;
+                    }
                 }
             }
             Event::Redraw => {
@@ -1145,13 +1158,12 @@ impl App {
         }
 
         let matcher_stopped = self.matcher_control.stopped();
-        if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
+        if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             trace!("restarting matcher");
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;
             self.matcher_control.kill();
-            self.item_pool.reset();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
             // In interactive mode, use empty query so all items are shown
@@ -1166,6 +1178,8 @@ impl App {
             let item_pool = self.item_pool.clone();
             let processed_items = self.item_list.processed_items.clone();
             let no_sort = self.options.no_sort;
+
+            self.item_pool.reset();
             self.matcher_control = self.matcher.run(query, item_pool.clone(), move |mut matches| {
                 debug!("Got {} results from matcher, sending to item list...", matches.len());
 
@@ -1205,12 +1219,13 @@ impl App {
             return;
         }
         const DEBOUNCE_MS: u64 = 50;
-        let now = std::time::Instant::now();
 
         // If enough time has passed since last restart, restart immediately
-        if now.duration_since(self.last_matcher_restart).as_millis() > DEBOUNCE_MS as u128 {
+        if self.last_matcher_restart.elapsed().as_millis() > DEBOUNCE_MS as u128 {
+            debug!("restart_matcher_debounced: true");
             self.restart_matcher(true);
         } else {
+            debug!("restart_matcher_debounced: false");
             self.pending_matcher_restart = true;
         }
     }

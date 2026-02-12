@@ -57,6 +57,8 @@ pub enum Event {
     Render,
     /// A key was pressed
     Key(KeyEvent),
+    /// Text was pasted (bracketed paste)
+    Paste(String),
     /// A mouse event occurred
     Mouse(MouseEvent),
     /// Preview content is ready to display

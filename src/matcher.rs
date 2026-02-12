@@ -18,6 +18,7 @@ use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
 /// Provides methods to check status, retrieve results, and stop the matcher.
 pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
+    interrupt: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
 }
@@ -26,6 +27,7 @@ impl Default for MatcherControl {
     fn default() -> Self {
         Self {
             stopped: Arc::new(AtomicBool::new(true)),
+            interrupt: Arc::new(AtomicBool::new(false)),
             processed: Default::default(),
             matched: Default::default(),
         }
@@ -45,7 +47,7 @@ impl MatcherControl {
 
     /// Signals the matcher to stop processing.
     pub fn kill(&mut self) {
-        self.stopped.store(true, Ordering::Relaxed);
+        self.interrupt.store(true, Ordering::Relaxed);
     }
 
     /// Returns true if the matcher has stopped (either completed or killed).
@@ -154,6 +156,8 @@ impl Matcher {
         debug!("engine: {matcher_engine}");
         let stopped = Arc::new(AtomicBool::new(false));
         let stopped_clone = stopped.clone();
+        let interrupt = Arc::new(AtomicBool::new(false));
+        let interrupt_clone = interrupt.clone();
         let processed = Arc::new(AtomicUsize::new(0));
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
@@ -161,20 +165,15 @@ impl Matcher {
         let mut matched_items = Vec::new();
 
         thread::spawn(move || {
-            let _num_taken = item_pool.num_taken();
             let items = item_pool.take();
-
-            // 1. use rayon for parallel
-            // 2. return Err to skip iteration
-            //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
-
             trace!("matcher start, total: {}", items.len());
             let result: Result<Vec<_>, _> = items
                 .into_par_iter()
                 .enumerate()
                 .filter_map(|(_, item)| {
                     processed.fetch_add(1, Ordering::Relaxed);
-                    if stopped.load(Ordering::Relaxed) {
+                    if interrupt.load(Ordering::Relaxed) {
+                        stopped.store(true, Ordering::Relaxed);
                         Some(Err("matcher killed"))
                     } else if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
                         matched.fetch_add(1, Ordering::Relaxed);
@@ -195,14 +194,15 @@ impl Matcher {
                 trace!("matcher stop, total matched: {}", matched_items.len());
             }
 
-            if !stopped.load(Ordering::Relaxed) {
+            if !interrupt.load(Ordering::Relaxed) {
                 callback(matched_items);
-                stopped.store(true, Ordering::Relaxed);
             }
+            stopped.store(true, Ordering::Relaxed);
         });
 
         MatcherControl {
             stopped: stopped_clone,
+            interrupt: interrupt_clone,
             matched: matched_clone,
             processed: processed_clone,
         }
