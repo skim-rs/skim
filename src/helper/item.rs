@@ -63,7 +63,7 @@ impl DefaultSkimItem {
         index: usize,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
-        let ansi_enabled = ansi_enabled && Self::contains_ansi_escape(orig_text);
+        let contains_ansi = Self::contains_ansi_escape(orig_text);
 
         //        transformed | ANSI             | output
         //------------------------------------------------------
@@ -103,7 +103,7 @@ impl DefaultSkimItem {
             temp_text = temp_text.to_string().replace('\0', "").into_boxed_str();
         }
 
-        let (stripped_text, ansi_info) = if ansi_enabled {
+        let (stripped_text, ansi_info) = if ansi_enabled && contains_ansi {
             let (stripped, info) = strip_ansi(&temp_text);
             (Some(stripped), Some(info))
         } else {
