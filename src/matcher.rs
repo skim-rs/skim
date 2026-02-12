@@ -171,13 +171,7 @@ impl Matcher {
 
         let run_matcher = || {
             rayon::spawn(move || {
-                // let _num_taken = item_pool.num_taken();
                 let items = item_pool.take();
-
-                // 1. use rayon for parallel
-                // 2. return Err to skip iteration
-                //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
-
                 trace!("matcher start, total: {}", items.len());
                 let matched_items: Vec<MatchedItem> = items
                     .into_par_iter()
@@ -192,17 +186,17 @@ impl Matcher {
                         true
                     })
                     .map(|chunk| {
+                        if interrupt.load(Ordering::Relaxed) {
+                            stopped.store(true, Ordering::Relaxed);
+                            return Vec::new();
+                        }
                         let matched_chunk: Vec<MatchedItem> = chunk
                             .into_iter()
                             .filter_map(|item| {
-                                if interrupt.load(Ordering::Relaxed) {
-                                    stopped.store(true, Ordering::Relaxed);
-                                    return None;
-                                }
                                 matcher_engine.match_item(item.as_ref()).map(|match_result| {
                                     // item is Arc but we get &Arc from iterator, so one clone is needed
                                     MatchedItem {
-                                        item: item,
+                                        item,
                                         rank: match_result.rank,
                                         matched_range: Some(match_result.matched_range),
                                     }
@@ -225,7 +219,7 @@ impl Matcher {
             });
         };
 
-        thread_pool.install(|| run_matcher());
+        thread_pool.install(run_matcher);
 
         MatcherControl {
             stopped: stopped_clone,
