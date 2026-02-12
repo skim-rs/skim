@@ -74,36 +74,36 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let (mut orig_text, mut text): (Option<String>, String) = match (using_transform_fields, ansi_enabled) {
+        let (mut orig_text, mut temp_text): (Option<String>, Cow<str>) = match (using_transform_fields, ansi_enabled) {
             (true, true) => {
                 let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
-                (Some(orig_text.into()), transformed)
+                (Some(orig_text.into()), Cow::Owned(transformed))
             }
             (true, false) => {
                 let transformed = parse_transform_fields(delimiter, &escape_ansi(&orig_text), trans_fields);
-                (Some(orig_text.into()), transformed)
+                (Some(orig_text.into()), Cow::Owned(transformed))
             }
-            (false, true) => (None, orig_text.to_string()),
-            (false, false) => (None, escape_ansi(&orig_text).into()),
+            (false, true) => (None, Cow::Borrowed(orig_text)),
+            (false, false) => (None, Cow::Owned(escape_ansi(&orig_text).into())),
         };
 
         // Keep track of whether we have null bytes for special handling
-        let has_null_bytes = text.contains('\0');
+        let has_null_bytes = temp_text.contains('\0');
 
         // Preserve original text with null bytes for output if needed
         if has_null_bytes && orig_text.is_none() {
-            orig_text = Some(text.clone());
+            orig_text = Some(temp_text.to_string());
         }
 
         // Strip null bytes from text used for display and matching
         // Null bytes are control characters that cause rendering issues (zero-width)
         // They are preserved in orig_text for output
         if has_null_bytes {
-            text = text.replace('\0', "");
+            temp_text = Cow::Owned(temp_text.to_string().replace('\0', ""));
         }
 
         let (stripped_text, ansi_info) = if ansi_enabled {
-            let (stripped, info) = strip_ansi(&text);
+            let (stripped, info) = strip_ansi(&temp_text);
             (Some(stripped), Some(info))
         } else {
             (None, None)
@@ -116,7 +116,7 @@ impl DefaultSkimItem {
             let text_for_matching = if ansi_enabled {
                 stripped_text.as_ref().unwrap()
             } else {
-                &text
+                temp_text.as_ref()
             };
 
             // Parse the original text with null bytes to determine field boundaries
@@ -166,7 +166,7 @@ impl DefaultSkimItem {
             };
 
         DefaultSkimItem {
-            text: text.into_boxed_str(),
+            text: Box::from(temp_text),
             index,
             metadata,
         }
