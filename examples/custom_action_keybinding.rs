@@ -12,7 +12,7 @@ use std::io::Cursor;
 /// 3. Use them interactively in skim
 fn main() {
     // Create a custom callback that adds a prefix to the query
-    let add_prefix_callback = ActionCallback::new(|app: &mut skim::tui::App<'static>| {
+    let add_prefix_callback = ActionCallback::new(|app: &mut skim::tui::App| {
         // Get current query and add prefix
         let current_query = app.input.value.clone();
 
@@ -33,7 +33,7 @@ fn main() {
     });
 
     // Create a callback that selects all and exits
-    let select_all_callback = ActionCallback::new(|app: &mut skim::tui::App<'static>| {
+    let select_all_callback = ActionCallback::new(|app: &mut skim::tui::App| {
         let count = app.item_pool.len();
 
         Ok(vec![

@@ -3,7 +3,7 @@
 //! After reading in a line, reader will save an item into the pool(items)
 use crate::item::ItemPool;
 use crate::options::SkimOptions;
-use crate::prelude::Sender;
+use crate::prelude::{Sender, SkimItemReader};
 use crate::spinlock::SpinLock;
 use crate::{SkimItem, SkimItemReceiver};
 use std::cell::RefCell;
@@ -135,6 +135,15 @@ impl Reader {
             tx_interrupt_cmd,
             components_to_stop,
             items,
+        }
+    }
+}
+
+impl Default for Reader {
+    fn default() -> Self {
+        Self {
+            cmd_collector: Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>,
+            rx_item: Default::default(),
         }
     }
 }
