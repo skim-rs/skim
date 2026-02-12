@@ -305,6 +305,11 @@ cargo install nu_plugin_skim
 plugin add ~/.cargo/bin/nu_plugin_skim
 ```
 
+## [sqlite extension](https://github.com/tzachar/sqlite_skim)
+
+An `sqlite` loadable module which enables a `skim_score` function in SQL
+queries.
+
 # Customization
 
 The doc here is only a preview, please check the man page (`man sk`) for a full
