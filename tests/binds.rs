@@ -97,3 +97,11 @@ insta_test!(bind_toggle_interactive_queries, @interactive, &["--bind", "ctrl-a:t
     @ctrl 'a';
     @snap;
 });
+
+insta_test!(bind_set_preview_cmd, ["a", "b", "c"], &["--preview", "echo initial {}", "--bind", "ctrl-a:set-preview-cmd(echo new {})"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+    @key Up;
+    @snap;
+});
