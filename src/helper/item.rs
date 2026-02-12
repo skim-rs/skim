@@ -63,6 +63,7 @@ impl DefaultSkimItem {
         index: usize,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
+        let ansi_enabled = ansi_enabled && Self::contains_ansi_escape(orig_text);
 
         //        transformed | ANSI             | output
         //------------------------------------------------------
@@ -171,6 +172,11 @@ impl DefaultSkimItem {
             metadata,
         }
     }
+
+    fn contains_ansi_escape(s: &str) -> bool {
+        s.contains('\x1b')
+    }
+
     /// Getter for stripped_text stored in the metadata
     pub fn stripped_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
