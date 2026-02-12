@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -35,7 +34,7 @@ const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
 
 /// Application state for skim's TUI
-pub struct App<'a> {
+pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,
     /// Whether the application should quit
@@ -48,7 +47,7 @@ pub struct App<'a> {
     /// The matcher for filtering items
     pub matcher: Matcher,
     /// Register for yank/paste operations
-    pub yank_register: Cow<'a, str>,
+    pub yank_register: String,
     /// Last time the matcher was restarted
     pub last_matcher_restart: std::time::Instant,
     /// Whether a matcher restart is pending
@@ -103,7 +102,7 @@ pub struct App<'a> {
     items_just_updated: bool,
 }
 
-impl Widget for &mut App<'_> {
+impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let mut res = SkimRender::default();
         let has_border = self.options.border.is_some();
@@ -276,7 +275,7 @@ struct WidgetHeights {
     header: u16,
 }
 
-impl Default for App<'_> {
+impl Default for App {
     fn default() -> Self {
         let theme = Arc::new(crate::theme::ColorTheme::default());
         let opts = SkimOptions::default();
@@ -292,7 +291,7 @@ impl Default for App<'_> {
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
                 .case(crate::CaseMatching::default())
                 .build(),
-            yank_register: Cow::default(),
+            yank_register: String::new(),
             matcher_control: MatcherControl::default(),
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
@@ -318,7 +317,7 @@ impl Default for App<'_> {
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     /// Creates a new App from skim options
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         Self {
@@ -331,7 +330,7 @@ impl<'a> App<'a> {
             should_quit: false,
             cursor_pos: (0, 0),
             matcher: Matcher::from_options(&options),
-            yank_register: Cow::default(),
+            yank_register: String::new(),
             matcher_control: MatcherControl::default(),
             reader_timer: std::time::Instant::now(),
             matcher_timer: std::time::Instant::now(),
@@ -357,7 +356,7 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     /// Calculate preview offset from offset expression (e.g., "+123", "+{2}", "+{2}-2")
     fn calculate_preview_offset(&self, offset_expr: &str) -> u16 {
         // Remove the leading '+'
@@ -544,10 +543,11 @@ impl<'a> App<'a> {
                     f.set_cursor_position(self.cursor_pos);
                 })?;
             }
-            Event::Heartbeat => {
+            Event::Heartbeat | Event::Tick => {
                 // Heartbeat is used for periodic UI updates
                 self.update_spinner();
 
+                debug!("pending_matcher_restart: {}", self.pending_matcher_restart);
                 if self.pending_matcher_restart {
                     self.restart_matcher(true);
                 }
@@ -589,13 +589,25 @@ impl<'a> App<'a> {
             Event::Action(act) => {
                 let events = self.handle_action(act)?;
                 for evt in events {
-                    tui.event_tx.send(evt)?;
+                    tui.event_tx.try_send(evt)?;
                 }
             }
             Event::Key(key) => {
                 let events = self.handle_key(key);
                 for evt in events {
-                    tui.event_tx.send(evt)?;
+                    tui.event_tx.try_send(evt)?;
+                }
+            }
+            Event::Paste(text) => {
+                // Strip newlines/carriage returns from pasted text so they don't
+                // trigger Accept or get inserted as invisible characters.
+                let cleaned: String = text.chars().filter(|c| *c != '\n' && *c != '\r').collect();
+                if !cleaned.is_empty() {
+                    self.input.insert_str(&cleaned);
+                    let events = self.on_query_changed()?;
+                    for evt in events {
+                        tui.event_tx.try_send(evt)?;
+                    }
                 }
             }
             Event::Redraw => {
@@ -609,7 +621,16 @@ impl<'a> App<'a> {
             Event::Mouse(mouse_event) => {
                 self.handle_mouse(mouse_event, tui)?;
             }
-            _ => (),
+            Event::InvalidInput => {
+                warn!("Received invalid input");
+            }
+            Event::ClearItems => {
+                self.item_pool.clear();
+                self.restart_matcher(true);
+            }
+            Event::Reload(_) => {
+                unreachable!("Reload is handled by the TUI event loop in lib.rs")
+            }
         };
 
         Ok(())
@@ -692,7 +713,7 @@ impl<'a> App<'a> {
                 }
             }
             BackwardKillWord => {
-                let deleted: Cow<'_, str> = Cow::Owned(self.input.delete_backward_word());
+                let deleted = self.input.delete_backward_word();
                 if !deleted.is_empty() {
                     self.yank(deleted);
                     return self.on_query_changed();
@@ -821,12 +842,12 @@ impl<'a> App<'a> {
             Ignore => (),
             KillLine => {
                 let cursor = self.input.cursor_pos as usize;
-                let deleted = Cow::Owned(self.input.split_off(cursor));
+                let deleted = self.input.split_off(cursor);
                 self.yank(deleted);
                 return self.on_query_changed();
             }
             KillWord => {
-                let deleted = Cow::Owned(self.input.delete_forward_word());
+                let deleted = self.input.delete_forward_word();
                 self.yank(deleted);
                 return self.on_query_changed();
             }
@@ -1141,13 +1162,12 @@ impl<'a> App<'a> {
         }
 
         let matcher_stopped = self.matcher_control.stopped();
-        if force || self.pending_matcher_restart || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
+        if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             trace!("restarting matcher");
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;
             self.matcher_control.kill();
-            self.item_pool.reset();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
             // In interactive mode, use empty query so all items are shown
@@ -1162,6 +1182,8 @@ impl<'a> App<'a> {
             let item_pool = self.item_pool.clone();
             let processed_items = self.item_list.processed_items.clone();
             let no_sort = self.options.no_sort;
+
+            self.item_pool.reset();
             self.matcher_control = self.matcher.run(query, item_pool.clone(), move |mut matches| {
                 debug!("Got {} results from matcher, sending to item list...", matches.len());
 
@@ -1174,7 +1196,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn yank(&mut self, contents: Cow<'a, str>) {
+    fn yank(&mut self, contents: String) {
         self.yank_register = contents;
     }
 
@@ -1201,12 +1223,13 @@ impl<'a> App<'a> {
             return;
         }
         const DEBOUNCE_MS: u64 = 50;
-        let now = std::time::Instant::now();
 
         // If enough time has passed since last restart, restart immediately
-        if now.duration_since(self.last_matcher_restart).as_millis() > DEBOUNCE_MS as u128 {
+        if self.last_matcher_restart.elapsed().as_millis() > DEBOUNCE_MS as u128 {
+            debug!("restart_matcher_debounced: true");
             self.restart_matcher(true);
         } else {
+            debug!("restart_matcher_debounced: false");
             self.pending_matcher_restart = true;
         }
     }
@@ -1229,13 +1252,13 @@ impl<'a> App<'a> {
                 {
                     // Scroll preview up
                     for evt in self.handle_action(&Action::PreviewUp(3))? {
-                        tui.event_tx.send(evt)?;
+                        tui.event_tx.try_send(evt)?;
                     }
                     return Ok(());
                 }
                 // Otherwise scroll item list up
                 for evt in self.handle_action(&Action::Up(1))? {
-                    tui.event_tx.send(evt)?;
+                    tui.event_tx.try_send(evt)?;
                 }
             }
             MouseEventKind::ScrollDown => {
@@ -1245,13 +1268,13 @@ impl<'a> App<'a> {
                 {
                     // Scroll preview down
                     for evt in self.handle_action(&Action::PreviewDown(3))? {
-                        tui.event_tx.send(evt)?;
+                        tui.event_tx.try_send(evt)?;
                     }
                     return Ok(());
                 }
                 // Otherwise scroll item list down
                 for evt in self.handle_action(&Action::Down(1))? {
-                    tui.event_tx.send(evt)?;
+                    tui.event_tx.try_send(evt)?;
                 }
             }
             _ => {

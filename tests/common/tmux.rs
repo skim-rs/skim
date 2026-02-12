@@ -40,7 +40,6 @@ where
 }
 
 pub enum Keys<'a> {
-    /// Do not use, send multiple `Key`s instead
     Str(&'a str),
     Key(char),
     Ctrl(&'a Keys<'a>),

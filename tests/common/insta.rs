@@ -19,11 +19,11 @@ use skim::{
 /// This struct wraps the TUI and App, providing an event-driven interface
 /// that mirrors how the real application works. Events are sent via the
 /// event channel and processed through the app's event loop.
-pub struct TestHarness<'a> {
+pub struct TestHarness {
     /// The TUI instance with TestBackend
     pub tui: Tui<TestBackend>,
     /// The application state
-    pub app: App<'a>,
+    pub app: App,
     /// Tokio runtime for async operations (preview commands, etc.)
     pub runtime: tokio::runtime::Runtime,
     /// The exit status of the last command executed (for @cmd tests)
@@ -32,7 +32,7 @@ pub struct TestHarness<'a> {
     pub final_event: Option<Event>,
 }
 
-impl<'a> TestHarness<'a> {
+impl TestHarness {
     /// Process all pending events from the event queue.
     ///
     /// This is the core method that processes events just like the real event loop
@@ -64,12 +64,12 @@ impl<'a> TestHarness<'a> {
             // Run the command and add items
             self.run_command_internal(new_cmd)?;
             self.app.restart_matcher(true);
+        } else {
+            // Let the app handle the event (this may queue more events)
+            // Enter the runtime context so that tokio::spawn() calls work
+            let _guard = self.runtime.enter();
+            self.app.handle_event(&mut self.tui, &event)?;
         }
-
-        // Let the app handle the event (this may queue more events)
-        // Enter the runtime context so that tokio::spawn() calls work
-        let _guard = self.runtime.enter();
-        self.app.handle_event(&mut self.tui, &event)?;
 
         // Track if app should quit and what the final event was
         if self.app.should_quit && self.final_event.is_none() {
@@ -83,7 +83,7 @@ impl<'a> TestHarness<'a> {
     ///
     /// This queues an event for processing. Call `tick()` to process queued events.
     pub fn send(&mut self, event: Event) -> Result<()> {
-        self.tui.event_tx.send(event)?;
+        self.tui.event_tx.try_send(event)?;
         Ok(())
     }
 
@@ -396,7 +396,7 @@ impl<'a> TestHarness<'a> {
 // ============================================================================
 
 /// Initialize a test harness with the given options and dimensions.
-pub fn enter_sized<'a>(options: SkimOptions, width: u16, height: u16) -> Result<TestHarness<'a>> {
+pub fn enter_sized(options: SkimOptions, width: u16, height: u16) -> Result<TestHarness> {
     let backend = TestBackend::new(width, height);
     let tui = Tui::new_for_test(backend)?;
     let theme = Arc::new(ColorTheme::init_from_options(&options));
@@ -417,17 +417,17 @@ pub fn enter_sized<'a>(options: SkimOptions, width: u16, height: u16) -> Result<
 }
 
 /// Initialize a test harness with default dimensions (80x24).
-pub fn enter<'a>(options: SkimOptions) -> Result<TestHarness<'a>> {
+pub fn enter(options: SkimOptions) -> Result<TestHarness> {
     enter_sized(options, 80, 24)
 }
 
 /// Initialize a test harness with default options.
-pub fn enter_default<'a>() -> Result<TestHarness<'a>> {
+pub fn enter_default() -> Result<TestHarness> {
     enter_sized(SkimOptions::default().build(), 80, 24)
 }
 
 /// Initialize a test harness with pre-loaded items.
-pub fn enter_items<'a, I, S>(items: I, options: SkimOptions) -> Result<TestHarness<'a>>
+pub fn enter_items<I, S>(items: I, options: SkimOptions) -> Result<TestHarness>
 where
     I: IntoIterator<Item = S>,
     S: Into<String>,
@@ -438,7 +438,7 @@ where
 }
 
 /// Initialize a test harness with command output as items.
-pub fn enter_cmd<'a>(cmd: &str, options: SkimOptions) -> Result<TestHarness<'a>> {
+pub fn enter_cmd(cmd: &str, options: SkimOptions) -> Result<TestHarness> {
     let mut harness = enter(options)?;
     harness.run_command(cmd)?;
     Ok(harness)
@@ -447,7 +447,7 @@ pub fn enter_cmd<'a>(cmd: &str, options: SkimOptions) -> Result<TestHarness<'a>>
 /// Initialize a test harness for interactive mode.
 ///
 /// This runs the initial command (with empty query) and sets up the harness.
-pub fn enter_interactive<'a>(options: SkimOptions) -> Result<TestHarness<'a>> {
+pub fn enter_interactive(options: SkimOptions) -> Result<TestHarness> {
     let mut harness = enter(options)?;
 
     // Run initial command with current (empty) query

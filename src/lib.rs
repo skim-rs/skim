@@ -32,6 +32,7 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::env;
 use std::fmt::Display;
+use std::io::{BufWriter, Stderr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -40,7 +41,6 @@ use color_eyre::eyre::{self, OptionExt};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
-use ratatui::prelude::CrosstermBackend;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
@@ -55,6 +55,7 @@ pub use crate::options::SkimOptions;
 pub use crate::output::SkimOutput;
 use crate::reader::ReaderControl;
 pub use crate::skim_item::SkimItem;
+use crate::tui::Tui;
 use crate::tui::event::Action;
 
 pub mod binds;
@@ -333,9 +334,27 @@ pub type SkimItemSender = kanal::Sender<Vec<Arc<dyn SkimItem>>>;
 pub type SkimItemReceiver = kanal::Receiver<Vec<Arc<dyn SkimItem>>>;
 
 /// Main entry point for running skim
-pub struct Skim {}
+pub struct Skim<Backend = ratatui::backend::CrosstermBackend<BufWriter<Stderr>>>
+where
+    Backend: ratatui::backend::Backend,
+    Backend::Error: Send + Sync + 'static,
+{
+    app: App,
+    tui: Option<Tui<Backend>>,
+    height: Size,
+    reader: Reader,
+    reader_done: bool,
+    initial_cmd: String,
+    reader_control: Option<ReaderControl>,
+    matcher_interval: Option<tokio::time::Interval>,
+    listener: Option<interprocess::local_socket::tokio::Listener>,
+    final_event: Event,
+    final_key: KeyEvent,
+}
 
 impl Skim {
+    /// Run skim, collecting items from the source and using options
+    ///
     /// # Params
     ///
     /// - options: the "complex" options that control how skim behaves
@@ -351,25 +370,45 @@ impl Skim {
     ///
     /// Panics if the tui fails to initilize
     pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+        trace!("running skim");
+        let mut skim = Self::init(options, source)?;
+
+        skim.start();
+
+        if skim.should_enter() {
+            let rt = tokio::runtime::Runtime::new()?;
+
+            skim.init_tui()?;
+            rt.block_on(async {
+                skim.enter().await?;
+                skim.run().await?;
+                eyre::Ok(())
+            })?;
+        } else {
+            // We didn't enter
+            skim.final_event = Event::Action(Action::Accept(None));
+        }
+        let output = skim.output();
+        debug!("output: {output:?}");
+
+        Ok(output)
+    }
+    /// Initialize skim, without starting anything yet
+    pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
         let height = Size::try_from(options.height.as_str())?;
 
         // application state
         // Initialize theme from options
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
-        let mut reader = Reader::from_options(&options).source(source);
+        let reader = Reader::from_options(&options).source(source);
         const SKIM_DEFAULT_COMMAND: &str = "find .";
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
             Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
             Ok(v) => v,
         });
         let cmd = options.cmd.clone().unwrap_or(default_command);
-        let listen_socket = options.listen.clone();
 
-        let mut app = App::from_options(options, theme.clone(), cmd.clone());
-
-        let rt = tokio::runtime::Runtime::new()?;
-        let mut final_event: Event = Event::Quit;
-        let mut final_key: KeyEvent = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+        let app = App::from_options(options, theme.clone(), cmd.clone());
 
         //------------------------------------------------------------------------------
         // reader
@@ -385,124 +424,66 @@ impl Skim {
         } else {
             cmd.clone()
         };
-        let mut reader_control = reader.collect(app.item_pool.clone(), &initial_cmd);
-
-        log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
-
-        //------------------------------------------------------------------------------
-        // model + previewer
-
-        // Start matcher initially
-        app.restart_matcher(true);
-
-        if Self::should_enter(&mut app, &reader_control) {
-            let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
-            let mut tui = tui::Tui::new_with_height(backend, height)?;
-            let event_tx_clone = tui.event_tx.clone();
-            let mut reader_done = false;
-            rt.block_on(async {
-                let listener = listen_socket.map(|s| Self::init_listener(&s));
-                let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
-                tui.enter()?;
-                loop {
-                    select! {
-                        event = tui.next() => {
-                            let evt = event.ok_or_eyre("Could not acquire next event")?;
-
-                            // Handle reload event
-                            if let Event::Reload(new_cmd) = &evt {
-                                debug!("reloading with cmd {new_cmd}");
-                                // Kill the current reader
-                                reader_control.kill();
-                                // Clear items
-                                app.item_pool.clear();
-                                // Clear displayed items unless no_clear_if_empty is set
-                                // (in which case the item_list will handle keeping stale items)
-                                if !app.options.no_clear_if_empty {
-                                    app.item_list.clear();
-                                }
-                                app.restart_matcher(true);
-                                // Start a new reader with the new command (no source, using cmd)
-                                reader_control = reader.collect(app.item_pool.clone(), new_cmd);
-                                reader_done = false;
-                            }
-                            if let Event::Key(k) = &evt {
-                              final_key = k.to_owned();
-                            } else {
-                              final_event = evt.to_owned();
-                            }
-
-                            // Check reader status and update
-                            if reader_control.is_done() && !reader_done {
-                                app.restart_matcher(false);
-                            }
-                            app.handle_event(&mut tui, &evt)?;
-                        }
-                        _ = matcher_interval.tick() => {
-                          app.restart_matcher(false);
-                        }
-                        Ok(stream) = async {
-                            match &listener {
-                                Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
-                                None => std::future::pending().await,
-                            }
-                        } => {
-                            let event_tx_clone_ipc = event_tx_clone.clone();
-                            tokio::spawn(async move {
-                                use tokio::io::AsyncBufReadExt;
-                                let reader = tokio::io::BufReader::new(stream);
-                                let mut lines = reader.lines();
-                                while let Ok(Some(line)) = lines.next_line().await {
-                                    debug!("listener: got {line}");
-                                    if let Ok(act) = ron::from_str::<Action>(&line) {
-                                        debug!("listener: parsed into action {act:?}");
-                                        _ = event_tx_clone_ipc.send(Event::Action(act));
-                                        _ = event_tx_clone_ipc.send(Event::Render);
-                                    }
-                                }
-                            });
-                        }
-                    }
-
-                    if app.should_quit {
-                        break;
-                    }
-                }
-                eyre::Ok(())
-            })?;
-        } else {
-            // We didn't enter
-            final_event = Event::Action(Action::Accept(None));
-        }
-        reader_control.kill();
-        // Extract final_key and is_abort from final_event
-        let is_abort = !matches!(&final_event, Event::Action(Action::Accept(_)));
-
-        let output = SkimOutput {
-            cmd: if app.options.interactive {
-                // In interactive mode, cmd is what the user typed
-                app.input.to_string()
-            } else if app.options.cmd_query.is_some() {
-                // If cmd_query was provided, use that for output
-                app.options.cmd_query.clone().unwrap()
-            } else {
-                // Otherwise use the execution command
-                cmd
-            },
-            final_event,
-            final_key,
-            query: app.input.to_string(),
-            is_abort,
-            selected_items: app.results(),
-            header: app.header.header.clone(),
-        };
-
-        debug!("output: {output:?}");
-
-        Ok(output)
+        Ok(Self {
+            app,
+            height,
+            reader,
+            reader_done: false,
+            initial_cmd,
+            tui: None,
+            reader_control: None,
+            matcher_interval: None,
+            listener: None,
+            final_event: Event::Quit,
+            final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        })
     }
+
+    /// Start the reader and matcher, but do not enter the TUI yet
+    pub fn start(&mut self) {
+        debug!("Starting reader with initial_cmd: {:?}", self.initial_cmd);
+        self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), &self.initial_cmd));
+        self.app.restart_matcher(true);
+    }
+
+    /// Initialize the TUI, but do not enter it yet
+    pub fn init_tui(&mut self) -> Result<()> {
+        self.tui = Some(tui::Tui::new_with_height(self.height)?);
+        Ok(())
+    }
+
+    /// Returns a clone of the TUI event sender.
+    ///
+    /// Use this to send events (e.g. [`Event::Render`], [`Event::Action`])
+    /// to the running skim instance from outside the event loop. The sender
+    /// is cheap to clone and can be moved into async blocks or other tasks.
+    ///
+    /// Must be called after [`init_tui()`](Self::init_tui).
+    pub fn event_sender(&self) -> tokio::sync::mpsc::Sender<Event> {
+        self.tui
+            .as_ref()
+            .expect("TUI needs to be initialized using Skim::init_tui before getting the event sender")
+            .event_tx
+            .clone()
+    }
+
+    /// Enter the TUI
+    pub async fn enter(&mut self) -> Result<()> {
+        debug!("Entering TUI");
+        self.init_listener().await?;
+        self.tui
+            .as_mut()
+            .expect("TUI needs to be initialized using Skim::init_tui before entering")
+            .enter()
+    }
+
     /// Checks read-0 select-1, and sync to wait and returns whether or not we should enter
-    fn should_enter(app: &mut App<'_>, reader_control: &ReaderControl) -> bool {
+    fn should_enter(&mut self) -> bool {
+        let reader_control = self
+            .reader_control
+            .as_ref()
+            .expect("reader_control needs to be initilized using Skim::start");
+        let app = &mut self.app;
         // Deal with read-0 / select-1
         let min_items_before_enter = if app.options.exit_0 {
             1
@@ -553,16 +534,189 @@ impl Skim {
     }
 
     /// Initialize the IPC socket listener
-    fn init_listener(socket_name: &str) -> interprocess::local_socket::tokio::Listener {
-        debug!("starting listener on socket at {socket_name}");
-        interprocess::local_socket::ListenerOptions::new()
-            .name(
-                interprocess::local_socket::ToNsName::to_ns_name::<interprocess::local_socket::GenericNamespaced>(
-                    socket_name,
-                )
-                .unwrap_or_else(|e| panic!("Failed to build full name for IPC listener from {socket_name}: {e}")),
+    /// This needs to be called from an async context despite being sync
+    async fn init_listener(&mut self) -> Result<()> {
+        if let Some(socket_name) = &self.app.options.listen {
+            self.listener = Some(
+                interprocess::local_socket::ListenerOptions::new()
+                    .name(interprocess::local_socket::ToNsName::to_ns_name::<
+                        interprocess::local_socket::GenericNamespaced,
+                    >(socket_name.to_owned())?)
+                    .create_tokio()?,
             )
-            .create_tokio()
-            .unwrap_or_else(|e| panic!("Failed to create tokio IPC listener at {socket_name}: {e}"))
+        }
+        Ok(())
+    }
+
+    /// Capture `self` and extract the output
+    /// This will perform cleanup
+    pub fn output(mut self) -> SkimOutput {
+        if let Some(mut rc) = self.reader_control.take() {
+            rc.kill()
+        }
+
+        // Extract final_key and is_abort from final_event
+        let is_abort = !matches!(&self.final_event, Event::Action(Action::Accept(_)));
+
+        SkimOutput {
+            cmd: if self.app.options.interactive {
+                // In interactive mode, cmd is what the user typed
+                self.app.input.to_string()
+            } else if self.app.options.cmd_query.is_some() {
+                // If cmd_query was provided, use that for output
+                self.app.options.cmd_query.clone().unwrap()
+            } else {
+                // Otherwise use the execution command
+                self.initial_cmd
+            },
+            final_event: self.final_event,
+            final_key: self.final_key,
+            query: self.app.input.to_string(),
+            is_abort,
+            selected_items: self.app.results(),
+            header: self.app.header.header.clone(),
+        }
+    }
+
+    /// Returns true if skim has finished (the user accepted or aborted)
+    pub fn should_quit(&self) -> bool {
+        self.app.should_quit
+    }
+
+    /// Process a single event loop iteration.
+    ///
+    /// This awaits the next event from the TUI, matcher, or IPC listener,
+    /// processes it, and returns. Use this in your own event loop when you
+    /// need fine-grained control over the application lifecycle.
+    ///
+    /// Returns `Ok(true)` if skim should quit, `Ok(false)` to continue.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// while !skim.tick().await? {
+    ///     // do your own work between ticks
+    /// }
+    /// ```
+    pub async fn tick(&mut self) -> Result<bool> {
+        let matcher_interval = &mut self.matcher_interval;
+        select! {
+            event = self.tui.as_mut().expect("TUI should be initialized before the event loop can start").next() => {
+                let evt = event.ok_or_eyre("Could not acquire next event")?;
+
+                if let Event::Key(k) = &evt {
+                  self.final_key = k.to_owned();
+                } else {
+                  self.final_event = evt.to_owned();
+                }
+
+
+                // Handle reload event separately
+                if let Event::Reload(new_cmd) = &evt {
+                    debug!("reloading with cmd {new_cmd}");
+                    // Kill the current reader
+                    if let Some(rc) = self.reader_control.as_mut() { rc.kill() }
+                    // Clear items
+                    self.app.item_pool.clear();
+                    // Clear displayed items unless no_clear_if_empty is set
+                    // (in which case the item_list will handle keeping stale items)
+                    if !self.app.options.no_clear_if_empty {
+                        self.app.item_list.clear();
+                    }
+                    self.app.restart_matcher(true);
+                    // Start a new reader with the new command (no source, using cmd)
+                    self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), new_cmd));
+                    self.reader_done = false;
+                } else {
+                    self.app.handle_event(self.tui.as_mut().expect("TUI should be initialized before handling events"), &evt)?;
+                }
+
+                // Check reader status and update
+                if self.reader_control.as_ref().is_some_and(|rc| rc.is_done()) && !self.reader_done {
+                    self.app.restart_matcher(false);
+                }
+            }
+            _ = async {
+                match matcher_interval {
+                    Some(interval) => { interval.tick().await; },
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
+              self.app.restart_matcher(false);
+            }
+            Ok(stream) = async {
+                match &self.listener {
+                    Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
+                    None => std::future::pending().await,
+                }
+            } => {
+                debug!("Listener accepted a connection");
+                let event_tx_clone_ipc = self.tui.as_ref().expect("TUI should be initialized before listening").event_tx.clone();
+                tokio::spawn(async move {
+                    use tokio::io::AsyncBufReadExt;
+                    let reader = tokio::io::BufReader::new(stream);
+                    let mut lines = reader.lines();
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        debug!("listener: got {line}");
+                        if let Ok(act) = ron::from_str::<Action>(&line) {
+                            debug!("listener: parsed into action {act:?}");
+                            _ = event_tx_clone_ipc.try_send(Event::Action(act));
+                            _ = event_tx_clone_ipc.try_send(Event::Render);
+                        }
+                    }
+                });
+            }
+        }
+
+        Ok(self.app.should_quit)
+    }
+
+    /// Run the event loop on the current task until skim quits.
+    ///
+    /// This is a convenience wrapper around [`tick()`](Self::tick) that loops
+    /// until the user accepts or aborts. Use `tick()` directly if you need
+    /// to interleave your own logic between iterations.
+    pub async fn run(&mut self) -> Result<()> {
+        self.matcher_interval = Some(tokio::time::interval(Duration::from_millis(100)));
+        trace!("Starting event loop");
+        loop {
+            if self.tick().await? {
+                break Ok(());
+            }
+        }
+    }
+
+    /// Spawn the event loop and run a user-provided future concurrently.
+    ///
+    /// This consumes `self`, spawns the event loop as a local task, and runs
+    /// `user_task` alongside it. When the user accepts or aborts in the TUI,
+    /// the event loop completes and the [`SkimOutput`] is returned — regardless
+    /// of whether `user_task` has finished.
+    ///
+    /// Use this when you need to send items or do other work concurrently
+    /// while the TUI is running.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let output = skim.run_until(async {
+    ///     for i in 1..=10 {
+    ///         tx.send(vec![Arc::new(format!("item {i}"))]);
+    ///         tokio::time::sleep(Duration::from_millis(100)).await;
+    ///     }
+    /// }).await?;
+    /// ```
+    pub async fn run_until<F: Future + 'static>(mut self, user_task: F) -> Result<SkimOutput> {
+        let local = tokio::task::LocalSet::new();
+        local
+            .run_until(async {
+                let handle = tokio::task::spawn_local(async move {
+                    self.run().await?;
+                    Ok(self.output())
+                });
+                tokio::task::spawn_local(user_task);
+                handle.await?
+            })
+            .await
     }
 }

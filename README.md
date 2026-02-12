@@ -305,6 +305,11 @@ cargo install nu_plugin_skim
 plugin add ~/.cargo/bin/nu_plugin_skim
 ```
 
+## [sqlite extension](https://github.com/tzachar/sqlite_skim)
+
+An `sqlite` loadable module which enables a `skim_score` function in SQL
+queries.
+
 # Customization
 
 The doc here is only a preview, please check the man page (`man sk`) for a full
@@ -518,6 +523,8 @@ _Note on features_:
     - the `cli` feature is required to use skim as a cli, it *should* not be needed when using it as a library.
     - the `nightly-frizbee` feature adds the frizbee algorithm, but requires cargo nigthly.
 
+### Basic usage
+
 Then try to run this simple example:
 
 ```rust
@@ -549,6 +556,13 @@ pub fn main() {
     }
 }
 ```
+
+### Fine-grained usage
+
+You can also gain fine-grained usage of skim as a library using `tokio` and async code, allowing you to dynamically interact with
+
+
+### Internal workings
 
 Given an `Option<SkimItemReceiver>`, skim will read items accordingly, do its
 job and bring us back the user selection including the selected items, the
