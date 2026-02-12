@@ -99,8 +99,7 @@ impl DefaultSkimItem {
         // Null bytes are control characters that cause rendering issues (zero-width)
         // They are preserved in orig_text for output
         if has_null_bytes {
-            let tmp = text.clone();
-            text = tmp.replace('\0', "");
+            text = text.replace('\0', "");
         }
 
         let (stripped_text, ansi_info) = if ansi_enabled {
@@ -123,9 +122,9 @@ impl DefaultSkimItem {
             // Parse the original text with null bytes to determine field boundaries
             // Then extract those fields, strip null bytes, and recalculate positions
             let orig_text_for_fields = if has_null_bytes {
-                orig_text.clone().unwrap()
+                orig_text.as_deref().unwrap()
             } else {
-                text_for_matching.to_string()
+                &text_for_matching
             };
 
             if has_null_bytes {
@@ -166,7 +165,11 @@ impl DefaultSkimItem {
                 None
             };
 
-        DefaultSkimItem { text: text.into(), index, metadata }
+        DefaultSkimItem {
+            text: text.into(),
+            index,
+            metadata,
+        }
     }
     /// Getter for stripped_text stored in the metadata
     pub fn stripped_text(&self) -> Option<&Box<str>> {

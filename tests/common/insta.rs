@@ -11,7 +11,7 @@ use skim::{
     helper::item::DefaultSkimItem,
     prelude::*,
     theme::ColorTheme,
-    tui::{event::Action, App, Event, Tui},
+    tui::{App, Event, Tui, event::Action},
 };
 
 /// A test harness for running skim TUI tests with insta snapshots.
@@ -179,7 +179,7 @@ impl TestHarness {
     pub fn add_items<I, S>(&mut self, items: I) -> Result<()>
     where
         I: IntoIterator<Item = S>,
-        S: ToString,
+        S: AsRef<str>,
     {
         // Parse field ranges from options
         let transform_fields: Vec<FieldRange> = self
@@ -202,9 +202,8 @@ impl TestHarness {
             .into_iter()
             .enumerate()
             .map(|(idx, s)| {
-                let convert: &str = &s.to_string();
                 Arc::new(DefaultSkimItem::new(
-                    convert,
+                    s.as_ref(),
                     self.app.options.ansi,
                     &transform_fields,
                     &matching_fields,
@@ -431,7 +430,7 @@ pub fn enter_default() -> Result<TestHarness> {
 pub fn enter_items<I, S>(items: I, options: SkimOptions) -> Result<TestHarness>
 where
     I: IntoIterator<Item = S>,
-    S: ToString,
+    S: AsRef<str>,
 {
     let mut harness = enter(options)?;
     harness.add_items(items)?;

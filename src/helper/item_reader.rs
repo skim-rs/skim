@@ -3,8 +3,8 @@
 use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -223,9 +223,11 @@ impl SkimItemReader {
                         buffer.pop();
                     }
 
-                    let line = String::from_utf8_lossy(&buffer).to_string();
+                    let Ok(line) = std::str::from_utf8(&buffer) else {
+                        continue;
+                    };
 
-                    trace!("got item {} with index {}", line.clone(), line_idx);
+                    trace!("got item {} with index {}", line, line_idx);
 
                     let raw_item = DefaultSkimItem::new(
                         &line,
