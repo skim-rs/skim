@@ -21,6 +21,8 @@ release version: (bump-version version) generate-files (changelog version) test
     git push --tags
 
 auto-release:
+    git switch master
+    git pull
     just release $(git cliff --bumped-version | sed 's/v\(.*\)/\1/')
 
 test target="":
