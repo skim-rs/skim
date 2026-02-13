@@ -22,7 +22,7 @@ use std::borrow::Cow;
 #[derive(Debug)]
 pub struct DefaultSkimItem {
     /// The text that will be shown on screen.
-    text: String,
+    text: Box<str>,
 
     /// The index, for use in matching
     index: usize,
@@ -37,11 +37,11 @@ pub struct DefaultSkimItemMetadata {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
     /// `None` => that it is safe to output `text` directly
-    orig_text: Option<String>,
+    orig_text: Option<Box<str>>,
 
     /// The text stripped of all ansi sequences, used for matching
     /// Will be Some when ANSI is enabled, None otherwise
-    stripped_text: Option<String>,
+    stripped_text: Option<Box<str>>,
 
     /// A mapping of positions from stripped text to original text.
     /// Each element is (byte_position, char_position) in the original raw text.
@@ -55,7 +55,7 @@ pub struct DefaultSkimItemMetadata {
 impl DefaultSkimItem {
     /// Create a new DefaultSkimItem from text
     pub fn new(
-        orig_text: String,
+        orig_text: &str,
         ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
@@ -63,6 +63,7 @@ impl DefaultSkimItem {
         index: usize,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
+        let contains_ansi = Self::contains_ansi_escape(orig_text);
 
         //        transformed | ANSI             | output
         //------------------------------------------------------
@@ -74,36 +75,37 @@ impl DefaultSkimItem {
         //                    |                  |
         //                    +- F -> orig       | orig
 
-        let (mut orig_text, mut text) = match (using_transform_fields, ansi_enabled) {
+        let (mut orig_text, mut temp_text): (Option<String>, Box<str>) = match (using_transform_fields, ansi_enabled) {
             (true, true) => {
                 let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
-                (Some(orig_text), transformed)
+                (Some(orig_text.into()), Box::from(transformed))
             }
             (true, false) => {
                 let transformed = parse_transform_fields(delimiter, &escape_ansi(&orig_text), trans_fields);
-                (Some(orig_text), transformed)
+                (Some(orig_text.into()), Box::from(transformed))
             }
-            (false, true) => (None, orig_text),
-            (false, false) => (None, escape_ansi(&orig_text)),
+            (false, true) => (None, Box::from(orig_text)),
+            (false, false) if contains_ansi => (None, escape_ansi(&orig_text).into()),
+            (false, false) => (None, Box::from(orig_text)),
         };
 
         // Keep track of whether we have null bytes for special handling
-        let has_null_bytes = text.contains('\0');
+        let has_null_bytes = temp_text.contains('\0');
 
         // Preserve original text with null bytes for output if needed
         if has_null_bytes && orig_text.is_none() {
-            orig_text = Some(text.clone());
+            orig_text = Some(temp_text.to_string());
         }
 
         // Strip null bytes from text used for display and matching
         // Null bytes are control characters that cause rendering issues (zero-width)
         // They are preserved in orig_text for output
         if has_null_bytes {
-            text = text.replace('\0', "");
+            temp_text = temp_text.to_string().replace('\0', "").into_boxed_str();
         }
 
-        let (stripped_text, ansi_info) = if ansi_enabled {
-            let (stripped, info) = strip_ansi(&text);
+        let (stripped_text, ansi_info) = if ansi_enabled && contains_ansi {
+            let (stripped, info) = strip_ansi(&temp_text);
             (Some(stripped), Some(info))
         } else {
             (None, None)
@@ -116,15 +118,15 @@ impl DefaultSkimItem {
             let text_for_matching = if ansi_enabled {
                 stripped_text.as_ref().unwrap()
             } else {
-                &text
+                temp_text.as_ref()
             };
 
             // Parse the original text with null bytes to determine field boundaries
             // Then extract those fields, strip null bytes, and recalculate positions
             let orig_text_for_fields = if has_null_bytes {
-                orig_text.as_ref().unwrap()
+                orig_text.as_deref().unwrap()
             } else {
-                text_for_matching
+                &text_for_matching
             };
 
             if has_null_bytes {
@@ -134,7 +136,7 @@ impl DefaultSkimItem {
 
                 for field in matching_fields {
                     // Get the field text from original (with null bytes)
-                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, orig_text_for_fields, field)
+                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, &orig_text_for_fields, field)
                     {
                         // Strip null bytes from this field
                         let cleaned_field = field_text.replace('\0', "");
@@ -156,8 +158,8 @@ impl DefaultSkimItem {
         let metadata =
             if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
                 Some(Box::new(DefaultSkimItemMetadata {
-                    orig_text,
-                    stripped_text,
+                    orig_text: orig_text.map(|inner| inner.into_boxed_str()),
+                    stripped_text: stripped_text.map(|inner| inner.into_boxed_str()),
                     ansi_info,
                     matching_ranges,
                 }))
@@ -165,25 +167,34 @@ impl DefaultSkimItem {
                 None
             };
 
-        DefaultSkimItem { text, index, metadata }
+        DefaultSkimItem {
+            text: temp_text,
+            index,
+            metadata,
+        }
     }
+
+    fn contains_ansi_escape(s: &str) -> bool {
+        s.contains('\x1b')
+    }
+
     /// Getter for stripped_text stored in the metadata
-    pub fn stripped_text(&self) -> Option<&String> {
+    pub fn stripped_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
             && let Some(stripped_text) = &meta.stripped_text
         {
-            Some(stripped_text)
+            Some(stripped_text.as_ref())
         } else {
             None
         }
     }
 
     /// Getter for orig_text stored in metadata
-    pub fn orig_text(&self) -> Option<&String> {
+    pub fn orig_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
             && let Some(orig) = &meta.orig_text
         {
-            Some(orig)
+            Some(orig.as_ref())
         } else {
             None
         }
@@ -636,7 +647,7 @@ mod test {
         let input = "\x1b[32mgreen\x1b[0m text";
         let delimiter = Regex::new(r"\s+").unwrap();
         let item = DefaultSkimItem::new(
-            input.to_string(),
+            input,
             true, // ansi_enabled
             &[],
             &[],
@@ -678,7 +689,7 @@ mod test {
         let input = "😀\x1b[32mtext\x1b[0m";
         let delimiter = Regex::new(r"\s+").unwrap();
         let item = DefaultSkimItem::new(
-            input.to_string(),
+            input,
             true, // ansi_enabled
             &[],
             &[],
@@ -712,7 +723,7 @@ mod test {
 
         // Test with ANSI enabled
         let item_ansi = DefaultSkimItem::new(
-            "\x1b[31mred\x1b[0m".to_string(),
+            "\x1b[31mred\x1b[0m",
             true, // ansi_enabled
             &[],
             &[],
@@ -727,7 +738,7 @@ mod test {
 
         // Test with ANSI disabled
         let item_no_ansi = DefaultSkimItem::new(
-            "\x1b[31mred\x1b[0m".to_string(),
+            "\x1b[31mred\x1b[0m",
             false, // ansi_enabled
             &[],
             &[],
@@ -751,7 +762,7 @@ mod test {
 
         // Create item with ANSI codes: "\x1b[32mgreen\x1b[0m"
         let item = DefaultSkimItem::new(
-            "\x1b[32mgreen\x1b[0m".to_string(),
+            "\x1b[32mgreen\x1b[0m",
             true, // ansi_enabled
             &[],
             &[],
@@ -790,7 +801,7 @@ mod test {
 
         // Create item with ANSI codes: "\x1b[32mgreen\x1b[0m"
         let item = DefaultSkimItem::new(
-            "\x1b[32mgreen\x1b[0m".to_string(),
+            "\x1b[32mgreen\x1b[0m",
             true, // ansi_enabled
             &[],
             &[],
@@ -831,7 +842,7 @@ mod test {
 
         // Create item with ANSI codes: "\x1b[32mgreen\x1b[0m"
         let item = DefaultSkimItem::new(
-            "\x1b[32mgreen\x1b[0m".to_string(),
+            "\x1b[32mgreen\x1b[0m",
             true, // ansi_enabled
             &[],
             &[],
@@ -871,7 +882,7 @@ mod test {
 
         // Create item with ANSI codes: "\x1b[32mgreen_text\x1b[0m"
         let item = DefaultSkimItem::new(
-            "\x1b[32mgreen_text\x1b[0m".to_string(),
+            "\x1b[32mgreen_text\x1b[0m",
             true, // ansi_enabled
             &[],
             &[], // no matching fields restriction
@@ -903,7 +914,7 @@ mod test {
 
         // Create item with matching field 2
         let item = DefaultSkimItem::new(
-            text.to_string(),
+            text,
             false,                    // no ansi
             &[],                      // no transform fields
             &[FieldRange::Single(2)], // match field 2

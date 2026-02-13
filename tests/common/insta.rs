@@ -179,7 +179,7 @@ impl TestHarness {
     pub fn add_items<I, S>(&mut self, items: I) -> Result<()>
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
         // Parse field ranges from options
         let transform_fields: Vec<FieldRange> = self
@@ -203,7 +203,7 @@ impl TestHarness {
             .enumerate()
             .map(|(idx, s)| {
                 Arc::new(DefaultSkimItem::new(
-                    s.into(),
+                    s.as_ref(),
                     self.app.options.ansi,
                     &transform_fields,
                     &matching_fields,
@@ -257,7 +257,7 @@ impl TestHarness {
             .enumerate()
             .map(|(idx, s)| {
                 Arc::new(DefaultSkimItem::new(
-                    s,
+                    &s,
                     self.app.options.ansi,
                     &transform_fields,
                     &matching_fields,
@@ -430,7 +430,7 @@ pub fn enter_default() -> Result<TestHarness> {
 pub fn enter_items<I, S>(items: I, options: SkimOptions) -> Result<TestHarness>
 where
     I: IntoIterator<Item = S>,
-    S: Into<String>,
+    S: AsRef<str>,
 {
     let mut harness = enter(options)?;
     harness.add_items(items)?;
