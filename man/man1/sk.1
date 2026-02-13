@@ -863,6 +863,30 @@ If set, skim will collect items with this command if no input is piped in (defau
 Will be parsed and used as default options. Example: `\-\-reverse \-\-multi`
 .br
 
+.SS SKIM_OPTIONS_FILE
+
+.br
+If the variable is set to the path of an existing file, the contents of this file will be parsed and used as default options.
+.br
+It supports `#` as a comment start, which can be escaped using `##`.
+.br
+Example:
+.br
+```
+.br
+# Preview
+.br
+\-\-preview \*(Aqecho {}\*(Aq
+.br
+\-\-preview\-window \*(Aqleft:30%\*(Aq # Preview window
+.br
+\-\-reverse
+.br
+\-\-prompt \*(Aq## \*(Aq
+.br
+```
+.br
+
 .SS NO_COLOR
 If set to a non\-empty value, will disable coloring
 .br
