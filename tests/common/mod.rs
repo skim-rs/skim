@@ -4,10 +4,12 @@ pub mod insta;
 pub mod tmux;
 
 #[cfg(all(debug_assertions, coverage))]
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ./target/llvm-cov-target/debug/sk";
+pub static SK: &str =
+    "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= SKIM_OPTIONS_FILE= ./target/llvm-cov-target/debug/sk";
 #[cfg(all(debug_assertions, not(coverage)))]
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ./target/debug/sk";
+pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= SKIM_OPTIONS_FILE= ./target/debug/sk";
 #[cfg(all(not(debug_assertions), coverage))]
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ./target/llvm-cov-target/release/sk";
+pub static SK: &str =
+    "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= SKIM_OPTIONS_FILE= ./target/llvm-cov-target/release/sk";
 #[cfg(all(not(debug_assertions), not(coverage)))]
-pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= ./target/release/sk";
+pub static SK: &str = "SKIM_DEFAULT_OPTIONS= SKIM_DEFAULT_COMMAND= SKIM_OPTIONS_FILE= ./target/release/sk";
