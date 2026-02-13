@@ -85,7 +85,8 @@ impl DefaultSkimItem {
                 (Some(orig_text.into()), Box::from(transformed))
             }
             (false, true) => (None, Box::from(orig_text)),
-            (false, false) => (None, escape_ansi(&orig_text).into()),
+            (false, false) if contains_ansi => (None, escape_ansi(&orig_text).into()),
+            (false, false) => (None, Box::from(orig_text)),
         };
 
         // Keep track of whether we have null bytes for special handling
