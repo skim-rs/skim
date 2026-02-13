@@ -230,7 +230,7 @@ impl SkimItemReader {
                     trace!("got item {} with index {}", line, line_idx);
 
                     let raw_item = DefaultSkimItem::new(
-                        &line,
+                        line,
                         option.use_ansi_color,
                         &transform_fields,
                         &matching_fields,

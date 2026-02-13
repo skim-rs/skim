@@ -77,15 +77,15 @@ impl DefaultSkimItem {
 
         let (mut orig_text, mut temp_text): (Option<String>, Box<str>) = match (using_transform_fields, ansi_enabled) {
             (true, true) => {
-                let transformed = parse_transform_fields(delimiter, &orig_text, trans_fields);
+                let transformed = parse_transform_fields(delimiter, orig_text, trans_fields);
                 (Some(orig_text.into()), Box::from(transformed))
             }
             (true, false) => {
-                let transformed = parse_transform_fields(delimiter, &escape_ansi(&orig_text), trans_fields);
+                let transformed = parse_transform_fields(delimiter, &escape_ansi(orig_text), trans_fields);
                 (Some(orig_text.into()), Box::from(transformed))
             }
             (false, true) => (None, Box::from(orig_text)),
-            (false, false) if contains_ansi => (None, escape_ansi(&orig_text).into()),
+            (false, false) if contains_ansi => (None, escape_ansi(orig_text).into()),
             (false, false) => (None, Box::from(orig_text)),
         };
 
@@ -126,7 +126,7 @@ impl DefaultSkimItem {
             let orig_text_for_fields = if has_null_bytes {
                 orig_text.as_deref().unwrap()
             } else {
-                &text_for_matching
+                text_for_matching
             };
 
             if has_null_bytes {
@@ -136,7 +136,7 @@ impl DefaultSkimItem {
 
                 for field in matching_fields {
                     // Get the field text from original (with null bytes)
-                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, &orig_text_for_fields, field)
+                    if let Some(field_text) = crate::field::get_string_by_field(delimiter, orig_text_for_fields, field)
                     {
                         // Strip null bytes from this field
                         let cleaned_field = field_text.replace('\0', "");
