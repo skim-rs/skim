@@ -165,6 +165,7 @@ const ACTIONS_SS: &str = "
 * reload(...)
 * select-all
 * select-row
+* set-preview-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * set-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * toggle
 * toggle-all
