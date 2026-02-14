@@ -1148,13 +1148,13 @@ impl App {
     }
 
     /// Returns the selected items as results
-    pub fn results(&self) -> Vec<Arc<MatchedItem>> {
+    pub fn results(&mut self) -> Vec<Arc<MatchedItem>> {
         if self.options.filter.is_some() {
-            // In filter mode, return all processed/matched items
+            // In filter mode, drain items to avoid cloning
             self.item_list
                 .items
-                .iter()
-                .map(|item| Arc::new(item.clone()))
+                .drain(..)
+                .map(|item| Arc::new(item))
                 .collect()
         } else if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list
