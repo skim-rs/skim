@@ -1203,22 +1203,20 @@ impl App {
                 &self.input
             };
             let item_pool = self.item_pool.clone();
-            let thread_pool = self.thread_pool.clone();
+            let thread_pool = &self.thread_pool;
             let processed_items = self.item_list.processed_items.clone();
             let no_sort = self.options.no_sort;
 
             self.item_pool.reset();
-            self.matcher_control = self
-                .matcher
-                .run(query, item_pool.clone(), thread_pool, move |mut matches| {
-                    debug!("Got {} results from matcher, sending to item list...", matches.len());
+            self.matcher_control = self.matcher.run(query, item_pool, thread_pool, move |mut matches| {
+                debug!("Got {} results from matcher, sending to item list...", matches.len());
 
-                    // Send matched items directly (header_lines are now handled by the Header widget)
-                    if !no_sort {
-                        matches.sort_by_key(|item| item.rank);
-                    }
-                    *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
-                });
+                // Send matched items directly (header_lines are now handled by the Header widget)
+                if !no_sort {
+                    matches.sort_by_key(|item| item.rank);
+                }
+                *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
+            });
         }
     }
 

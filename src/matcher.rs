@@ -148,13 +148,7 @@ impl Matcher {
     ///
     /// The callback is invoked when matching is complete with the matched items.
     /// Returns a MatcherControl that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(
-        &self,
-        query: &str,
-        item_pool: Arc<ItemPool>,
-        thread_pool: Arc<ThreadPool>,
-        callback: C,
-    ) -> MatcherControl
+    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, thread_pool: &ThreadPool, callback: C) -> MatcherControl
     where
         C: Fn(Vec<MatchedItem>) + Send + 'static,
     {
