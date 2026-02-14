@@ -6,15 +6,11 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
-use crate::MatchRange;
 use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
 use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
-
-static PLACEHOLDER_RANK: [i32; 5] = [0, 0, 0, 0, 0];
-static PLACEHOLDER_RANGE: Option<MatchRange> = None;
 
 //==============================================================================
 /// Control handle for a running matcher operation.

@@ -44,6 +44,7 @@ use crossterm::event::KeyModifiers;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
+use tokio::select;
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -435,121 +436,19 @@ where
         } else {
             cmd.clone()
         };
-        let mut reader_control = reader.collect(app.item_pool.clone(), &initial_cmd);
-
-        log::debug!("Starting reader with initial_cmd: {:?}", initial_cmd);
-
-        //------------------------------------------------------------------------------
-        // model + previewer
-
-        // Start matcher initially
-        app.restart_matcher(true);
-
-        if Self::should_enter(&mut app, &reader_control) {
-            let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
-            let mut tui = tui::Tui::new_with_height(backend, height)?;
-            let event_tx_clone = tui.event_tx.clone();
-            let mut reader_done = false;
-            rt.block_on(async {
-                let listener = listen_socket.map(|s| Self::init_listener(&s));
-                let mut matcher_interval = tokio::time::interval(Duration::from_millis(100));
-                tui.enter()?;
-                loop {
-                    if app.should_quit {
-                        break;
-                    }
-
-                    tokio::select! {
-                        event = tui.next() => {
-                            let evt = event.ok_or_eyre("Could not acquire next event")?;
-
-                            // Handle reload event
-                            if let Event::Reload(new_cmd) = &evt {
-                                debug!("reloading with cmd {new_cmd}");
-                                // Kill the current reader
-                                reader_control.kill();
-                                // Clear items
-                                app.item_pool.clear();
-                                // Clear displayed items unless no_clear_if_empty is set
-                                // (in which case the item_list will handle keeping stale items)
-                                if !app.options.no_clear_if_empty {
-                                    app.item_list.clear();
-                                }
-                                app.restart_matcher(true);
-                                // Start a new reader with the new command (no source, using cmd)
-                                reader_control = reader.collect(app.item_pool.clone(), new_cmd);
-                                reader_done = false;
-                            }
-                            if let Event::Key(k) = &evt {
-                              final_key = k.to_owned();
-                            } else {
-                              final_event = evt.to_owned();
-                            }
-
-                            // Check reader status and update
-                            if reader_control.is_done() && !reader_done {
-                                app.restart_matcher(false);
-                            }
-                            app.handle_event(&mut tui, &evt)?;
-                        }
-                        _ = matcher_interval.tick() => {
-                          app.restart_matcher(false);
-                        }
-                        Ok(stream) = async {
-                            match &listener {
-                                Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
-                                None => std::future::pending().await,
-                            }
-                        } => {
-                            let event_tx_clone_ipc = event_tx_clone.clone();
-                            tokio::spawn(async move {
-                                use tokio::io::AsyncBufReadExt;
-                                let reader = tokio::io::BufReader::new(stream);
-                                let mut lines = reader.lines();
-                                while let Ok(Some(line)) = lines.next_line().await {
-                                    debug!("listener: got {line}");
-                                    if let Ok(act) = ron::from_str::<Action>(&line) {
-                                        debug!("listener: parsed into action {act:?}");
-                                        _ = event_tx_clone_ipc.send(Event::Action(act));
-                                        _ = event_tx_clone_ipc.send(Event::Render);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }
-                eyre::Ok(())
-            })?;
-        } else {
-            // We didn't enter
-            final_event = Event::Action(Action::Accept(None));
-        }
-        reader_control.kill();
-        // Extract final_key and is_abort from final_event
-        let is_abort = !matches!(&final_event, Event::Action(Action::Accept(_)));
-
-        let output = SkimOutput {
-            cmd: if app.options.interactive {
-                // In interactive mode, cmd is what the user typed
-                app.input.to_string()
-            } else if app.options.cmd_query.is_some() {
-                // If cmd_query was provided, use that for output
-                app.options.cmd_query.clone().unwrap()
-            } else {
-                // Otherwise use the execution command
-                cmd
-            },
-            final_event,
-            final_key,
-            query: app.input.to_string(),
-            is_abort,
-            selected_items: app.results(),
-            header: app.header.header.clone(),
-        };
-
-        debug!("output: {output:?}");
-
-        Ok(output)
+        Ok(Self {
+            app,
+            height,
+            reader,
+            reader_done: false,
+            initial_cmd,
+            tui: None,
+            reader_control: None,
+            matcher_interval: None,
+            listener: None,
+            final_event: Event::Quit,
+            final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        })
     }
 
     /// Start the reader and matcher, but do not enter the TUI yet
