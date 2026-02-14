@@ -6,6 +6,8 @@
 /// # Example with Option<Type>
 ///
 /// ```rust
+/// use skim::exhaustive_match;
+///
 /// enum Status { Active, Inactive, Pending }
 /// enum Output { Success, Failure, Unknown }
 ///
@@ -25,6 +27,8 @@
 /// # Example with plain Type
 ///
 /// ```rust
+/// use skim::exhaustive_match;
+///
 /// enum KeyCode { Enter, Char(char) }
 ///
 /// fn parse(key: &str) -> KeyCode {

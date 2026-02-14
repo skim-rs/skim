@@ -103,7 +103,7 @@ Any of the following applies:
     ```
 - Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
 - Install from [crates.io](https://crates.io/):
-    - For the frizbee typo-resistant matcher, we need nightly rust: `cargo +nightly-2026-01-16 install skim` (run `rustup toolchain install nightly-2026-01-16` if needed)
+    - For the frizbee typo-resistant matcher, we need nightly rust: `cargo +nightly-2026-02-11 install skim` (run `rustup toolchain install nightly-2026-02-11` if needed)
     - Otherwise, use `cargo install skim --no-default-features --features cli`
 - Build Manually:
     ```sh
@@ -304,6 +304,11 @@ Following the instruction in the plugin's README, you can install it with cargo:
 cargo install nu_plugin_skim
 plugin add ~/.cargo/bin/nu_plugin_skim
 ```
+
+## [sqlite extension](https://github.com/tzachar/sqlite_skim)
+
+An `sqlite` loadable module which enables a `skim_score` function in SQL
+queries.
 
 # Customization
 
@@ -518,6 +523,8 @@ _Note on features_:
     - the `cli` feature is required to use skim as a cli, it *should* not be needed when using it as a library.
     - the `nightly-frizbee` feature adds the frizbee algorithm, but requires cargo nigthly.
 
+### Basic usage
+
 Then try to run this simple example:
 
 ```rust
@@ -527,7 +534,7 @@ use std::io::Cursor;
 
 pub fn main() {
     let options = SkimOptionsBuilder::default()
-        .height(String::from("50%"))
+        .height("50%")
         .multi(true)
         .build()
         .unwrap();
@@ -549,6 +556,13 @@ pub fn main() {
     }
 }
 ```
+
+### Fine-grained usage
+
+You can also gain fine-grained usage of skim as a library using `tokio` and async code, allowing you to dynamically interact with
+
+
+### Internal workings
 
 Given an `Option<SkimItemReceiver>`, skim will read items accordingly, do its
 job and bring us back the user selection including the selected items, the

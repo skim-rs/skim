@@ -97,7 +97,7 @@ mod tests {
         let layout = PreviewLayout::from("left");
         assert_eq!(layout.direction, Direction::Left);
         assert_eq!(layout.size, Size::Percent(50)); // default
-        assert_eq!(layout.hidden, false);
+        assert!(!layout.hidden);
         assert_eq!(layout.offset, None);
 
         let layout = PreviewLayout::from("right");
@@ -115,7 +115,7 @@ mod tests {
         let layout = PreviewLayout::from("left:30%");
         assert_eq!(layout.direction, Direction::Left);
         assert_eq!(layout.size, Size::Percent(30));
-        assert_eq!(layout.hidden, false);
+        assert!(!layout.hidden);
         assert_eq!(layout.offset, None);
 
         let layout = PreviewLayout::from("right:40");
@@ -155,12 +155,12 @@ mod tests {
     fn test_preview_layout_with_hidden() {
         let layout = PreviewLayout::from("left:hidden");
         assert_eq!(layout.direction, Direction::Left);
-        assert_eq!(layout.hidden, true);
+        assert!(layout.hidden);
 
         let layout = PreviewLayout::from("right:50%:hidden");
         assert_eq!(layout.direction, Direction::Right);
         assert_eq!(layout.size, Size::Percent(50));
-        assert_eq!(layout.hidden, true);
+        assert!(layout.hidden);
     }
 
     #[test]
@@ -169,6 +169,6 @@ mod tests {
         assert_eq!(layout.direction, Direction::Left);
         assert_eq!(layout.size, Size::Percent(30));
         assert_eq!(layout.offset, Some("+{2}-5".to_string()));
-        assert_eq!(layout.hidden, true);
+        assert!(layout.hidden);
     }
 }

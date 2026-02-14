@@ -628,8 +628,10 @@ mod tests {
     #[test]
     fn test_init_from_options() {
         // Test initialization from SkimOptions
-        let mut opts = crate::options::SkimOptionsBuilder::default().build().unwrap();
-        opts.color = Some("matched:108".to_string());
+        let opts = crate::options::SkimOptionsBuilder::default()
+            .color("matched:108")
+            .build()
+            .unwrap();
         let theme = ColorTheme::init_from_options(&opts);
         assert_eq!(theme.matched.fg, Some(Color::Indexed(108)));
     }

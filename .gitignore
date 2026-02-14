@@ -19,3 +19,4 @@ bench_data.txt
 # Coverage
 lcov.info
 codecov.json
+*.profraw

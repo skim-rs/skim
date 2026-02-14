@@ -10,10 +10,9 @@ use std::io::Cursor;
 /// 1. Create custom action callbacks
 /// 2. Bind them to specific key combinations
 /// 3. Use them interactively in skim
-
 fn main() {
     // Create a custom callback that adds a prefix to the query
-    let add_prefix_callback = ActionCallback::new(|app: &mut skim::tui::App<'static>| {
+    let add_prefix_callback = ActionCallback::new(|app: &mut skim::tui::App| {
         // Get current query and add prefix
         let current_query = app.input.value.clone();
 
@@ -34,7 +33,7 @@ fn main() {
     });
 
     // Create a callback that selects all and exits
-    let select_all_callback = ActionCallback::new(|app: &mut skim::tui::App<'static>| {
+    let select_all_callback = ActionCallback::new(|app: &mut skim::tui::App| {
         let count = app.item_pool.len();
 
         Ok(vec![
@@ -46,10 +45,8 @@ fn main() {
     // Build basic options
     let mut options = SkimOptionsBuilder::default()
         .multi(true)
-        .prompt("Select> ".to_string())
-        .header(Some(String::from(
-            "<C-p>: add prefix to prompt\t<C-a>: select all and exit with count",
-        )))
+        .prompt("Select> ")
+        .header("<C-p>: add prefix to prompt\t<C-a>: select all and exit with count")
         .build()
         .unwrap();
 
@@ -69,7 +66,7 @@ fn main() {
     );
 
     // Create sample items
-    let items = vec![
+    let items = [
         "Write documentation",
         "Fix bug #123",
         "Implement feature X",

@@ -9,7 +9,6 @@ extern crate shlex;
 extern crate skim;
 
 use crate::Event;
-use clap::{Error, Parser};
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
 use derive_builder::Builder;
@@ -23,54 +22,12 @@ use skim::tui::event::Action;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
 use std::{env, io};
-use thiserror::Error;
 
 use skim::prelude::*;
 
-fn parse_args() -> Result<SkimOptions, Error> {
-    let mut args = Vec::new();
-
-    args.push(
-        env::args()
-            .next()
-            .expect("there should be at least one arg: the application name"),
-    );
-    args.extend(
-        env::var("SKIM_DEFAULT_OPTIONS")
-            .ok()
-            .and_then(|val| shlex::split(&val))
-            .unwrap_or_default(),
-    );
-    for arg in env::args().skip(1) {
-        args.push(arg);
-    }
-
-    SkimOptions::try_parse_from(args)
-}
-
-#[derive(Error, Debug)]
-enum SkMainError {
-    #[error("I/O error {0:?}")]
-    IoError(std::io::Error),
-    #[error("Argument error {0:?}")]
-    ArgError(clap::Error),
-}
-
-impl From<std::io::Error> for SkMainError {
-    fn from(value: std::io::Error) -> Self {
-        Self::IoError(value)
-    }
-}
-
-impl From<clap::Error> for SkMainError {
-    fn from(value: clap::Error) -> Self {
-        Self::ArgError(value)
-    }
-}
-
 //------------------------------------------------------------------------------
 fn main() -> Result<()> {
-    let mut opts = parse_args().unwrap_or_else(|e| {
+    let mut opts = SkimOptions::from_env().unwrap_or_else(|e| {
         e.exit();
     });
     color_eyre::install()?;
@@ -150,23 +107,10 @@ fn main() -> Result<()> {
 
     match sk_main(opts) {
         Ok(exit_code) => std::process::exit(exit_code),
-        Err(err) => {
-            // if downstream pipe is closed, exit silently, see PR#279
-            match err.downcast_ref::<SkMainError>() {
-                Some(SkMainError::IoError(e)) => {
-                    if e.kind() == std::io::ErrorKind::BrokenPipe {
-                        std::process::exit(0)
-                    } else {
-                        Err(eyre!(err))
-                    }
-                }
-                Some(SkMainError::ArgError(e)) => e.exit(),
-                None => match err.downcast_ref::<clap::error::Error>() {
-                    Some(e) => e.exit(),
-                    None => Err(eyre!(err)),
-                },
-            }
-        }
+        Err(err) => match err.downcast_ref::<clap::error::Error>() {
+            Some(e) => e.exit(),
+            None => Err(eyre!(err)),
+        },
     }
 }
 
@@ -353,7 +297,7 @@ pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<Ski
 
     let mut matched_items: Vec<_> = items
         .iter()
-        .filter_map(|item| engine.match_item(item.clone()).map(|result| (item, result)))
+        .filter_map(|item| engine.match_item(item.as_ref()).map(|result| (item, result)))
         .collect();
 
     if options.tac {

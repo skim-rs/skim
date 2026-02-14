@@ -1,6 +1,6 @@
 [package]
 name = "skim"
-version = "2.0.2"
+version = "3.2.0"
 authors = ["Loric ANDRE", "Zhang Jinzhou <lotabout@gmail.com>"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
@@ -34,17 +34,17 @@ required-features = ["cli"]
 [dependencies]
 assert_enum_variants = "0.1.2"
 beef = "0.5.2"
-clap = { version = "4.5.41" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
+clap = { version = "4.5.57" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { version = "4.5.55", optional = true }
 clap_mangen = { version = "0.2.29", optional = true }
 derive_builder = "0.20.2"
 env_logger = { version = "0.11.6", optional = true, features = ["humantime"] }
 indexmap = "2.8.0"
 log = "0.4.27"
-nix = { version = "0.31.1", features = ["fs"] }
-rand = "0.9.0"
+nix = { version = "0.31.1", features = ["fs", "poll"] }
+rand = "0.10.0"
 rayon = "1.5.3"
-regex = "1.6.0"
+regex = "1.12.3"
 shell-quote = "0.7.2"
 shlex = { version = "1.1.0", optional = true }
 tokio = { version = "1.48.0", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
@@ -55,15 +55,14 @@ ansi-to-tui = "8.0.1"
 futures = "0.3.31"
 tokio-util = "0.7.17"
 thiserror = "2.0.17"
-tempfile = "3.20.0"
+tempfile = "3.25.0"
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
 thread_local = "1.1.9"
-termion = "4.0.6"
 clap_complete_nushell = "4.5.10"
-interprocess = { version = "2.2.3", features = ["tokio"] }
+interprocess = { version = "2.3.1", features = ["tokio"] }
 serde = { version = "1.0.228", features = ["derive"] }
 ron = "0.12.0"
-frizbee = { version = "0.6.0", optional = true }
+frizbee = { version = "0.7.0", optional = true }
 roff = "0.2.2"
 unicode-display-width = "0.3.0"
 unicode-normalization = "0.1.25"

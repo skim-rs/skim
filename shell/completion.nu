@@ -114,13 +114,57 @@ module completions {
     --tmux: string            # Run in a tmux popup
     --log-file: string        # Pipe log output to a file
     --flags: string@"nu-complete sk flags" # Feature flags
-    --extended(-x)            # Reserved for later use
-    --literal                 # Reserved for later use
-    --hscroll-off: string     # Reserved for later use
-    --filepath-word           # Reserved for later use
-    --jump-labels: string     # Reserved for later use
-    --no-bold                 # Reserved for later use
-    --phony                   # Reserved for later use
+    --extended(-x)
+    --literal
+    --hscroll-off: string
+    --filepath-word
+    --jump-labels: string
+    --no-bold
+    --phony
+    --scheme: string
+    --tail: string
+    --style: string
+    --no-color
+    --padding: string
+    --border-label: string
+    --border-label-pos: string
+    --highlight-line
+    --wrap-sign: string
+    --no-multi-line
+    --raw
+    --track
+    --gap: string
+    --gap-line: string
+    --freeze-left: string
+    --freeze-right: string
+    --scroll-off: string
+    --gutter: string
+    --gutter-raw: string
+    --marker-multi-line: string
+    --ellipsis: string
+    --scrollbar: string
+    --no-scrollbar
+    --list-border: string
+    --list-label: string
+    --list-label-pos: string
+    --no-input
+    --info-command: string
+    --separator: string
+    --no-separator
+    --ghost: string
+    --input-border: string
+    --input-label: string
+    --input-label-pos: string
+    --preview-label: string
+    --preview-label-pos: string
+    --header-first
+    --header-border: string
+    --header-lines-border: string
+    --footer: string
+    --footer-border: string
+    --footer-label: string
+    --footer-label-pos: string
+    --with-shell: string
     --expect: string          # Deprecated, kept for compatibility purposes. See accept() bind instead
     --help(-h)                # Print help (see more with '--help')
     --version(-V)             # Print version

@@ -23,7 +23,7 @@ pub fn main() {
         }
     }
 
-    if &pattern == "" {
+    if pattern.is_empty() {
         eprintln!("Usage: echo <piped_input> | fz --algo [skim|clangd] <pattern>");
         exit(1);
     }
@@ -36,10 +36,10 @@ pub fn main() {
 
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
-        if let Ok(line) = line {
-            if let Some((score, indices)) = matcher.fuzzy_indices(&line, &pattern) {
-                println!("{:8}: {}", score, wrap_matches(&line, &indices));
-            }
+        if let Ok(line) = line
+            && let Some((score, indices)) = matcher.fuzzy_indices(&line, &pattern)
+        {
+            println!("{:8}: {}", score, wrap_matches(&line, &indices));
         }
     }
 }

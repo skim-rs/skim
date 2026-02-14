@@ -22,6 +22,7 @@ static PLACEHOLDER_RANGE: Option<MatchRange> = None;
 /// Provides methods to check status, retrieve results, and stop the matcher.
 pub struct MatcherControl {
     stopped: Arc<AtomicBool>,
+    interrupt: Arc<AtomicBool>,
     processed: Arc<AtomicUsize>,
     matched: Arc<AtomicUsize>,
 }
@@ -30,6 +31,7 @@ impl Default for MatcherControl {
     fn default() -> Self {
         Self {
             stopped: Arc::new(AtomicBool::new(true)),
+            interrupt: Arc::new(AtomicBool::new(false)),
             processed: Default::default(),
             matched: Default::default(),
         }
@@ -49,7 +51,7 @@ impl MatcherControl {
 
     /// Signals the matcher to stop processing.
     pub fn kill(&mut self) {
-        self.stopped.store(true, Ordering::Relaxed);
+        self.interrupt.store(true, Ordering::Relaxed);
     }
 
     /// Returns true if the matcher has stopped (either completed or killed).
@@ -164,28 +166,23 @@ impl Matcher {
         debug!("engine: {matcher_engine}");
         let stopped = Arc::new(AtomicBool::new(false));
         let stopped_clone = stopped.clone();
+        let interrupt = Arc::new(AtomicBool::new(false));
+        let interrupt_clone = interrupt.clone();
         let processed = Arc::new(AtomicUsize::new(0));
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
 
-        let query_empty: bool = query.is_empty();
-
         let run_matcher = || {
             rayon::spawn(move || {
-                // let _num_taken = item_pool.num_taken();
                 let items = item_pool.take();
-
-                // 1. use rayon for parallel
-                // 2. return Err to skip iteration
-                //    check https://doc.rust-lang.org/std/result/enum.Result.html#method.from_iter
-
                 trace!("matcher start, total: {}", items.len());
                 let matched_items: Vec<MatchedItem> = items
                     .into_par_iter()
                     .chunks(8196)
                     .take_any_while(|chunk| {
-                        if stopped.load(Ordering::Relaxed) {
+                        if interrupt.load(Ordering::Relaxed) {
+                            stopped.store(true, Ordering::Relaxed);
                             return false;
                         }
 
@@ -193,21 +190,17 @@ impl Matcher {
                         true
                     })
                     .map(|chunk| {
+                        if interrupt.load(Ordering::Relaxed) {
+                            stopped.store(true, Ordering::Relaxed);
+                            return Vec::new();
+                        }
                         let matched_chunk: Vec<MatchedItem> = chunk
                             .into_iter()
                             .filter_map(|item| {
-                                if query_empty {
-                                    return Some(MatchedItem {
-                                        item: item,
-                                        rank: PLACEHOLDER_RANK,
-                                        matched_range: PLACEHOLDER_RANGE.clone(),
-                                    });
-                                }
-
-                                matcher_engine.match_item(item.clone()).map(|match_result| {
+                                matcher_engine.match_item(item.as_ref()).map(|match_result| {
                                     // item is Arc but we get &Arc from iterator, so one clone is needed
                                     MatchedItem {
-                                        item: item,
+                                        item,
                                         rank: match_result.rank,
                                         matched_range: Some(match_result.matched_range),
                                     }
@@ -222,18 +215,19 @@ impl Matcher {
                     .flatten_iter()
                     .collect();
 
-                if !stopped.load(Ordering::SeqCst) {
+                if !interrupt.load(Ordering::SeqCst) {
                     trace!("matcher stop, total matched: {}", matched_items.len());
                     callback(matched_items);
-                    stopped.store(true, Ordering::Relaxed);
                 }
+                stopped.store(true, Ordering::Relaxed);
             });
         };
 
-        thread_pool.install(|| run_matcher());
+        thread_pool.install(run_matcher);
 
         MatcherControl {
             stopped: stopped_clone,
+            interrupt: interrupt_clone,
             matched: matched_clone,
             processed: processed_clone,
         }

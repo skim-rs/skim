@@ -165,6 +165,7 @@ const ACTIONS_SS: &str = "
 * reload(...)
 * select-all
 * select-row
+* set-preview-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * set-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * toggle
 * toggle-all
@@ -320,6 +321,22 @@ It will expand to the corresponding fields, separated by the `--delimiter|-d` op
         &mut custom,
         "SKIM_DEFAULT_OPTIONS",
         "Will be parsed and used as default options. Example: `--reverse --multi`",
+    );
+    subsection(
+        &mut custom,
+        "SKIM_OPTIONS_FILE",
+        "
+If the variable is set to the path of an existing file, the contents of this file will be parsed and used as default options.
+It supports `#` as a comment start, which can be escaped using `##`.
+Example:
+```
+# Preview
+--preview 'echo {}'
+--preview-window 'left:30%' # Preview window
+--reverse
+--prompt '## '
+```
+",
     );
 
     subsection(

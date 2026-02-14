@@ -17,8 +17,8 @@ pub fn main() {
     };
     let options = SkimOptionsBuilder::default()
         .multi(true)
-        .selector(Some(Rc::from(selector)))
-        .query(Some(String::from("skim/")))
+        .selector(Rc::from(selector))
+        .query("skim/")
         .build()
         .unwrap();
 

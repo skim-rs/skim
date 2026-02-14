@@ -1,9 +1,9 @@
 //! The fuzzy matching algorithm used by skim
 //!
 //! # Example:
-//! ```edition2018
-//! use crate::fuzzy_matcher::FuzzyMatcher;
-//! use crate::fuzzy_matcher::skim::SkimMatcherV2;
+//! ```
+//! use skim::fuzzy_matcher::FuzzyMatcher;
+//! use skim::fuzzy_matcher::skim::SkimMatcherV2;
 //!
 //! let matcher = SkimMatcherV2::default();
 //! assert_eq!(None, matcher.fuzzy_match("abc", "abx"));

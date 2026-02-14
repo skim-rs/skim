@@ -6,12 +6,9 @@ pub fn main() {
     env_logger::init();
     let options = SkimOptionsBuilder::default()
         .multi(true)
-        .preview_fn(Some(PreviewCallback::from(|items: Vec<Arc<dyn SkimItem>>| {
-            items
-                .iter()
-                .map(|s| s.text().to_ascii_uppercase().into())
-                .collect::<Vec<_>>()
-        })))
+        .preview_fn(PreviewCallback::from(|items: Vec<Arc<dyn SkimItem>>| {
+            items.iter().map(|s| s.text().to_ascii_uppercase()).collect::<Vec<_>>()
+        }))
         .build()
         .unwrap();
     let item_reader = SkimItemReader::default();

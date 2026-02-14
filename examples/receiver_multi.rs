@@ -12,10 +12,7 @@ fn main() {
     drop(sender); // bug replicates even without this
 
     let _ = Skim::run_with(
-        SkimOptions {
-            multi: true,
-            ..Default::default()
-        },
+        SkimOptionsBuilder::default().multi(true).build().unwrap(),
         Some(receiver),
     );
 }

@@ -473,11 +473,11 @@ fn opt_select_1() -> std::io::Result<()> {
     let res = Command::new("/bin/sh")
         .arg("-c")
         .env_clear()
-        .arg(&format!("printf '1\n2\n3' | {SK} --select-1 -q 3"))
+        .arg(format!("printf '1\n2\n3' | {SK} --select-1 -q 3"))
         .stdin(std::process::Stdio::null())
         .output()?;
     assert_eq!(res.status.code(), Some(0));
-    assert_eq!(res.stdout, &[b'3', b'\n']);
+    assert_eq!(res.stdout, b"3\n");
     Ok(())
 }
 
@@ -486,7 +486,7 @@ fn opt_exit_0() -> std::io::Result<()> {
     let res = Command::new("/bin/sh")
         .arg("-c")
         .env_clear()
-        .arg(&format!("printf '1\n2\n3' | {SK} --exit-0 -q 4"))
+        .arg(format!("printf '1\n2\n3' | {SK} --exit-0 -q 4"))
         .stdin(std::process::Stdio::null())
         .output()?;
     assert_eq!(res.status.code(), Some(1));

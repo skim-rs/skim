@@ -34,6 +34,51 @@ fn default_command() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn default_options() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    let outfile = tmux.tempfile()?;
+    let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_OPTIONS=", "SKIM_DEFAULT_OPTIONS='--prompt \"XXX \"'");
+    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
+    tmux.until(|l| l[0].starts_with("XXX"))?;
+
+    Ok(())
+}
+
+#[test]
+fn options_file() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    // Create options file with content from manpage example
+    let mut options_file = NamedTempFile::new()?;
+    options_file.write_all(
+        b"# Preview\n\
+--preview 'echo {}'\n\
+--preview-window 'left:30%' # Preview window\n\
+--prompt '## '\n",
+    )?;
+
+    let outfile = tmux.tempfile()?;
+    let sk_cmd = sk(&outfile, &[]).replace(
+        "SKIM_OPTIONS_FILE=",
+        &format!("SKIM_OPTIONS_FILE='{}'", options_file.path().to_str().unwrap()),
+    );
+    tmux.send_keys(&[Keys::Str(&format!("echo a | {sk_cmd}")), Keys::Enter])?;
+    tmux.until(|l| l.len() > 2)?;
+    tmux.until(|l| l[0].ends_with("│#"))?;
+    tmux.until(|l| l[2].trim().ends_with("│> a"))?;
+    tmux.until(|l| l[l.len() - 1].starts_with('a'))?;
+
+    tmux.send_keys(&[Keys::Enter])?;
+
+    let output = tmux.output_from(&outfile)?;
+
+    assert_eq!(output[0], "a");
+
+    Ok(())
+}
+
 sk_test!(tmux_version_long, "", &["--version"], {
   @output[0] starts_with("sk ");
 });
@@ -51,7 +96,7 @@ sk_test!(opt_read0, "a\\0b\\0c", &["--read0"], {
 sk_test!(opt_print0, "a\\nb\\nc", &["-m", "--print0"], {
   @lines |l| (l.len() > 4);
   @keys BTab, BTab, Enter;
-  @lines |l| (l.len() > 0 && !l[0].starts_with(">"));
+  @lines |l| (!l.is_empty() && !l[0].starts_with(">"));
   @output[0] trim().eq("a\0b\0");
 });
 
@@ -152,8 +197,8 @@ sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
   for option in reserved_options {
       println!("Starting sk with opt {}", option);
       let mut tmux = TmuxController::new()?;
-      tmux.start_sk(Some(&format!("echo -n -e 'a\\nb'")), &[option])?;
-      tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+      tmux.start_sk(Some("echo -n -e 'a\\nb'"), &[option])?;
+      tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
   }
 });
 
@@ -197,8 +242,8 @@ sk_test!(opt_multiple_flags_basic, "a\\nb", &[], tmux => {
 
   for cmd_flags in basic_flags {
       let mut tmux = TmuxController::new()?;
-      tmux.start_sk(Some(&format!("echo -n -e 'a\\nb'")), &[cmd_flags])?;
-      tmux.until(|l| l.len() > 0 && l[0].starts_with(">"))?;
+      tmux.start_sk(Some("echo -n -e 'a\\nb'"), &[cmd_flags])?;
+      tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
   }
 });
 
@@ -207,10 +252,10 @@ use tempfile::NamedTempFile;
 
 sk_test!(opt_pre_select_file, "a\\nb\\nc", &[], tmux => {
   let mut pre_select_file = NamedTempFile::new()?;
-  pre_select_file.write(b"b\nc")?;
+  pre_select_file.write_all(b"b\nc")?;
   let mut tmux = TmuxController::new()?;
   tmux.start_sk(
-      Some(&format!("echo -n -e 'a\\nb\\nc'")),
+      Some("echo -n -e 'a\\nb\\nc'"),
       &["-m", "--pre-select-file", pre_select_file.path().to_str().unwrap()],
   )?;
   tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")?;

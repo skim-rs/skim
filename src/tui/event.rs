@@ -4,12 +4,13 @@ use crate::exhaustive_match;
 use crossterm::event::{KeyEvent, MouseEvent};
 use derive_more::{Debug, Eq, PartialEq};
 
-type ActionCallbackFn = dyn Fn(*mut ()) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> + Send;
+type ActionCallbackFn =
+    dyn Fn(&mut crate::tui::App) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> + Send;
 
-/// The custom action callback
+/// A custom action callback that receives a mutable reference to the App.
 ///
-/// The callback is wrapped in a helper that handles lifetime erasure safely.
-/// Users create callbacks using `ActionCallback::new()` which ensures safety.
+/// The closure will be called with a mutable reference to App and should return
+/// a vec of events that will be processed after the callback completes.
 #[derive(Clone)]
 pub struct ActionCallback(Arc<Mutex<ActionCallbackFn>>);
 
@@ -20,40 +21,24 @@ impl std::fmt::Debug for ActionCallback {
 }
 
 impl ActionCallback {
-    /// Create a new action callback from a closure
+    /// Create a new action callback from a closure.
     ///
-    ///
-    /// The closure will be called with a mutable reference to App and return a vec of events that
-    /// will be run after the callback is done.
-    /// The lifetime is erased internally in a safe manner.
+    /// The closure will be called with a mutable reference to App and should return a vec of
+    /// events that will be run after the callback is done.
     pub fn new<F>(f: F) -> Self
     where
-        F: Fn(&mut crate::tui::App<'static>) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>>
-            + Send
-            + 'static,
+        F: Fn(&mut crate::tui::App) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> + Send + 'static,
     {
-        Self(Arc::new(Mutex::new(move |ptr| {
-            // SAFETY: This is safe because:
-            // 1. The pointer comes from a valid &mut App reference
-            // 2. We immediately cast it back to the reference
-            // 3. The lifetime 'static is a lie but the reference doesn't outlive this call
-            let app = unsafe { &mut *(ptr as *mut crate::tui::App<'static>) };
-            f(app)
-        })))
+        Self(Arc::new(Mutex::new(f)))
     }
 
-    /// Call the callback with an App reference
-    ///
-    /// SAFETY: This method erases the lifetime of the App reference by converting it to a raw pointer.
-    /// This is safe because the callback is called immediately and doesn't store the reference.
+    /// Call the callback with an App reference.
     pub(crate) fn call(
         &self,
-        app: &mut crate::tui::App<'_>,
+        app: &mut crate::tui::App,
     ) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> {
         let callback = self.0.lock().unwrap();
-        // Erase the lifetime by converting to a raw pointer
-        let ptr = app as *mut crate::tui::App<'_> as *mut ();
-        callback(ptr)
+        callback(app)
     }
 }
 
@@ -72,6 +57,8 @@ pub enum Event {
     Render,
     /// A key was pressed
     Key(KeyEvent),
+    /// Text was pasted (bracketed paste)
+    Paste(String),
     /// A mouse event occurred
     Mouse(MouseEvent),
     /// Preview content is ready to display
@@ -203,6 +190,8 @@ pub enum Action {
     SelectRow(usize),
     /// Select current item
     Select,
+    /// Set the preview cmd and rerun preview
+    SetPreviewCmd(String),
     /// Set the query to the expanded value
     SetQuery(String),
     /// Toggle selection of current item
@@ -339,6 +328,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "select" => Some(Select),
                 "select-all" => Some(SelectAll),
                 "select-row" => Some(SelectRow(arg.and_then(|s| s.parse().ok()).unwrap_or_default())),
+                "set-preview-cmd" => Some(SetPreviewCmd(arg.expect("set-preview-cmd action needs a value"))),
                 "set-query" => Some(SetQuery(arg.expect("set-query action needs a value"))),
                 "toggle" => Some(Toggle),
                 "toggle-all" => Some(ToggleAll),
@@ -356,7 +346,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "unreachable-if-non-matched" => Some(IfNonMatched(Default::default(), None)),
                 "unreachable-if-query-empty" => Some(IfQueryEmpty(Default::default(), None)),
                 "unreachable-if-query-not-empty" => Some(IfQueryNotEmpty(Default::default(), None)),
-                "custom-do-not-use-from-cli" => Some(Custom(ActionCallback::new(|_: &mut crate::tui::App<'static>| { Ok(Vec::new()) }))),
+                "custom-do-not-use-from-cli" => Some(Custom(ActionCallback::new(|_: &mut crate::tui::App| { Ok(Vec::new()) }))),
             }
             default _ => None
         }

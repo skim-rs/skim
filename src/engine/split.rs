@@ -3,10 +3,8 @@
 //! This engine splits both the query and item text on a delimiter character, then matches
 //! the query parts against the corresponding item parts.
 
-use std::fmt::{Display, Error, Formatter};
-use std::sync::Arc;
-
 use crate::{MatchEngine, MatchEngineFactory, MatchRange, MatchResult, SkimItem};
+use std::fmt::{Display, Error, Formatter};
 
 /// Engine that matches by splitting query and item on a delimiter
 pub struct SplitMatchEngine {
@@ -30,7 +28,7 @@ impl SplitMatchEngine {
 }
 
 impl MatchEngine for SplitMatchEngine {
-    fn match_item(&self, item: Arc<dyn SkimItem>) -> Option<MatchResult> {
+    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         let text = item.text();
 
         // Find the delimiter in the item text (by char position)
@@ -43,8 +41,8 @@ impl MatchEngine for SplitMatchEngine {
         let text_after = &text[delimiter_byte_pos + self.delimiter.len_utf8()..];
 
         // Create wrapper items for each part
-        let before_item: Arc<dyn SkimItem> = Arc::new(StringItem(text_before.to_string()));
-        let after_item: Arc<dyn SkimItem> = Arc::new(StringItem(text_after.to_string()));
+        let before_item: &dyn SkimItem = &StringItem(text_before.to_string());
+        let after_item: &dyn SkimItem = &StringItem(text_after.to_string());
 
         // Match both parts
         let before_result = self.before_engine.match_item(before_item)?;

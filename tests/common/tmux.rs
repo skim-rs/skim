@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use rand::Rng;
+use rand::RngExt as _;
 use rand::distr::Alphanumeric;
 use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
@@ -40,7 +40,6 @@ where
 }
 
 pub enum Keys<'a> {
-    /// Do not use, send multiple `Key`s instead
     Str(&'a str),
     Key(char),
     Ctrl(&'a Keys<'a>),
@@ -153,7 +152,7 @@ impl TmuxController {
         print!("typing `");
         for key in keys {
             Self::run(&["send-keys", "-t", &self.window, &key.to_string()])?;
-            print!("{}", key.to_string());
+            print!("{}", key);
         }
         println!("`");
         Ok(())
@@ -236,10 +235,10 @@ impl TmuxController {
             if pred(&lines) {
                 return Ok(true);
             }
-            Err(std::io::Error::new(ErrorKind::Other, "pred not matched"))
+            Err(std::io::Error::other("pred not matched"))
         }) {
             Ok(true) => Ok(()),
-            Ok(false) => Err(std::io::Error::new(ErrorKind::Other, self.capture()?.join("\n"))),
+            Ok(false) => Err(std::io::Error::other(self.capture()?.join("\n"))),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 self.capture()?.join("\n"),

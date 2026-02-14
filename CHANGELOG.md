@@ -5,15 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.2] - 2026-02-02
+## [3.2.0] - 2026-02-13
 
-### 🐛 Bug Fixes
+### 🚀 Features
 
-- Fix preview_fn
+- Further reduce DefaultSkimItem size (#967)
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update interactive mode examples (closes #943)
+- Enhance PR template [skip ci]
+
+## [3.1.1] - 2026-02-13
+
+### 🐛 Bug Fixes
+
+- Republish crate
+
+## [3.1.0] - 2026-02-13
+
+### 🚀 Features
+
+- *(cli)* Add SKIM_OPTIONS_FILE (#972)
+- Add set-preview-cmd action to change preview (#969)
+
+## [3.0.1] - 2026-02-12
+
+### 🐛 Bug Fixes
+
+- Restart_matcher race condition (closes #970)
+
+### 📚 Documentation
+
+- Add link to sqlite_skim (#971) [skip ci]
+
+### New Contributors
+* @tzachar made their first contribution in [#971](https://github.com/skim-rs/skim/pull/971)
+
+## [3.0.0] - 2026-02-12
+
+### Changes
+
+#### For everyone
+
+Memory usage was optimized, bringing a ~25% reduction in memory usage in our benches. Thanks to @kimono-koans for the initial idea and help with this.
+
+#### For CLI users
+
+- Added a `:pty` preview-window flag that will make the preview run in a PTY. This allows for more interactive commands and more complicated display, including running `sk` itself inside `sk`'s preview (run `SKIM_DEFAULT_OPTIONS='--preview "sk" --preview-window ":pty"' sk` for the extreme version).
+    Note: the `pty` preview does not take input (for now). For instance, scrolling in paged output will not work.
+- Readded `--sync` functionality after it was broken in v1
+
+#### For library users
+
+- A more fine-grained control over skim's event loop is now possible using `tokio` and the new methods on `Skim`. Check them out if you want to interact with the skim instance while it is running.
+- [**breaking**] The `SkimOptionsBuilder`'s setter methods are back to taking raw `&str`s instead of `String`s. This should match the behavior pre-v1, sorry for the extra work that some of you already put in to migrate.
+
+### 🚀 Features
+
+- Interactive pty preview & concurrency optimizations (#952)
+- Optimize match_item to use ref and not Arc (#962)
+- Reduce DefaultSkimItem memory footprint by around 25% by default (#966)
+- [**breaking**] Use smarter setters, remove the need for Some(...) and String::from() in setters
+- Readd `--sync` functionality
+- *(lib)* Add fine-grained control over skim's event loop (#968)
+
+### 🐛 Bug Fixes
+
+- Manually patch modifiers (closes #945)
+- Implement cursor_pos_from_tty ourselves (#963)
+- Run preview on move after selection
+
+### 📚 Documentation
+
+- Specify nightly version in README
+- Update nightly version [skip ci]
+- Detail `pty` preview window flag [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- Ignore coverage files [skip ci]
+- Add coverage flag to README
+- Test matchers
+- Update frizbee and nightly version
+- *(ci)* Make codecov less aggressive
+
+### New Contributors
+* @kimono-koans made their first contribution in [#962](https://github.com/skim-rs/skim/pull/962)
 
 ## [2.0.2] - 2026-02-02
 

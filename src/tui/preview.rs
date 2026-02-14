@@ -385,7 +385,7 @@ impl Preview {
                 }
 
                 trace!("read complete");
-                let _ = event_tx_clone.send(Event::PreviewReady);
+                let _ = event_tx_clone.blocking_send(Event::PreviewReady);
             }));
         } else {
             trace!("spawning preview cmd {cmd}");
@@ -430,7 +430,7 @@ impl Preview {
                 }
 
                 trace!("sending ready ping");
-                let _ = event_tx_clone.send(Event::PreviewReady);
+                let _ = event_tx_clone.blocking_send(Event::PreviewReady);
             }));
         }
         Ok(())

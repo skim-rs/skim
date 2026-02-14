@@ -21,8 +21,11 @@ release version: (bump-version version) generate-files (changelog version) test
     git push --tags
 
 auto-release:
+    git switch master
+    git pull
     just release $(git cliff --bumped-version | sed 's/v\(.*\)/\1/')
 
 test target="":
-    -cargo nextest run --release --features test-utils {{ target }}
+    cargo test --doc
+    -cargo nextest run --features test-utils {{ target }}
     tmux kill-session -t skim_e2e

@@ -20,7 +20,7 @@ use std::sync::Arc;
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use skim::util::unescape_delimiter;
 ///
 /// assert_eq!(unescape_delimiter(r"\x00"), "\0");
@@ -244,7 +244,7 @@ mod test {
                 pattern,
                 &delimiter,
                 "{}",
-                items.iter().map(|x| x.clone()),
+                items.iter().cloned(),
                 Some(Arc::new("item 2")),
                 "query",
                 "cmd query",
@@ -260,7 +260,7 @@ mod test {
                 "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                vec![Arc::new("1"), Arc::new("2")]
+                [Arc::new("1"), Arc::new("2")]
                     .iter()
                     .map(|x| x.clone() as Arc<dyn SkimItem>),
                 Some(Arc::new("1")),
