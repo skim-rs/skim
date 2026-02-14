@@ -597,30 +597,18 @@ where
             .expect("reader_control needs to be initilized using Skim::start");
         let app = &mut self.app;
 
-        // Filter mode: wait for all items to be read, then match once
+        // Filter mode: wait for all items to be read and matched, then return without entering TUI
         if app.options.filter.is_some() {
-            trace!("filter mode: waiting for reader to finish");
-
-            // Kill the premature matcher started by start() — we'll run it once
-            // after all items are collected.
-            app.matcher_control.kill();
-            while !app.matcher_control.stopped() {
-                std::thread::yield_now();
-            }
-
-            // Wait for the reader to finish collecting all items
-            while !reader_control.is_done() {
+            trace!("filter mode: waiting for all items to be processed");
+            loop {
+                let matcher_stopped = app.matcher_control.stopped();
+                let reader_done = reader_control.is_done();
+                if matcher_stopped && reader_done && app.item_pool.num_not_taken() == 0 {
+                    break;
+                }
                 std::thread::sleep(Duration::from_millis(1));
+                app.restart_matcher(false);
             }
-
-            // Now all items are in the pool. Run the matcher exactly once.
-            app.restart_matcher(true);
-
-            // Wait for this single matcher run to complete
-            while !app.matcher_control.stopped() {
-                std::thread::sleep(Duration::from_millis(1));
-            }
-
             app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
             debug!("filter mode: matched {} items", app.item_list.items.len());
             return false;

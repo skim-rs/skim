@@ -1151,11 +1151,7 @@ impl App {
     pub fn results(&mut self) -> Vec<Arc<MatchedItem>> {
         if self.options.filter.is_some() {
             // In filter mode, drain items to avoid cloning
-            self.item_list
-                .items
-                .drain(..)
-                .map(|item| Arc::new(item))
-                .collect()
+            self.item_list.items.drain(..).map(|item| Arc::new(item)).collect()
         } else if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list
                 .selection
@@ -1193,7 +1189,7 @@ impl App {
 
         let matcher_stopped = self.matcher_control.stopped();
         if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
-            trace!("restarting matcher");
+            trace!("restarting matcher, force={force}");
             // Reset debounce timer on any restart to prevent interference
             self.last_matcher_restart = std::time::Instant::now();
             self.pending_matcher_restart = false;
@@ -1214,15 +1210,50 @@ impl App {
             let processed_items = self.item_list.processed_items.clone();
             let no_sort = self.options.no_sort;
 
-            self.item_pool.reset();
+            if force {
+                self.item_pool.reset();
+            }
+
             self.matcher_control = self.matcher.run(query, item_pool, thread_pool, move |mut matches| {
                 debug!("Got {} results from matcher, sending to item list...", matches.len());
 
-                // Send matched items directly (header_lines are now handled by the Header widget)
                 if !no_sort {
                     matches.sort_by_key(|item| item.rank);
                 }
-                *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
+
+                if force {
+                    // Full re-match: replace all results
+                    *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
+                } else {
+                    // Incremental: merge new sorted matches into existing sorted results
+                    let mut guard = processed_items.lock();
+                    if let Some(ref mut existing) = *guard {
+                        if no_sort || matches.is_empty() {
+                            existing.items.extend(matches);
+                        } else if existing.items.is_empty() {
+                            existing.items = matches;
+                        } else {
+                            // Sorted merge of two sorted lists
+                            let existing_items = std::mem::take(&mut existing.items);
+                            let total = existing_items.len() + matches.len();
+                            let mut merged = Vec::with_capacity(total);
+                            let mut a = existing_items.into_iter().peekable();
+                            let mut b = matches.into_iter().peekable();
+                            while a.peek().is_some() && b.peek().is_some() {
+                                if a.peek().unwrap().rank <= b.peek().unwrap().rank {
+                                    merged.push(a.next().unwrap());
+                                } else {
+                                    merged.push(b.next().unwrap());
+                                }
+                            }
+                            merged.extend(a);
+                            merged.extend(b);
+                            existing.items = merged;
+                        }
+                    } else {
+                        *guard = Some(crate::tui::item_list::ProcessedItems { items: matches });
+                    }
+                }
             });
         }
     }
