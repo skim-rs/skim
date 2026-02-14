@@ -186,10 +186,6 @@ impl Matcher {
                         true
                     })
                     .map(|chunk| {
-                        if interrupt.load(Ordering::Relaxed) {
-                            stopped.store(true, Ordering::Relaxed);
-                            return Vec::new();
-                        }
                         let matched_chunk: Vec<MatchedItem> = chunk
                             .into_iter()
                             .filter_map(|item| {
