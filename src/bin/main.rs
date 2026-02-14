@@ -128,7 +128,6 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     let history_file = opts.history_file.clone();
     //------------------------------------------------------------------------------
     let bin_options = BinOptions {
-        filter: opts.filter.clone(),
         print_query: opts.print_query,
         print_cmd: opts.print_cmd,
         print_score: opts.print_score,
@@ -150,10 +149,6 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
             let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
             Some(rx_item)
         };
-        // filter mode
-        if opts.filter.is_some() {
-            return Ok(filter(&bin_options, &opts, rx_item));
-        }
         Some(Skim::run_with(opts, rx_item)?)
     }) else {
         return Ok(135);
@@ -243,7 +238,6 @@ fn write_history_to_file(
 #[derive(Builder)]
 #[allow(missing_docs)]
 pub struct BinOptions {
-    filter: Option<String>,
     output_ending: String,
     print_query: bool,
     print_cmd: bool,
@@ -252,62 +246,3 @@ pub struct BinOptions {
     strip_ansi: bool,
 }
 
-/// Runs skim in filter mode, matching items against a fixed query without interactive UI
-pub fn filter(bin_option: &BinOptions, options: &SkimOptions, source: Option<SkimItemReceiver>) -> i32 {
-    use skim::matcher::Matcher;
-
-    let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
-        Ok("") | Err(_) => "find .".to_owned(),
-        Ok(val) => val.to_owned(),
-    };
-    let query = bin_option.filter.clone().unwrap_or_default();
-    let cmd = options.cmd.clone().unwrap_or(default_command);
-
-    // output query
-    if bin_option.print_query {
-        print!("{}{}", query, bin_option.output_ending);
-    }
-
-    if bin_option.print_cmd {
-        print!("{}{}", cmd, bin_option.output_ending);
-    }
-
-    //------------------------------------------------------------------------------
-    // matcher - use the unified factory creation from Matcher
-    let engine_factory = Matcher::create_engine_factory(options);
-    let engine = engine_factory.create_engine_with_case(&query, options.case);
-
-    //------------------------------------------------------------------------------
-    // start
-    let components_to_stop = Arc::new(AtomicUsize::new(0));
-
-    let stream_of_item = source.unwrap_or_else(|| {
-        let (ret, _control) = options.cmd_collector.borrow_mut().invoke(&cmd, components_to_stop);
-        ret
-    });
-
-    let mut num_matched = 0;
-    let mut stdout_lock = std::io::stdout().lock();
-    let mut items = Vec::new();
-
-    // Collect all items from the stream until the channel is closed
-    while let Ok(batch) = stream_of_item.recv() {
-        items.extend(batch);
-    }
-
-    let mut matched_items: Vec<_> = items
-        .iter()
-        .filter_map(|item| engine.match_item(item.as_ref()).map(|result| (item, result)))
-        .collect();
-
-    if options.tac {
-        matched_items.reverse();
-    }
-
-    matched_items.iter().for_each(|(item, _match_result)| {
-        num_matched += 1;
-        let _ = write!(stdout_lock, "{}{}", item.output(), bin_option.output_ending);
-    });
-
-    i32::from(num_matched == 0)
-}

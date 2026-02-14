@@ -369,8 +369,14 @@ impl Skim {
     /// # Panics
     ///
     /// Panics if the tui fails to initilize
-    pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+    pub fn run_with(mut options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         trace!("running skim");
+        // In filter mode, use the filter string as the query for matching
+        if let Some(ref filter_query) = options.filter {
+            if options.query.is_none() {
+                options.query = Some(filter_query.clone());
+            }
+        }
         let mut skim = Self::init(options, source)?;
 
         skim.start();
@@ -583,13 +589,31 @@ where
             .enter()
     }
 
-    /// Checks read-0 select-1, and sync to wait and returns whether or not we should enter
+    /// Checks read-0 select-1, filter, and sync to wait and returns whether or not we should enter
     fn should_enter(&mut self) -> bool {
         let reader_control = self
             .reader_control
             .as_ref()
             .expect("reader_control needs to be initilized using Skim::start");
         let app = &mut self.app;
+
+        // Filter mode: wait for all items to be read and matched, then return without entering TUI
+        if app.options.filter.is_some() {
+            trace!("filter mode: waiting for all items to be processed");
+            loop {
+                let matcher_stopped = app.matcher_control.stopped();
+                let reader_done = reader_control.is_done();
+                if matcher_stopped && reader_done && app.item_pool.num_not_taken() == 0 {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+                app.restart_matcher(false);
+            }
+            app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
+            debug!("filter mode: matched {} items", app.item_list.items.len());
+            return false;
+        }
+
         // Deal with read-0 / select-1
         let min_items_before_enter = if app.options.exit_0 {
             1
