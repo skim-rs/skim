@@ -176,16 +176,16 @@ impl Matcher {
                 let matched_items: Vec<MatchedItem> = items
                     .into_par_iter()
                     .chunks(8196)
-                    .take_any_while(|chunk| {
+                    .take_any_while(|_chunk| {
                         if interrupt.load(Ordering::Relaxed) {
-                            stopped.store(true, Ordering::Relaxed);
                             return false;
                         }
 
-                        processed.fetch_add(chunk.len(), Ordering::Relaxed);
                         true
                     })
                     .map(|chunk| {
+                        processed.fetch_add(chunk.len(), Ordering::Relaxed);
+
                         let matched_chunk: Vec<MatchedItem> = chunk
                             .into_iter()
                             .filter_map(|item| {
