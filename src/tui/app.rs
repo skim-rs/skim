@@ -1067,6 +1067,10 @@ impl App {
                 self.item_list.select();
                 return self.on_selection_changed();
             }
+            SetPreviewCmd(cmd) => {
+                self.options.preview = Some(cmd.to_owned());
+                return Ok(vec![Event::RunPreview]);
+            }
             SetQuery(value) => {
                 self.input.value = self.expand_cmd(value, false);
                 self.input.move_to_end();

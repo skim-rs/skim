@@ -34,6 +34,51 @@ fn default_command() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn default_options() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    let outfile = tmux.tempfile()?;
+    let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_OPTIONS=", "SKIM_DEFAULT_OPTIONS='--prompt \"XXX \"'");
+    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
+    tmux.until(|l| l[0].starts_with("XXX"))?;
+
+    Ok(())
+}
+
+#[test]
+fn options_file() -> Result<()> {
+    let tmux = TmuxController::new()?;
+
+    // Create options file with content from manpage example
+    let mut options_file = NamedTempFile::new()?;
+    options_file.write_all(
+        b"# Preview\n\
+--preview 'echo {}'\n\
+--preview-window 'left:30%' # Preview window\n\
+--prompt '## '\n",
+    )?;
+
+    let outfile = tmux.tempfile()?;
+    let sk_cmd = sk(&outfile, &[]).replace(
+        "SKIM_OPTIONS_FILE=",
+        &format!("SKIM_OPTIONS_FILE='{}'", options_file.path().to_str().unwrap()),
+    );
+    tmux.send_keys(&[Keys::Str(&format!("echo a | {sk_cmd}")), Keys::Enter])?;
+    tmux.until(|l| l.len() > 2)?;
+    tmux.until(|l| l[0].ends_with("│#"))?;
+    tmux.until(|l| l[2].trim().ends_with("│> a"))?;
+    tmux.until(|l| l[l.len() - 1].starts_with('a'))?;
+
+    tmux.send_keys(&[Keys::Enter])?;
+
+    let output = tmux.output_from(&outfile)?;
+
+    assert_eq!(output[0], "a");
+
+    Ok(())
+}
+
 sk_test!(tmux_version_long, "", &["--version"], {
   @output[0] starts_with("sk ");
 });

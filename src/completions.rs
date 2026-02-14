@@ -5,7 +5,7 @@ use clap::CommandFactory;
 use crate::SkimOptions;
 
 /// Available shells for completion generation
-#[derive(Clone, clap::ValueEnum, PartialEq)]
+#[derive(Clone, clap::ValueEnum, PartialEq, Debug)]
 pub enum Shell {
     /// Bourne Again SHell
     Bash,

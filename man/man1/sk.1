@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 3.0.1" 
+.TH sk 1  "sk 3.2.0" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -778,6 +778,8 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 .br
 * select\-row
 .br
+* set\-preview\-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
+.br
 * set\-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 .br
 * toggle
@@ -859,6 +861,30 @@ If set, skim will collect items with this command if no input is piped in (defau
 
 .SS SKIM_DEFAULT_OPTIONS
 Will be parsed and used as default options. Example: `\-\-reverse \-\-multi`
+.br
+
+.SS SKIM_OPTIONS_FILE
+
+.br
+If the variable is set to the path of an existing file, the contents of this file will be parsed and used as default options.
+.br
+It supports `#` as a comment start, which can be escaped using `##`.
+.br
+Example:
+.br
+```
+.br
+# Preview
+.br
+\-\-preview \*(Aqecho {}\*(Aq
+.br
+\-\-preview\-window \*(Aqleft:30%\*(Aq # Preview window
+.br
+\-\-reverse
+.br
+\-\-prompt \*(Aq## \*(Aq
+.br
+```
 .br
 
 .SS NO_COLOR
@@ -998,4 +1024,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v3.0.1
+v3.2.0

@@ -40,6 +40,7 @@ fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
     feature = "cli",
     command(name = "sk", args_override_self = true, verbatim_doc_comment, version, about)
 )]
+#[derive(derive_more::Debug)]
 pub struct SkimOptions {
     //  --- Search ---
     /// Show results in reverse order
@@ -470,6 +471,7 @@ pub struct SkimOptions {
         feature = "cli",
         arg(long, default_missing_value = "plain", help_heading = "Display", num_args=0..)
     )]
+    #[debug(skip)]
     pub border: Option<BorderType>,
 
     /// Wrap items in the item list
@@ -867,6 +869,7 @@ pub struct SkimOptions {
     /// Command collector for reading items from commands
     #[cfg_attr(feature = "cli", clap(skip = Rc::new(RefCell::new(SkimItemReader::default())) as Rc<RefCell<dyn CommandCollector>>))]
     #[builder(setter(into = false))]
+    #[debug(skip)]
     pub cmd_collector: Rc<RefCell<dyn CommandCollector>>,
     /// Query history entries loaded from history file
     #[cfg_attr(feature = "cli", clap(skip))]
@@ -877,6 +880,7 @@ pub struct SkimOptions {
     /// Selector for pre-selecting items
     #[cfg_attr(feature = "cli", clap(skip))]
     #[builder(setter(into = false))]
+    #[debug(skip)]
     pub selector: Option<Rc<dyn Selector>>,
     /// Preview Callback
     ///
@@ -885,6 +889,7 @@ pub struct SkimOptions {
     /// The function will take a `Vec<Arc<dyn SkimItem>>>` containing the currently selected items
     /// and return a Vec<String> with the lines to display in UTF-8
     #[cfg_attr(feature = "cli", clap(skip))]
+    #[debug(skip)]
     pub preview_fn: Option<PreviewCallback>,
 
     /// The internal (parsed) keymap
@@ -1106,6 +1111,42 @@ impl SkimOptions {
                 .next()
                 .expect("there should be at least one arg: the application name"),
         );
+        if let Ok(opts_file) = env::var("SKIM_OPTIONS_FILE")
+            && let Ok(content) = std::fs::read(opts_file)
+        {
+            let mut in_comment = false;
+            let mut pending_comment = false;
+            let without_comments = content
+                .iter()
+                .filter_map(|b| match (in_comment, pending_comment, *b) {
+                    (_, _, b'\n') => {
+                        in_comment = false;
+                        pending_comment = false;
+                        Some(b' ')
+                    }
+                    (true, _, _) => {
+                        pending_comment = false;
+                        None
+                    }
+                    (_, true, b'#') => {
+                        pending_comment = false;
+                        Some(b'#')
+                    }
+                    (_, false, b'#') => {
+                        pending_comment = true;
+                        None
+                    }
+                    (false, true, _) => {
+                        pending_comment = false;
+                        in_comment = true;
+                        None
+                    }
+                    (false, false, x) => Some(x),
+                })
+                .collect::<Vec<_>>();
+            let parsed = String::from_utf8_lossy(&without_comments);
+            args.extend(shlex::split(&parsed).unwrap_or_default());
+        }
         args.extend(
             env::var("SKIM_DEFAULT_OPTIONS")
                 .ok()
