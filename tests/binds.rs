@@ -79,13 +79,13 @@ insta_test!(bind_set_query_to_itself, ["a", "b", "c"], &["--bind", "ctrl-a:set-q
     @snap;
 });
 
-insta_test!(bind_toggle_interactive, @interactive, &["--bind", "ctrl-a:toggle-interactive", "-i"], {
+insta_test!(bind_toggle_interactive, @interactive, &["--bind", "ctrl-a:toggle-interactive", "-i", "--cmd", "true"], {
     @snap;
     @ctrl 'a';
     @snap;
 });
 
-insta_test!(bind_toggle_interactive_queries, @interactive, &["--bind", "ctrl-a:toggle-interactive", "-i", "--query", "normal", "--cmd-query", "interactive"], {
+insta_test!(bind_toggle_interactive_queries, @interactive, &["--bind", "ctrl-a:toggle-interactive", "-i", "--cmd", "true", "--query", "normal", "--cmd-query", "interactive"], {
     @snap;
     @ctrl 'a';
     @snap;

@@ -1,15 +1,11 @@
-use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
-use std::sync::Arc;
+use std::io::Cursor;
 
 use clap::Parser;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use skim::{
-    Skim,
-    field::FieldRange,
-    helper::item::DefaultSkimItem,
+    Skim, SkimItemReceiver,
     prelude::*,
     tui::{Event, Tui, event::Action},
 };
@@ -20,15 +16,18 @@ use skim::{
 /// event-driven interface that mirrors how the real application works. Events are
 /// sent via the event channel and processed through the app's event loop.
 ///
-/// Initialization uses [`Skim::init`] and [`Skim::init_tui_with`] to share as
-/// much of the production code path as possible.
+/// The harness reuses as much of the production code path as possible:
+/// - Items are loaded through the same `Reader` + `SkimItemReader` pipeline as
+///   the real application
+/// - Reload events use `Skim::handle_reload()`, the same logic as the production
+///   event loop
+/// - Reader completion is checked via `Skim::check_reader()`, identical to
+///   production
 pub struct TestHarness {
     /// The Skim instance backed by a TestBackend for snapshot testing.
     pub skim: Skim<TestBackend>,
     /// Tokio runtime for async operations (preview commands, etc.)
     pub runtime: tokio::runtime::Runtime,
-    /// The exit status of the last command executed (for @cmd tests)
-    pub exit_status: Option<i32>,
     /// The final event that caused the app to quit (for determining exit code)
     pub final_event: Option<Event>,
 }
@@ -40,8 +39,8 @@ impl TestHarness {
     /// in `lib.rs`. It drains the event_rx channel and calls `app.handle_event()`
     /// for each event, mimicking the actual application behavior.
     ///
-    /// For `Event::Reload`, it executes the command and restarts the reader,
-    /// just like the main event loop does.
+    /// For `Event::Reload`, it delegates to `Skim::handle_reload()` — the same
+    /// method used by the production event loop.
     pub fn tick(&mut self) -> Result<()> {
         // Drain-and-process in a loop so events queued during processing
         // are picked up on the next iteration.
@@ -60,24 +59,15 @@ impl TestHarness {
         Ok(())
     }
 
-    /// Process a single event through the app's event handler.
+    /// Process a single event through the same logic as the production event loop.
     ///
-    /// This handles special events like Reload that need extra processing
-    /// beyond what `app.handle_event()` does.
+    /// `Event::Reload` is handled via `Skim::handle_reload()` — the exact same
+    /// method used in production. All other events are forwarded to
+    /// `app.handle_event()`.
     fn process_event(&mut self, event: Event) -> Result<()> {
-        // Handle reload event specially - this is what the main loop does
         if let Event::Reload(ref new_cmd) = event {
-            {
-                let app = self.skim.app_mut();
-                app.item_pool.clear();
-                if !app.options.no_clear_if_empty {
-                    app.item_list.clear();
-                }
-            }
-            // Clone to release borrow on event before calling &mut self method
             let new_cmd = new_cmd.clone();
-            self.run_command_internal(&new_cmd)?;
-            self.skim.app_mut().restart_matcher(true);
+            self.skim.handle_reload(&new_cmd);
         } else {
             // Let the app handle the event (this may queue more events)
             // Enter the runtime context so that tokio::spawn() calls work
@@ -85,6 +75,9 @@ impl TestHarness {
             let (app, tui) = self.skim.app_and_tui();
             app.handle_event(tui, &event)?;
         }
+
+        // Check reader status, just like the production event loop
+        self.skim.check_reader();
 
         // Track if app should quit and what the final event was
         if self.skim.app().should_quit && self.final_event.is_none() {
@@ -107,18 +100,11 @@ impl TestHarness {
     /// This is the primary way to simulate user input. It:
     /// 1. Sends the key event to the queue
     /// 2. Processes all pending events (including any triggered by the key)
-    /// 3. For interactive mode, handles any reload commands
+    /// 3. Waits for reader (if running) and matcher to complete
     pub fn key(&mut self, key: KeyEvent) -> Result<()> {
         self.send(Event::Key(key))?;
         self.tick()?;
-        // Wait for matcher if items changed
-        {
-            let app = self.skim.app();
-            if !app.pending_matcher_restart && app.matcher_control.stopped() {
-                return Ok(());
-            }
-        }
-        self.wait_for_matcher()?;
+        self.wait_for_completion()?;
         Ok(())
     }
 
@@ -139,14 +125,25 @@ impl TestHarness {
     pub fn action(&mut self, action: Action) -> Result<()> {
         self.send(Event::Action(action))?;
         self.tick()?;
-        // Wait for matcher if items changed
-        {
+        self.wait_for_completion()?;
+        Ok(())
+    }
+
+    /// Wait for any in-flight reader and matcher to complete.
+    ///
+    /// If the reader is still running (e.g., after a reload in interactive mode),
+    /// waits for it to finish first. Then waits for the matcher if it needs to run.
+    fn wait_for_completion(&mut self) -> Result<()> {
+        // If the reader is running (not done), wait for it + matcher
+        if !self.skim.reader_done() {
+            self.wait_for_reader_and_matcher()?;
+        } else {
+            // Reader done — only wait for matcher if it's pending or running
             let app = self.skim.app();
-            if !app.pending_matcher_restart && app.matcher_control.stopped() {
-                return Ok(());
+            if app.pending_matcher_restart || !app.matcher_control.stopped() {
+                self.wait_for_matcher()?;
             }
         }
-        self.wait_for_matcher()?;
         Ok(())
     }
 
@@ -194,121 +191,38 @@ impl TestHarness {
     pub fn snap(&mut self) -> Result<()> {
         self.prepare_snap()?;
         let buf = self.buffer_view();
-        let cursor_pos = format!("cursor: {}x{}", self.skim.app().cursor_pos.0, self.skim.app().cursor_pos.1);
+        let cursor_pos = format!(
+            "cursor: {}x{}",
+            self.skim.app().cursor_pos.0,
+            self.skim.app().cursor_pos.1
+        );
         insta::assert_snapshot!(buf + &cursor_pos);
         Ok(())
     }
 
-    /// Add items to the item pool and run the matcher.
-    pub fn add_items<I, S>(&mut self, items: I) -> Result<()>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        // Read options before mutably borrowing app
-        let app = self.skim.app();
-        let transform_fields: Vec<FieldRange> = app
-            .options
-            .with_nth
-            .iter()
-            .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
-            .collect();
+    /// Wait for the reader to finish producing items and the matcher to complete.
+    ///
+    /// This polls `Skim::reader_done()` and `Skim::check_reader()` — the same
+    /// methods used by the production event loop — until the reader has finished,
+    /// then waits for the matcher to process all items.
+    pub fn wait_for_reader_and_matcher(&mut self) -> Result<()> {
+        let timeout = std::time::Duration::from_secs(5);
+        let start = std::time::Instant::now();
+        let poll_interval = std::time::Duration::from_millis(10);
 
-        let matching_fields: Vec<FieldRange> = app
-            .options
-            .nth
-            .iter()
-            .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
-            .collect();
+        // Wait for reader to finish
+        while !self.skim.reader_done() {
+            if start.elapsed() > timeout {
+                return Err(color_eyre::eyre::eyre!("Timeout waiting for reader to finish"));
+            }
+            // Check reader status (may restart matcher)
+            self.skim.check_reader();
+            std::thread::sleep(poll_interval);
+        }
 
-        let ansi = app.options.ansi;
-        let delimiter = app.options.delimiter.clone();
+        // Final check to restart matcher with remaining items
+        self.skim.check_reader();
 
-        let items: Vec<Arc<dyn SkimItem>> = items
-            .into_iter()
-            .enumerate()
-            .map(|(idx, s)| {
-                Arc::new(DefaultSkimItem::new(
-                    s.as_ref(),
-                    ansi,
-                    &transform_fields,
-                    &matching_fields,
-                    &delimiter,
-                    idx,
-                )) as Arc<dyn SkimItem>
-            })
-            .collect();
-        let app = self.skim.app_mut();
-        app.handle_items(items);
-        app.restart_matcher(true);
-        self.wait_for_matcher()?;
-        Ok(())
-    }
-
-    /// Execute a shell command and add its output lines as items.
-    /// This is an internal method that doesn't restart the matcher.
-    fn run_command_internal(&mut self, cmd: &str) -> Result<()> {
-        let mut child = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()?;
-
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| color_eyre::eyre::eyre!("Failed to capture stdout"))?;
-        let reader = BufReader::new(stdout);
-
-        // Read options before mutably borrowing app
-        let app = self.skim.app();
-        let transform_fields: Vec<FieldRange> = app
-            .options
-            .with_nth
-            .iter()
-            .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
-            .collect();
-
-        let matching_fields: Vec<FieldRange> = app
-            .options
-            .nth
-            .iter()
-            .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
-            .collect();
-
-        let ansi = app.options.ansi;
-        let delimiter = app.options.delimiter.clone();
-
-        let items: Vec<Arc<dyn SkimItem>> = reader
-            .lines()
-            .map_while(Result::ok)
-            .enumerate()
-            .map(|(idx, s)| {
-                Arc::new(DefaultSkimItem::new(
-                    &s,
-                    ansi,
-                    &transform_fields,
-                    &matching_fields,
-                    &delimiter,
-                    idx,
-                )) as Arc<dyn SkimItem>
-            })
-            .collect();
-
-        self.skim.app_mut().handle_items(items);
-
-        // Wait for the command to complete and capture its exit status
-        let status = child.wait()?;
-        self.exit_status = status.code();
-
-        Ok(())
-    }
-
-    /// Execute a shell command and add its output lines as items.
-    pub fn run_command(&mut self, cmd: &str) -> Result<()> {
-        self.run_command_internal(cmd)?;
-        self.skim.app_mut().restart_matcher(true);
         self.wait_for_matcher()?;
         Ok(())
     }
@@ -340,8 +254,7 @@ impl TestHarness {
         // Manually trigger preview if configured and an item is selected
         // Note: on_item_changed won't trigger automatically because the item was
         // already selected during render, so prev_item == new_item
-        let needs_preview = self.skim.app().options.preview.is_some()
-            && self.skim.app().item_list.selected().is_some();
+        let needs_preview = self.skim.app().options.preview.is_some() && self.skim.app().item_list.selected().is_some();
         if needs_preview {
             self.send(Event::RunPreview)?;
             self.wait_for_preview()?;
@@ -430,26 +343,44 @@ impl TestHarness {
 // Factory functions
 // ============================================================================
 
-/// Initialize a test harness with the given options and dimensions.
+/// Initialize a test harness with the given options, dimensions, and optional item source.
 ///
 /// Uses [`Skim::init`] for the core initialization (App, Reader, theme, etc.)
 /// and [`Skim::init_tui_with`] to inject a [`TestBackend`].
-pub fn enter_sized(options: SkimOptions, width: u16, height: u16) -> Result<TestHarness> {
+/// Then calls [`Skim::start`] to begin the reader and matcher — the same
+/// production code path used by the real application.
+fn enter_sized_with_source(
+    options: SkimOptions,
+    width: u16,
+    height: u16,
+    source: Option<SkimItemReceiver>,
+) -> Result<TestHarness> {
     let backend = TestBackend::new(width, height);
     let tui = Tui::new_for_test(backend)?;
-    let mut skim = Skim::<TestBackend>::init(options, None)?;
+    let mut skim = Skim::<TestBackend>::init(options, source)?;
     skim.init_tui_with(tui);
 
+    // Start the reader and matcher — the same call the production binary makes
+    skim.start();
+
     // Create a multi-threaded tokio runtime for async operations (preview commands, etc.)
-    // We use multi-threaded so spawned tasks can execute on background threads
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
 
-    Ok(TestHarness {
+    let mut harness = TestHarness {
         skim,
         runtime,
-        exit_status: None,
         final_event: None,
-    })
+    };
+
+    // Wait for the reader to finish and matcher to complete
+    harness.wait_for_reader_and_matcher()?;
+
+    Ok(harness)
+}
+
+/// Initialize a test harness with the given options and dimensions.
+pub fn enter_sized(options: SkimOptions, width: u16, height: u16) -> Result<TestHarness> {
+    enter_sized_with_source(options, width, height, None)
 }
 
 /// Initialize a test harness with default dimensions (80x24).
@@ -463,36 +394,65 @@ pub fn enter_default() -> Result<TestHarness> {
 }
 
 /// Initialize a test harness with pre-loaded items.
+///
+/// Items are fed through the production `Reader` + `SkimItemReader` pipeline
+/// by converting them to a newline-separated byte stream and using
+/// `SkimItemReader::of_bufread()`.
 pub fn enter_items<I, S>(items: I, options: SkimOptions) -> Result<TestHarness>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let mut harness = enter(options)?;
-    harness.add_items(items)?;
-    Ok(harness)
+    // Build a newline-terminated string from items and feed through SkimItemReader.
+    // Each item must end with '\n' so the reader produces one item per entry,
+    // including empty-string items like "".
+    let text: String = items
+        .into_iter()
+        .map(|s| {
+            let mut line = s.as_ref().to_owned();
+            line.push('\n');
+            line
+        })
+        .collect();
+
+    let reader_opts = SkimItemReaderOption::from_options(&options);
+    let item_reader = SkimItemReader::new(reader_opts);
+    let rx = item_reader.of_bufread(Cursor::new(text));
+
+    enter_sized_with_source(options, 80, 24, Some(rx))
 }
 
 /// Initialize a test harness with command output as items.
+///
+/// The command is executed through the production `Reader` + `SkimItemReader`
+/// pipeline, identical to how the real application works.
 pub fn enter_cmd(cmd: &str, options: SkimOptions) -> Result<TestHarness> {
-    let mut harness = enter(options)?;
-    harness.run_command(cmd)?;
-    Ok(harness)
+    let reader_opts = SkimItemReaderOption::from_options(&options);
+    let item_reader = SkimItemReader::new(reader_opts);
+    let rx = item_reader.of_bufread(std::io::BufReader::new(
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()?
+            .stdout
+            .ok_or_else(|| color_eyre::eyre::eyre!("Failed to capture stdout"))?,
+    ));
+
+    enter_sized_with_source(options, 80, 24, Some(rx))
 }
 
 /// Initialize a test harness for interactive mode.
 ///
-/// This runs the initial command (with empty query) and sets up the harness.
+/// Uses [`Skim::start`] which already handles interactive mode correctly:
+/// it expands the command template with the initial query and starts the
+/// reader pipeline.
 pub fn enter_interactive(options: SkimOptions) -> Result<TestHarness> {
-    let mut harness = enter(options)?;
-
-    // Run initial command with current (empty) query
-    if let Some(ref cmd_template) = harness.skim.app().options.cmd.clone() {
-        let expanded_cmd = harness.skim.app().expand_cmd(cmd_template, true);
-        harness.run_command(&expanded_cmd)?;
-    }
-
-    Ok(harness)
+    // Skim::init() computes initial_cmd for interactive mode,
+    // and Skim::start() kicks off the reader with it.
+    // No special-casing needed here.
+    enter(options)
 }
 
 /// Parse SkimOptions from CLI-style arguments.

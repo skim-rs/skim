@@ -458,6 +458,49 @@ where
         self.app.restart_matcher(true);
     }
 
+    /// Handle a reload event by killing the current reader, clearing items, and starting a new reader.
+    ///
+    /// This encapsulates the reload logic from the main event loop so it can
+    /// be reused by test harnesses without reimplementing it.
+    pub fn handle_reload(&mut self, new_cmd: &str) {
+        debug!("reloading with cmd {new_cmd}");
+        // Kill the current reader
+        if let Some(rc) = self.reader_control.as_mut() {
+            rc.kill()
+        }
+        // Clear items
+        self.app.item_pool.clear();
+        // Clear displayed items unless no_clear_if_empty is set
+        if !self.app.options.no_clear_if_empty {
+            self.app.item_list.clear();
+        }
+        self.app.restart_matcher(true);
+        // Start a new reader with the new command
+        self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), new_cmd));
+        self.reader_done = false;
+    }
+
+    /// Check if the reader has finished and restart the matcher if needed.
+    ///
+    /// This encapsulates the reader-status check from the main event loop
+    /// so it can be reused by test harnesses.
+    ///
+    /// Returns `true` if the reader has completed.
+    pub fn check_reader(&mut self) -> bool {
+        if self.reader_control.as_ref().is_some_and(|rc| rc.is_done()) && !self.reader_done {
+            self.reader_done = true;
+            self.app.restart_matcher(false);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns `true` if the reader is done (has finished producing items).
+    pub fn reader_done(&self) -> bool {
+        self.reader_done && self.reader_control.as_ref().is_none_or(|rc| rc.is_done())
+    }
+
     /// Initialize the TUI with a caller-provided instance.
     ///
     /// Use this instead of [`init_tui()`](Skim::init_tui) when you need a
@@ -504,7 +547,10 @@ where
     ///
     /// Panics if the TUI has not been initialized yet.
     pub fn app_and_tui(&mut self) -> (&mut App, &mut Tui<Backend>) {
-        (&mut self.app, self.tui.as_mut().expect("TUI needs to be initialized before access"))
+        (
+            &mut self.app,
+            self.tui.as_mut().expect("TUI needs to be initialized before access"),
+        )
     }
 
     /// Returns a shared reference to the final event that caused skim to quit.
@@ -673,28 +719,13 @@ where
 
                 // Handle reload event separately
                 if let Event::Reload(new_cmd) = &evt {
-                    debug!("reloading with cmd {new_cmd}");
-                    // Kill the current reader
-                    if let Some(rc) = self.reader_control.as_mut() { rc.kill() }
-                    // Clear items
-                    self.app.item_pool.clear();
-                    // Clear displayed items unless no_clear_if_empty is set
-                    // (in which case the item_list will handle keeping stale items)
-                    if !self.app.options.no_clear_if_empty {
-                        self.app.item_list.clear();
-                    }
-                    self.app.restart_matcher(true);
-                    // Start a new reader with the new command (no source, using cmd)
-                    self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), new_cmd));
-                    self.reader_done = false;
+                    self.handle_reload(&new_cmd.clone());
                 } else {
                     self.app.handle_event(self.tui.as_mut().expect("TUI should be initialized before handling events"), &evt)?;
                 }
 
                 // Check reader status and update
-                if self.reader_control.as_ref().is_some_and(|rc| rc.is_done()) && !self.reader_done {
-                    self.app.restart_matcher(false);
-                }
+                self.check_reader();
             }
             _ = async {
                 match matcher_interval {
