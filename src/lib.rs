@@ -393,6 +393,18 @@ impl Skim {
 
         Ok(output)
     }
+
+    /// Initialize the TUI with the default crossterm backend, but do not enter it yet
+    pub fn init_tui(&mut self) -> Result<()> {
+        self.tui = Some(tui::Tui::new_with_height(self.height)?);
+        Ok(())
+    }
+}
+
+impl<Backend: ratatui::backend::Backend + 'static> Skim<Backend>
+where
+    Backend::Error: Send + Sync + 'static,
+{
     /// Initialize skim, without starting anything yet
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
         let height = Size::try_from(options.height.as_str())?;
@@ -446,10 +458,58 @@ impl Skim {
         self.app.restart_matcher(true);
     }
 
-    /// Initialize the TUI, but do not enter it yet
-    pub fn init_tui(&mut self) -> Result<()> {
-        self.tui = Some(tui::Tui::new_with_height(self.height)?);
-        Ok(())
+    /// Initialize the TUI with a caller-provided instance.
+    ///
+    /// Use this instead of [`init_tui()`](Skim::init_tui) when you need a
+    /// non-default backend (e.g. `TestBackend` for snapshot tests).
+    pub fn init_tui_with(&mut self, tui: Tui<Backend>) {
+        self.tui = Some(tui);
+    }
+
+    /// Returns a shared reference to the application state.
+    pub fn app(&self) -> &App {
+        &self.app
+    }
+
+    /// Returns a mutable reference to the application state.
+    pub fn app_mut(&mut self) -> &mut App {
+        &mut self.app
+    }
+
+    /// Returns a shared reference to the TUI.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the TUI has not been initialized yet.
+    pub fn tui_ref(&self) -> &Tui<Backend> {
+        self.tui.as_ref().expect("TUI needs to be initialized before access")
+    }
+
+    /// Returns a mutable reference to the TUI.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the TUI has not been initialized yet.
+    pub fn tui_mut(&mut self) -> &mut Tui<Backend> {
+        self.tui.as_mut().expect("TUI needs to be initialized before access")
+    }
+
+    /// Returns mutable references to both the app and the TUI simultaneously.
+    ///
+    /// This is useful when you need to call `app.handle_event(tui, ...)` or
+    /// `tui.draw(|frame| frame.render_widget(app, ...))`, which require
+    /// disjoint mutable borrows of both fields.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the TUI has not been initialized yet.
+    pub fn app_and_tui(&mut self) -> (&mut App, &mut Tui<Backend>) {
+        (&mut self.app, self.tui.as_mut().expect("TUI needs to be initialized before access"))
+    }
+
+    /// Returns a shared reference to the final event that caused skim to quit.
+    pub fn final_event(&self) -> &Event {
+        &self.final_event
     }
 
     /// Returns a clone of the TUI event sender.
@@ -458,7 +518,7 @@ impl Skim {
     /// to the running skim instance from outside the event loop. The sender
     /// is cheap to clone and can be moved into async blocks or other tasks.
     ///
-    /// Must be called after [`init_tui()`](Self::init_tui).
+    /// Must be called after [`init_tui()`](Skim::init_tui).
     pub fn event_sender(&self) -> tokio::sync::mpsc::Sender<Event> {
         self.tui
             .as_ref()

@@ -186,6 +186,6 @@ insta_test!(keys_interactive_btab, ["1", "2", "3", "4"], &["-i"], {
 insta_test!(keys_interactive_enter, ["1", "2", "3", "4"], &["-i"], {
     @snap;
     @key Enter;
-    @assert(|h: &common::insta::TestHarness| h.app.should_quit);
-    @assert(|h: &common::insta::TestHarness| h.app.item_list.selected().unwrap().text() == "1");
+    @assert(|h: &common::insta::TestHarness| h.skim.app().should_quit);
+    @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "1");
 });
