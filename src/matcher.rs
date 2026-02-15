@@ -1,8 +1,8 @@
 //! This module contains the matching coordinator
+use rayon::ThreadPool;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::thread;
 
 use rayon::prelude::*;
 
@@ -148,7 +148,7 @@ impl Matcher {
     ///
     /// The callback is invoked when matching is complete with the matched items.
     /// Returns a MatcherControl that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, callback: C) -> MatcherControl
+    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, thread_pool: &ThreadPool, callback: C) -> MatcherControl
     where
         C: Fn(Vec<MatchedItem>) + Send + 'static,
     {
@@ -162,39 +162,51 @@ impl Matcher {
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
-        let mut matched_items = Vec::new();
 
-        thread::spawn(move || {
-            let items = item_pool.take();
-            trace!("matcher start, total: {}", items.len());
-            let result: Result<Vec<_>, _> = items
+        // Take items synchronously before spawning to avoid a race condition:
+        // if we took items inside the spawned closure, a subsequent restart_matcher()
+        // could call kill() + reset() before the old closure runs, causing the old
+        // closure to re-take items that should belong to the new matcher.
+        let items = item_pool.take();
+        trace!("matcher start, total: {}", items.len());
+
+        thread_pool.spawn(move || {
+            let matched_items: Vec<MatchedItem> = items
                 .into_par_iter()
-                .enumerate()
-                .filter_map(|(_, item)| {
-                    processed.fetch_add(1, Ordering::Relaxed);
+                .chunks(8196)
+                .take_any_while(|_chunk| {
                     if interrupt.load(Ordering::Relaxed) {
-                        stopped.store(true, Ordering::Relaxed);
-                        Some(Err("matcher killed"))
-                    } else if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
-                        matched.fetch_add(1, Ordering::Relaxed);
-                        // item is Arc but we get &Arc from iterator, so one clone is needed
-                        Some(Ok(MatchedItem {
-                            item: item.clone(),
-                            rank: match_result.rank,
-                            matched_range: Some(match_result.matched_range),
-                        }))
-                    } else {
-                        None
+                        return false;
                     }
+
+                    true
                 })
+                .map(|chunk| {
+                    processed.fetch_add(chunk.len(), Ordering::Relaxed);
+
+                    let matched_chunk: Vec<MatchedItem> = chunk
+                        .into_iter()
+                        .filter_map(|item| {
+                            matcher_engine.match_item(item.as_ref()).map(|match_result| {
+                                // item is Arc but we get &Arc from iterator, so one clone is needed
+                                MatchedItem {
+                                    item,
+                                    rank: match_result.rank,
+                                    matched_range: Some(match_result.matched_range),
+                                }
+                            })
+                        })
+                        .collect();
+
+                    matched.fetch_add(matched_chunk.len(), Ordering::Relaxed);
+
+                    matched_chunk
+                })
+                .flatten_iter()
                 .collect();
 
-            if let Ok(items) = result {
-                matched_items = items;
+            if !interrupt.load(Ordering::SeqCst) {
                 trace!("matcher stop, total matched: {}", matched_items.len());
-            }
-
-            if !interrupt.load(Ordering::Relaxed) {
                 callback(matched_items);
             }
             stopped.store(true, Ordering::Relaxed);

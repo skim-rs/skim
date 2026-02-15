@@ -27,6 +27,15 @@ use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::Backend;
 use ratatui::widgets::Widget;
+use rayon::ThreadPool;
+use std::sync::LazyLock;
+
+static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
+    std::thread::available_parallelism()
+        .ok()
+        .map(|inner| inner.get())
+        .unwrap_or_else(|| 0)
+});
 
 use super::{input, preview};
 
@@ -37,6 +46,8 @@ const HIDE_GRACE_MS: u128 = 500;
 pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,
+    /// Separate thread pool for use by skim
+    pub thread_pool: Arc<ThreadPool>,
     /// Whether the application should quit
     pub should_quit: bool,
 
@@ -284,6 +295,12 @@ impl Default for App {
             preview: Preview::from_options(&opts, theme.clone()),
             header: Header::from_options(&opts, theme.clone()),
             item_list: ItemList::from_options(&opts, theme.clone()),
+            thread_pool: Arc::new(
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(*NUM_THREADS)
+                    .build()
+                    .unwrap(),
+            ),
             item_pool: Arc::default(),
             theme,
             should_quit: false,
@@ -324,6 +341,12 @@ impl App {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header: Header::from_options(&options, theme.clone()),
+            thread_pool: Arc::new(
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(*NUM_THREADS)
+                    .build()
+                    .unwrap(),
+            ),
             item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
@@ -1180,11 +1203,12 @@ impl App {
                 &self.input
             };
             let item_pool = self.item_pool.clone();
+            let thread_pool = &self.thread_pool;
             let processed_items = self.item_list.processed_items.clone();
             let no_sort = self.options.no_sort;
 
             self.item_pool.reset();
-            self.matcher_control = self.matcher.run(query, item_pool.clone(), move |mut matches| {
+            self.matcher_control = self.matcher.run(query, item_pool, thread_pool, move |mut matches| {
                 debug!("Got {} results from matcher, sending to item list...", matches.len());
 
                 // Send matched items directly (header_lines are now handled by the Header widget)
