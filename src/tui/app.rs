@@ -1228,27 +1228,11 @@ impl App {
                     // Incremental: merge new sorted matches into existing sorted results
                     let mut guard = processed_items.lock();
                     if let Some(ref mut existing) = *guard {
-                        if no_sort || matches.is_empty() {
+                        if no_sort {
                             existing.items.extend(matches);
-                        } else if existing.items.is_empty() {
-                            existing.items = matches;
                         } else {
-                            // Sorted merge of two sorted lists
-                            let existing_items = std::mem::take(&mut existing.items);
-                            let total = existing_items.len() + matches.len();
-                            let mut merged = Vec::with_capacity(total);
-                            let mut a = existing_items.into_iter().peekable();
-                            let mut b = matches.into_iter().peekable();
-                            while a.peek().is_some() && b.peek().is_some() {
-                                if a.peek().unwrap().rank <= b.peek().unwrap().rank {
-                                    merged.push(a.next().unwrap());
-                                } else {
-                                    merged.push(b.next().unwrap());
-                                }
-                            }
-                            merged.extend(a);
-                            merged.extend(b);
-                            existing.items = merged;
+                            let old = std::mem::take(&mut existing.items);
+                            existing.items = MatchedItem::sorted_merge(old, matches);
                         }
                     } else {
                         *guard = Some(crate::tui::item_list::ProcessedItems { items: matches });
