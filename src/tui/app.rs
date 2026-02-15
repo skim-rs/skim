@@ -1151,7 +1151,7 @@ impl App {
     pub fn results(&mut self) -> Vec<Arc<MatchedItem>> {
         if self.options.filter.is_some() {
             // In filter mode, drain items to avoid cloning
-            self.item_list.items.drain(..).map(|item| Arc::new(item)).collect()
+            self.item_list.items.drain(..).map(Arc::new).collect()
         } else if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list
                 .selection

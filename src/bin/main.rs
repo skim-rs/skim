@@ -245,4 +245,3 @@ pub struct BinOptions {
     print_header: bool,
     strip_ansi: bool,
 }
-

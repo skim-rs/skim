@@ -24,6 +24,7 @@
             tmux
             rustup
             just
+            hyperfine
           ];
         };
       }
