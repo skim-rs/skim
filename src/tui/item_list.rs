@@ -18,10 +18,31 @@ use crate::{
     tui::widget::{SkimRender, SkimWidget},
 };
 
+/// How to apply processed items to the display list
+#[derive(Default, Clone, Copy)]
+pub(crate) enum MergeStrategy {
+    /// Replace the entire item list (full re-match or first result)
+    #[default]
+    Replace,
+    /// Merge into existing list using sorted merge by rank
+    SortedMerge,
+    /// Append to existing list without sorting (for --no-sort)
+    Append,
+}
+
 /// Processed items ready for rendering
-#[derive(Default)]
 pub(crate) struct ProcessedItems {
     pub(crate) items: Vec<MatchedItem>,
+    pub(crate) merge: MergeStrategy,
+}
+
+impl Default for ProcessedItems {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            merge: MergeStrategy::Replace,
+        }
+    }
 }
 
 /// Widget for displaying and managing the list of filtered items
@@ -571,7 +592,18 @@ impl SkimWidget for ItemList {
                 );
                 this.showing_stale_items = true;
             } else {
-                this.items = processed.items;
+                match processed.merge {
+                    MergeStrategy::Replace => {
+                        this.items = processed.items;
+                    }
+                    MergeStrategy::SortedMerge => {
+                        let existing = std::mem::take(&mut this.items);
+                        this.items = MatchedItem::sorted_merge(existing, processed.items);
+                    }
+                    MergeStrategy::Append => {
+                        this.items.extend(processed.items);
+                    }
+                }
                 this.showing_stale_items = false;
 
                 // Apply pre-selection only when new items arrive and only if we haven't reached target

@@ -109,7 +109,33 @@ impl Deref for MatchedItem {
     }
 }
 
-impl MatchedItem {}
+impl MatchedItem {
+    /// Merge two sorted `Vec<MatchedItem>` lists into one, preserving sort order by rank.
+    ///
+    /// Both input lists must already be sorted by `rank` (ascending). The merge is O(n+m).
+    pub fn sorted_merge(existing: Vec<MatchedItem>, incoming: Vec<MatchedItem>) -> Vec<MatchedItem> {
+        if existing.is_empty() {
+            return incoming;
+        }
+        if incoming.is_empty() {
+            return existing;
+        }
+
+        let mut merged = Vec::with_capacity(existing.len() + incoming.len());
+        let mut a = existing.into_iter().peekable();
+        let mut b = incoming.into_iter().peekable();
+        while a.peek().is_some() && b.peek().is_some() {
+            if a.peek().unwrap().rank <= b.peek().unwrap().rank {
+                merged.push(a.next().unwrap());
+            } else {
+                merged.push(b.next().unwrap());
+            }
+        }
+        merged.extend(a);
+        merged.extend(b);
+        merged
+    }
+}
 
 use std::cmp::Ordering as CmpOrd;
 
