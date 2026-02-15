@@ -1221,11 +1221,21 @@ impl App {
                     matches.sort_by_key(|item| item.rank);
                 }
 
+                use crate::tui::item_list::{MergeStrategy, ProcessedItems};
                 if force {
                     // Full re-match: replace all results
-                    *processed_items.lock() = Some(crate::tui::item_list::ProcessedItems { items: matches });
+                    *processed_items.lock() = Some(ProcessedItems {
+                        items: matches,
+                        merge: MergeStrategy::Replace,
+                    });
                 } else {
-                    // Incremental: merge new sorted matches into existing sorted results
+                    // Incremental: merge new matches into any unconsumed processed items,
+                    // and mark with merge strategy so the render loop merges with item_list.items
+                    let merge_strategy = if no_sort {
+                        MergeStrategy::Append
+                    } else {
+                        MergeStrategy::SortedMerge
+                    };
                     let mut guard = processed_items.lock();
                     if let Some(ref mut existing) = *guard {
                         if no_sort {
@@ -1235,7 +1245,10 @@ impl App {
                             existing.items = MatchedItem::sorted_merge(old, matches);
                         }
                     } else {
-                        *guard = Some(crate::tui::item_list::ProcessedItems { items: matches });
+                        *guard = Some(ProcessedItems {
+                            items: matches,
+                            merge: merge_strategy,
+                        });
                     }
                 }
             });
