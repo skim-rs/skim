@@ -163,53 +163,54 @@ impl Matcher {
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
 
-        let run_matcher = || {
-            rayon::spawn(move || {
-                let items = item_pool.take();
-                trace!("matcher start, total: {}", items.len());
-                let matched_items: Vec<MatchedItem> = items
-                    .into_par_iter()
-                    .chunks(8196)
-                    .take_any_while(|_chunk| {
-                        if interrupt.load(Ordering::Relaxed) {
-                            return false;
-                        }
+        // Take items synchronously before spawning to avoid a race condition:
+        // if we took items inside the spawned closure, a subsequent restart_matcher()
+        // could call kill() + reset() before the old closure runs, causing the old
+        // closure to re-take items that should belong to the new matcher.
+        let items = item_pool.take();
+        trace!("matcher start, total: {}", items.len());
 
-                        true
-                    })
-                    .map(|chunk| {
-                        processed.fetch_add(chunk.len(), Ordering::Relaxed);
+        thread_pool.spawn(move || {
+            let matched_items: Vec<MatchedItem> = items
+                .into_par_iter()
+                .chunks(8196)
+                .take_any_while(|_chunk| {
+                    if interrupt.load(Ordering::Relaxed) {
+                        return false;
+                    }
 
-                        let matched_chunk: Vec<MatchedItem> = chunk
-                            .into_iter()
-                            .filter_map(|item| {
-                                matcher_engine.match_item(item.as_ref()).map(|match_result| {
-                                    // item is Arc but we get &Arc from iterator, so one clone is needed
-                                    MatchedItem {
-                                        item,
-                                        rank: match_result.rank,
-                                        matched_range: Some(match_result.matched_range),
-                                    }
-                                })
+                    true
+                })
+                .map(|chunk| {
+                    processed.fetch_add(chunk.len(), Ordering::Relaxed);
+
+                    let matched_chunk: Vec<MatchedItem> = chunk
+                        .into_iter()
+                        .filter_map(|item| {
+                            matcher_engine.match_item(item.as_ref()).map(|match_result| {
+                                // item is Arc but we get &Arc from iterator, so one clone is needed
+                                MatchedItem {
+                                    item,
+                                    rank: match_result.rank,
+                                    matched_range: Some(match_result.matched_range),
+                                }
                             })
-                            .collect();
+                        })
+                        .collect();
 
-                        matched.fetch_add(matched_chunk.len(), Ordering::Relaxed);
+                    matched.fetch_add(matched_chunk.len(), Ordering::Relaxed);
 
-                        matched_chunk
-                    })
-                    .flatten_iter()
-                    .collect();
+                    matched_chunk
+                })
+                .flatten_iter()
+                .collect();
 
-                if !interrupt.load(Ordering::SeqCst) {
-                    trace!("matcher stop, total matched: {}", matched_items.len());
-                    callback(matched_items);
-                }
-                stopped.store(true, Ordering::Relaxed);
-            });
-        };
-
-        thread_pool.install(run_matcher);
+            if !interrupt.load(Ordering::SeqCst) {
+                trace!("matcher stop, total matched: {}", matched_items.len());
+                callback(matched_items);
+            }
+            stopped.store(true, Ordering::Relaxed);
+        });
 
         MatcherControl {
             stopped: stopped_clone,

@@ -133,16 +133,26 @@ impl TestHarness {
     ///
     /// If the reader is still running (e.g., after a reload in interactive mode),
     /// waits for it to finish first. Then waits for the matcher if it needs to run.
+    ///
+    /// If a debounced matcher restart is pending (e.g., because the query changed
+    /// within the 50ms debounce window), this forces the restart immediately so
+    /// tests don't see stale results.
     fn wait_for_completion(&mut self) -> Result<()> {
+        // If a debounced matcher restart is pending, force it now.
+        // In production, the Heartbeat event would trigger this, but in tests
+        // we don't have a continuous heartbeat timer.
+        if self.skim.app().pending_matcher_restart {
+            self.skim.app_mut().restart_matcher(true);
+        }
+
         // If the reader is running (not done), wait for it + matcher
         if !self.skim.reader_done() {
             self.wait_for_reader_and_matcher()?;
         } else {
-            // Reader done — only wait for matcher if it's pending or running
-            let app = self.skim.app();
-            if app.pending_matcher_restart || !app.matcher_control.stopped() {
-                self.wait_for_matcher()?;
-            }
+            // Always wait for the matcher to ensure results are consumed.
+            // Even if stopped() is already true, wait_for_matcher will
+            // render and process heartbeat to consume processed_items.
+            self.wait_for_matcher()?;
         }
         Ok(())
     }
