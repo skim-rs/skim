@@ -157,15 +157,6 @@ impl TestHarness {
         Ok(())
     }
 
-    /// Render the current app state to the terminal buffer.
-    pub fn render(&mut self) -> Result<()> {
-        let (app, tui) = self.skim.app_and_tui();
-        tui.draw(|frame| {
-            frame.render_widget(&mut *app, frame.area());
-        })?;
-        Ok(())
-    }
-
     /// Get a string representation of the current buffer for snapshot testing.
     pub fn buffer_view(&self) -> String {
         self.skim.tui_ref().backend().to_string()
@@ -184,12 +175,7 @@ impl TestHarness {
         self.send(Event::Heartbeat)?;
         self.tick()?;
 
-        // Now wait for preview if configured
-        if self.skim.app().options.preview.is_some() {
-            self.wait_for_preview()?;
-        }
-
-        self.render()?;
+        self.handle_remaining_events()?;
         Ok(())
     }
 
@@ -254,9 +240,6 @@ impl TestHarness {
         // Give the background processing thread time to receive items
         std::thread::sleep(std::time::Duration::from_millis(50));
 
-        // Render to consume processed items
-        self.render()?;
-
         // Process heartbeat to update status counters
         self.send(Event::Heartbeat)?;
         self.tick()?;
@@ -267,14 +250,14 @@ impl TestHarness {
         let needs_preview = self.skim.app().options.preview.is_some() && self.skim.app().item_list.selected().is_some();
         if needs_preview {
             self.send(Event::RunPreview)?;
-            self.wait_for_preview()?;
+            self.handle_remaining_events()?;
         }
 
         Ok(())
     }
 
     /// Wait for preview to be ready.
-    pub fn wait_for_preview(&mut self) -> Result<()> {
+    pub fn handle_remaining_events(&mut self) -> Result<()> {
         // Process any queued events first (including RunPreview)
         self.tick()?;
 
@@ -303,18 +286,10 @@ impl TestHarness {
                 events.push(event);
             }
             for event in events {
-                let is_preview_ready = matches!(event, Event::PreviewReady);
                 self.process_event(event)?;
-                // If we got PreviewReady, render and return
-                if is_preview_ready {
-                    self.render()?;
-                    return Ok(());
-                }
             }
 
             if start.elapsed() > timeout {
-                // Timeout - render anyway and return
-                self.render()?;
                 return Ok(());
             }
         }

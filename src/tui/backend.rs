@@ -20,7 +20,6 @@ use super::util::cursor_pos_from_tty;
 use super::{Event, Size};
 
 const TICK_RATE: f64 = 12.;
-const FRAME_RATE: f64 = 30.;
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
@@ -36,8 +35,6 @@ where
     pub event_rx: Receiver<Event>,
     /// Sender for TUI events
     pub event_tx: Sender<Event>,
-    /// Frame rate for rendering (frames per second)
-    pub frame_rate: f64,
     /// Tick rate for updates (ticks per second)
     pub tick_rate: f64,
     /// Token for cancelling background tasks
@@ -95,7 +92,6 @@ where
             task: None,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            frame_rate: FRAME_RATE,
             tick_rate: TICK_RATE,
             cancellation_token: CancellationToken::default(),
             is_fullscreen: lines.is_none(),
@@ -116,7 +112,6 @@ where
             task: None,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            frame_rate: FRAME_RATE,
             tick_rate: TICK_RATE,
             cancellation_token: CancellationToken::default(),
             is_fullscreen: true,
@@ -169,7 +164,6 @@ where
     /// Starts the event loop for handling keyboard and timer events
     pub fn start(&mut self) {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
-        let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);
         let event_tx_clone = self.event_tx.clone();
         let cancellation_token_clone = self.cancellation_token.clone();
         if self.task.is_some() {
@@ -178,10 +172,8 @@ where
         self.task = Some(tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);
-            let mut render_interval = tokio::time::interval(render_delay);
             loop {
                 let tick_delay = tick_interval.tick();
-                let render_delay = render_interval.tick();
                 let crossterm_event = reader.next().fuse();
                 tokio::select! {
                     _ = cancellation_token_clone.cancelled() => {
@@ -212,9 +204,6 @@ where
                     },
                     _ = tick_delay => {
                         _ = event_tx_clone.try_send(Event::Heartbeat);
-                    },
-                    _ = render_delay => {
-                        _ = event_tx_clone.try_send(Event::Render);
                     },
                 }
             }

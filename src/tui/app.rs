@@ -1,6 +1,7 @@
 use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
@@ -18,6 +19,7 @@ use super::Tui;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
+use super::{input, preview};
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use input::Input;
@@ -37,8 +39,7 @@ static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
         .unwrap_or_else(|| 0)
 });
 
-use super::{input, preview};
-
+const FRAME_TIME_MS: u128 = 1000 / 30;
 const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
 
@@ -63,6 +64,10 @@ pub struct App {
     pub last_matcher_restart: std::time::Instant,
     /// Whether a matcher restart is pending
     pub pending_matcher_restart: bool,
+    /// Whether or not we need a render on the next heartbeat
+    pub needs_render: Arc<AtomicBool>,
+    /// Time of the last render
+    pub last_render_timer: std::time::Instant,
 
     /// Input field widget
     pub input: Input,
@@ -206,31 +211,8 @@ impl Widget for &mut App {
             res |= self.header.render(header_area, buf);
         }
 
-        // Build status info for the input's title
-        self.input.status_info = if self.options.info != InfoDisplay::Hidden {
-            Some(StatusInfo {
-                total: self.item_pool.len(),
-                matched: self.item_list.count(),
-                processed: self.matcher_control.get_num_processed(),
-                show_spinner: self.show_spinner,
-                matcher_mode: if self.options.regex {
-                    "RE".to_string()
-                } else {
-                    String::new()
-                },
-                multi_selection: self.options.multi,
-                selected: self.item_list.selection.len(),
-                current_item_idx: self.item_list.current,
-                hscroll_offset: self.item_list.manual_hscroll as i64,
-                start: Some(self.spinner_start),
-            })
-        } else {
-            None
-        };
-
         // Render input (status is now shown as its title)
         let input_area = remaining_area;
-        res |= self.input.render(input_area, buf);
 
         // Render preview if enabled
         if let Some(preview_area) = preview_area_opt {
@@ -263,6 +245,31 @@ impl Widget for &mut App {
             self.preview_area = None;
         }
         res |= self.item_list.render(list_area, buf);
+
+        // Render the input after the item list so that the status shows correct information
+        // Build status info for the input's title
+        self.input.status_info = if self.options.info != InfoDisplay::Hidden {
+            Some(StatusInfo {
+                total: self.item_pool.len(),
+                matched: self.item_list.count(),
+                processed: self.matcher_control.get_num_processed(),
+                show_spinner: self.show_spinner,
+                matcher_mode: if self.options.regex {
+                    "RE".to_string()
+                } else {
+                    String::new()
+                },
+                multi_selection: self.options.multi,
+                selected: self.item_list.selection.len(),
+                current_item_idx: self.item_list.current,
+                hscroll_offset: self.item_list.manual_hscroll as i64,
+                start: Some(self.spinner_start),
+            })
+        } else {
+            None
+        };
+        res |= self.input.render(input_area, buf);
+
         // Cursor position needs to account for input border and title
         // Always +1 for title line (whether bordered or not)
         self.cursor_pos = (
@@ -313,6 +320,8 @@ impl Default for App {
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
+            needs_render: Arc::new(AtomicBool::new(true)),
+            last_render_timer: std::time::Instant::now() - std::time::Duration::from_secs(1),
             // spinner initial state
             spinner_last_change: std::time::Instant::now(),
             show_spinner: false,
@@ -359,6 +368,8 @@ impl App {
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
+            needs_render: Arc::new(AtomicBool::new(true)),
+            last_render_timer: std::time::Instant::now() - std::time::Duration::from_secs(1),
             // spinner initial state
             spinner_last_change: std::time::Instant::now(),
             show_spinner: false,
@@ -452,6 +463,9 @@ impl App {
             if self.spinner_last_change.elapsed().as_millis() >= HIDE_GRACE_MS {
                 self.toggle_spinner();
             }
+        }
+        if self.show_spinner {
+            self.needs_render.store(true, Ordering::Relaxed);
         }
     }
 
@@ -570,9 +584,16 @@ impl App {
                 // Heartbeat is used for periodic UI updates
                 self.update_spinner();
 
-                debug!("pending_matcher_restart: {}", self.pending_matcher_restart);
                 if self.pending_matcher_restart {
                     self.restart_matcher(true);
+                }
+                if self.needs_render.load(Ordering::Relaxed)
+                    && self.last_render_timer.elapsed().as_millis() > FRAME_TIME_MS
+                {
+                    debug!("Triggering render");
+                    self.needs_render.store(false, Ordering::Relaxed);
+                    self.last_render_timer = std::time::Instant::now();
+                    tui.event_tx.try_send(Event::Render)?;
                 }
 
                 // Check if a debounced preview run needs to be executed
@@ -604,6 +625,7 @@ impl App {
                     let offset = self.calculate_preview_offset(offset_expr);
                     self.preview.set_offset(offset);
                 }
+                tui.event_tx.try_send(Event::Render)?;
             }
             Event::Error(msg) => {
                 tui.exit()?;
@@ -614,6 +636,7 @@ impl App {
                 for evt in events {
                     tui.event_tx.try_send(evt)?;
                 }
+                tui.event_tx.try_send(Event::Render)?;
             }
             Event::Key(key) => {
                 let events = self.handle_key(key);
@@ -1214,6 +1237,8 @@ impl App {
                 self.item_pool.reset();
             }
 
+            let needs_render = self.needs_render.clone();
+
             self.matcher_control = self.matcher.run(query, item_pool, thread_pool, move |mut matches| {
                 debug!("Got {} results from matcher, sending to item list...", matches.len());
 
@@ -1251,6 +1276,7 @@ impl App {
                         });
                     }
                 }
+                needs_render.store(true, Ordering::Relaxed);
             });
         }
     }
@@ -1340,10 +1366,12 @@ impl App {
                 // Ignore other mouse events for now
             }
         }
+        tui.event_tx.try_send(Event::Render)?;
         Ok(())
     }
     fn toggle_spinner(&mut self) {
         self.show_spinner = !self.show_spinner;
         self.spinner_last_change = std::time::Instant::now();
+        self.needs_render.store(true, Ordering::Relaxed);
     }
 }

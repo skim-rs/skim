@@ -776,7 +776,6 @@ where
                         if let Ok(act) = ron::from_str::<Action>(&line) {
                             debug!("listener: parsed into action {act:?}");
                             _ = event_tx_clone_ipc.try_send(Event::Action(act));
-                            _ = event_tx_clone_ipc.try_send(Event::Render);
                         }
                     }
                 });
