@@ -115,8 +115,8 @@ impl DefaultSkimItem {
         // This ensures the byte positions match the actual text used for matching
         let matching_ranges = if !matching_fields.is_empty() {
             // Use stripped text for matching ranges when ANSI is enabled
-            let text_for_matching = if ansi_enabled {
-                stripped_text.as_ref().unwrap()
+            let text_for_matching = if let Some(stripped) = stripped_text.as_ref() {
+                stripped
             } else {
                 temp_text.as_ref()
             };
