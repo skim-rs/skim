@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-#[cfg(feature = "nightly-frizbee")]
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
 
@@ -66,11 +65,6 @@ impl FuzzyEngineBuilder {
         use crate::fuzzy_matcher::skim::SkimMatcher;
         #[allow(unused_mut)]
         let mut algorithm = self.algorithm;
-        #[cfg(not(feature = "nightly-frizbee"))]
-        if algorithm == FuzzyAlgorithm::Frizbee {
-            warn!("Frizbee algorithm not enabled, using SkimV2");
-            algorithm = FuzzyAlgorithm::SkimV2;
-        }
         let matcher: Box<dyn FuzzyMatcher> = match algorithm {
             FuzzyAlgorithm::SkimV1 => {
                 debug!("Initialized SkimV1 algorithm");
@@ -96,12 +90,7 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
-            FuzzyAlgorithm::Frizbee => {
-                #[cfg(not(feature = "nightly-frizbee"))]
-                unreachable!();
-                #[cfg(feature = "nightly-frizbee")]
-                Box::new(FrizbeeMatcher::default())
-            }
+            FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher { case: self.case }),
         };
 
         FuzzyEngine {

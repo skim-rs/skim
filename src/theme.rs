@@ -321,17 +321,15 @@ impl ColorTheme {
             let g = u8::from_str_radix(&raw_color[3..5], 16).unwrap_or(255);
             let b = u8::from_str_radix(&raw_color[5..7], 16).unwrap_or(255);
             Some(Color::Rgb(r, g, b))
+        } else if raw_color == "-1" {
+            Some(Color::Reset)
         } else {
-            if raw_color == "-1" {
-                Some(Color::Reset)
-            } else {
-                raw_color.parse::<u8>().ok().map(Color::Indexed).or_else(|| {
-                    if !raw_color.is_empty() {
-                        debug!("Unknown color '{}'", spec_parts[0]);
-                    }
-                    None
-                })
-            }
+            raw_color.parse::<u8>().ok().map(Color::Indexed).or_else(|| {
+                if !raw_color.is_empty() {
+                    debug!("Unknown color '{}'", spec_parts[0]);
+                }
+                None
+            })
         };
 
         let layer_override = if component_name == "bg+" { "bg" } else { layer };
