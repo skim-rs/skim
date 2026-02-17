@@ -44,7 +44,9 @@ use crossterm::event::KeyModifiers;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use reader::Reader;
+use tokio::runtime::Handle;
 use tokio::select;
+use tokio::task::block_in_place;
 use tui::App;
 use tui::Event;
 use tui::Size;
@@ -382,14 +384,19 @@ impl Skim {
         skim.start();
 
         if skim.should_enter() {
-            let rt = tokio::runtime::Runtime::new()?;
-
             skim.init_tui()?;
-            rt.block_on(async {
+            let task = async {
                 skim.enter().await?;
                 skim.run().await?;
                 eyre::Ok(())
-            })?;
+            };
+
+            if let Ok(handle) = Handle::try_current() {
+                block_in_place(|| handle.block_on(task))?;
+            } else {
+                let rt = tokio::runtime::Runtime::new()?;
+                rt.block_on(task)?;
+            }
         } else {
             // We didn't enter
             skim.final_event = Event::Action(Action::Accept(None));
