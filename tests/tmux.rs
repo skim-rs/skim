@@ -50,10 +50,45 @@ fn tmux_vanilla() -> Result<()> {
     let cmd = get_tmux_cmd(&outfile)?;
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
+    assert!(cmd.contains("--print-query"));
+    assert!(cmd.contains("--print-cmd"));
+    assert!(cmd.contains("--print-header"));
+    assert!(cmd.contains("--print-current"));
+    assert!(cmd.contains("--print-score"));
     assert!(!cmd.contains("<"));
 
     Ok(())
 }
+
+#[test]
+fn tmux_output_format() -> Result<()> {
+    let mut tmux = TmuxController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.start_sk(
+        None,
+        &[
+            "--tmux",
+            "--output-format",
+            "output-format",
+            "--output-format=output-format",
+        ],
+    )?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.starts_with("display-popup"));
+    assert!(cmd.contains("-E"));
+    assert!(cmd.contains("--print-query"));
+    assert!(cmd.contains("--print-cmd"));
+    assert!(cmd.contains("--print-header"));
+    assert!(cmd.contains("--print-current"));
+    assert!(cmd.contains("--print-score"));
+    assert!(cmd.contains("--print-score"));
+    assert!(!cmd.contains("output-format"));
+    assert!(!cmd.contains("<"));
+
+    Ok(())
+}
+
 #[test]
 fn tmux_stdin() -> Result<()> {
     let mut tmux = TmuxController::new()?;
@@ -95,7 +130,9 @@ fn tmux_quote_zsh() -> Result<()> {
     println!("{cmd}");
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("sk --bind $'ctrl-a:reload(ls /foo*)' >"));
+    assert!(cmd.contains(
+        "sk --bind $'ctrl-a:reload(ls /foo*)' --print-query --print-cmd --print-header --print-current --print-score >"
+    ));
     assert!(cmd.contains("SKIM_ESCAPED_VAR=;\\;"));
 
     Ok(())

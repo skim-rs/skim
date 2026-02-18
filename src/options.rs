@@ -599,6 +599,16 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_header: bool,
 
+    /// Print the current (highlighted) item as the first line (after print-header)
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub print_current: bool,
+
+    /// Set the output format
+    /// If set, overrides all `print_` options
+    /// Will be expanded the same way as preview or commands
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub output_format: Option<String>,
+
     /// Print the ANSI codes, making the output exactly match the input even when `--ansi` is on
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", requires = "ansi"))]
     pub no_strip_ansi: bool,
@@ -906,6 +916,7 @@ impl Default for SkimOptions {
             listen: None,
             remote: None,
             print_header: false,
+            print_current: false,
             disabled: false,
             tac: Default::default(),
             min_query_length: Default::default(),
@@ -964,6 +975,7 @@ impl Default for SkimOptions {
             print_query: Default::default(),
             print_cmd: Default::default(),
             print_score: Default::default(),
+            output_format: Default::default(),
             select_1: Default::default(),
             exit_0: Default::default(),
             sync: Default::default(),

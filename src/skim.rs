@@ -394,6 +394,7 @@ where
             query: self.app.input.to_string(),
             is_abort,
             selected_items: self.app.results(),
+            current: self.app.item_list.selected(),
             header: self.app.header.header.clone(),
         }
     }

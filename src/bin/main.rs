@@ -132,8 +132,12 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
         print_cmd: opts.print_cmd,
         print_score: opts.print_score,
         print_header: opts.print_header,
+        print_current: opts.print_current,
         output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
         strip_ansi: opts.ansi && !opts.no_strip_ansi,
+        output_format: opts.output_format.clone(),
+        delimiter: opts.delimiter.clone(),
+        replstr: opts.replstr.clone(),
     };
 
     //------------------------------------------------------------------------------
@@ -159,38 +163,62 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
         return Ok(130);
     }
 
-    // output query
-    if bin_options.print_query {
-        print!("{}{}", result.query, bin_options.output_ending);
-    }
-
-    if bin_options.print_cmd {
-        print!("{}{}", result.cmd, bin_options.output_ending);
-    }
-
-    if bin_options.print_header {
-        print!("{}{}", result.header, bin_options.output_ending);
-    }
-
-    if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
-        print!("{}{}", accept_key, bin_options.output_ending);
-    }
-
-    for item in &result.selected_items {
-        if bin_options.strip_ansi {
-            print!(
-                "{}{}",
-                skim::helper::item::strip_ansi(&item.output()).0,
-                bin_options.output_ending
-            );
-        } else {
-            print!("{}{}", item.output(), bin_options.output_ending);
+    // Output
+    if let Some(ref output_format) = bin_options.output_format {
+        print!(
+            "{}{}",
+            skim::printf(
+                output_format,
+                &bin_options.delimiter,
+                &bin_options.replstr,
+                result.selected_items.iter().map(|x| x.item.clone()),
+                result.current,
+                &result.query,
+                &result.cmd,
+                true
+            ),
+            bin_options.output_ending
+        );
+    } else {
+        if bin_options.print_query {
+            print!("{}{}", result.query, bin_options.output_ending);
         }
-        if bin_options.print_score {
-            print!("{}{}", item.rank[0], bin_options.output_ending);
+
+        if bin_options.print_cmd {
+            print!("{}{}", result.cmd, bin_options.output_ending);
+        }
+
+        if bin_options.print_header {
+            print!("{}{}", result.header, bin_options.output_ending);
+        }
+
+        if bin_options.print_current {
+            if let Some(ref current) = result.current {
+                print!("{}{}", current.output(), bin_options.output_ending);
+            } else {
+                print!("{}", bin_options.output_ending);
+            }
+        }
+
+        if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
+            print!("{}{}", accept_key, bin_options.output_ending);
+        }
+
+        for item in &result.selected_items {
+            if bin_options.strip_ansi {
+                print!(
+                    "{}{}",
+                    skim::helper::item::strip_ansi(&item.output()).0,
+                    bin_options.output_ending
+                );
+            } else {
+                print!("{}{}", item.output(), bin_options.output_ending);
+            }
+            if bin_options.print_score {
+                print!("{}{}", item.rank[0], bin_options.output_ending);
+            }
         }
     }
-
     std::io::stdout().flush()?;
 
     //------------------------------------------------------------------------------
@@ -243,5 +271,9 @@ pub struct BinOptions {
     print_cmd: bool,
     print_score: bool,
     print_header: bool,
+    print_current: bool,
     strip_ansi: bool,
+    output_format: Option<String>,
+    delimiter: regex::Regex,
+    replstr: String,
 }

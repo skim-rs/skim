@@ -1,5 +1,8 @@
 use ratatui::text::Line;
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    fmt::{Debug, Display},
+};
 
 use crate::{AsAny, DisplayContext, ItemPreview, PreviewContext};
 
@@ -91,5 +94,20 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
 impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
     fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(self.as_ref())
+    }
+}
+
+impl Display for dyn SkimItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text())
+    }
+}
+impl Debug for dyn SkimItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "SkimItem {{ text: {}, index: {} }}",
+            self.text(),
+            self.get_index()
+        ))
     }
 }

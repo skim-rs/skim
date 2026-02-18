@@ -170,6 +170,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Build args to send to downstream sk invocation
     let mut tmux_shell_cmd = String::new();
     let mut prev_is_tmux_flag = false;
+    let mut prev_is_output_format_flag = false;
     // We keep argv[0] to use in the popup's command
     for arg in std::env::args() {
         debug!("Got arg {arg}");
@@ -178,6 +179,9 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             if !arg.starts_with("-") {
                 continue;
             }
+        } else if prev_is_output_format_flag {
+            prev_is_output_format_flag = false;
+            continue;
         }
         if arg == "--tmux" {
             debug!("Found tmux arg, skipping this and the next");
@@ -186,9 +190,30 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         } else if arg.starts_with("--tmux") {
             debug!("Found equal tmux arg, skipping");
             continue;
+        } else if arg == "--output-format" {
+            debug!("Found output format arg, skipping this and the next");
+            prev_is_output_format_flag = true;
+            continue;
+        } else if arg.starts_with("--output-format") {
+            debug!("Found equal output format arg, skipping");
+            continue;
         }
         push_quoted_arg(&mut tmux_shell_cmd, &arg);
     }
+    // Always add all --print-xxx flags to the child sk command so that the output
+    // is fully structured and can be parsed unconditionally below, regardless of
+    // which flags the user originally passed.
+    for flag in &[
+        "--print-query",
+        "--print-cmd",
+        "--print-header",
+        "--print-current",
+        "--print-score",
+    ] {
+        tmux_shell_cmd.push_str(&format!(" {flag}"));
+    }
+    tmux_shell_cmd = tmux_shell_cmd.replace("--output-format", "");
+
     if has_piped_input {
         tmux_shell_cmd.push_str(&format!(" <{}", tmp_stdin.display()));
     }
@@ -238,42 +263,48 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     let mut stdout = stdout_bytes.split(output_ending);
     let _ = std::fs::remove_dir_all(temp_dir);
 
-    let query_str = if opts.print_query && status.success() {
-        stdout.next().expect("Not enough lines to unpack in downstream result")
+    // The child sk process always runs with --print-query, --print-cmd, --print-header,
+    // and --print-score, so we always read those lines unconditionally.
+    let query_str = if status.success() {
+        stdout.next().unwrap_or_default()
     } else {
         ""
     };
 
-    let command_str = if opts.print_cmd && status.success() {
-        stdout.next().expect("Not enough lines to unpack in downstream result")
+    let command_str = if status.success() {
+        stdout.next().unwrap_or_default()
     } else {
         ""
     };
 
-    let header = if opts.print_header && status.success() {
-        stdout.next().expect("Not enough lines to unpack in downstream result")
+    let header = if status.success() {
+        stdout.next().unwrap_or_default()
     } else {
         ""
     }
     .to_string();
 
+    let current: Option<Arc<dyn SkimItem>> = if status.success() {
+        let line = stdout.next().unwrap_or_default();
+        if line.is_empty() {
+            None
+        } else {
+            Some(Arc::new(SkimTmuxOutput { line: line.to_string() }))
+        }
+    } else {
+        None
+    };
+
     let mut output_lines: Vec<Arc<MatchedItem>> = vec![];
     while let Some(line) = stdout.next() {
         debug!("Adding output line: {line}");
-        let mut item = MatchedItem {
+        // --print-score is always enabled in the child, so every item is followed by its score.
+        let score: i32 = stdout.next().unwrap_or_default().parse().unwrap_or_default();
+        let item = MatchedItem {
             item: Arc::new(SkimTmuxOutput { line: line.to_string() }),
-            rank: [0; 5],
+            rank: [score, 0, 0, 0, 0],
             matched_range: None,
         };
-        if opts.print_score {
-            item.rank = [
-                stdout.next().unwrap_or_default().parse().unwrap_or_default(),
-                0,
-                0,
-                0,
-                0,
-            ];
-        }
         output_lines.push(Arc::new(item));
     }
 
@@ -294,6 +325,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         query: query_str.to_string(),
         cmd: command_str.to_string(),
         selected_items: output_lines,
+        current,
         header,
     };
     Some(skim_output)

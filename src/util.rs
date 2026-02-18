@@ -168,13 +168,48 @@ pub fn printf(
                                 }
                             }
                             s => {
-                                if let Some(range) = FieldRange::from_str(s) {
-                                    let replacement =
-                                        get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
-                                    replaced.push_str(&escape_arg(replacement, true));
+                                let (is_plus, stripped) = match s.strip_prefix('+') {
+                                    Some(x) => (true, x),
+                                    None => (false, s),
+                                };
+                                if is_plus {
+                                    let mut quote_individually = false;
+
+                                    let (stripped, delim) = stripped.rsplit_once(':').unwrap_or_else(|| {
+                                        quote_individually = quote_args;
+                                        (stripped, " ")
+                                    });
+                                    if let Some(range) = FieldRange::from_str(stripped) {
+                                        let expanded = selected
+                                            .clone()
+                                            .map(|i| {
+                                                escape_arg(
+                                                    get_string_by_field(delimiter, &strip_ansi(&i.output()).0, &range)
+                                                        .unwrap_or_default(),
+                                                    quote_individually,
+                                                )
+                                            })
+                                            .reduce(|a: String, b| a.to_owned() + delim + b.as_str())
+                                            .unwrap_or_default();
+
+                                        if quote_args && !quote_individually {
+                                            replaced.push_str(&format!("'{}'", expanded));
+                                        } else {
+                                            replaced.push_str(&expanded);
+                                        }
+                                    } else {
+                                        log::warn!("Failed to build multi-item field range from {content}");
+                                        replaced.push_str(&format!("{{{s}}}"));
+                                    }
                                 } else {
-                                    log::warn!("Failed to build field range from {content}");
-                                    replaced.push_str(&format!("{{{s}}}"));
+                                    if let Some(range) = FieldRange::from_str(stripped) {
+                                        let replacement =
+                                            get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
+                                        replaced.push_str(&escape_arg(replacement, true));
+                                    } else {
+                                        log::warn!("Failed to build field range from {content}");
+                                        replaced.push_str(&format!("{{{s}}}"));
+                                    }
                                 }
                             }
                         }

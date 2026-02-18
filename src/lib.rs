@@ -44,6 +44,7 @@ pub use crate::output::SkimOutput;
 pub use crate::skim::*;
 pub use crate::skim_item::SkimItem;
 use crate::tui::Size;
+pub use util::printf;
 
 pub mod binds;
 mod engine;
