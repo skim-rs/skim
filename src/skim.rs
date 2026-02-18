@@ -192,6 +192,11 @@ where
         self.reader_done && self.reader_control.as_ref().is_none_or(|rc| rc.is_done())
     }
 
+    /// Returns `true` if the matcher is stopped
+    pub fn matcher_stopped(&self) -> bool {
+        self.app.matcher_control.stopped()
+    }
+
     /// Initialize the TUI with a caller-provided instance.
     ///
     /// Use this instead of [`init_tui()`](Skim::init_tui) when you need a

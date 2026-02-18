@@ -81,7 +81,12 @@ nightly-frizbee = ["dep:frizbee"]
 test-utils = []
 
 [dev-dependencies]
+criterion = { version = "0.8.2", features = ["async_tokio"] }
 insta = "1.43"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils"))', 'cfg(coverage, coverage_nightly)'] }
+
+[[bench]]
+name = "read_and_match"
+harness = false
