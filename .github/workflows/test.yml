@@ -60,7 +60,8 @@ jobs:
       - name: Run doctests
         run: cargo test --doc
       - name: Run tests
-        run: cargo llvm-cov nextest --release --features test-utils --all-targets --codecov --output-path codecov.json
+        # Do not use `--all-targets` to avoid running benches
+        run: cargo llvm-cov nextest --release --features test-utils --bins --lib --examples --tests --codecov --output-path codecov.json
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
