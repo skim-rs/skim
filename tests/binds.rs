@@ -105,3 +105,21 @@ insta_test!(bind_set_preview_cmd, ["a", "b", "c"], &["--preview", "echo initial 
     @key Up;
     @snap;
 });
+
+insta_test!(bind_set_header_from_empty, ["a", "b", "c"], &["--bind", "ctrl-a:set-header(foo)"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
+
+insta_test!(bind_set_header_to_empty, ["a", "b", "c"], &["--bind", "ctrl-a:set-header", "--header", "foo"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});
+
+insta_test!(bind_set_header_change, ["a", "b", "c"], &["--bind", "ctrl-a:set-header(bar)", "--header", "foo"], {
+    @snap;
+    @ctrl 'a';
+    @snap;
+});

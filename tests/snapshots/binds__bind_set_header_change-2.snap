@@ -1,0 +1,29 @@
+---
+source: tests/binds.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  c                                                                             "
+"  b                                                                             "
+"> a                                                                             "
+"  bar                                                                           "
+"  3/3                                                                        0/0"
+">                                                                               "
+cursor: (24, 3)

@@ -1090,6 +1090,10 @@ impl App {
                 self.item_list.select();
                 return self.on_selection_changed();
             }
+            SetHeader(opt_header) => {
+                self.options.header = opt_header.to_owned();
+                self.header = Header::from_options(&self.options, self.theme.clone());
+            }
             SetPreviewCmd(cmd) => {
                 self.options.preview = Some(cmd.to_owned());
                 return Ok(vec![Event::RunPreview]);
