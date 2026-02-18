@@ -660,6 +660,8 @@ export TERMINFO=/data/data/com.termux/files/usr/share/terminfo
 
 # Benchmarks
 
-The `bench.sh` script is available to benchmark the code.
+The `bench.sh` script is available to benchmark the code against other versions or fzf using `tmux` and querying the output. This is by no means a precise or foolproof way of running benchmarks, but it has the added benefit of allowing us to benchmark against `fzf` and of giving us resource metrics.
 
 You can use it directly using `./bench.sh <binary> -n <number of items> -r <number of runs>`, or generate the data using `./bench.sh -g <output file> -n <number of items>`, then `./bench.sh <binary> -f <file> -r <number of runs>`
+
+For more precise benchmarks, run `cargo bench -j 1`.
