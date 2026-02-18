@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-02-18
+
+### 🚀 Features
+
+- Use a separate thread pool for Matcher runs (#961)
+- Event-driven re-render (#949)
+- Allow run_with to be run within a tokio runtime (#979)
+
+### 🐛 Bug Fixes
+
+- Possible None unwrap if ansi enabled but not in item
+
+### ⚙️ Miscellaneous Tasks
+
+- Unify filter mode & squeeze more perf (#974)
+- Refactor Skim into its own file
+
+### New Contributors
+* @figsoda made their first contribution in [#979](https://github.com/skim-rs/skim/pull/979)
+
 ## [3.2.0] - 2026-02-13
 
 ### 🚀 Features

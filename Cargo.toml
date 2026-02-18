@@ -1,6 +1,6 @@
 [package]
 name = "skim"
-version = "3.2.0"
+version = "3.3.0"
 authors = ["Loric ANDRE", "Zhang Jinzhou <lotabout@gmail.com>"]
 description = "Fuzzy Finder in rust!"
 documentation = "https://docs.rs/skim"
