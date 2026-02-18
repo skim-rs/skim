@@ -100,24 +100,18 @@ pub fn printf(
     command_query: &str,
     quote_args: bool,
 ) -> String {
-    let escape_arg = if quote_args {
-        |s: &str| format!("'{}'", s.replace('\0', "\\0").replace("'", "'\\''"))
-    } else {
-        |s: &str| s.replace('\0', "\\0").to_string()
+    let escape_arg = |s: &str, quote: bool| {
+        let mut res = s.replace('\0', "\\0").to_string();
+        if quote && quote_args {
+            res = format!("'{}'", res.replace("'", "'\\''"));
+        }
+        res
     };
-    let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
-    let escaped_item = escape_arg(&item_text);
-    let escaped_query = escape_arg(query);
-    let escaped_cmd_query = escape_arg(command_query);
 
-    let mut selection_str = selected
-        .clone()
-        .map(|i| escape_arg(&strip_ansi(&i.output()).0))
-        .reduce(|a, b| a + " " + &b)
-        .unwrap_or_default();
-    if selection_str.is_empty() {
-        selection_str = escaped_item;
-    }
+    let item_text = current.as_ref().map(|s| strip_ansi(&s.output()).0).unwrap_or_default();
+    let escaped_item = escape_arg(&item_text, true);
+    let escaped_query = escape_arg(query, true);
+    let escaped_cmd_query = escape_arg(command_query, true);
 
     // Split on replstr first
     let replstr_parts = pattern.split(replstr);
@@ -129,55 +123,74 @@ pub fn printf(
         let mut sub = part.split('{');
         let mut replaced = sub.next().unwrap_or_default().to_string();
         for s in sub {
-            if s.starts_with("+}") {
-                replaced += &selection_str;
-                replaced += s.get(2..).unwrap_or_default();
-            } else if s.starts_with("q}") {
-                replaced += &escaped_query;
-                replaced += s.get(2..).unwrap_or_default();
-            } else if s.starts_with("cq}") {
-                replaced += &escaped_cmd_query;
-                replaced += s.get(3..).unwrap_or_default();
-            } else if s.starts_with("n}") {
-                if let Some(ref item) = current {
-                    replaced += item.get_index().to_string().as_str();
-                }
-                replaced += s.get(2..).unwrap_or_default();
-            } else if s.starts_with("+n}") {
-                replaced += &selected
-                    .clone()
-                    .map(|i| escape_arg(&i.get_index().to_string()))
-                    .fold(String::new(), |a: String, b| a.to_owned() + b.as_str() + " ");
-                replaced += s.get(3..).unwrap_or_default()
-            } else {
-                let mut inside = true;
-                let mut content = String::new();
-                for c in s.chars() {
-                    if inside {
-                        if c == '}' {
-                            if content.is_empty() {
-                                replaced.push_str("{}");
-                            } else if let Some(range) = FieldRange::from_str(&content) {
-                                let replacement =
-                                    get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
-                                replaced.push_str(&escape_arg(replacement));
-                            } else {
-                                log::warn!("Failed to build field range from {content}");
-                                replaced.push_str(&format!("{{{content}}}"));
+            let mut inside = true;
+            let mut content = String::new();
+            for c in s.chars() {
+                if inside {
+                    if c == '}' {
+                        match content.as_str() {
+                            "" => replaced.push_str("{}"),
+                            "q" => replaced.push_str(&escaped_query),
+                            "cq" => replaced.push_str(&escaped_cmd_query),
+                            "n" if current.as_ref().is_some() => {
+                                replaced.push_str(current.as_ref().unwrap().get_index().to_string().as_str());
                             }
+                            s if s == "+n" || s.starts_with("+n:") || s == "+" || s.starts_with("+:") => {
+                                let is_n = s.starts_with("+n");
+                                let accessor = if is_n {
+                                    |i: &Arc<dyn SkimItem>| i.get_index().to_string()
+                                } else {
+                                    |i: &Arc<dyn SkimItem>| strip_ansi(&i.output()).0
+                                };
+                                let mut quote_individually = false;
 
-                            content.clear();
-                            inside = false;
-                        } else {
-                            content.push(c);
+                                let delim = s.rsplit_once(':').map(|x| x.1).unwrap_or_else(|| {
+                                    quote_individually = quote_args;
+                                    " "
+                                });
+
+                                let mut expanded = selected
+                                    .clone()
+                                    .map(|i| escape_arg(&accessor(&i), quote_individually))
+                                    .reduce(|a: String, b| a.to_owned() + delim + b.as_str())
+                                    .unwrap_or_default();
+                                if expanded.is_empty() {
+                                    expanded = current
+                                        .as_ref()
+                                        .map(|i| escape_arg(&accessor(i), quote_args))
+                                        .unwrap_or_default()
+                                }
+
+                                if quote_args && !quote_individually {
+                                    replaced.push_str(&format!("'{}'", expanded));
+                                } else {
+                                    replaced.push_str(&expanded);
+                                }
+                            }
+                            s => {
+                                if let Some(range) = FieldRange::from_str(s) {
+                                    let replacement =
+                                        get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
+                                    replaced.push_str(&escape_arg(replacement, true));
+                                } else {
+                                    log::warn!("Failed to build field range from {content}");
+                                    replaced.push_str(&format!("{{{s}}}"));
+                                }
+                            }
                         }
-                    } else if c == '{' {
-                        inside = true;
+
+                        content.clear();
+                        inside = false;
                     } else {
-                        replaced.push(c);
+                        content.push(c);
                     }
+                } else if c == '{' {
+                    inside = true;
+                } else {
+                    replaced.push(c);
                 }
             }
+            // }
         }
         replaced_parts.push(replaced);
     }
@@ -185,7 +198,7 @@ pub fn printf(
     // Join back the replstr parts into the res
     replaced_parts
         .into_iter()
-        .reduce(|a: String, b| a + &escape_arg(&item_text) + &b)
+        .reduce(|a: String, b| a + &escaped_item + &b)
         .unwrap_or_default()
 }
 
@@ -231,7 +244,7 @@ mod test {
 
     #[test]
     fn test_printf() {
-        let pattern = "[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq}";
+        let pattern = "[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq} [7] {+:, } [8] {+n:','}";
         let items: Vec<Arc<dyn SkimItem>> = vec![
             Arc::new("item 1"),
             Arc::new("item 2"),
@@ -250,7 +263,7 @@ mod test {
                 "cmd query",
                 true
             ),
-            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query'"
+            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query' [7] 'item 1, item 2, item 3, item 4' [8] '0','0','0','0'"
         );
     }
     #[test]
@@ -298,6 +311,24 @@ mod test {
                 true
             ),
             "'{..2}'"
+        );
+    }
+    #[test]
+    fn test_printf_replstr() {
+        assert_eq!(
+            printf(
+                "{} ##",
+                &Regex::new(" ").unwrap(),
+                "##",
+                [Arc::new("1"), Arc::new("2")]
+                    .iter()
+                    .map(|x| x.clone() as Arc<dyn SkimItem>),
+                Some(Arc::new("1")),
+                "q",
+                "cq",
+                true
+            ),
+            "{} '1'"
         );
     }
 }
