@@ -141,7 +141,8 @@ pub struct SkimOptions {
     ///
     /// skim_v2 Latest skim algorithm, should be better in almost any case
     /// skim_v1 Legacy skim algorithm
-    /// clangd Used in clangd for keyword completion
+    /// clangd  Used in clangd for keyword completion
+    /// fzy     Algorithm from fzy (https://github.com/jhawthorn/fzy)
     #[cfg_attr(
         feature = "cli",
         arg(

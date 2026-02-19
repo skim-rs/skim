@@ -3,7 +3,9 @@ use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
+use crate::fuzzy_matcher::{
+    FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2,
+};
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine};
@@ -22,6 +24,8 @@ pub enum FuzzyAlgorithm {
     SkimV2,
     /// Clangd fuzzy matching algorithm
     Clangd,
+    /// Fzy matching algorithm (https://github.com/jhawthorn/fzy)
+    Fzy,
     /// Frizbee matching algorithm, typo resistant
     /// Will fallback to SkimV2 if the feature is not enabled
     Frizbee,
@@ -91,6 +95,16 @@ impl FuzzyEngineBuilder {
                 Box::new(matcher)
             }
             FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher { case: self.case }),
+            FuzzyAlgorithm::Fzy => {
+                let matcher = FzyMatcher::default();
+                let matcher = match self.case {
+                    CaseMatching::Respect => matcher.respect_case(),
+                    CaseMatching::Ignore => matcher.ignore_case(),
+                    CaseMatching::Smart => matcher.smart_case(),
+                };
+                debug!("Initialized Fzy algorithm");
+                Box::new(matcher)
+            }
         };
 
         FuzzyEngine {

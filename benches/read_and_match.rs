@@ -76,6 +76,19 @@ fn criterion_benchmark(c: &mut Criterion) {
             .await
         });
     });
+    c.bench_function("fzy", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.to_async(rt).iter(async || {
+            wait_until_done(
+                SkimOptionsBuilder::default()
+                    .query("test")
+                    .algorithm(FuzzyAlgorithm::Fzy)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+        });
+    });
 }
 
 criterion_group!(

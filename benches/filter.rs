@@ -42,6 +42,16 @@ fn criterion_benchmark(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
+    c.bench_function("fzy", |b| {
+        b.iter(|| {
+            let opts = SkimOptionsBuilder::default()
+                .cmd("cat bench_data.txt")
+                .filter("test")
+                .algorithm(FuzzyAlgorithm::Fzy)
+                .build()?;
+            Skim::run_with(opts, None)
+        });
+    });
     c.bench_function("ansi", |b| {
         b.iter(|| {
             let opts = SkimOptionsBuilder::default()

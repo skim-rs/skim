@@ -6,6 +6,8 @@
 /// Clangd fuzzy matching algorithm
 pub mod clangd;
 pub mod frizbee;
+/// Fzy fuzzy matching algorithm
+pub mod fzy;
 /// Skim fuzzy matching algorithm
 pub mod skim;
 mod util;
