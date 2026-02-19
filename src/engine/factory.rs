@@ -226,7 +226,6 @@ impl MatchEngineFactory for RegexEngineFactory {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage, coverage(off))]
 mod test {
     #[test]
     fn test_engine_factory() {

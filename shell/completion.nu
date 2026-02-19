@@ -76,6 +76,7 @@ module completions {
     --multi-selector: string  # Set selected item icon
     --ansi                    # Parse ANSI color codes in input strings
     --tabstop: string         # Number of spaces that make up a tab
+    --ellipsis: string        # The characters used to display truncated lines
     --info: string@"nu-complete sk info" # Set matching result count display position
     --no-info                 # Alias for --info=hidden
     --inline-info             # Alias for --info=inline
@@ -97,6 +98,8 @@ module completions {
     --print-cmd               # Print the command as the first line (after print-query)
     --print-score             # Print the score after each item
     --print-header            # Print the header as the first line (after print-score)
+    --print-current           # Print the current (highlighted) item as the first line (after print-header)
+    --output-format: string   # Set the output format If set, overrides all print_ options Will be expanded the same way as preview or commands
     --no-strip-ansi           # Print the ANSI codes, making the output exactly match the input even when --ansi is on
     --select-1(-1)            # Do not enter the TUI if the query passed in -q matches only one item and return it
     --exit-0(-0)              # Do not enter the TUI if the query passed in -q does not match any item
@@ -141,7 +144,6 @@ module completions {
     --gutter: string
     --gutter-raw: string
     --marker-multi-line: string
-    --ellipsis: string
     --scrollbar: string
     --no-scrollbar
     --list-border: string

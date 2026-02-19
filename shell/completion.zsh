@@ -50,6 +50,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--selector=[Set selected item icon]:SELECTOR_ICON:_default' \
 '--multi-selector=[Set selected item icon]:MULTI_SELECT_ICON:_default' \
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
+'--ellipsis=[The characters used to display truncated lines]:ELLIPSIS:_default' \
 '--info=[Set matching result count display position]:INFO:(default inline hidden)' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
@@ -63,6 +64,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '-q+[Initial query]:QUERY:_default' \
 '--query=[Initial query]:QUERY:_default' \
 '--cmd-query=[Initial query in interactive mode]:CMD_QUERY:_default' \
+'--output-format=[Set the output format If set, overrides all print_ options Will be expanded the same way as preview or commands]:OUTPUT_FORMAT:_default' \
 '--pre-select-n=[Pre-select the first n items in multi-selection mode]:PRE_SELECT_N:_default' \
 '--pre-select-pat=[Pre-select the matched items in multi-selection mode]:PRE_SELECT_PAT:_default' \
 '--pre-select-items=[Pre-select the items separated by newline character]:PRE_SELECT_ITEMS:_default' \
@@ -97,7 +99,6 @@ zsh\:"Zsh"))' \
 '--gutter=[]:GUTTER:_default' \
 '--gutter-raw=[]:GUTTER_RAW:_default' \
 '--marker-multi-line=[]:MARKER_MULTI_LINE:_default' \
-'--ellipsis=[]:ELLIPSIS:_default' \
 '--scrollbar=[]:SCROLLBAR:_default' \
 '--list-border=[]:LIST_BORDER:_default' \
 '--list-label=[]:LIST_LABEL:_default' \
@@ -150,6 +151,7 @@ zsh\:"Zsh"))' \
 '--print-cmd[Print the command as the first line (after print-query)]' \
 '--print-score[Print the score after each item]' \
 '--print-header[Print the header as the first line (after print-score)]' \
+'--print-current[Print the current (highlighted) item as the first line (after print-header)]' \
 '--no-strip-ansi[Print the ANSI codes, making the output exactly match the input even when --ansi is on]' \
 '-1[Do not enter the TUI if the query passed in -q matches only one item and return it]' \
 '--select-1[Do not enter the TUI if the query passed in -q matches only one item and return it]' \

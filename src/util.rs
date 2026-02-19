@@ -201,15 +201,13 @@ pub fn printf(
                                         log::warn!("Failed to build multi-item field range from {content}");
                                         replaced.push_str(&format!("{{{s}}}"));
                                     }
+                                } else if let Some(range) = FieldRange::from_str(stripped) {
+                                    let replacement =
+                                        get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
+                                    replaced.push_str(&escape_arg(replacement, true));
                                 } else {
-                                    if let Some(range) = FieldRange::from_str(stripped) {
-                                        let replacement =
-                                            get_string_by_field(delimiter, &item_text, &range).unwrap_or_default();
-                                        replaced.push_str(&escape_arg(replacement, true));
-                                    } else {
-                                        log::warn!("Failed to build field range from {content}");
-                                        replaced.push_str(&format!("{{{s}}}"));
-                                    }
+                                    log::warn!("Failed to build field range from {content}");
+                                    replaced.push_str(&format!("{{{s}}}"));
                                 }
                             }
                         }
@@ -238,7 +236,6 @@ pub fn printf(
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage, coverage(off))]
 mod test {
     use super::*;
     use crate::SkimItem;

@@ -452,7 +452,6 @@ fn print_dp(line: &str, pattern: &str, dp: &[Vec<Score>]) {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use crate::fuzzy_matcher::util::{assert_order, wrap_matches};

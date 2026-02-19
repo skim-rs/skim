@@ -113,11 +113,4 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Build without any feature
         run: |
-          cargo +stable build --no-default-features
-      - name: Build with cli feature
-        run: |
-          cargo +stable build --no-default-features --features cli
-      - name: Build with frizbee feature
-        # Do not use +nightly to make sure we use the correct toolchain date
-        run: |
-          cargo build --no-default-features --features nightly-frizbee
+          cargo build --no-default-features

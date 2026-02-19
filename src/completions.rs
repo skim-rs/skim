@@ -1,4 +1,3 @@
-#![cfg_attr(coverage, coverage(off))]
 //! Provides helpers to easily generate shell completions
 use clap::CommandFactory;
 

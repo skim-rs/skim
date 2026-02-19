@@ -23,7 +23,7 @@ _sk() {
 
     case "${cmd}" in
         sk)
-            opts="-t -n -d -e -b -m -c -i -I -p -q -1 -0 -f -x -h -V --tac --min-query-length --no-sort --tiebreak --nth --with-nth --delimiter --exact --regex --algo --case --normalize --split-match --bind --multi --no-multi --no-mouse --cmd --interactive --color --no-hscroll --keep-right --skip-to-pattern --no-clear-if-empty --no-clear-start --no-clear --show-cmd-error --cycle --disabled --layout --reverse --height --no-height --min-height --margin --prompt --cmd-prompt --selector --multi-selector --ansi --tabstop --info --no-info --inline-info --header --header-lines --border --wrap --history --history-size --cmd-history --cmd-history-size --preview --preview-window --query --cmd-query --read0 --print0 --print-query --print-cmd --print-score --print-header --no-strip-ansi --select-1 --exit-0 --sync --pre-select-n --pre-select-pat --pre-select-items --pre-select-file --filter --shell --shell-bindings --man --listen --remote --tmux --log-file --flags --extended --literal --hscroll-off --filepath-word --jump-labels --no-bold --phony --scheme --tail --style --no-color --padding --border-label --border-label-pos --highlight-line --wrap-sign --no-multi-line --raw --track --gap --gap-line --freeze-left --freeze-right --scroll-off --gutter --gutter-raw --marker-multi-line --ellipsis --scrollbar --no-scrollbar --list-border --list-label --list-label-pos --no-input --info-command --separator --no-separator --ghost --input-border --input-label --input-label-pos --preview-label --preview-label-pos --header-first --header-border --header-lines-border --footer --footer-border --footer-label --footer-label-pos --with-shell --expect --help --version"
+            opts="-t -n -d -e -b -m -c -i -I -p -q -1 -0 -f -x -h -V --tac --min-query-length --no-sort --tiebreak --nth --with-nth --delimiter --exact --regex --algo --case --normalize --split-match --bind --multi --no-multi --no-mouse --cmd --interactive --color --no-hscroll --keep-right --skip-to-pattern --no-clear-if-empty --no-clear-start --no-clear --show-cmd-error --cycle --disabled --layout --reverse --height --no-height --min-height --margin --prompt --cmd-prompt --selector --multi-selector --ansi --tabstop --ellipsis --info --no-info --inline-info --header --header-lines --border --wrap --history --history-size --cmd-history --cmd-history-size --preview --preview-window --query --cmd-query --read0 --print0 --print-query --print-cmd --print-score --print-header --print-current --output-format --no-strip-ansi --select-1 --exit-0 --sync --pre-select-n --pre-select-pat --pre-select-items --pre-select-file --filter --shell --shell-bindings --man --listen --remote --tmux --log-file --flags --extended --literal --hscroll-off --filepath-word --jump-labels --no-bold --phony --scheme --tail --style --no-color --padding --border-label --border-label-pos --highlight-line --wrap-sign --no-multi-line --raw --track --gap --gap-line --freeze-left --freeze-right --scroll-off --gutter --gutter-raw --marker-multi-line --scrollbar --no-scrollbar --list-border --list-label --list-label-pos --no-input --info-command --separator --no-separator --ghost --input-border --input-label --input-label-pos --preview-label --preview-label-pos --header-first --header-border --header-lines-border --footer --footer-border --footer-label --footer-label-pos --with-shell --expect --help --version"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -141,6 +141,10 @@ _sk() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --ellipsis)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --info)
                     COMPREPLY=($(compgen -W "default inline hidden" -- "${cur}"))
                     return 0
@@ -190,6 +194,10 @@ _sk() {
                     return 0
                     ;;
                 --cmd-query)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output-format)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -306,10 +314,6 @@ _sk() {
                     return 0
                     ;;
                 --marker-multi-line)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --ellipsis)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
