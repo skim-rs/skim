@@ -90,3 +90,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-util
 [[bench]]
 name = "read_and_match"
 harness = false
+
+[[bench]]
+name = "filter"
+harness = false
