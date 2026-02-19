@@ -2,16 +2,15 @@
 source: tests/matcher.rs
 expression: buf + & cursor_pos
 ---
-"  src/helper/item_reader.rs                                                     "
+"  src/skim_item.rs                                                              "
+"  src/output.rs                                                                 "
+"  src/item.rs                                                                   "
 "  src/fuzzy_matcher/clangd.rs                                                   "
 "  src/fuzzy_matcher/frizbee.rs                                                  "
 "  src/fuzzy_matcher/skim.rs                                                     "
 "  src/fuzzy_matcher/util.rs                                                     "
 "  src/fuzzy_matcher/mod.rs                                                      "
-"  src/output.rs                                                                 "
 "  src/theme.rs                                                                  "
-"  src/item.rs                                                                   "
-"  src/tmux.rs                                                                   "
 "  src/tui/header.rs                                                             "
 "  src/tui/statusline.rs                                                         "
 "  src/tui/input.rs                                                              "
@@ -22,6 +21,7 @@ expression: buf + & cursor_pos
 "  src/tui/widget.rs                                                             "
 "  src/tui/options.rs                                                            "
 "  src/tui/util.rs                                                               "
+"  src/tmux.rs                                                                   "
 "  src/tui/item_list.rs                                                          "
 "> src/tui/mod.rs                                                                "
 "  24/49                                                                      0/0"
