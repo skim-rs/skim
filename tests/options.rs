@@ -500,3 +500,7 @@ insta_test!(opt_select_1_enter, ["1", "2", "3", "11"], &["-q", "1", "--select-1"
 insta_test!(opt_exit_0_enter, ["1", "2", "3"], &["-q", "1", "--exit-0"], {
     @snap;
 });
+
+insta_test!(opt_ellipsis, ["aabbccddeeffggghiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz"], &["--preview", "echo a", "--preview-window", "right:80%", "-q", "ij", "--ellipsis", "%%%"], {
+    @snap;
+});

@@ -425,6 +425,13 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, default_value = "8", help_heading = "Display"))]
     pub tabstop: usize,
 
+    /// The characters used to display truncated lines
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, hide = true, allow_hyphen_values = true, default_value = "..")
+    )]
+    pub ellipsis: String,
+
     /// Set matching result count display position
     ///
     ///   - hidden: do not display info
@@ -799,9 +806,6 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     marker_multi_line: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    ellipsis: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     scrollbar: Option<String>,

@@ -58,6 +58,7 @@ pub struct ItemList {
     pub(crate) multi_select: bool,
     reserved: usize,
     no_hscroll: bool,
+    ellipsis: String,
     keep_right: bool,
     skip_to_pattern: Option<Regex>,
     tabstop: usize,
@@ -91,6 +92,7 @@ impl Default for ItemList {
             multi_select: false,
             reserved: 0,
             no_hscroll: false,
+            ellipsis: String::from(".."),
             keep_right: false,
             skip_to_pattern: None,
             tabstop: 8,
@@ -133,7 +135,7 @@ impl ItemList {
     }
 
     /// Calculate the width to skip when using skip_to_pattern
-    /// Returns the actual skip width (not accounting for ".." - that's handled in apply_hscroll)
+    /// Returns the actual skip width (not accounting for the ellipsis - that's handled in apply_hscroll)
     fn calc_skip_width(&self, text: &str) -> usize {
         if let Some(ref regex) = self.skip_to_pattern
             && let Some(mat) = regex.find(text)
@@ -161,8 +163,8 @@ impl ItemList {
             }
         });
 
-        // Reserve 2 chars for ".." indicators
-        let available_width = if container_width >= 2 {
+        // Reserve space for ellipsis
+        let available_width = if container_width >= display_width(&self.ellipsis).try_into().unwrap() {
             container_width
         } else {
             return (0, full_width, false, false);
@@ -251,15 +253,29 @@ impl ItemList {
         (shift, full_width, has_left_overflow, has_right_overflow)
     }
 
-    /// Apply horizontal scrolling to a line, adding ".." indicators as needed
+    /// Apply horizontal scrolling to a line, adding ellipsis indicators as needed
     /// Also expands tabs to spaces according to tabstop setting
-    fn apply_hscroll<'a>(&self, line: Line<'a>, shift: usize, container_width: usize, full_width: usize) -> Line<'a> {
+    fn apply_hscroll<'a>(
+        &'a self,
+        line: Line<'a>,
+        shift: usize,
+        container_width: usize,
+        full_width: usize,
+    ) -> Line<'a> {
         let has_left_overflow = shift > 0;
         let has_right_overflow = shift + container_width < full_width;
 
         // Reserve space for overflow indicators
-        let left_indicator_width = if has_left_overflow { 2 } else { 0 };
-        let right_indicator_width = if has_right_overflow { 2 } else { 0 };
+        let left_indicator_width = if has_left_overflow {
+            display_width(&self.ellipsis).try_into().unwrap()
+        } else {
+            0
+        };
+        let right_indicator_width = if has_right_overflow {
+            display_width(&self.ellipsis).try_into().unwrap()
+        } else {
+            0
+        };
         let content_width = container_width.saturating_sub(left_indicator_width + right_indicator_width);
 
         // Extract the visible portion of the line while preserving styling
@@ -267,7 +283,7 @@ impl ItemList {
 
         // Add left indicator if needed
         if has_left_overflow {
-            result.push_span(Span::raw(".."));
+            result.push_span(Span::raw(&self.ellipsis));
         }
 
         // Process spans to extract only the visible portion while preserving styles
@@ -318,7 +334,7 @@ impl ItemList {
 
         // Add right indicator if needed
         if has_right_overflow {
-            result.push_span(Span::raw(".."));
+            result.push_span(Span::raw(&self.ellipsis));
         }
 
         result
@@ -533,6 +549,7 @@ impl SkimWidget for ItemList {
             theme,
             multi_select,
             no_hscroll: options.no_hscroll,
+            ellipsis: options.ellipsis.clone(),
             keep_right: options.keep_right,
             skip_to_pattern,
             tabstop: options.tabstop.max(1),
