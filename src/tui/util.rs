@@ -275,7 +275,6 @@ pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use ansi_to_tui::IntoText as _;

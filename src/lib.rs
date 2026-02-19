@@ -22,7 +22,6 @@
 //! let output = Skim::run_with(options, Some(items)).unwrap();
 //! ```
 #![warn(missing_docs)]
-#![cfg_attr(coverage, feature(coverage_attribute))]
 
 #[macro_use]
 extern crate log;

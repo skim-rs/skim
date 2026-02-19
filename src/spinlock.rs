@@ -85,7 +85,6 @@ impl<T: ?Sized> Drop for SpinLockGuard<'_, T> {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use std::sync::Arc;
