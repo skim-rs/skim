@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-02-19
+
+### 🚀 Features
+
+- Allow setting delimiters in `+` expansions (closes #935)
+- Add set-header action (closes #768)
+- Add `--print-current`, `--output-format` (closes #981)
+- Add --ellipsis option
+- Back to stable rust (#980)
+
+### 🐛 Bug Fixes
+
+- *(ci)* Do not run benches
+
+### 💼 Other
+
+- Add filter
+
+### 📚 Documentation
+
+- Benchmarks
+
+### ⚙️ Miscellaneous Tasks
+
+- Add rust benchmark
+
 ## [3.3.0] - 2026-02-18
 
 ### 🚀 Features
