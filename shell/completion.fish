@@ -36,6 +36,7 @@ complete -c sk -l cmd-prompt -d 'Set prompt in command mode' -r
 complete -c sk -l selector -d 'Set selected item icon' -r
 complete -c sk -l multi-selector -d 'Set selected item icon' -r
 complete -c sk -l tabstop -d 'Number of spaces that make up a tab' -r
+complete -c sk -l ellipsis -d 'The characters used to display truncated lines' -r
 complete -c sk -l info -d 'Set matching result count display position' -r -f -a "default\t''
 inline\t''
 hidden\t''"
@@ -61,6 +62,7 @@ complete -c sk -l preview -d 'Preview command' -r
 complete -c sk -l preview-window -d 'Preview window layout' -r
 complete -c sk -s q -l query -d 'Initial query' -r
 complete -c sk -l cmd-query -d 'Initial query in interactive mode' -r
+complete -c sk -l output-format -d 'Set the output format If set, overrides all print_ options Will be expanded the same way as preview or commands' -r
 complete -c sk -l pre-select-n -d 'Pre-select the first n items in multi-selection mode' -r
 complete -c sk -l pre-select-pat -d 'Pre-select the matched items in multi-selection mode' -r
 complete -c sk -l pre-select-items -d 'Pre-select the items separated by newline character' -r
@@ -94,7 +96,6 @@ complete -c sk -l scroll-off -r
 complete -c sk -l gutter -r
 complete -c sk -l gutter-raw -r
 complete -c sk -l marker-multi-line -r
-complete -c sk -l ellipsis -r
 complete -c sk -l scrollbar -r
 complete -c sk -l list-border -r
 complete -c sk -l list-label -r
@@ -144,6 +145,7 @@ complete -c sk -l print-query -d 'Print the query as the first line'
 complete -c sk -l print-cmd -d 'Print the command as the first line (after print-query)'
 complete -c sk -l print-score -d 'Print the score after each item'
 complete -c sk -l print-header -d 'Print the header as the first line (after print-score)'
+complete -c sk -l print-current -d 'Print the current (highlighted) item as the first line (after print-header)'
 complete -c sk -l no-strip-ansi -d 'Print the ANSI codes, making the output exactly match the input even when --ansi is on'
 complete -c sk -s 1 -l select-1 -d 'Do not enter the TUI if the query passed in -q matches only one item and return it'
 complete -c sk -s 0 -l exit-0 -d 'Do not enter the TUI if the query passed in -q does not match any item'
