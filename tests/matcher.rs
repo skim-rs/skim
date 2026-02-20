@@ -70,3 +70,12 @@ insta_test!(matcher_clangd, INPUT_ITEMS, &["-q", "stum", "--algo", "clangd"], {
 insta_test!(matcher_frizbee, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee"], {
     @snap;
 });
+insta_test!(matcher_frizbee_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee", "--typos"], {
+    @snap;
+});
+insta_test!(matcher_fzy, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy"], {
+    @snap;
+});
+insta_test!(matcher_fzy_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy", "--typos"], {
+    @snap;
+});

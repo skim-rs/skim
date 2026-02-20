@@ -20,3 +20,5 @@ bench_data.txt
 lcov.info
 codecov.json
 *.profraw
+
+benches/fixtures/*.txt

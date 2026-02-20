@@ -4,7 +4,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use skim::prelude::*;
 
 async fn wait_until_done(mut opts: SkimOptions) -> Result<SkimOutput> {
-    opts.cmd = Some(String::from("cat bench_data.txt"));
+    opts.cmd = Some(String::from("cat benches/fixtures/10M.txt"));
     let mut skim = Skim::init(opts, None)?;
     skim.start();
     skim.init_tui()?;
@@ -63,37 +63,11 @@ fn criterion_benchmark(c: &mut Criterion) {
             Ok(skim.output())
         });
     });
-    c.bench_function("frizbee", |b| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        b.to_async(rt).iter(async || {
-            wait_until_done(
-                SkimOptionsBuilder::default()
-                    .query("test")
-                    .algorithm(FuzzyAlgorithm::Frizbee)
-                    .build()
-                    .unwrap(),
-            )
-            .await
-        });
-    });
-    c.bench_function("fzy", |b| {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        b.to_async(rt).iter(async || {
-            wait_until_done(
-                SkimOptionsBuilder::default()
-                    .query("test")
-                    .algorithm(FuzzyAlgorithm::Fzy)
-                    .build()
-                    .unwrap(),
-            )
-            .await
-        });
-    });
 }
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().sample_size(10);
+    config = Criterion::default().sample_size(10).measurement_time(std::time::Duration::from_secs(100));
     targets = criterion_benchmark
 );
 criterion_main!(benches);

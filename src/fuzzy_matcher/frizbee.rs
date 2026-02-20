@@ -13,14 +13,25 @@ const RESPECT_CASE_BONUS: u16 = 10000;
 /// credits to @saghen
 #[derive(Default)]
 pub struct FrizbeeMatcher {
-    /// The case for matching
-    /// Will be translated into a matching_case_bonus
-    pub case: CaseMatching,
+    case: CaseMatching,
+    max_typos: Option<u16>,
+}
+
+impl FrizbeeMatcher {
+    /// Set the max typos to use
+    pub fn max_typos(mut self, typos: Option<usize>) -> Self {
+        self.max_typos = Some(typos.map(|x| x.try_into().unwrap()).unwrap_or(0));
+        self
+    }
+    /// Set the case, will be converted to a matching_case_bonus
+    pub fn case(mut self, case: CaseMatching) -> Self {
+        self.case = case;
+        self
+    }
 }
 
 impl FuzzyMatcher for FrizbeeMatcher {
     fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
-        let max_typos: u16 = pattern.chars().count().saturating_div(4).try_into().unwrap();
         let scoring = Scoring {
             matching_case_bonus: match self.case {
                 CaseMatching::Respect => RESPECT_CASE_BONUS,
@@ -37,14 +48,14 @@ impl FuzzyMatcher for FrizbeeMatcher {
         };
         let mut matcher = SmithWatermanMatcher::new(pattern.as_bytes(), &scoring);
         matcher
-            .match_haystack_indices(choice.as_bytes(), 0, Some(max_typos))
+            .match_haystack_indices(choice.as_bytes(), 0, self.max_typos)
             .and_then(|(m, indices)| {
                 debug!("{choice}: {m} ({})", scoring.matching_case_bonus);
                 if m > scoring.matching_case_bonus.saturating_mul(
                     pattern
                         .chars()
                         .count()
-                        .saturating_sub(max_typos as usize)
+                        .saturating_sub(self.max_typos.unwrap_or(0).into())
                         .try_into()
                         .unwrap(),
                 ) {

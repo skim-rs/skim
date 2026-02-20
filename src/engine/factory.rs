@@ -4,7 +4,7 @@ use crate::engine::exact::{ExactEngine, ExactMatchingParam};
 use crate::engine::fuzzy::{FuzzyAlgorithm, FuzzyEngine};
 use crate::engine::regexp::RegexEngine;
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine, MatchEngineFactory};
+use crate::{CaseMatching, MatchEngine, MatchEngineFactory, Typos};
 use regex::Regex;
 use std::sync::{Arc, LazyLock};
 
@@ -17,6 +17,7 @@ pub struct ExactOrFuzzyEngineFactory {
     exact_mode: bool,
     fuzzy_algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
+    typos: Typos,
 }
 
 impl ExactOrFuzzyEngineFactory {
@@ -26,6 +27,7 @@ impl ExactOrFuzzyEngineFactory {
             exact_mode: false,
             fuzzy_algorithm: FuzzyAlgorithm::SkimV2,
             rank_builder: Default::default(),
+            typos: Typos::Disabled,
         }
     }
 
@@ -44,6 +46,16 @@ impl ExactOrFuzzyEngineFactory {
     /// Sets the rank builder for scoring matches
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
+        self
+    }
+
+    /// Sets the typo tolerance configuration
+    ///
+    /// - `Typos::Disabled`: no typo tolerance
+    /// - `Typos::Smart`: adaptive typo tolerance (pattern_length / 4)
+    /// - `Typos::Fixed(n)`: exactly n typos allowed
+    pub fn typos(mut self, typos: Typos) -> Self {
+        self.typos = typos;
         self
     }
 
@@ -112,6 +124,7 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
                     .query(query)
                     .algorithm(self.fuzzy_algorithm)
                     .case(case)
+                    .typos(self.typos)
                     .rank_builder(self.rank_builder.clone())
                     .build(),
             )

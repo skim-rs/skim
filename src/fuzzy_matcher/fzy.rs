@@ -11,6 +11,17 @@
 //! This separation enables affine gap penalties: a constant cost to open a gap
 //! and a linear cost for extending it, plus a bonus for consecutive matches.
 //!
+//! All scoring uses integer arithmetic with a ×200 scaling factor for performance.
+//! The original fzy float constants map as follows:
+//! - -0.005 → -1
+//! - -0.01  → -2
+//! - 0.6    → 120
+//! - 0.7    → 140
+//! - 0.8    → 160
+//! - 0.9    → 180
+//! - 1.0    → 200
+//! - -1.5   → -300
+//!
 //! # Example:
 //! ```
 //! use skim::fuzzy_matcher::FuzzyMatcher;
@@ -33,37 +44,40 @@ use crate::fuzzy_matcher::util::cheap_matches;
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType};
 
 // ---------------------------------------------------------------------------
-// Score constants (from fzy's config.def.h)
+// Score constants (from fzy's config.def.h, scaled ×200 to integer)
 // ---------------------------------------------------------------------------
-// fzy uses f64 scores internally. We convert to i64 at the boundary by scaling.
 
-const SCORE_MIN: f64 = f64::NEG_INFINITY;
-const SCORE_MAX: f64 = f64::INFINITY;
+/// Sentinel for "impossible" / uninitialized DP cells.
+/// Uses `i64::MIN / 2` so that adding a penalty never overflows.
+const SCORE_MIN: i64 = i64::MIN / 2;
 
-const SCORE_GAP_LEADING: f64 = -0.005;
-const SCORE_GAP_TRAILING: f64 = -0.005;
-const SCORE_GAP_INNER: f64 = -0.01;
+/// Score for an exact-length match (needle.len() == haystack.len()).
+const SCORE_MAX: i64 = i64::MAX / 2;
 
-const SCORE_MATCH_CONSECUTIVE: f64 = 1.0;
-const SCORE_MATCH_SLASH: f64 = 0.9;
-const SCORE_MATCH_WORD: f64 = 0.8;
-const SCORE_MATCH_CAPITAL: f64 = 0.7;
-const SCORE_MATCH_DOT: f64 = 0.6;
+const SCORE_GAP_LEADING: i64 = -1; // -0.005 × 200
+const SCORE_GAP_TRAILING: i64 = -1; // -0.005 × 200
+const SCORE_GAP_INNER: i64 = -2; // -0.01  × 200
 
-/// Maximum haystack length we will score. Longer candidates still match but
-/// receive SCORE_MIN so they sort below reasonably-sized candidates.
+const SCORE_MATCH_CONSECUTIVE: i64 = 200; // 1.0 × 200
+const SCORE_MATCH_SLASH: i64 = 180; // 0.9 × 200
+const SCORE_MATCH_WORD: i64 = 160; // 0.8 × 200
+const SCORE_MATCH_CAPITAL: i64 = 140; // 0.7 × 200
+const SCORE_MATCH_DOT: i64 = 120; // 0.6 × 200
+
+/// Penalty applied when a typo is used (substitution or needle-char deletion).
+const SCORE_TYPO: i64 = -300; // -1.5 × 200
+
+/// Maximum haystack length we will score.
 const MATCH_MAX_LEN: usize = 1024;
+
+/// Conversion factor from internal ×200 scores to skim's ×1000 convention.
+/// internal_score × SCORE_TO_SKIM = skim_score
+const SCORE_TO_SKIM: i64 = 5; // 1000 / 200
 
 // ---------------------------------------------------------------------------
 // Bonus computation
 // ---------------------------------------------------------------------------
 
-/// Classifies a character into one of three bonus groups that determine
-/// what bonus the *next* character receives when it matches.
-///
-/// Group 0 = no special bonus (default / non-word non-separator)
-/// Group 1 = lowercase letter or digit (the "preceding char is alphanumeric" case)
-/// Group 2 = uppercase letter (the "preceding char is upper" case — enables capital bonus)
 #[inline]
 fn bonus_index(ch: char) -> usize {
     if ch.is_ascii_uppercase() {
@@ -75,47 +89,34 @@ fn bonus_index(ch: char) -> usize {
     }
 }
 
-/// Returns the bonus score for matching `ch` when the previous character in
-/// the haystack is `prev_ch`.
-///
-/// The bonus table encodes:
-/// - After a `/`: slash bonus (path separator)
-/// - After `-`, `_`, ` `: word boundary bonus
-/// - After `.`: dot bonus (file extensions)
-/// - Uppercase letter after a lowercase letter: capital/camelCase bonus
 #[inline]
-fn compute_bonus(prev_ch: char, ch: char) -> f64 {
+fn compute_bonus(prev_ch: char, ch: char) -> i64 {
     match bonus_index(ch) {
-        // Non-alphanumeric character being matched — no bonus from context
-        0 => 0.0,
-        // Lowercase / digit being matched
+        0 => 0,
         1 => match prev_ch {
             '/' => SCORE_MATCH_SLASH,
             '-' | '_' | ' ' => SCORE_MATCH_WORD,
             '.' => SCORE_MATCH_DOT,
-            _ => 0.0,
+            _ => 0,
         },
-        // Uppercase letter being matched — same as group 1 but also gets
-        // a capital bonus when preceded by a lowercase letter
         2 => match prev_ch {
             '/' => SCORE_MATCH_SLASH,
             '-' | '_' | ' ' => SCORE_MATCH_WORD,
             '.' => SCORE_MATCH_DOT,
             c if c.is_ascii_lowercase() => SCORE_MATCH_CAPITAL,
-            _ => 0.0,
+            _ => 0,
         },
         _ => unreachable!(),
     }
 }
 
 // ---------------------------------------------------------------------------
-// Core DP matching
+// Core DP matching (no typos)
 // ---------------------------------------------------------------------------
 
-/// Precompute the bonus for each position in the haystack.
-fn precompute_bonus(haystack: &[char]) -> Vec<f64> {
+fn precompute_bonus(haystack: &[char]) -> Vec<i64> {
     let mut bonuses = Vec::with_capacity(haystack.len());
-    let mut prev = '/'; // treat start-of-string like after a path separator
+    let mut prev = '/';
     for &ch in haystack {
         bonuses.push(compute_bonus(prev, ch));
         prev = ch;
@@ -123,29 +124,37 @@ fn precompute_bonus(haystack: &[char]) -> Vec<f64> {
     bonuses
 }
 
-/// Compute the fzy score for `needle` against `haystack`.
-///
-/// Returns `None` if the needle does not match.
-/// When `positions` is `Some`, it will be filled with the matched indices.
+#[inline]
+fn is_match(
+    needle: &[char],
+    haystack: &[char],
+    lower_needle: &[char],
+    lower_haystack: &[char],
+    case_sensitive: bool,
+    i: usize,
+    j: usize,
+) -> bool {
+    if case_sensitive {
+        needle[i] == haystack[j]
+    } else {
+        lower_needle[i] == lower_haystack[j]
+    }
+}
+
+/// Core fzy scoring without typos.
 fn fzy_score(
     needle: &[char],
     haystack: &[char],
     case_sensitive: bool,
     positions: Option<&mut Vec<IndexType>>,
-) -> Option<f64> {
+) -> Option<i64> {
     let n = needle.len();
     let m = haystack.len();
 
-    if n == 0 {
+    if n == 0 || m > MATCH_MAX_LEN || n > m {
         return None;
     }
 
-    if m > MATCH_MAX_LEN || n > m {
-        return None;
-    }
-
-    // Special case: if lengths are equal (and we know it matches from the
-    // cheap_matches pre-check), it must be an exact match.
     if n == m {
         if let Some(pos) = positions {
             pos.clear();
@@ -154,40 +163,33 @@ fn fzy_score(
         return Some(SCORE_MAX);
     }
 
-    // Lowercase versions for case-insensitive comparison
     let lower_needle: Vec<char> = needle.iter().map(|c| c.to_ascii_lowercase()).collect();
     let lower_haystack: Vec<char> = haystack.iter().map(|c| c.to_ascii_lowercase()).collect();
-
     let match_bonus = precompute_bonus(haystack);
 
-    // When we need positions, we must keep the full n×m matrices.
-    // When we only need the score, we can use a rolling 1-row approach.
     if positions.is_some() {
-        // Full matrix approach for position recovery
-        let mut d_matrix: Vec<Vec<f64>> = vec![vec![SCORE_MIN; m]; n];
-        let mut m_matrix: Vec<Vec<f64>> = vec![vec![SCORE_MIN; m]; n];
+        // Full matrix for position recovery
+        let mut d_matrix: Vec<Vec<i64>> = vec![vec![SCORE_MIN; m]; n];
+        let mut m_matrix: Vec<Vec<i64>> = vec![vec![SCORE_MIN; m]; n];
 
-        // Fill row 0 (first needle character)
+        // Row 0
         {
             let mut prev_score = SCORE_MIN;
+            let gap = if n == 1 { SCORE_GAP_TRAILING } else { SCORE_GAP_INNER };
             for j in 0..m {
-                if (case_sensitive && needle[0] == haystack[j])
-                    || (!case_sensitive && lower_needle[0] == lower_haystack[j])
-                {
-                    let score = (j as f64) * SCORE_GAP_LEADING + match_bonus[j];
+                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, 0, j) {
+                    let score = (j as i64) * SCORE_GAP_LEADING + match_bonus[j];
                     d_matrix[0][j] = score;
                     prev_score = score;
                     m_matrix[0][j] = score;
                 } else {
-                    d_matrix[0][j] = SCORE_MIN;
-                    let gap = if n == 1 { SCORE_GAP_TRAILING } else { SCORE_GAP_INNER };
                     prev_score += gap;
                     m_matrix[0][j] = prev_score;
                 }
             }
         }
 
-        // Fill rows 1..n-1
+        // Rows 1..n-1
         for i in 1..n {
             let mut prev_score = SCORE_MIN;
             let gap_score = if i == n - 1 {
@@ -195,23 +197,18 @@ fn fzy_score(
             } else {
                 SCORE_GAP_INNER
             };
-
             for j in 0..m {
-                if (case_sensitive && needle[i] == haystack[j])
-                    || (!case_sensitive && lower_needle[i] == lower_haystack[j])
-                {
+                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, i, j) {
                     let mut score = SCORE_MIN;
                     if j > 0 {
-                        // Previous row, previous column
                         let prev_m = m_matrix[i - 1][j - 1];
                         let prev_d = d_matrix[i - 1][j - 1];
-                        score = f64::max(prev_m + match_bonus[j], prev_d + SCORE_MATCH_CONSECUTIVE);
+                        score = i64::max(prev_m + match_bonus[j], prev_d + SCORE_MATCH_CONSECUTIVE);
                     }
                     d_matrix[i][j] = score;
-                    prev_score = f64::max(score, prev_score + gap_score);
+                    prev_score = i64::max(score, prev_score + gap_score);
                     m_matrix[i][j] = prev_score;
                 } else {
-                    d_matrix[i][j] = SCORE_MIN;
                     prev_score += gap_score;
                     m_matrix[i][j] = prev_score;
                 }
@@ -220,18 +217,15 @@ fn fzy_score(
 
         let final_score = m_matrix[n - 1][m - 1];
 
-        // Backtrace to find optimal match positions
+        // Backtrace
         if let Some(pos) = positions {
             pos.clear();
             pos.resize(n, 0);
-
             let mut match_required = false;
             let mut j = m - 1;
             for i in (0..n).rev() {
                 loop {
                     if d_matrix[i][j] != SCORE_MIN && (match_required || d_matrix[i][j] == m_matrix[i][j]) {
-                        // Check if this was a consecutive match — if so, the
-                        // previous needle char MUST also be a match at j-1.
                         match_required =
                             i > 0 && j > 0 && m_matrix[i][j] == d_matrix[i - 1][j - 1] + SCORE_MATCH_CONSECUTIVE;
                         pos[i] = j;
@@ -259,10 +253,6 @@ fn fzy_score(
             } else {
                 SCORE_GAP_INNER
             };
-
-            // We need the previous row's D and M values. In the rolling approach,
-            // d_row and m_row currently hold the previous row. We overwrite in-place
-            // using prev_d / prev_m to carry the diagonal values.
             let mut prev_d = SCORE_MIN;
             let mut prev_m = SCORE_MIN;
 
@@ -270,18 +260,16 @@ fn fzy_score(
                 let old_d = d_row[j];
                 let old_m = m_row[j];
 
-                if (case_sensitive && needle[i] == haystack[j])
-                    || (!case_sensitive && lower_needle[i] == lower_haystack[j])
-                {
+                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, i, j) {
                     let score = if i == 0 {
-                        (j as f64) * SCORE_GAP_LEADING + match_bonus[j]
+                        (j as i64) * SCORE_GAP_LEADING + match_bonus[j]
                     } else if j > 0 {
-                        f64::max(prev_m + match_bonus[j], prev_d + SCORE_MATCH_CONSECUTIVE)
+                        i64::max(prev_m + match_bonus[j], prev_d + SCORE_MATCH_CONSECUTIVE)
                     } else {
                         SCORE_MIN
                     };
                     d_row[j] = score;
-                    prev_score = f64::max(score, prev_score + gap_score);
+                    prev_score = i64::max(score, prev_score + gap_score);
                     m_row[j] = prev_score;
                 } else {
                     d_row[j] = SCORE_MIN;
@@ -298,17 +286,402 @@ fn fzy_score(
     }
 }
 
-/// Convert fzy's f64 score to skim's i64 score space.
-/// We scale by 1000 to preserve three decimal places of precision.
+// ---------------------------------------------------------------------------
+// Typo-tolerant pre-filter (allocation-free)
+// ---------------------------------------------------------------------------
+
+/// Fast subsequence check allowing up to `max_typos` needle characters to be
+/// unmatched. Returns `true` if the needle can plausibly match the haystack.
+///
+/// Uses a greedy forward scan: for each needle char, try to find it in the
+/// remaining haystack. If not found, consume a typo. If we exceed `max_typos`,
+/// return false.
+///
+/// This is a heuristic pre-filter — it may return true for some candidates
+/// that the full DP will reject, but it will never return false for a valid
+/// match. The key property is that it's O(n + m) with zero allocations.
+///
+/// `lower_pattern` should be the pre-lowercased pattern (avoids repeated
+/// lowercasing of the same pattern across calls). Haystack chars are
+/// lowercased inline.
 #[inline]
-fn f64_to_skim_score(score: f64) -> ScoreType {
+fn can_match_with_typos(
+    choice: &[char],
+    pattern: &[char],
+    lower_pattern: &[char],
+    case_sensitive: bool,
+    max_typos: usize,
+) -> bool {
+    let n = pattern.len();
+    let m = choice.len();
+
+    // Quick length check: we need at least (n - max_typos) haystack chars
+    if n > m + max_typos {
+        return false;
+    }
+
+    let mut typos_used = 0;
+    let mut j = 0; // position in haystack
+
+    for i in 0..n {
+        // Try to find pattern[i] in remaining haystack
+        let saved_j = j;
+        let mut found = false;
+        while j < m {
+            let matches = if case_sensitive {
+                pattern[i] == choice[j]
+            } else {
+                lower_pattern[i] == choice[j].to_ascii_lowercase()
+            };
+            if matches {
+                j += 1;
+                found = true;
+                break;
+            }
+            j += 1;
+        }
+        if !found {
+            // Needle char not found — treat as typo (deletion of this needle char).
+            // Restore j so that subsequent needle chars can still match
+            // remaining haystack characters (needle deletion skips only the
+            // needle char, not haystack chars).
+            j = saved_j;
+            typos_used += 1;
+            if typos_used > max_typos {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+// ---------------------------------------------------------------------------
+// Typo-tolerant scoring with rolling rows
+// ---------------------------------------------------------------------------
+
+/// Thread-local DP buffers to avoid per-call allocation in the typo path.
+#[derive(Debug, Default)]
+struct TypoDpBuffers {
+    /// Per-typo-layer D and M rolling rows: `[t][cur_or_prev][j]`
+    /// Flattened as: `[(t_max+1) * 2 * m_cap]` for D and M each.
+    d_buf: Vec<i64>,
+    m_buf: Vec<i64>,
+    /// For the full-matrix path (positions needed), we store full D and M:
+    /// `[(t_max+1) * n * m]` each.
+    d_full: Vec<i64>,
+    m_full: Vec<i64>,
+}
+
+/// Score-only typo-tolerant fzy matching using rolling rows.
+///
+/// For each typo layer `t` we maintain two rows (current and previous needle row)
+/// of D and M values. This is O((t_max+1) * n * m) time but only
+/// O((t_max+1) * m) space.
+#[allow(clippy::too_many_arguments)]
+fn fzy_score_typos_rolling(
+    needle: &[char],
+    haystack: &[char],
+    lower_needle: &[char],
+    lower_haystack: &[char],
+    match_bonus: &[i64],
+    case_sensitive: bool,
+    max_typos: usize,
+    bufs: &mut TypoDpBuffers,
+) -> Option<i64> {
+    let n = needle.len();
+    let m = haystack.len();
+    let t_max = max_typos;
+
+    // We need two rows (prev, cur) per typo layer for both D and M.
+    // Layout: [(t_max+1) * 2 * m] — row index is (t * 2 + row_parity) * m + j
+    let row_size = m;
+    let layer_size = 2 * row_size;
+    let total = (t_max + 1) * layer_size;
+
+    bufs.d_buf.clear();
+    bufs.d_buf.resize(total, SCORE_MIN);
+    bufs.m_buf.clear();
+    bufs.m_buf.resize(total, SCORE_MIN);
+
+    let d = &mut bufs.d_buf;
+    let m_arr = &mut bufs.m_buf;
+
+    // Index helpers
+    let ri = |t: usize, parity: usize, j: usize| -> usize { t * layer_size + parity * row_size + j };
+
+    for i in 0..n {
+        let cur = i & 1;
+        let prev = 1 - cur;
+        let gap_score = if i == n - 1 {
+            SCORE_GAP_TRAILING
+        } else {
+            SCORE_GAP_INNER
+        };
+
+        for t in 0..=t_max {
+            let mut prev_score = SCORE_MIN;
+
+            for j in 0..m {
+                let matched = if case_sensitive {
+                    needle[i] == haystack[j]
+                } else {
+                    lower_needle[i] == lower_haystack[j]
+                };
+
+                let mut d_val = SCORE_MIN;
+
+                // --- Exact match ---
+                if matched {
+                    if i == 0 {
+                        d_val = (j as i64) * SCORE_GAP_LEADING + match_bonus[j];
+                    } else if j > 0 {
+                        let pm = m_arr[ri(t, prev, j - 1)];
+                        let pd = d[ri(t, prev, j - 1)];
+                        if pm != SCORE_MIN {
+                            d_val = i64::max(d_val, pm + match_bonus[j]);
+                        }
+                        if pd != SCORE_MIN {
+                            d_val = i64::max(d_val, pd + SCORE_MATCH_CONSECUTIVE);
+                        }
+                    }
+                }
+
+                // --- Substitution typo: consume both needle[i] and haystack[j] ---
+                if !matched && t > 0 {
+                    if i == 0 {
+                        d_val = i64::max(d_val, (j as i64) * SCORE_GAP_LEADING + SCORE_TYPO);
+                    } else if j > 0 {
+                        let pm = m_arr[ri(t - 1, prev, j - 1)];
+                        if pm != SCORE_MIN {
+                            d_val = i64::max(d_val, pm + SCORE_TYPO);
+                        }
+                    }
+                }
+
+                d[ri(t, cur, j)] = d_val;
+
+                // --- Compute M from D and gap ---
+                if d_val != SCORE_MIN {
+                    prev_score = i64::max(d_val, prev_score + gap_score);
+                } else {
+                    prev_score += gap_score;
+                }
+
+                // --- Needle deletion: skip needle[i], use a typo ---
+                // M[t][i][j] can come from M[t-1][i-1][j] + SCORE_TYPO
+                if t > 0 {
+                    let del_from = if i == 0 {
+                        // Deleting first needle char
+                        (j as i64) * SCORE_GAP_LEADING + SCORE_TYPO
+                    } else {
+                        let pv = m_arr[ri(t - 1, prev, j)];
+                        if pv == SCORE_MIN { SCORE_MIN } else { pv + SCORE_TYPO }
+                    };
+                    if del_from != SCORE_MIN {
+                        prev_score = i64::max(prev_score, del_from);
+                    }
+                }
+
+                m_arr[ri(t, cur, j)] = prev_score;
+            }
+        }
+    }
+
+    // Find best score across all typo layers
+    let final_row = (n - 1) & 1;
+    let mut best = SCORE_MIN;
+    for t in 0..=t_max {
+        let s = m_arr[ri(t, final_row, m - 1)];
+        if s > best {
+            best = s;
+        }
+    }
+
+    if best == SCORE_MIN { None } else { Some(best) }
+}
+
+/// Full-matrix typo-tolerant scoring for position recovery.
+#[allow(clippy::too_many_arguments)]
+fn fzy_score_typos_full(
+    needle: &[char],
+    haystack: &[char],
+    lower_needle: &[char],
+    lower_haystack: &[char],
+    match_bonus: &[i64],
+    case_sensitive: bool,
+    max_typos: usize,
+    positions: &mut Vec<IndexType>,
+    bufs: &mut TypoDpBuffers,
+) -> Option<i64> {
+    let n = needle.len();
+    let m = haystack.len();
+    let t_max = max_typos;
+
+    let layer_size = n * m;
+    let total = (t_max + 1) * layer_size;
+
+    bufs.d_full.clear();
+    bufs.d_full.resize(total, SCORE_MIN);
+    bufs.m_full.clear();
+    bufs.m_full.resize(total, SCORE_MIN);
+
+    let d_flat = &mut bufs.d_full;
+    let m_flat = &mut bufs.m_full;
+
+    let idx = |t: usize, i: usize, j: usize| -> usize { t * layer_size + i * m + j };
+
+    // Fill DP
+    for t in 0..=t_max {
+        for i in 0..n {
+            let gap_score = if i == n - 1 {
+                SCORE_GAP_TRAILING
+            } else {
+                SCORE_GAP_INNER
+            };
+            let mut prev_score = SCORE_MIN;
+
+            for j in 0..m {
+                let matched = if case_sensitive {
+                    needle[i] == haystack[j]
+                } else {
+                    lower_needle[i] == lower_haystack[j]
+                };
+
+                let mut d_val = SCORE_MIN;
+
+                // Exact match
+                if matched {
+                    if i == 0 {
+                        d_val = (j as i64) * SCORE_GAP_LEADING + match_bonus[j];
+                    } else if j > 0 {
+                        let pm = m_flat[idx(t, i - 1, j - 1)];
+                        let pd = d_flat[idx(t, i - 1, j - 1)];
+                        if pm != SCORE_MIN {
+                            d_val = i64::max(d_val, pm + match_bonus[j]);
+                        }
+                        if pd != SCORE_MIN {
+                            d_val = i64::max(d_val, pd + SCORE_MATCH_CONSECUTIVE);
+                        }
+                    }
+                }
+
+                // Substitution typo
+                if !matched && t > 0 {
+                    if i == 0 {
+                        d_val = i64::max(d_val, (j as i64) * SCORE_GAP_LEADING + SCORE_TYPO);
+                    } else if j > 0 {
+                        let pm = m_flat[idx(t - 1, i - 1, j - 1)];
+                        if pm != SCORE_MIN {
+                            d_val = i64::max(d_val, pm + SCORE_TYPO);
+                        }
+                    }
+                }
+
+                d_flat[idx(t, i, j)] = d_val;
+
+                if d_val != SCORE_MIN {
+                    prev_score = i64::max(d_val, prev_score + gap_score);
+                } else {
+                    prev_score += gap_score;
+                }
+
+                // Needle deletion
+                if t > 0 {
+                    let del_from = if i == 0 {
+                        (j as i64) * SCORE_GAP_LEADING + SCORE_TYPO
+                    } else {
+                        let pv = m_flat[idx(t - 1, i - 1, j)];
+                        if pv == SCORE_MIN { SCORE_MIN } else { pv + SCORE_TYPO }
+                    };
+                    if del_from != SCORE_MIN {
+                        prev_score = i64::max(prev_score, del_from);
+                    }
+                }
+
+                m_flat[idx(t, i, j)] = prev_score;
+            }
+        }
+    }
+
+    // Find best score and typo layer
+    let mut best_score = SCORE_MIN;
+    let mut best_t = 0;
+    for t in 0..=t_max {
+        let s = m_flat[idx(t, n - 1, m - 1)];
+        if s > best_score {
+            best_score = s;
+            best_t = t;
+        }
+    }
+
+    if best_score == SCORE_MIN {
+        return None;
+    }
+
+    // Backtrace for positions
+    positions.clear();
+    let mut cur_t = best_t;
+    let mut j = m - 1;
+    let mut rev_positions: Vec<Option<usize>> = Vec::with_capacity(n);
+
+    for i in (0..n).rev() {
+        loop {
+            let cur_m = m_flat[idx(cur_t, i, j)];
+
+            // Check needle deletion (exact integer comparison — no epsilon needed)
+            if cur_t > 0 {
+                let del_from = if i == 0 {
+                    (j as i64) * SCORE_GAP_LEADING + SCORE_TYPO
+                } else {
+                    let pv = m_flat[idx(cur_t - 1, i - 1, j)];
+                    if pv == SCORE_MIN { SCORE_MIN } else { pv + SCORE_TYPO }
+                };
+                if del_from != SCORE_MIN && cur_m == del_from {
+                    rev_positions.push(None);
+                    cur_t -= 1;
+                    break;
+                }
+            }
+
+            // Check match/substitution at (i, j) (exact integer comparison)
+            let d_val = d_flat[idx(cur_t, i, j)];
+            if d_val != SCORE_MIN && d_val == cur_m {
+                rev_positions.push(Some(j));
+                j = j.saturating_sub(1);
+                break;
+            }
+
+            // Gap — haystack[j] skipped
+            if j == 0 {
+                rev_positions.push(None);
+                break;
+            }
+            j -= 1;
+        }
+    }
+
+    rev_positions.reverse();
+    for p in rev_positions.iter().flatten() {
+        positions.push(*p);
+    }
+
+    Some(best_score)
+}
+
+// ---------------------------------------------------------------------------
+// Score conversion
+// ---------------------------------------------------------------------------
+
+/// Convert internal ×200-scaled integer score to skim's ScoreType (×1000 convention).
+#[inline]
+fn internal_to_skim_score(score: i64) -> ScoreType {
     if score == SCORE_MAX {
-        // Exact match — use a large sentinel
-        i64::MAX / 2
-    } else if score == SCORE_MIN || score.is_nan() {
-        i64::MIN / 2
+        ScoreType::MAX / 2
+    } else if score == SCORE_MIN {
+        ScoreType::MIN / 2
     } else {
-        (score * 1000.0) as ScoreType
+        score * SCORE_TO_SKIM
     }
 }
 
@@ -327,12 +700,18 @@ enum CaseMatching {
 ///
 /// This is a clean reimplementation of the scoring algorithm from
 /// [fzy](https://github.com/jhawthorn/fzy) by John Hawthorn.
+///
+/// Supports optional typo tolerance via [`max_typos`](Self::max_typos).
 #[derive(Debug)]
 pub struct FzyMatcher {
     case: CaseMatching,
     use_cache: bool,
+    max_typos: Option<usize>,
     c_cache: ThreadLocal<RefCell<Vec<char>>>,
     p_cache: ThreadLocal<RefCell<Vec<char>>>,
+    lc_cache: ThreadLocal<RefCell<Vec<char>>>,
+    lp_cache: ThreadLocal<RefCell<Vec<char>>>,
+    typo_bufs: ThreadLocal<RefCell<TypoDpBuffers>>,
 }
 
 impl Default for FzyMatcher {
@@ -340,8 +719,12 @@ impl Default for FzyMatcher {
         Self {
             case: CaseMatching::Ignore,
             use_cache: true,
+            max_typos: None,
             c_cache: ThreadLocal::new(),
             p_cache: ThreadLocal::new(),
+            lc_cache: ThreadLocal::new(),
+            lp_cache: ThreadLocal::new(),
+            typo_bufs: ThreadLocal::new(),
         }
     }
 }
@@ -353,8 +736,7 @@ impl FzyMatcher {
         self
     }
 
-    /// Sets the matcher to use smart case (case-insensitive unless the pattern
-    /// contains an uppercase letter).
+    /// Sets the matcher to use smart case.
     pub fn smart_case(mut self) -> Self {
         self.case = CaseMatching::Smart;
         self
@@ -366,9 +748,18 @@ impl FzyMatcher {
         self
     }
 
-    /// Enables or disables thread-local caching of character buffers.
+    /// Enables or disables thread-local caching.
     pub fn use_cache(mut self, use_cache: bool) -> Self {
         self.use_cache = use_cache;
+        self
+    }
+
+    /// Sets the maximum number of typos allowed during matching.
+    ///
+    /// - `None` (default): strict subsequence matching with no typos.
+    /// - `Some(n)`: allows up to `n` typos.
+    pub fn max_typos(mut self, max_typos: Option<usize>) -> Self {
+        self.max_typos = max_typos;
         self
     }
 
@@ -394,22 +785,77 @@ impl FuzzyMatcher for FzyMatcher {
 
         choice_chars.clear();
         choice_chars.extend(choice.chars());
-
         pattern_chars.clear();
         pattern_chars.extend(pattern.chars());
 
-        // Quick check: does the pattern even appear as a subsequence?
-        cheap_matches(&choice_chars, &pattern_chars, case_sensitive)?;
+        match self.max_typos {
+            None => {
+                cheap_matches(&choice_chars, &pattern_chars, case_sensitive)?;
+                let mut positions = Vec::with_capacity(pattern_chars.len());
+                let s = fzy_score(&pattern_chars, &choice_chars, case_sensitive, Some(&mut positions))?;
+                Some((internal_to_skim_score(s), positions))
+            }
+            Some(max_t) => {
+                // Fast path: try exact subsequence match first
+                if cheap_matches(&choice_chars, &pattern_chars, case_sensitive).is_some() {
+                    let mut positions = Vec::with_capacity(pattern_chars.len());
+                    if let Some(s) = fzy_score(&pattern_chars, &choice_chars, case_sensitive, Some(&mut positions)) {
+                        return Some((internal_to_skim_score(s), positions));
+                    }
+                }
 
-        let mut positions = Vec::with_capacity(pattern_chars.len());
-        let score = fzy_score(&pattern_chars, &choice_chars, case_sensitive, Some(&mut positions))?;
+                if max_t == 0 {
+                    return None;
+                }
 
-        if !self.use_cache {
-            self.c_cache.get().map(|cell| cell.replace(vec![]));
-            self.p_cache.get().map(|cell| cell.replace(vec![]));
+                // Slow path: typo-tolerant matching
+                let n = pattern_chars.len();
+                let m = choice_chars.len();
+
+                if n == 0 || m > MATCH_MAX_LEN || n > m + max_t {
+                    return None;
+                }
+
+                // Compute lowercase pattern (small, fixed size) for prefilter
+                let mut lower_pattern = self.lp_cache.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+                lower_pattern.clear();
+                lower_pattern.extend(pattern_chars.iter().map(|c| c.to_ascii_lowercase()));
+
+                if !can_match_with_typos(&choice_chars, &pattern_chars, &lower_pattern, case_sensitive, max_t) {
+                    return None;
+                }
+
+                // Only compute lowercase choice after prefilter passes
+                let mut lower_choice = self.lc_cache.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+                lower_choice.clear();
+                lower_choice.extend(choice_chars.iter().map(|c| c.to_ascii_lowercase()));
+
+                let match_bonus = precompute_bonus(&choice_chars);
+                let mut bufs = self
+                    .typo_bufs
+                    .get_or(|| RefCell::new(TypoDpBuffers::default()))
+                    .borrow_mut();
+                let mut positions = Vec::with_capacity(n);
+                let s = fzy_score_typos_full(
+                    &pattern_chars,
+                    &choice_chars,
+                    &lower_pattern,
+                    &lower_choice,
+                    &match_bonus,
+                    case_sensitive,
+                    max_t,
+                    &mut positions,
+                    &mut bufs,
+                )?;
+
+                if !self.use_cache {
+                    self.lc_cache.get().map(|cell| cell.replace(vec![]));
+                    self.lp_cache.get().map(|cell| cell.replace(vec![]));
+                }
+
+                Some((internal_to_skim_score(s), positions))
+            }
         }
-
-        Some((f64_to_skim_score(score), positions))
     }
 
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<ScoreType> {
@@ -420,20 +866,73 @@ impl FuzzyMatcher for FzyMatcher {
 
         choice_chars.clear();
         choice_chars.extend(choice.chars());
-
         pattern_chars.clear();
         pattern_chars.extend(pattern.chars());
 
-        cheap_matches(&choice_chars, &pattern_chars, case_sensitive)?;
+        match self.max_typos {
+            None => {
+                cheap_matches(&choice_chars, &pattern_chars, case_sensitive)?;
+                let s = fzy_score(&pattern_chars, &choice_chars, case_sensitive, None)?;
+                Some(internal_to_skim_score(s))
+            }
+            Some(max_t) => {
+                // Fast path: try exact subsequence match first
+                if cheap_matches(&choice_chars, &pattern_chars, case_sensitive).is_some()
+                    && let Some(s) = fzy_score(&pattern_chars, &choice_chars, case_sensitive, None)
+                {
+                    return Some(internal_to_skim_score(s));
+                }
 
-        let score = fzy_score(&pattern_chars, &choice_chars, case_sensitive, None)?;
+                if max_t == 0 {
+                    return None;
+                }
 
-        if !self.use_cache {
-            self.c_cache.get().map(|cell| cell.replace(vec![]));
-            self.p_cache.get().map(|cell| cell.replace(vec![]));
+                // Slow path: typo-tolerant matching
+                let n = pattern_chars.len();
+                let m = choice_chars.len();
+
+                if n == 0 || m > MATCH_MAX_LEN || n > m + max_t {
+                    return None;
+                }
+
+                // Compute lowercase pattern (small, fixed size) for prefilter
+                let mut lower_pattern = self.lp_cache.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+                lower_pattern.clear();
+                lower_pattern.extend(pattern_chars.iter().map(|c| c.to_ascii_lowercase()));
+
+                if !can_match_with_typos(&choice_chars, &pattern_chars, &lower_pattern, case_sensitive, max_t) {
+                    return None;
+                }
+
+                // Only compute lowercase choice after prefilter passes
+                let mut lower_choice = self.lc_cache.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+                lower_choice.clear();
+                lower_choice.extend(choice_chars.iter().map(|c| c.to_ascii_lowercase()));
+
+                let match_bonus = precompute_bonus(&choice_chars);
+                let mut bufs = self
+                    .typo_bufs
+                    .get_or(|| RefCell::new(TypoDpBuffers::default()))
+                    .borrow_mut();
+                let s = fzy_score_typos_rolling(
+                    &pattern_chars,
+                    &choice_chars,
+                    &lower_pattern,
+                    &lower_choice,
+                    &match_bonus,
+                    case_sensitive,
+                    max_t,
+                    &mut bufs,
+                )?;
+
+                if !self.use_cache {
+                    self.lc_cache.get().map(|cell| cell.replace(vec![]));
+                    self.lp_cache.get().map(|cell| cell.replace(vec![]));
+                }
+
+                Some(internal_to_skim_score(s))
+            }
         }
-
-        Some(f64_to_skim_score(score))
     }
 }
 
@@ -484,10 +983,9 @@ mod tests {
 
     #[test]
     fn test_exact_match_is_max() {
-        // When needle == haystack (ignoring case), fzy returns SCORE_MAX
         let matcher = FzyMatcher::default().ignore_case();
         let score = matcher.fuzzy_match("abc", "abc").unwrap();
-        assert!(score > 1_000_000); // our scaled SCORE_MAX sentinel
+        assert!(score > 1_000_000);
     }
 
     #[test]
@@ -498,7 +996,6 @@ mod tests {
 
     #[test]
     fn test_consecutive_bonus() {
-        // Consecutive matches should score higher than scattered ones
         let matcher = FzyMatcher::default().ignore_case();
         let consecutive = matcher.fuzzy_match("foobar", "foo").unwrap();
         let scattered = matcher.fuzzy_match("fxoxo", "foo").unwrap();
@@ -512,7 +1009,6 @@ mod tests {
 
     #[test]
     fn test_word_boundary_bonus() {
-        // Matching at word boundaries should score higher
         let matcher = FzyMatcher::default().ignore_case();
         let boundary = matcher.fuzzy_match("foo_bar_baz", "fbb").unwrap();
         let inner = matcher.fuzzy_match("fooobarbaz", "fbb").unwrap();
@@ -521,7 +1017,6 @@ mod tests {
 
     #[test]
     fn test_path_separator_bonus() {
-        // Matching after a '/' should get a high bonus
         let matcher = FzyMatcher::default().ignore_case();
         let path = matcher.fuzzy_match("src/lib/foo.rs", "foo").unwrap();
         let no_path = matcher.fuzzy_match("srcxlibxfoo.rs", "foo").unwrap();
@@ -547,11 +1042,8 @@ mod tests {
     #[test]
     fn test_match_quality_ordering() {
         let matcher = FzyMatcher::default();
-        // Case preference
         assert_order(&matcher, "monad", &["monad", "Monad", "mONAD"]);
-        // Initials
         assert_order(&matcher, "ab", &["ab", "aoo_boo", "acb"]);
-        // Shorter is better
         assert_order(&matcher, "ma", &["map", "many", "maximum"]);
     }
 
@@ -567,9 +1059,7 @@ mod tests {
     #[test]
     fn test_smart_case() {
         let matcher = FzyMatcher::default().smart_case();
-        // lowercase pattern → case insensitive
         assert!(matcher.fuzzy_match("FooBar", "foobar").is_some());
-        // uppercase in pattern → case sensitive
         assert!(matcher.fuzzy_match("foobar", "FooBar").is_none());
         assert!(matcher.fuzzy_match("FooBar", "FooBar").is_some());
     }
@@ -583,10 +1073,137 @@ mod tests {
 
     #[test]
     fn test_long_haystack() {
-        // Haystacks longer than MATCH_MAX_LEN should return None from scoring
-        // but still match via cheap_matches (the engine handles this)
         let matcher = FzyMatcher::default().ignore_case();
         let long = "a".repeat(MATCH_MAX_LEN + 1);
         assert_eq!(None, matcher.fuzzy_match(&long, "a"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Typo-tolerant matching tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_typo_no_typos_behaves_like_default() {
+        let strict = FzyMatcher::default().ignore_case();
+        let typo0 = FzyMatcher::default().ignore_case().max_typos(Some(0));
+
+        assert!(strict.fuzzy_match("axbycz", "abc").is_some());
+        assert!(typo0.fuzzy_match("axbycz", "abc").is_some());
+
+        assert!(strict.fuzzy_match("abc", "abx").is_none());
+        assert!(typo0.fuzzy_match("abc", "abx").is_none());
+    }
+
+    #[test]
+    fn test_typo_substitution_single() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        assert!(matcher.fuzzy_match("abc", "abx").is_some(), "substitution: 'x' for 'c'");
+    }
+
+    #[test]
+    fn test_typo_substitution_returns_none_when_too_many_typos() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        assert!(
+            matcher.fuzzy_match("abc", "ayx").is_none(),
+            "2 typos needed but only 1 allowed"
+        );
+
+        let matcher2 = FzyMatcher::default().ignore_case().max_typos(Some(2));
+        assert!(matcher2.fuzzy_match("abc", "ayx").is_some(), "2 typos allowed");
+    }
+
+    #[test]
+    fn test_typo_needle_deletion() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        assert!(matcher.fuzzy_match("abd", "abcd").is_some(), "needle deletion of 'c'");
+
+        let strict = FzyMatcher::default().ignore_case();
+        assert!(strict.fuzzy_match("abd", "abcd").is_none());
+    }
+
+    #[test]
+    fn test_typo_exact_match_scores_higher_than_typo_match() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        let exact = matcher.fuzzy_match("abc", "abc").unwrap();
+        let typo = matcher.fuzzy_match("axc", "abc").unwrap();
+        assert!(exact > typo, "exact ({}) > typo ({})", exact, typo);
+    }
+
+    #[test]
+    fn test_typo_subsequence_beats_typo() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        let subseq = matcher.fuzzy_match("axbycz", "abc").unwrap();
+        let typo = matcher.fuzzy_match("abx", "abc").unwrap();
+        assert!(subseq > typo, "subsequence ({}) > typo ({})", subseq, typo);
+    }
+
+    #[test]
+    fn test_typo_indices_substitution() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        let result = matcher.fuzzy_indices("abx", "abc");
+        assert!(result.is_some());
+        let (_, indices) = result.unwrap();
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_typo_indices_needle_deletion() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        let result = matcher.fuzzy_indices("abd", "abcd");
+        assert!(result.is_some());
+        let (_, indices) = result.unwrap();
+        // 'a'→0, 'b'→1, 'c' deleted (no index), 'd'→2
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_typo_max_typos_none_is_zero_overhead() {
+        let default = FzyMatcher::default().ignore_case();
+        let explicit_none = FzyMatcher::default().ignore_case().max_typos(None);
+
+        let choices = ["foobar", "axbycz", "src/lib/foo.rs", "FooBarBaz"];
+        let pattern = "foo";
+
+        for choice in &choices {
+            assert_eq!(
+                default.fuzzy_match(choice, pattern),
+                explicit_none.fuzzy_match(choice, pattern),
+                "max_typos(None) should match default for '{}'",
+                choice
+            );
+        }
+    }
+
+    #[test]
+    fn test_typo_realistic_filename() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        let result = matcher.fuzzy_match("controller", "controllr");
+        assert!(
+            result.is_some(),
+            "should match 'controller' with needle 'controllr' (1 typo)"
+        );
+    }
+
+    #[test]
+    fn test_typo_two_typos() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(2));
+        assert!(matcher.fuzzy_match("abc", "xyz").is_none());
+        assert!(matcher.fuzzy_match("abc", "axz").is_some());
+    }
+
+    #[test]
+    fn test_typo_empty_pattern() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        assert_eq!(None, matcher.fuzzy_match("abc", ""));
+    }
+
+    #[test]
+    fn test_typo_pattern_longer_than_haystack() {
+        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+        assert!(matcher.fuzzy_match("ab", "abc").is_some(), "delete 'c' from needle");
+        assert!(matcher.fuzzy_match("a", "abc").is_none());
+
+        let matcher2 = FzyMatcher::default().ignore_case().max_typos(Some(2));
+        assert!(matcher2.fuzzy_match("a", "abc").is_some());
     }
 }

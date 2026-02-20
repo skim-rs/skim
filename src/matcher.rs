@@ -107,6 +107,7 @@ impl Matcher {
             let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
                 .fuzzy_algorithm(options.algorithm)
                 .exact_mode(options.exact)
+                .typos(options.typos)
                 .rank_builder(rank_builder)
                 .build();
 

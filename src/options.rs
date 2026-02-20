@@ -20,13 +20,34 @@ use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
 use crate::tui::statusline::InfoDisplay;
 use crate::util::read_file_lines;
-use crate::{CaseMatching, FuzzyAlgorithm, Selector};
+use crate::{CaseMatching, FuzzyAlgorithm, Selector, Typos};
 
 #[cfg(feature = "cli")]
 /// Custom value parser for delimiter that handles escape sequences
 fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
     let unescaped = crate::util::unescape_delimiter(s);
     Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {}", e))
+}
+
+#[cfg(feature = "cli")]
+/// Custom value parser for typo tolerance
+///
+/// - `"smart"` → `Typos::Smart` (adaptive: pattern_length / 4)
+/// - `"disabled"` → `Typos::Disabled`
+/// - `"N"` (N >= 0) → `Typos::Fixed(N)`
+fn parse_typos(s: &str) -> Result<Typos, String> {
+    if s.eq_ignore_ascii_case("smart") {
+        Ok(Typos::Smart)
+    } else if s.eq_ignore_ascii_case("disabled") {
+        Ok(Typos::Disabled)
+    } else {
+        s.parse::<usize>().map(Typos::from).map_err(|_| {
+            format!(
+                "Invalid typos value '{}': expected 'smart', 'disabled' or a non-negative integer",
+                s
+            )
+        })
+    }
 }
 
 /// sk - fuzzy finder in Rust
@@ -165,6 +186,18 @@ pub struct SkimOptions {
         arg(long, default_value = "smart", value_enum, help_heading = "Search")
     )]
     pub case: CaseMatching,
+
+    /// Enable typo-tolerant matching
+    ///
+    /// When passed without a value (`--typos`), uses adaptive formula (pattern_length / 4).
+    /// When passed with a value (e.g. `--typos=2`), uses that exact number as the
+    /// maximum allowed typos. `--typos=0` explicitly disables typo tolerance.
+    /// Applies to both fzy and frizbee matchers.
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "disabled", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, help_heading = "Search")
+    )]
+    pub typos: Typos,
 
     /// Normalize unicode characters
     ///
@@ -934,6 +967,7 @@ impl Default for SkimOptions {
             regex: Default::default(),
             algorithm: Default::default(),
             case: Default::default(),
+            typos: Typos::Disabled,
             normalize: false,
             bind: Default::default(),
             multi: Default::default(),
