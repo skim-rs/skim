@@ -280,7 +280,7 @@ where
     }
 
     /// Checks read-0 select-1, filter, and sync to wait and returns whether or not we should enter
-    fn should_enter(&mut self) -> bool {
+    pub fn should_enter(&mut self) -> bool {
         let reader_control = self
             .reader_control
             .as_ref()
