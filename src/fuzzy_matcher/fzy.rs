@@ -957,7 +957,6 @@ pub fn fuzzy_match(choice: &str, pattern: &str) -> Option<ScoreType> {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use crate::fuzzy_matcher::util::{assert_order, wrap_matches};
