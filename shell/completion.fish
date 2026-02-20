@@ -15,10 +15,12 @@ complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
 complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t'Original skim fuzzy matching algorithm (v1)'
 skim_v2\t'Improved skim fuzzy matching algorithm (v2, default)'
 clangd\t'Clangd fuzzy matching algorithm'
+fzy\t'Fzy matching algorithm (https://github.com/jhawthorn/fzy)'
 frizbee\t'Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"
+complete -c sk -l typos -d 'Enable typo-tolerant matching' -r
 complete -c sk -l split-match -d 'Enable split matching and set delimiter' -r
 complete -c sk -s b -l bind -d 'Comma separated list of bindings' -r
 complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode' -r

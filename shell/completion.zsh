@@ -26,10 +26,12 @@ _sk() {
 '--algo=[Fuzzy matching algorithm]:ALGORITHM:((skim_v1\:"Original skim fuzzy matching algorithm (v1)"
 skim_v2\:"Improved skim fuzzy matching algorithm (v2, default)"
 clangd\:"Clangd fuzzy matching algorithm"
+fzy\:"Fzy matching algorithm (https\://github.com/jhawthorn/fzy)"
 frizbee\:"Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
+'--typos=[Enable typo-tolerant matching]::TYPOS:_default' \
 '--split-match=[Enable split matching and set delimiter]::SPLIT_MATCH:_default' \
 '*-b+[Comma separated list of bindings]::BIND:_default' \
 '*--bind=[Comma separated list of bindings]::BIND:_default' \
