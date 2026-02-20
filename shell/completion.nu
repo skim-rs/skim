@@ -46,6 +46,7 @@ module completions {
     --algo: string@"nu-complete sk algorithm" # Fuzzy matching algorithm
     --case: string@"nu-complete sk case" # Case sensitivity
     --typos: string           # Enable typo-tolerant matching
+    --no-typos                # Disable typo-resistant matching
     --normalize               # Normalize unicode characters
     --split-match: string     # Enable split matching and set delimiter
     --bind(-b): string        # Comma separated list of bindings

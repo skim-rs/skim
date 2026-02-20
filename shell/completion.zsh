@@ -126,6 +126,7 @@ zsh\:"Zsh"))' \
 '-e[Run in exact mode]' \
 '--exact[Run in exact mode]' \
 '--regex[Start in regex mode instead of fuzzy-match]' \
+'(--typos --typos)--no-typos[Disable typo-resistant matching]' \
 '--normalize[Normalize unicode characters]' \
 '-m[Enable multiple selection]' \
 '--multi[Enable multiple selection]' \
