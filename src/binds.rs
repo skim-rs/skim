@@ -151,7 +151,7 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             }
         }
     }
-    let key = parts.last().unwrap_or(&"").to_string().to_lowercase();
+    let key = parts.last().unwrap_or(&"").to_string();
 
     let keycode: KeyCode;
     if key.len() == 1 {
@@ -179,12 +179,14 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             "esc" => KeyCode::Esc,
             "home" => KeyCode::Home,
             "end" => KeyCode::End,
-            "pgup" | "page-up" => KeyCode::PageUp,
-            "pgdown" | "page-down" => KeyCode::PageDown,
+            "pgup" => KeyCode::PageUp,
+            "pgdown" => KeyCode::PageDown,
             "change" => KeyCode::F(255),
             s => return Err(eyre!("Unknown key {}", s)),
         }
     }
+
+    debug!("parsed key {keycode:?} and mods {mods:?}");
 
     Ok(KeyEvent::new(keycode, mods))
 }
@@ -254,6 +256,116 @@ mod tests {
                 Reload(None),
                 IfQueryEmpty("reload".into(), Some("up".into())),
             ]
+        );
+    }
+    #[test]
+    fn test_parse_key() {
+        assert_eq!(
+            parse_key("a").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty())
+        );
+
+        assert_eq!(
+            parse_key("A").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::SHIFT)
+        );
+
+        assert_eq!(
+            parse_key("alt-a").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT)
+        );
+
+        assert_eq!(
+            parse_key("alt-A").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT | KeyModifiers::SHIFT)
+        );
+        assert_eq!(
+            parse_key("alt-shift-a").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT | KeyModifiers::SHIFT)
+        );
+
+        assert_eq!(
+            parse_key("ctrl-a").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL)
+        );
+
+        assert_eq!(
+            parse_key("ctrl-A").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+        );
+        assert_eq!(
+            parse_key("ctrl-shift-a").unwrap(),
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+        );
+
+        assert_eq!(
+            parse_key("f10").unwrap(),
+            KeyEvent::new(KeyCode::F(10), KeyModifiers::empty())
+        );
+
+        assert_eq!(
+            parse_key("space").unwrap(),
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("enter").unwrap(),
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("bspace").unwrap(),
+            KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("bs").unwrap(),
+            KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("up").unwrap(),
+            KeyEvent::new(KeyCode::Up, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("down").unwrap(),
+            KeyEvent::new(KeyCode::Down, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("left").unwrap(),
+            KeyEvent::new(KeyCode::Left, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("right").unwrap(),
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("tab").unwrap(),
+            KeyEvent::new(KeyCode::Tab, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("btab").unwrap(),
+            KeyEvent::new(KeyCode::BackTab, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("esc").unwrap(),
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("home").unwrap(),
+            KeyEvent::new(KeyCode::Home, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("end").unwrap(),
+            KeyEvent::new(KeyCode::End, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("pgup").unwrap(),
+            KeyEvent::new(KeyCode::PageUp, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("pgdown").unwrap(),
+            KeyEvent::new(KeyCode::PageDown, KeyModifiers::empty())
+        );
+        assert_eq!(
+            parse_key("change").unwrap(),
+            KeyEvent::new(KeyCode::F(255), KeyModifiers::empty())
         );
     }
 }

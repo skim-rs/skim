@@ -94,7 +94,7 @@ const KEYS_SS: &str = "
 * alt-down
 * alt-left
 * alt-right
-* alt-enter   (alt-ctrl-m)
+* alt-enter
 * alt-space
 * alt-bspace  (alt-bs)
 * alt-/
@@ -108,8 +108,8 @@ const KEYS_SS: &str = "
 * right
 * home
 * end
-* pgup        (page-up)
-* pgdn        (page-down)
+* pgup
+* pgdn
 * shift-up
 * shift-down
 * shift-left
