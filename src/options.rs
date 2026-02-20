@@ -195,9 +195,16 @@ pub struct SkimOptions {
     /// Applies to both fzy and frizbee matchers.
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_value = "disabled", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, help_heading = "Search")
+        arg(long, default_value = "smart", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, overrides_with = "no_typos", help_heading = "Search")
     )]
     pub typos: Typos,
+
+    /// Disable typo-resistant matching
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, conflicts_with = "typos", conflicts_with = "typos", help_heading = "Search")
+    )]
+    pub no_typos: bool,
 
     /// Normalize unicode characters
     ///
@@ -968,6 +975,7 @@ impl Default for SkimOptions {
             algorithm: Default::default(),
             case: Default::default(),
             typos: Typos::Disabled,
+            no_typos: false,
             normalize: false,
             bind: Default::default(),
             multi: Default::default(),
@@ -1134,6 +1142,9 @@ impl SkimOptions {
         }
         if self.no_info {
             self.info = InfoDisplay::Hidden;
+        }
+        if self.no_typos {
+            self.typos = Typos::Disabled;
         }
 
         self
