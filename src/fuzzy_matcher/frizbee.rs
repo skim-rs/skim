@@ -1,5 +1,5 @@
 //! Matcher using https://crates.io/crates/frizbee
-use frizbee::{Scoring, smith_waterman::simd::SmithWatermanMatcher};
+use frizbee::{Scoring, smith_waterman::SmithWatermanMatcher};
 
 use crate::{
     CaseMatching,

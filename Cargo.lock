@@ -903,9 +903,9 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "frizbee"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e18c9ce192254be384afc9266228d57adf987a893a0dd61d049b1fca489c2e61"
+checksum = "c33cbad3236f3b874947f231467ea0b463a38eac118e9ec6ba62a52060fa12ee"
 dependencies = [
  "itertools 0.14.0",
  "raw-cpuid",
