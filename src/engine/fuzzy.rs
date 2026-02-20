@@ -3,10 +3,12 @@ use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, skim::SkimMatcherV2};
+use crate::fuzzy_matcher::{
+    FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2,
+};
 
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine};
+use crate::{CaseMatching, MatchEngine, Typos};
 use crate::{MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
@@ -22,6 +24,8 @@ pub enum FuzzyAlgorithm {
     SkimV2,
     /// Clangd fuzzy matching algorithm
     Clangd,
+    /// Fzy matching algorithm (https://github.com/jhawthorn/fzy)
+    Fzy,
     /// Frizbee matching algorithm, typo resistant
     /// Will fallback to SkimV2 if the feature is not enabled
     Frizbee,
@@ -37,6 +41,11 @@ pub struct FuzzyEngineBuilder {
     case: CaseMatching,
     algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
+    /// Typo tolerance configuration:
+    /// - `Typos::Disabled`: no typo tolerance
+    /// - `Typos::Smart`: adaptive (pattern_length / 4)
+    /// - `Typos::Fixed(n)`: exactly n typos allowed
+    typos: Typos,
 }
 
 impl FuzzyEngineBuilder {
@@ -60,11 +69,30 @@ impl FuzzyEngineBuilder {
         self
     }
 
+    pub fn typos(mut self, typos: Typos) -> Self {
+        self.typos = typos;
+        self
+    }
+
+    /// Compute the effective max_typos for the given query.
+    ///
+    /// - `Typos::Disabled` → `None` (no typo tolerance)
+    /// - `Typos::Smart` → adaptive: `Some(query.chars().count() / 4)`
+    /// - `Typos::Fixed(n)` → `Some(n)`
+    fn effective_max_typos(&self) -> Option<usize> {
+        match self.typos {
+            Typos::Disabled => None,
+            Typos::Smart => Some(self.query.chars().count().saturating_div(4)),
+            Typos::Fixed(n) => Some(n),
+        }
+    }
+
     #[allow(deprecated)]
     pub fn build(self) -> FuzzyEngine {
         use crate::fuzzy_matcher::skim::SkimMatcher;
         #[allow(unused_mut)]
         let mut algorithm = self.algorithm;
+        let max_typos = self.effective_max_typos();
         let matcher: Box<dyn FuzzyMatcher> = match algorithm {
             FuzzyAlgorithm::SkimV1 => {
                 debug!("Initialized SkimV1 algorithm");
@@ -90,7 +118,17 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
-            FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher { case: self.case }),
+            FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher::default().case(self.case).max_typos(max_typos)),
+            FuzzyAlgorithm::Fzy => {
+                let matcher = FzyMatcher::default().max_typos(max_typos);
+                let matcher = match self.case {
+                    CaseMatching::Respect => matcher.respect_case(),
+                    CaseMatching::Ignore => matcher.ignore_case(),
+                    CaseMatching::Smart => matcher.smart_case(),
+                };
+                debug!("Initialized Fzy algorithm (max_typos: {:?})", max_typos);
+                Box::new(matcher)
+            }
         };
 
         FuzzyEngine {

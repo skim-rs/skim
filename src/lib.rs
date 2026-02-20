@@ -252,6 +252,29 @@ pub enum CaseMatching {
     Smart,
 }
 
+/// Typo tolerance configuration for fuzzy matching
+///
+/// Controls how many character mismatches (typos) are allowed when matching.
+#[derive(Eq, PartialEq, Debug, Copy, Clone, Default)]
+pub enum Typos {
+    /// No typo tolerance — query must match exactly
+    #[default]
+    Disabled,
+    /// Adaptive typo tolerance — allows `pattern_length / 4` typos
+    Smart,
+    /// Fixed typo tolerance — allows exactly `n` typos
+    Fixed(usize),
+}
+
+impl From<usize> for Typos {
+    fn from(n: usize) -> Self {
+        match n {
+            0 => Typos::Disabled,
+            n => Typos::Fixed(n),
+        }
+    }
+}
+
 /// Represents the range of a match in an item
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum MatchRange {
