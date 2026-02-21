@@ -1,3 +1,5 @@
+use regex::Regex;
+
 use crate::engine::all::MatchAllEngine;
 use crate::engine::andor::{AndEngine, OrEngine};
 use crate::engine::exact::{ExactEngine, ExactMatchingParam};
@@ -5,7 +7,9 @@ use crate::engine::fuzzy::{FuzzyAlgorithm, FuzzyEngine};
 use crate::engine::regexp::RegexEngine;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, Typos};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+static RE_OR_WITH_SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" *\|+ *").unwrap());
 
 //------------------------------------------------------------------------------
 // Exact engine factory
@@ -143,43 +147,39 @@ impl AndOrEngineFactory {
         }
     }
 
-    // we want to treat `\ ` as plain white space
-    // regex crate doesn't support look around, so I use a lazy workaround
-    // that replace `\ ` with `\0` ahead of split and replace it back afterwards
-    fn parse_or(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
+    fn parse_andor(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
         if query.trim().is_empty() {
-            self.inner.create_engine_with_case(query, case)
-        } else {
-            let engines = self
-                .mask_escape_space(query)
-                .split('|')
-                .filter_map(|q| {
-                    let term = q.trim();
-                    if term.is_empty() {
-                        return None;
-                    }
-                    Some(self.parse_and(term, case))
-                })
-                .collect();
-            Box::new(OrEngine::builder().engines(engines).build())
+            return self.inner.create_engine_with_case(query, case);
         }
-    }
-
-    fn parse_and(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
-        let engines = query
+        let and_engines = RE_OR_WITH_SPACES
+            .replace_all(&self.mask_escape_space(query), "|")
             .split(' ')
-            .filter_map(|q| {
-                let term = q.trim();
-                if term.is_empty() {
+            .filter_map(|and_term| {
+                if and_term.is_empty() {
                     return None;
                 }
-                Some(
-                    self.inner
-                        .create_engine_with_case(&self.unmask_escape_space(term), case),
-                )
+                let or_engines = and_term
+                    .split('|')
+                    .filter_map(|term| {
+                        if term.is_empty() {
+                            return None;
+                        }
+                        debug!("Creating Or engine for {term}");
+                        Some(
+                            self.inner
+                                .create_engine_with_case(&self.unmask_escape_space(term), case),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                debug!("Building or matcher engine from Ors");
+                if or_engines.len() == 1 {
+                    return Some(or_engines.into_iter().next().unwrap());
+                }
+                Some(Box::new(OrEngine::builder().engines(or_engines).build()) as Box<dyn MatchEngine>)
             })
             .collect();
-        Box::new(AndEngine::builder().engines(engines).build())
+        debug!("Creating and matcher engine from Ors");
+        Box::new(AndEngine::builder().engines(and_engines).build())
     }
 
     fn mask_escape_space(&self, string: &str) -> String {
@@ -193,7 +193,7 @@ impl AndOrEngineFactory {
 
 impl MatchEngineFactory for AndOrEngineFactory {
     fn create_engine_with_case(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
-        self.parse_or(query, case)
+        self.parse_andor(query, case)
     }
 }
 
@@ -269,10 +269,16 @@ mod test {
         let x = and_or_factory.create_engine("'abc | def ^gh ij | kl mn");
         assert_eq!(
             format!("{x}"),
-            "(Or: (And: (Exact|(?i)abc)), (And: (Fuzzy: def), (Exact|(?i)^gh), (Fuzzy: ij)), (And: (Fuzzy: kl), (Fuzzy: mn)))"
+            "(And: (Or: (Exact|(?i)abc), (Fuzzy: def)), (Exact|(?i)^gh), (Or: (Fuzzy: ij), (Fuzzy: kl)), (Fuzzy: mn))"
         );
 
         let x = regex_factory.create_engine("'abc | def ^gh ij | kl mn");
         assert_eq!(format!("{x}"), "(Regex: 'abc | def ^gh ij | kl mn)");
+
+        let x = and_or_factory.create_engine("readme .md$ | .markdown$");
+        assert_eq!(
+            format!("{x}"),
+            "(And: (Fuzzy: readme), (Or: (Exact|(?i)\\.md$), (Exact|(?i)\\.markdown$)))"
+        );
     }
 }

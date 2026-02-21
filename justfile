@@ -13,6 +13,7 @@ changelog version:
 
 release version: (bump-version version) generate-files (changelog version) test
     cargo generate-lockfile
+    echo '{{ version }}' > shell/version.txt
     git add CHANGELOG.md Cargo.lock Cargo.toml man/ shell/
     git commit -m 'release: v{{ version }}'
     git tag 'v{{ version }}'
