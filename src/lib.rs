@@ -31,6 +31,7 @@ use std::borrow::Cow;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use crate::fuzzy_matcher::MatchIndices;
 use ratatui::{
     style::Style,
     text::{Line, Span},
@@ -97,7 +98,7 @@ pub enum Matches {
     #[default]
     None,
     /// Matches at specific character indices
-    CharIndices(Vec<usize>),
+    CharIndices(MatchIndices),
     /// Matches in a character range (start, end)
     CharRange(usize, usize),
     /// Matches in a byte range (start, end)
@@ -281,7 +282,7 @@ pub enum MatchRange {
     /// Range of bytes (start, end)
     ByteRange(usize, usize),
     /// Individual character indices that matched
-    Chars(Vec<usize>),
+    Chars(MatchIndices),
 }
 
 /// Rank tuple used for sorting match results
@@ -300,7 +301,7 @@ pub struct MatchResult {
 impl MatchResult {
     #[must_use]
     /// Converts the match range to character indices
-    pub fn range_char_indices(&self, text: &str) -> Vec<usize> {
+    pub fn range_char_indices(&self, text: &str) -> MatchIndices {
         match &self.matched_range {
             &MatchRange::ByteRange(start, end) => {
                 let first = text[..start].chars().count();
@@ -316,6 +317,12 @@ impl MatchResult {
 pub trait MatchEngine: Sync + Send + Display {
     /// Matches an item against the query, returning a result if matched
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult>;
+
+    /// Match a batch of items. Default implementation calls `match_item` per item.
+    /// Engines may override this for batch-optimized processing (e.g. SIMD).
+    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
+        items.iter().map(|item| self.match_item(item.as_ref())).collect()
+    }
 }
 
 /// Factory for creating match engines

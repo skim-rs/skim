@@ -24,7 +24,7 @@ use thread_local::ThreadLocal;
 
 use super::skim::Movement::{Match, Skip};
 use super::util::{char_equal, cheap_matches};
-use super::{FuzzyMatcher, IndexType, ScoreType};
+use super::{FuzzyMatcher, IndexType, MatchIndices, ScoreType};
 
 const BONUS_MATCHED: ScoreType = 4;
 const BONUS_CASE_MATCH: ScoreType = 4;
@@ -49,8 +49,8 @@ pub struct SkimMatcher {}
 ///
 /// V1 algorithm is deprecated, checkout `FuzzyMatcherV2`
 impl FuzzyMatcher for SkimMatcher {
-    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
-        fuzzy_indices(choice, pattern)
+    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
+        fuzzy_indices(choice, pattern).map(|(s, v)| (s, MatchIndices::from(v)))
     }
 
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<ScoreType> {
@@ -1033,8 +1033,9 @@ impl SkimMatcherV2 {
 }
 
 impl FuzzyMatcher for SkimMatcherV2 {
-    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
+    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
         self.fuzzy(choice, pattern, true)
+            .map(|(s, v)| (s, MatchIndices::from(v)))
     }
 
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<ScoreType> {

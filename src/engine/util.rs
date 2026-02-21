@@ -1,3 +1,4 @@
+use crate::fuzzy_matcher::MatchIndices;
 use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
 
@@ -26,7 +27,7 @@ pub fn normalize_with_char_mapping(s: &str) -> (String, Vec<usize>) {
 ///
 /// Given indices into a normalized string and the char mapping from normalize_with_char_mapping,
 /// returns the corresponding indices in the original string.
-pub fn map_char_indices_to_original(normalized_indices: &[usize], char_mapping: &[usize]) -> Vec<usize> {
+pub fn map_char_indices_to_original(normalized_indices: &[usize], char_mapping: &[usize]) -> MatchIndices {
     normalized_indices
         .iter()
         .filter_map(|&idx| char_mapping.get(idx).copied())

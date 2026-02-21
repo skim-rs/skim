@@ -172,38 +172,29 @@ impl Matcher {
         trace!("matcher start, total: {}", items.len());
 
         thread_pool.spawn(move || {
+            // Simpler parallel iteration: process items in parallel and check interrupt
+            // per-item. Using per-item accounting avoids relying on chunk-based
+            // combinators that aren't available across rayon versions.
             let matched_items: Vec<MatchedItem> = items
                 .into_par_iter()
-                .chunks(8196)
-                .take_any_while(|_chunk| {
+                .filter_map(|item| {
                     if interrupt.load(Ordering::Relaxed) {
-                        return false;
+                        // If interrupted, skip further processing for this item.
+                        return None;
                     }
 
-                    true
+                    // Account this item as processed.
+                    processed.fetch_add(1, Ordering::Relaxed);
+
+                    matcher_engine.match_item(item.as_ref()).map(|match_result| {
+                        matched.fetch_add(1, Ordering::Relaxed);
+                        MatchedItem {
+                            item,
+                            rank: match_result.rank,
+                            matched_range: Some(match_result.matched_range),
+                        }
+                    })
                 })
-                .map(|chunk| {
-                    processed.fetch_add(chunk.len(), Ordering::Relaxed);
-
-                    let matched_chunk: Vec<MatchedItem> = chunk
-                        .into_iter()
-                        .filter_map(|item| {
-                            matcher_engine.match_item(item.as_ref()).map(|match_result| {
-                                // item is Arc but we get &Arc from iterator, so one clone is needed
-                                MatchedItem {
-                                    item,
-                                    rank: match_result.rank,
-                                    matched_range: Some(match_result.matched_range),
-                                }
-                            })
-                        })
-                        .collect();
-
-                    matched.fetch_add(matched_chunk.len(), Ordering::Relaxed);
-
-                    matched_chunk
-                })
-                .flatten_iter()
                 .collect();
 
             if !interrupt.load(Ordering::SeqCst) {

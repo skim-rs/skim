@@ -32,43 +32,44 @@ path = "src/bin/main.rs"
 required-features = ["cli"]
 
 [dependencies]
-assert_enum_variants = "0.1.2"
-clap = { version = "4.5.59" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
-clap_complete = { version = "4.5.55", optional = true }
-clap_mangen = { version = "0.2.29", optional = true }
-derive_builder = "0.20.2"
-env_logger = { version = "0.11.6", optional = true, features = ["humantime"] }
-indexmap = "2.8.0"
-log = "0.4.27"
-nix = { version = "0.31.1", features = ["fs", "poll"] }
-rand = "0.10.0"
-rayon = "1.5.3"
-regex = "1.12.3"
-shell-quote = "0.7.2"
-shlex = { version = "1.1.0", optional = true }
-tokio = { version = "1.48.0", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
-which = "8.0.0"
-ratatui = "0.30.0"
-color-eyre = "0.6.5"
-ansi-to-tui = "8.0.1"
-futures = "0.3.32"
-tokio-util = "0.7.17"
-thiserror = "2.0.17"
-tempfile = "3.25.0"
+assert_enum_variants = "=0.1.2"
+clap = { version = "=4.5.59" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
+clap_complete = { version = "=4.5.55", optional = true }
+clap_mangen = { version = "=0.2.29", optional = true }
+derive_builder = "=0.20.2"
+env_logger = { version = "=0.11.6", optional = true, features = ["humantime"] }
+indexmap = "=2.8.0"
+log = "=0.4.27"
+nix = { version = "=0.31.1", features = ["fs", "poll"] }
+rand = "=0.10.0"
+rayon = "=1.5.3"
+regex = "=1.12.3"
+shell-quote = "=0.7.2"
+shlex = { version = "=1.1.0", optional = true }
+tokio = { version = "=1.48.0", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
+which = "=8.0.0"
+ratatui = "=0.30.0"
+color-eyre = "=0.6.5"
+ansi-to-tui = "=8.0.1"
+futures = "=0.3.32"
+tokio-util = "=0.7.17"
+thiserror = "=2.0.17"
+tempfile = "=3.25.0"
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
-thread_local = "1.1.9"
-clap_complete_nushell = "4.5.10"
-interprocess = { version = "2.3.1", features = ["tokio"] }
-serde = { version = "1.0.228", features = ["derive"] }
-ron = "0.12.0"
-frizbee = { version = "0.8.1" }
-roff = "1.0.0"
-unicode-display-width = "0.3.0"
-unicode-normalization = "0.1.25"
-derive_more = { version = "2.1.1", features = ["debug", "eq"] }
-portable-pty = "0.9.0"
-tui-term = "0.3.1"
-kanal = "0.1.1"
+thread_local = "=1.1.9"
+clap_complete_nushell = "=4.5.10"
+interprocess = { version = "=2.3.1", features = ["tokio"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+ron = "=0.12.0"
+frizbee = { version = "=0.8.1" }
+wide = "=1.1.1"
+roff = "=1.0.0"
+unicode-display-width = "=0.3.0"
+unicode-normalization = "=0.1.25"
+derive_more = { version = "=2.1.1", features = ["debug", "eq"] }
+portable-pty = "=0.9.0"
+tui-term = "=0.3.1"
+kanal = "=0.1.1"
 
 [features]
 default = ["cli"]
@@ -94,4 +95,8 @@ harness = false
 
 [[bench]]
 name = "partial"
+harness = false
+
+[[bench]]
+name = "matcher_micro"
 harness = false

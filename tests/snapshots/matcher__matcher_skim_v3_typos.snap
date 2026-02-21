@@ -1,0 +1,29 @@
+---
+source: tests/matcher.rs
+expression: buf + & cursor_pos
+---
+"  src/helper/item_reader.rs                                                     "
+"  src/skim_item.rs                                                              "
+"  src/fuzzy_matcher/clangd.rs                                                   "
+"  src/fuzzy_matcher/frizbee.rs                                                  "
+"  src/fuzzy_matcher/skim.rs                                                     "
+"  src/fuzzy_matcher/util.rs                                                     "
+"  src/fuzzy_matcher/mod.rs                                                      "
+"  src/item.rs                                                                   "
+"  src/theme.rs                                                                  "
+"  src/tmux.rs                                                                   "
+"  src/tui/header.rs                                                             "
+"  src/tui/statusline.rs                                                         "
+"  src/tui/input.rs                                                              "
+"  src/tui/app.rs                                                                "
+"  src/tui/backend.rs                                                            "
+"  src/tui/event.rs                                                              "
+"  src/tui/preview.rs                                                            "
+"  src/tui/widget.rs                                                             "
+"  src/tui/options.rs                                                            "
+"  src/tui/util.rs                                                               "
+"  src/tui/item_list.rs                                                          "
+"> src/tui/mod.rs                                                                "
+"  49/49                                                                      0/0"
+"> stum                                                                          "
+cursor: (24, 7)

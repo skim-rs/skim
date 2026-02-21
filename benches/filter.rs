@@ -75,6 +75,27 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
+    c.bench_function("filter_10M_skim_v3", |b| {
+        b.iter(|| {
+            let opts = SkimOptionsBuilder::default()
+                .cmd("cat benches/fixtures/10M.txt")
+                .filter("test")
+                .algorithm(FuzzyAlgorithm::SkimV3)
+                .build()?;
+            Skim::run_with(opts, None)
+        });
+    });
+    c.bench_function("filter_10M_skim_v3_typos", |b| {
+        b.iter(|| {
+            let opts = SkimOptionsBuilder::default()
+                .cmd("cat benches/fixtures/10M.txt")
+                .filter("test")
+                .typos(Typos::Smart)
+                .algorithm(FuzzyAlgorithm::SkimV3)
+                .build()?;
+            Skim::run_with(opts, None)
+        });
+    });
 }
 
 fn criterion_benchmark_1m(c: &mut Criterion) {
@@ -146,6 +167,27 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
                 .filter("test")
                 .typos(Typos::Smart)
                 .algorithm(FuzzyAlgorithm::Fzy)
+                .build()?;
+            Skim::run_with(opts, None)
+        });
+    });
+    c.bench_function("filter_1M_skim_v3", |b| {
+        b.iter(|| {
+            let opts = SkimOptionsBuilder::default()
+                .cmd("cat benches/fixtures/1M.txt")
+                .filter("test")
+                .algorithm(FuzzyAlgorithm::SkimV3)
+                .build()?;
+            Skim::run_with(opts, None)
+        });
+    });
+    c.bench_function("filter_1M_skim_v3_typos", |b| {
+        b.iter(|| {
+            let opts = SkimOptionsBuilder::default()
+                .cmd("cat benches/fixtures/1M.txt")
+                .filter("test")
+                .typos(Typos::Smart)
+                .algorithm(FuzzyAlgorithm::SkimV3)
                 .build()?;
             Skim::run_with(opts, None)
         });

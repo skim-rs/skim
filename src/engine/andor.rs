@@ -1,5 +1,7 @@
 use std::fmt::{Display, Error, Formatter};
+use std::sync::Arc;
 
+use crate::fuzzy_matcher::MatchIndices;
 use crate::{MatchEngine, MatchRange, MatchResult, SkimItem};
 
 //------------------------------------------------------------------------------
@@ -33,6 +35,14 @@ impl MatchEngine for OrEngine {
         }
 
         None
+    }
+
+    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
+        if self.engines.len() == 1 {
+            self.engines[0].match_items(items)
+        } else {
+            items.iter().map(|item| self.match_item(item.as_ref())).collect()
+        }
     }
 }
 
@@ -72,14 +82,14 @@ impl AndEngine {
 
     fn merge_matched_items(&self, items: Vec<MatchResult>, text: &str) -> MatchResult {
         let rank = items[0].rank;
-        let mut ranges = vec![];
+        let mut ranges = MatchIndices::new();
         for item in items {
             match item.matched_range {
                 MatchRange::ByteRange(..) => {
                     ranges.extend(item.range_char_indices(text));
                 }
                 MatchRange::Chars(vec) => {
-                    ranges.extend(vec.iter());
+                    ranges.extend(vec.iter().copied());
                 }
             }
         }
@@ -106,6 +116,16 @@ impl MatchEngine for AndEngine {
             None
         } else {
             Some(self.merge_matched_items(results, &item.text()))
+        }
+    }
+
+    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
+        if self.engines.len() == 1 {
+            // Single engine — delegate directly for batch optimization
+            self.engines[0].match_items(items)
+        } else {
+            // Multiple engines — fall back to per-item
+            items.iter().map(|item| self.match_item(item.as_ref())).collect()
         }
     }
 }

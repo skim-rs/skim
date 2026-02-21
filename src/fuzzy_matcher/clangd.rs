@@ -21,7 +21,7 @@
 //! https://github.com/llvm-mirror/clang-tools-extra/blob/master/clangd/FuzzyMatch.cpp
 //! Also check: https://github.com/lewang/flx/issues/98
 use crate::fuzzy_matcher::util::*;
-use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType};
+use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType};
 use std::cell::RefCell;
 use std::cmp::max;
 use thread_local::ThreadLocal;
@@ -100,7 +100,7 @@ impl ClangdMatcher {
 }
 
 impl FuzzyMatcher for ClangdMatcher {
-    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
+    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
         let case_sensitive = self.is_case_sensitive(pattern);
 
         let mut choice_chars = self.c_cache.get_or(|| RefCell::new(Vec::new())).borrow_mut();
@@ -159,7 +159,10 @@ impl FuzzyMatcher for ClangdMatcher {
         }
 
         indices_reverse.reverse();
-        Some((adjust_score(score, num_choice_chars), indices_reverse))
+        Some((
+            adjust_score(score, num_choice_chars),
+            MatchIndices::from(indices_reverse),
+        ))
     }
 
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<ScoreType> {
@@ -199,7 +202,7 @@ impl FuzzyMatcher for ClangdMatcher {
 }
 
 /// fuzzy match `line` with `pattern`, returning the score and indices of matches
-pub fn fuzzy_indices(line: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
+pub fn fuzzy_indices(line: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
     ClangdMatcher::default().ignore_case().fuzzy_indices(line, pattern)
 }
 

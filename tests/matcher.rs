@@ -79,3 +79,9 @@ insta_test!(matcher_fzy, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy", "--no-typ
 insta_test!(matcher_fzy_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy"], {
     @snap;
 });
+insta_test!(matcher_skim_v3, INPUT_ITEMS, &["-q", "stum", "--algo", "skim_v3", "--no-typos"], {
+    @snap;
+});
+insta_test!(matcher_skim_v3_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "skim_v3"], {
+    @snap;
+});

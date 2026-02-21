@@ -41,7 +41,7 @@ use std::cell::RefCell;
 use thread_local::ThreadLocal;
 
 use crate::fuzzy_matcher::util::cheap_matches;
-use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType};
+use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType};
 
 // ---------------------------------------------------------------------------
 // Score constants (from fzy's config.def.h, scaled ×200 to integer)
@@ -777,7 +777,7 @@ impl FzyMatcher {
 }
 
 impl FuzzyMatcher for FzyMatcher {
-    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
+    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
         let case_sensitive = self.is_case_sensitive(pattern);
 
         let mut choice_chars = self.c_cache.get_or(|| RefCell::new(Vec::new())).borrow_mut();
@@ -793,14 +793,14 @@ impl FuzzyMatcher for FzyMatcher {
                 cheap_matches(&choice_chars, &pattern_chars, case_sensitive)?;
                 let mut positions = Vec::with_capacity(pattern_chars.len());
                 let s = fzy_score(&pattern_chars, &choice_chars, case_sensitive, Some(&mut positions))?;
-                Some((internal_to_skim_score(s), positions))
+                Some((internal_to_skim_score(s), MatchIndices::from(positions)))
             }
             Some(max_t) => {
                 // Fast path: try exact subsequence match first
                 if cheap_matches(&choice_chars, &pattern_chars, case_sensitive).is_some() {
                     let mut positions = Vec::with_capacity(pattern_chars.len());
                     if let Some(s) = fzy_score(&pattern_chars, &choice_chars, case_sensitive, Some(&mut positions)) {
-                        return Some((internal_to_skim_score(s), positions));
+                        return Some((internal_to_skim_score(s), MatchIndices::from(positions)));
                     }
                 }
 
@@ -853,7 +853,7 @@ impl FuzzyMatcher for FzyMatcher {
                     self.lp_cache.get().map(|cell| cell.replace(vec![]));
                 }
 
-                Some((internal_to_skim_score(s), positions))
+                Some((internal_to_skim_score(s), MatchIndices::from(positions)))
             }
         }
     }
@@ -942,7 +942,7 @@ impl FuzzyMatcher for FzyMatcher {
 
 /// Fuzzy match `choice` against `pattern` using the fzy algorithm, returning
 /// the score and matched character indices.
-pub fn fuzzy_indices(choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
+pub fn fuzzy_indices(choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
     FzyMatcher::default().ignore_case().fuzzy_indices(choice, pattern)
 }
 
@@ -1052,7 +1052,7 @@ mod tests {
         let result = matcher.fuzzy_indices("Hello, 世界", "H世");
         assert!(result.is_some());
         let (_, indices) = result.unwrap();
-        assert_eq!(indices, vec![0, 7]);
+        assert_eq!(indices.as_slice(), &[0, 7]);
     }
 
     #[test]
@@ -1142,7 +1142,7 @@ mod tests {
         let result = matcher.fuzzy_indices("abx", "abc");
         assert!(result.is_some());
         let (_, indices) = result.unwrap();
-        assert_eq!(indices, vec![0, 1, 2]);
+        assert_eq!(indices.as_slice(), &[0, 1, 2]);
     }
 
     #[test]
@@ -1152,7 +1152,7 @@ mod tests {
         assert!(result.is_some());
         let (_, indices) = result.unwrap();
         // 'a'→0, 'b'→1, 'c' deleted (no index), 'd'→2
-        assert_eq!(indices, vec![0, 1, 2]);
+        assert_eq!(indices.as_slice(), &[0, 1, 2]);
     }
 
     #[test]

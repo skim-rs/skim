@@ -2,10 +2,10 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
+use crate::fuzzy_matcher::MatchIndices;
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use crate::fuzzy_matcher::{
-    FuzzyMatcher, IndexType, ScoreType, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2,
-};
+use crate::fuzzy_matcher::skim_v3::SkimV3Matcher;
+use crate::fuzzy_matcher::{FuzzyMatcher, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2};
 
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, Typos};
@@ -27,8 +27,9 @@ pub enum FuzzyAlgorithm {
     /// Fzy matching algorithm (https://github.com/jhawthorn/fzy)
     Fzy,
     /// Frizbee matching algorithm, typo resistant
-    /// Will fallback to SkimV2 if the feature is not enabled
     Frizbee,
+    /// SkimV3: Needleman-Wunsch + Damerau-Levenshtein variation with affine gaps
+    SkimV3,
 }
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
@@ -129,6 +130,13 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Fzy algorithm (max_typos: {:?})", max_typos);
                 Box::new(matcher)
             }
+            FuzzyAlgorithm::SkimV3 => {
+                let mut matcher = SkimV3Matcher::default();
+                matcher.case = self.case;
+                matcher.allow_typos = !matches!(self.typos, Typos::Disabled);
+                debug!("Initialized SkimV3 algorithm");
+                Box::new(matcher)
+            }
         };
 
         FuzzyEngine {
@@ -151,31 +159,30 @@ impl FuzzyEngine {
     pub fn builder() -> FuzzyEngineBuilder {
         FuzzyEngineBuilder::default()
     }
-
-    fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
-        if pattern.is_empty() {
-            return Some((0, Vec::new()));
-        } else if choice.is_empty() {
-            return None;
-        }
-
-        self.matcher.fuzzy_indices(choice, pattern)
-    }
 }
 
 impl MatchEngine for FuzzyEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
-        // iterate over all matching fields:
-        let mut matched_result = None;
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
+
+        let mut matched_result = None;
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
             let start = min(start, item_text.len());
             let end = min(end, item_text.len());
-            matched_result = self.fuzzy_match(&item_text[start..end], &self.query).map(|(s, vec)| {
+
+            let result = if self.query.is_empty() {
+                Some((0i64, MatchIndices::new()))
+            } else if item_text[start..end].is_empty() {
+                None
+            } else {
+                self.matcher.fuzzy_indices(&item_text[start..end], &self.query)
+            };
+
+            matched_result = result.map(|(s, vec)| {
                 if start != 0 {
-                    let start_char = &item_text[..start].chars().count();
-                    (s, vec.iter().map(|x| x + start_char).collect())
+                    let start_char = item_text[..start].chars().count();
+                    (s, vec.iter().map(|x| x + start_char).collect::<MatchIndices>())
                 } else {
                     (s, vec)
                 }
@@ -186,16 +193,11 @@ impl MatchEngine for FuzzyEngine {
             }
         }
 
-        let (score, matched_range) = matched_result?;
-
-        let begin = *matched_range.first().unwrap_or(&0);
-        let end = *matched_range.last().unwrap_or(&0);
-
+        let (score, matched_indices) = matched_result?;
+        let begin = *matched_indices.first().unwrap_or(&0);
+        let end = *matched_indices.last().unwrap_or(&0);
         let item_len = item_text.len();
-
-        // Use individual character indices for highlighting instead of byte range
-        // This allows each matched character to be highlighted individually
-        let matched_range = MatchRange::Chars(matched_range);
+        let matched_range = MatchRange::Chars(matched_indices);
 
         Some(MatchResult {
             rank: self
@@ -203,6 +205,14 @@ impl MatchEngine for FuzzyEngine {
                 .build_rank(score as i32, begin, end, item_len, item.get_index()),
             matched_range,
         })
+    }
+
+    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
+        // Delegate to per-item matching (default implementation).
+        // SIMD batch score-only can't skip enough full-DP calls to be worthwhile:
+        // with typos enabled, nearly all prefilter-passing items score > 0,
+        // so the 2-pass approach just adds overhead.
+        items.iter().map(|item| self.match_item(item.as_ref())).collect()
     }
 }
 

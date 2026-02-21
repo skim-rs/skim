@@ -3,7 +3,7 @@ use frizbee::{Scoring, smith_waterman::SmithWatermanMatcher};
 
 use crate::{
     CaseMatching,
-    fuzzy_matcher::{FuzzyMatcher, IndexType, ScoreType},
+    fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType},
 };
 
 const RESPECT_CASE_BONUS: u16 = 10000;
@@ -31,7 +31,7 @@ impl FrizbeeMatcher {
 }
 
 impl FuzzyMatcher for FrizbeeMatcher {
-    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, Vec<IndexType>)> {
+    fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
         let scoring = Scoring {
             matching_case_bonus: match self.case {
                 CaseMatching::Respect => RESPECT_CASE_BONUS,
@@ -59,7 +59,7 @@ impl FuzzyMatcher for FrizbeeMatcher {
                         .try_into()
                         .unwrap(),
                 ) {
-                    Some((m.into(), indices))
+                    Some((m.into(), MatchIndices::from(indices)))
                 } else {
                     None
                 }

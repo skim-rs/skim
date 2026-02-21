@@ -74,6 +74,8 @@ pub struct ItemList {
     wrap: bool,
     /// Border type, if borders are enabled
     pub border: Option<BorderType>,
+    /// When true, prepend each item's match score to its display text
+    print_score: bool,
 }
 
 impl Default for ItemList {
@@ -107,6 +109,7 @@ impl Default for ItemList {
             cycle: false,
             wrap: false,
             border: None,
+            print_score: false,
         }
     }
 }
@@ -568,6 +571,7 @@ impl SkimWidget for ItemList {
             cycle: options.cycle,
             wrap: options.wrap_items,
             border: options.border,
+            print_score: options.flags.contains(&crate::options::FeatureFlag::PrintScore),
         }
     }
 
@@ -720,7 +724,7 @@ impl SkimWidget for ItemList {
 
                     // Prepend cursor indicators
                     // Pre-allocate capacity to avoid reallocation
-                    let mut spans: Vec<Span> = Vec::with_capacity(2 + display_line.spans.len());
+                    let mut spans: Vec<Span> = Vec::with_capacity(3 + display_line.spans.len());
                     spans.push(Span::styled(
                         if is_current {
                             selector_icon.to_owned()
@@ -737,6 +741,14 @@ impl SkimWidget for ItemList {
                         },
                         theme.selected,
                     ));
+                    // Optionally prepend the match score for debugging
+                    if this.print_score {
+                        let score = -item.rank[0];
+                        spans.push(Span::styled(
+                            format!("[{score}] "),
+                            if is_current { theme.current } else { theme.normal },
+                        ));
+                    }
                     spans.extend(display_line.spans);
 
                     if *wrap {

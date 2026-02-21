@@ -3,6 +3,7 @@
 //! This engine splits both the query and item text on a delimiter character, then matches
 //! the query parts against the corresponding item parts.
 
+use crate::fuzzy_matcher::MatchIndices;
 use crate::{MatchEngine, MatchEngineFactory, MatchRange, MatchResult, SkimItem};
 use std::fmt::{Display, Error, Formatter};
 
@@ -51,7 +52,7 @@ impl MatchEngine for SplitMatchEngine {
         // Combine the results - use rank from first result (like AndEngine does)
         let rank = before_result.rank;
 
-        let mut combined_indices: Vec<usize> = match before_result.matched_range {
+        let mut combined_indices: MatchIndices = match before_result.matched_range {
             MatchRange::Chars(indices) => indices,
             MatchRange::ByteRange(start, end) => {
                 // Convert byte range to char indices for the before part
@@ -67,7 +68,7 @@ impl MatchEngine for SplitMatchEngine {
         // Offset for the "after" part: delimiter_char_idx + 1 (to skip the delimiter)
         let offset = delimiter_char_idx + 1;
 
-        let after_indices: Vec<usize> = match after_result.matched_range {
+        let after_indices: MatchIndices = match after_result.matched_range {
             MatchRange::Chars(indices) => indices.into_iter().map(|i| i + offset).collect(),
             MatchRange::ByteRange(start, end) => {
                 // Convert byte range to char indices for the after part
