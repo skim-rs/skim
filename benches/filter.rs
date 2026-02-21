@@ -87,6 +87,7 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
+
     c.bench_function("filter_1M_regex", |b| {
         b.iter(|| {
             let opts = SkimOptionsBuilder::default()
@@ -149,16 +150,26 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
+
+    c.bench_function("filter_1M_andor", |b| {
+        b.iter(|| {
+            let opts = SkimOptionsBuilder::default()
+                .cmd("cat benches/fixtures/1M.txt")
+                .filter("boot foo | mnt foo")
+                .build()?;
+            Skim::run_with(opts, None)
+        });
+    });
 }
 
 criterion_group!(
     name = benches_10m;
-    config = Criterion::default().sample_size(10).measurement_time(std::time::Duration::from_secs(100));
+    config = Criterion::default().sample_size(10);
     targets = criterion_benchmark_10m
 );
 criterion_group!(
     name = benches_1m;
-    config = Criterion::default().sample_size(100).measurement_time(std::time::Duration::from_secs(100));
+    config = Criterion::default().sample_size(100);
     targets = criterion_benchmark_1m
 );
 criterion_main!(benches_1m, benches_10m);

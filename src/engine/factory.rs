@@ -5,11 +5,8 @@ use crate::engine::fuzzy::{FuzzyAlgorithm, FuzzyEngine};
 use crate::engine::regexp::RegexEngine;
 use crate::item::RankBuilder;
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, Typos};
-use regex::Regex;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
-static RE_AND: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([^ |]+( +\| +[^ |]*)+)|( +)").unwrap());
-static RE_OR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +\| +").unwrap());
 //------------------------------------------------------------------------------
 // Exact engine factory
 /// Factory for creating exact or fuzzy match engines based on configuration
@@ -153,37 +150,35 @@ impl AndOrEngineFactory {
         if query.trim().is_empty() {
             self.inner.create_engine_with_case(query, case)
         } else {
-            let engines = RE_OR
-                .split(&self.mask_escape_space(query))
-                .map(|q| self.parse_and(q, case))
+            let engines = self
+                .mask_escape_space(query)
+                .split('|')
+                .filter_map(|q| {
+                    let term = q.trim();
+                    if term.is_empty() {
+                        return None;
+                    }
+                    Some(self.parse_and(term, case))
+                })
                 .collect();
             Box::new(OrEngine::builder().engines(engines).build())
         }
     }
 
     fn parse_and(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
-        let query_trim = query.trim_matches(|c| c == ' ' || c == '|');
-        let mut engines = vec![];
-        let mut last = 0;
-        for mat in RE_AND.find_iter(query_trim) {
-            let (start, end) = (mat.start(), mat.end());
-            let term = query_trim[last..start].trim_matches(|c| c == ' ' || c == '|');
-            let term = self.unmask_escape_space(term);
-            if !term.is_empty() {
-                engines.push(self.inner.create_engine_with_case(&term, case));
-            }
-
-            if !mat.as_str().trim().is_empty() {
-                engines.push(self.parse_or(mat.as_str().trim(), case));
-            }
-            last = end;
-        }
-
-        let term = query_trim[last..].trim_matches(|c| c == ' ' || c == '|');
-        let term = self.unmask_escape_space(term);
-        if !term.is_empty() {
-            engines.push(self.inner.create_engine_with_case(&term, case));
-        }
+        let engines = query
+            .split(' ')
+            .filter_map(|q| {
+                let term = q.trim();
+                if term.is_empty() {
+                    return None;
+                }
+                Some(
+                    self.inner
+                        .create_engine_with_case(&self.unmask_escape_space(term), case),
+                )
+            })
+            .collect();
         Box::new(AndEngine::builder().engines(engines).build())
     }
 
