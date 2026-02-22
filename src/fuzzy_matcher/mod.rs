@@ -46,11 +46,4 @@ pub trait FuzzyMatcher: Send + Sync {
             (score, begin, end)
         })
     }
-
-    /// Batch score-only matching for byte strings. Returns None if not supported.
-    /// When supported, returns a Vec of Option<i32> scores for each item.
-    /// This is used as a fast pre-filter: items with score <= 0 can skip the full DP.
-    fn batch_score_bytes(&self, _items: &[&[u8]], _pattern: &[u8], _respect_case: bool) -> Option<Vec<Option<i32>>> {
-        None
-    }
 }

@@ -42,27 +42,6 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-
-    // SIMD batch benchmarks — process items in batches of 8
-    let bytes_lines: Vec<&[u8]> = lines.iter().map(|s| s.as_bytes()).collect();
-
-    c.bench_function("micro_skim_v3_batch", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
-        let pattern = b"test";
-        b.iter(|| {
-            let results = m.batch_fuzzy_match_bytes(&bytes_lines, pattern, false);
-            results.iter().filter(|r| r.is_some()).count() as u64
-        });
-    });
-
-    c.bench_function("micro_skim_v3_batch_typos", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, true);
-        let pattern = b"test";
-        b.iter(|| {
-            let results = m.batch_fuzzy_match_bytes(&bytes_lines, pattern, false);
-            results.iter().filter(|r| r.is_some()).count() as u64
-        });
-    });
 }
 
 criterion_group!(
