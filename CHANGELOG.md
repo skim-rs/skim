@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-02-22
+
+### 🚀 Features
+
+- Add fzy matcher and `--typos`/`--no-typos` flag (#987)
+
+### 🐛 Bug Fixes
+
+- Correctly bind uppercase keys
+- More precision on AndOr matches (closes #526)
+- Respect the and & or priority
+
+### ⚙️ Miscellaneous Tasks
+
+- *(dep)* Remove unused dependency 'beef' (#986)
+- *(dep)* Frizbee 0.8.1 (#985)
+- Add partial bench to measure the time it takes to setup skim
+- Pin dependencies to the latest exact version
+
+### New Contributors
+* @bitfehler made their first contribution in [#985](https://github.com/skim-rs/skim/pull/985)
+* @Sisyphus1813 made their first contribution in [#983](https://github.com/skim-rs/skim/pull/983)
+
 ## [3.4.0] - 2026-02-19
 
 ### 🚀 Features
