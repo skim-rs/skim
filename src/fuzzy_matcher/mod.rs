@@ -10,7 +10,7 @@ pub mod frizbee;
 pub mod fzy;
 /// Skim fuzzy matching algorithm
 pub mod skim;
-/// SkimV3 fuzzy matching algorithm (Needleman-Wunsch + Damerau-Levenshtein variation)
+/// SkimV3 fuzzy matching algorithm (Smith-Waterman with affine gaps)
 pub mod skim_v3;
 mod util;
 

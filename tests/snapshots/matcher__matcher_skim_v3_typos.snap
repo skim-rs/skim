@@ -2,14 +2,14 @@
 source: tests/matcher.rs
 expression: buf + & cursor_pos
 ---
-"  src/helper/item_reader.rs                                                     "
-"  src/skim_item.rs                                                              "
+"  src/item.rs                                                                   "
+"  src/matcher.rs                                                                "
+"  src/manpage.rs                                                                "
 "  src/fuzzy_matcher/clangd.rs                                                   "
 "  src/fuzzy_matcher/frizbee.rs                                                  "
 "  src/fuzzy_matcher/skim.rs                                                     "
 "  src/fuzzy_matcher/util.rs                                                     "
 "  src/fuzzy_matcher/mod.rs                                                      "
-"  src/item.rs                                                                   "
 "  src/theme.rs                                                                  "
 "  src/tmux.rs                                                                   "
 "  src/tui/header.rs                                                             "
