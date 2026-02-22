@@ -54,10 +54,10 @@ const FIRST_CHAR_BONUS_MULTIPLIER: Score = 2;
 const GAP_OPEN: Score = 6;
 
 /// Cost to extend a gap by one more character.
-const GAP_EXTEND: Score = 4;
+const GAP_EXTEND: Score = 2;
 
 /// Penalty for aligning a pattern char to a different choice char (typos only).
-const MISMATCH_PENALTY: Score = 10;
+const MISMATCH_PENALTY: Score = 12;
 
 // ---------------------------------------------------------------------------
 // Byte-level helpers
@@ -142,7 +142,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
             if matches!(prev.into(), ' ' | '/' | '\\' | '-' | '_' | '.') {
                 bonus += START_OF_WORD_BONUS;
             }
-            if prev.is_lowercase() && ch.is_lowercase() {
+            if prev.is_lowercase() && !ch.is_lowercase() {
                 bonus += CAMEL_CASE_BONUS;
             }
         }
@@ -249,11 +249,11 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     }
     let mut pi = 0;
     for &c in choice {
-        if pi * 2 < n && pattern[pi].eq(c, respect_case) {
+        if pi < n && pattern[pi].eq(c, respect_case) {
             pi += 1;
         }
     }
-    pi * 2 >= n
+    pi >= 1
 }
 
 #[inline]
@@ -818,7 +818,7 @@ mod tests {
     #[test]
     fn camel_case_bonus() {
         let camel = score("FooBar", "fb").unwrap();
-        let flat = score("fxxbxx", "fb").unwrap();
+        let flat = score("foobar", "fb").unwrap();
         assert!(camel > flat, "camel={camel} should beat flat={flat}");
     }
 
