@@ -113,6 +113,8 @@ impl SWMatrix {
     }
     #[inline(always)]
     pub fn at(&mut self, row: usize, col: usize) -> &mut Cell {
+        // Optimization to avoid the mult every time ?
+        // 1d coord ? Vec of Vec ?
         if row >= self.rows {
             panic!("Row index {row} is out of bounds for rows {}", self.rows);
         }
@@ -242,18 +244,86 @@ fn is_subsequence<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool) -> b
     pi == pattern.len()
 }
 
+/// Cheap prefilter for typo-tolerant matching.
+///
+/// The DP requires two conditions to return `Some`:
+///
+/// 1. **Score > 0**: the number of true matches `k` must satisfy the break-even:
+///    ```text
+///    k × MATCH_BONUS > (n − k) × MISMATCH_PENALTY
+///    ⟺ k × (MATCH_BONUS + MISMATCH_PENALTY) > n × MISMATCH_PENALTY
+///    ```
+///
+/// 2. **Minimum true matches**: at least `ceil(n / 2)` pattern characters must be
+///    genuinely matched (not substitutions), preventing the DP from accepting
+///    pure gap/substitution alignments with no real overlap.
+///
+/// We estimate `k` using two complementary methods, passing if either satisfies
+/// both conditions:
+///
+/// - **Greedy subsequence count**: lower-bounds `k` for gap-heavy patterns
+///   (e.g. `"stum"` in `"src/tmux.rs"`).
+/// - **Best diagonal window count**: lower-bounds `k` for substitution-heavy
+///   patterns (e.g. `"hello"` vs `"hxllo"`).
+///
+/// The length guard mirrors the UP-move cost: each skipped pattern character costs
+/// at least `GAP_EXTEND`, so the DP cannot absorb many more pattern chars than choice
+/// chars.
 fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool) -> bool {
     let n = pattern.len();
-    if n > choice.len() * 2 + 2 {
+    let m = choice.len();
+
+    // A pattern much longer than the choice cannot match: each UP move costs at least
+    // GAP_EXTEND, so very few extra pattern chars can be absorbed. Allow a buffer of 2.
+    if n > m + 2 {
         return false;
     }
-    let mut pi = 0;
+
+    // Condition 1 threshold — score break-even (no magic numbers):
+    //   k × (MATCH_BONUS + MISMATCH_PENALTY) > n × MISMATCH_PENALTY
+    let lhs_factor = (MATCH_BONUS + MISMATCH_PENALTY) as usize;
+    let rhs_factor = MISMATCH_PENALTY as usize;
+
+    // Condition 2 threshold — mirrors the DP's min_true_matches = ceil(n / 2).
+    let min_true = (n + 1) / 2;
+
+    // Helper: true iff k satisfies both conditions.
+    let passes = |k: usize| k >= min_true && k * lhs_factor > n * rhs_factor;
+
+    // --- Method 1: greedy subsequence count ---
+    // Counts pattern characters reachable in order via gap moves; good for sparse matches.
+    let mut subseq = 0usize;
+    let mut pi = 0usize;
     for &c in choice {
         if pi < n && pattern[pi].eq(c, respect_case) {
+            subseq += 1;
             pi += 1;
         }
     }
-    pi >= 1
+    if passes(subseq) {
+        return true;
+    }
+
+    // --- Method 2: best diagonal window count ---
+    // For each alignment start, counts character matches in a lockstep window of length n;
+    // good for compact matches with substitutions.
+    let mut best_diag = 0usize;
+    for start in 0..m {
+        let mut matched = 0usize;
+        for (pi, &c) in choice[start..].iter().take(n).enumerate() {
+            if pattern[pi].eq(c, respect_case) {
+                matched += 1;
+            }
+        }
+        if matched > best_diag {
+            best_diag = matched;
+        }
+        if passes(best_diag) {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[inline]
@@ -282,19 +352,29 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
-    // Two columns + direction tracking
+    // Two columns + direction tracking + true-match count
     let mut score_a = [0u16; COLMAJOR_MAX_N + 1];
     let mut score_b = [0u16; COLMAJOR_MAX_N + 1];
     let mut diag_a = [false; COLMAJOR_MAX_N + 1];
     let mut diag_b = [false; COLMAJOR_MAX_N + 1];
+    // Number of true (non-substitution) matches on the best path to each cell.
+    let mut true_a = [0u8; COLMAJOR_MAX_N + 1];
+    let mut true_b = [0u8; COLMAJOR_MAX_N + 1];
 
     let mut prev_s = &mut score_a;
     let mut cur_s = &mut score_b;
     let mut prev_d = &mut diag_a;
     let mut cur_d = &mut diag_b;
+    let mut prev_t = &mut true_a;
+    let mut cur_t = &mut true_b;
 
     let mut global_best: Score = 0;
     let mut global_best_j: usize = 0;
+    let mut global_best_true: u8 = 0;
+
+    // Minimum number of true character matches required to return Some.
+    // Ensures the DP does not accept pure gap/substitution alignments with no real matches.
+    let min_true_matches = ((n + 1) / 2) as u8;
 
     for j in 1..=m {
         let cj = cho[j - 1];
@@ -302,6 +382,7 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 
         cur_s[0] = 0;
         cur_d[0] = false;
+        cur_t[0] = 0;
 
         for i in 1..=n {
             let pi = pat[i - 1];
@@ -349,20 +430,32 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
             };
 
             let best = diag_val.max(up_val).max(left_val);
+            let took_diag = best > 0 && diag_val >= up_val && diag_val >= left_val;
             cur_s[i] = best;
-            cur_d[i] = best > 0 && diag_val >= up_val && diag_val >= left_val;
+            cur_d[i] = took_diag;
+            cur_t[i] = if best == 0 {
+                0
+            } else if took_diag {
+                prev_t[i - 1].saturating_add(is_match as u8)
+            } else if up_val >= left_val {
+                cur_t[i - 1]
+            } else {
+                prev_t[i]
+            };
 
             if i == n && best > global_best {
                 global_best = best;
                 global_best_j = j;
+                global_best_true = cur_t[i];
             }
         }
 
         std::mem::swap(&mut prev_s, &mut cur_s);
         std::mem::swap(&mut prev_d, &mut cur_d);
+        std::mem::swap(&mut prev_t, &mut cur_t);
     }
 
-    if global_best > 0 {
+    if global_best > 0 && global_best_true >= min_true_matches {
         Some((global_best, global_best_j))
     } else {
         None
@@ -399,6 +492,10 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     let mut best_score = 0;
     let mut best_j = 0;
+
+    // Minimum number of true character matches required to return Some.
+    // Ensures the DP does not accept pure gap/substitution alignments with no real matches.
+    let min_true_matches = (n + 1) / 2;
 
     for i in 1..=n {
         let pi = pat[i - 1];
@@ -482,6 +579,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let mut indices: MatchIndices = Vec::with_capacity(n);
     let mut i = n;
     let mut j = best_j;
+    let mut true_matches = 0usize;
 
     while i > 0 && j > 0 {
         let c = *buf.at(i, j);
@@ -489,6 +587,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             Dir::Diag => {
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
                     indices.push((j - 1) as IndexType);
+                    true_matches += 1;
                 }
                 i -= 1;
                 j -= 1;
@@ -501,6 +600,10 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             }
             Dir::None => break,
         }
+    }
+
+    if true_matches < min_true_matches {
+        return None;
     }
 
     indices.sort_unstable();

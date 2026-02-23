@@ -1,5 +1,6 @@
 ---
 source: tests/matcher.rs
+assertion_line: 85
 expression: buf + & cursor_pos
 ---
 "  src/output.rs                                                                 "
@@ -24,6 +25,6 @@ expression: buf + & cursor_pos
 "  src/tui/util.rs                                                               "
 "  src/tui/item_list.rs                                                          "
 "> src/tui/mod.rs                                                                "
-"  49/49                                                                      0/0"
+"  25/49                                                                      0/0"
 "> stum                                                                          "
 cursor: (24, 7)
