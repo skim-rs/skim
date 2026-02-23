@@ -100,7 +100,9 @@ clangd: Clangd fuzzy matching algorithm
 .IP \(bu 2
 fzy: Fzy matching algorithm (https://github.com/jhawthorn/fzy)
 .IP \(bu 2
-frizbee: Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled
+frizbee: Frizbee matching algorithm, typo resistant
+.IP \(bu 2
+skim_v3: SkimV3: Needleman\-Wunsch + Damerau\-Levenshtein variation with affine gaps
 .RE
 .TP
 \fB\-\-case\fR \fI<CASE>\fR [default: smart]
@@ -655,7 +657,7 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 .br
 * alt\-right
 .br
-* alt\-enter   (alt\-ctrl\-m)
+* alt\-enter
 .br
 * alt\-space
 .br
@@ -683,9 +685,9 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 .br
 * end
 .br
-* pgup        (page\-up)
+* pgup
 .br
-* pgdn        (page\-down)
+* pgdn
 .br
 * shift\-up
 .br

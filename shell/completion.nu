@@ -5,7 +5,7 @@ module completions {
   }
 
   def "nu-complete sk algorithm" [] {
-    [ "skim_v1" "skim_v2" "clangd" "fzy" "frizbee" ]
+    [ "skim_v1" "skim_v2" "clangd" "fzy" "frizbee" "skim_v3" ]
   }
 
   def "nu-complete sk case" [] {
@@ -29,7 +29,7 @@ module completions {
   }
 
   def "nu-complete sk flags" [] {
-    [ "no-preview-pty" ]
+    [ "no-preview-pty" "print-score" ]
   }
 
   # Fuzzy Finder in rust!
