@@ -9,7 +9,6 @@
 //!   for traceback. Gap open vs extend is tracked via the direction tag.
 //! - **Semi-global alignment**: the pattern must be fully consumed, but
 //!   alignment can start/end at any position in the choice string.
-//! - **SIMD batch scoring**: 8 items at once using `wide::i16x32`.
 //!
 //!
 //! ## Pruning strategies
@@ -21,9 +20,6 @@
 //! - **Interpair max-score pruning**: after processing a column (score-only)
 //!   or row (full DP), if all cells are zero for several consecutive
 //!   iterations, the alignment is dead and we terminate early.
-//!
-//! Optimizations to explore:
-//! - SSW SIMD "Striped" (https://github.com/mengyao/Complete-Striped-Smith-Waterman-Library)
 
 use std::cell::RefCell;
 
