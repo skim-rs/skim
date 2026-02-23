@@ -16,7 +16,8 @@ complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v1\t'Origina
 skim_v2\t'Improved skim fuzzy matching algorithm (v2, default)'
 clangd\t'Clangd fuzzy matching algorithm'
 fzy\t'Fzy matching algorithm (https://github.com/jhawthorn/fzy)'
-frizbee\t'Frizbee matching algorithm, typo resistant Will fallback to SkimV2 if the feature is not enabled'"
+frizbee\t'Frizbee matching algorithm, typo resistant'
+skim_v3\t'SkimV3: Needleman-Wunsch + Damerau-Levenshtein variation with affine gaps'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"
@@ -80,7 +81,8 @@ complete -c sk -l listen -d 'Run an IPC socket with optional name (defaults to s
 complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
-complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'"
+complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'
+print-score\t'Display the item\'s match score before its value in the item list (for matcher debugging)'"
 complete -c sk -l hscroll-off -r
 complete -c sk -l jump-labels -r
 complete -c sk -l scheme -r
