@@ -2,9 +2,9 @@
 source: tests/matcher.rs
 expression: buf + & cursor_pos
 ---
-"  src/output.rs                                                                 "
-"  src/item.rs                                                                   "
 "  src/util.rs                                                                   "
+"  src/matcher.rs                                                                "
+"  src/item.rs                                                                   "
 "  src/fuzzy_matcher/clangd.rs                                                   "
 "  src/fuzzy_matcher/frizbee.rs                                                  "
 "  src/fuzzy_matcher/skim.rs                                                     "
@@ -24,6 +24,6 @@ expression: buf + & cursor_pos
 "  src/tui/util.rs                                                               "
 "  src/tui/item_list.rs                                                          "
 "> src/tui/mod.rs                                                                "
-"  24/49                                                                      0/0"
+"  26/49                                                                      0/0"
 "> stum                                                                          "
 cursor: (24, 7)

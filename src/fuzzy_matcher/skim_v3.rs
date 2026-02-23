@@ -82,6 +82,7 @@ trait Atom: PartialEq + Into<char> + Copy {
     fn eq_ignore_case(self, other: Self) -> bool;
     fn is_lowercase(self) -> bool;
 }
+
 impl Atom for u8 {
     #[inline(always)]
     fn eq_ignore_case(self, b: Self) -> bool {
@@ -545,8 +546,12 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     const DEAD_COL_LIMIT: usize = 8;
 
     // Minimum number of true character matches required to return Some.
-    // Ensures the DP does not accept pure gap/substitution alignments with no real matches.
-    let min_true_matches = n.div_ceil(2) as u8;
+    // In exact mode every row transition requires a character match (diag_val = 0
+    // when !is_match), so any score > 0 at row n already implies n true matches.
+    // The true-count bookkeeping can be corrupted by tiebreaking when a character
+    // coincidentally matches at a column where diag_score = 0 (fresh local start),
+    // so we only enforce this threshold in typo mode where substitutions exist.
+    let min_true_matches: u8 = if ALLOW_TYPOS { n.div_ceil(2) as u8 } else { 0 };
 
     for j in 1..=m {
         let cj = cho[j - 1];
@@ -744,8 +749,12 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let mut best_j = 0;
 
     // Minimum number of true character matches required to return Some.
-    // Ensures the DP does not accept pure gap/substitution alignments with no real matches.
-    let min_true_matches = n.div_ceil(2);
+    // In exact mode every row transition requires a character match (diag_val = 0
+    // when !is_match), so any score > 0 at row n already implies n true matches.
+    // The true-count bookkeeping can be corrupted by tiebreaking when a character
+    // coincidentally matches at a column where diag_score = 0 (fresh local start),
+    // so we only enforce this threshold in typo mode where substitutions exist.
+    let min_true_matches: usize = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
 
     // Interpair pruning: consecutive rows where no column had a non-zero score.
     let mut dead_rows: usize = 0;
@@ -858,7 +867,10 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             if best > 0 {
                 row_has_life = true;
             }
-            if best > best_score {
+            // Only track the best completion column at the last pattern row.
+            // Updating on every row would make best_j point to an intermediate
+            // row's column, causing the traceback to start from the wrong cell.
+            if i == n && best > best_score {
                 best_score = best;
                 best_j = j;
             }
@@ -1408,5 +1420,38 @@ mod tests {
         let m = matcher();
         assert!(m.fuzzy_match("café", "café").is_some());
         assert!(m.fuzzy_match("naïve", "naive").is_none());
+    }
+
+    // Regression test: all valid subsequences must be returned in --no-typos mode.
+    // grep '.*t.*e.*s.*t' should give the same results as skim_v3 with pattern 'test'.
+    #[test]
+    fn all_subsequences_must_match() {
+        let m = matcher();
+        let cases = [
+            // Bug 1: full_dp tracked best_j across all rows instead of only the
+            // last row, so traceback started at the wrong cell.
+            "audio/audio/bin/temp/usr/uploads/mnt/cache/media_3445258",
+            "audio/audio/audio/docs/cache/temp/downloads/backup/shared/data_9591740",
+            // Bug 2: min_true_matches was enforced in exact mode, but the true-count
+            // bookkeeping is corrupted by tiebreaking when a character coincidentally
+            // matches at a column where diag_score=0 (fresh local alignment start).
+            // In exact mode every row increment requires a true match, so score > 0
+            // at row n already guarantees n true matches; the threshold is not needed.
+            "audio/audio/audio/opt/media/sys/sys/backup/etc_744357",
+            "audio/audio/audio/temp/shared/uploads/downloads/config/home/mnt_9037278",
+            "audio/audio/opt/cache/usr/usr/var/temp_1579492",
+        ];
+        for choice in &cases {
+            assert!(
+                m.fuzzy_match(choice, "test").is_some(),
+                "fuzzy_match should match subsequence 'test' in {:?}",
+                choice
+            );
+            assert!(
+                m.fuzzy_indices(choice, "test").is_some(),
+                "fuzzy_indices should match subsequence 'test' in {:?}",
+                choice
+            );
+        }
     }
 }
