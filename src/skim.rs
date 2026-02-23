@@ -378,24 +378,32 @@ where
         // Extract final_key and is_abort from final_event
         let is_abort = !matches!(&self.final_event, Event::Action(Action::Accept(_)));
 
+        let selected_items = self.app.results();
+
+        let cmd = if self.app.options.interactive {
+            self.app.input.to_string()
+        } else if self.app.options.cmd_query.is_some() {
+            self.app.options.cmd_query.clone().unwrap()
+        } else {
+            self.initial_cmd.clone()
+        };
+        let query = self.app.input.to_string();
+        let current = self.app.item_list.selected();
+        let header = self.app.header.header.clone();
+        let final_event = self.final_event.clone();
+        let final_key = self.final_key;
+
+        drop(self);
+
         SkimOutput {
-            cmd: if self.app.options.interactive {
-                // In interactive mode, cmd is what the user typed
-                self.app.input.to_string()
-            } else if self.app.options.cmd_query.is_some() {
-                // If cmd_query was provided, use that for output
-                self.app.options.cmd_query.clone().unwrap()
-            } else {
-                // Otherwise use the execution command
-                self.initial_cmd
-            },
-            final_event: self.final_event,
-            final_key: self.final_key,
-            query: self.app.input.to_string(),
+            cmd,
+            final_event,
+            final_key,
+            query,
             is_abort,
-            selected_items: self.app.results(),
-            current: self.app.item_list.selected(),
-            header: self.app.header.header.clone(),
+            selected_items,
+            current,
+            header,
         }
     }
 

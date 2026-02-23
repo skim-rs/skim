@@ -215,7 +215,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
                 print!("{}{}", item.output(), bin_options.output_ending);
             }
             if bin_options.print_score {
-                print!("{}{}", item.rank[0], bin_options.output_ending);
+                print!("{}{}", item.rank.score, bin_options.output_ending);
             }
         }
     }

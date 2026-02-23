@@ -44,31 +44,49 @@ impl RankBuilder {
         Self { criterion }
     }
 
-    /// score: the greater the better
+    /// Returns the tiebreak criteria slice.
+    pub fn criteria(&self) -> &[RankCriteria] {
+        &self.criterion
+    }
+
+    /// Builds a `Rank` from raw match measurements.
+    ///
+    /// The values are stored as-is; the tiebreak ordering and sign-flipping are
+    /// applied lazily by [`Rank::sort_key`] at comparison time.
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize, index: usize) -> Rank {
-        let mut rank = [0; 5];
-        let begin = begin as i32;
-        let end = end as i32;
-        let length = length as i32;
-        let index = index as i32;
-
-        for (priority, criteria) in self.criterion.iter().take(5).enumerate() {
-            let value = match criteria {
-                RankCriteria::Score => -score,
-                RankCriteria::NegScore => score,
-                RankCriteria::Begin => begin,
-                RankCriteria::NegBegin => -begin,
-                RankCriteria::End => end,
-                RankCriteria::NegEnd => -end,
-                RankCriteria::Length => length,
-                RankCriteria::NegLength => -length,
-                RankCriteria::Index => index,
-                RankCriteria::NegIndex => -index,
-            };
-
-            rank[priority] = value;
+        Rank {
+            score,
+            begin: begin as i32,
+            end: end as i32,
+            length: length as i32,
+            index: index as i32,
         }
-        rank
+    }
+}
+
+impl Rank {
+    /// Computes the ordered sort key for this rank given a slice of tiebreak criteria.
+    ///
+    /// Each criterion maps to one slot in the returned `[i32; 5]` array. Values are
+    /// sign-flipped where necessary so that the array compares lexicographically with
+    /// the "best" match sorting first (ascending order).
+    pub fn sort_key(&self, criteria: &[RankCriteria]) -> [i32; 5] {
+        let mut key = [0i32; 5];
+        for (priority, criterion) in criteria.iter().take(5).enumerate() {
+            key[priority] = match criterion {
+                RankCriteria::Score => -self.score,
+                RankCriteria::NegScore => self.score,
+                RankCriteria::Begin => self.begin,
+                RankCriteria::NegBegin => -self.begin,
+                RankCriteria::End => self.end,
+                RankCriteria::NegEnd => -self.end,
+                RankCriteria::Length => self.length,
+                RankCriteria::NegLength => -self.length,
+                RankCriteria::Index => self.index,
+                RankCriteria::NegIndex => -self.index,
+            };
+        }
+        key
     }
 }
 
@@ -78,8 +96,10 @@ impl RankBuilder {
 pub struct MatchedItem {
     /// The underlying skim item
     pub item: Arc<dyn SkimItem>,
-    /// The rank/score of this match
+    /// Raw match measurements
     pub rank: Rank,
+    /// The tiebreak criteria used to derive sort order from `rank`
+    pub rank_builder: Arc<RankBuilder>,
     /// Range of characters that matched the pattern
     pub matched_range: Option<MatchRange>,
 }
@@ -89,6 +109,7 @@ impl std::fmt::Debug for MatchedItem {
         f.debug_struct("MatchedItem")
             .field("item", &self.item.text())
             .field("rank", &self.rank)
+            .field("sort_key", &self.rank.sort_key(self.rank_builder.criteria()))
             .field("matched_range", &self.matched_range)
             .finish()
     }
@@ -112,7 +133,8 @@ impl Deref for MatchedItem {
 impl MatchedItem {
     /// Merge two sorted `Vec<MatchedItem>` lists into one, preserving sort order by rank.
     ///
-    /// Both input lists must already be sorted by `rank` (ascending). The merge is O(n+m).
+    /// Both input lists must already be sorted by the same tiebreak criteria (ascending).
+    /// The merge is O(n+m).
     pub fn sorted_merge(existing: Vec<MatchedItem>, incoming: Vec<MatchedItem>) -> Vec<MatchedItem> {
         if existing.is_empty() {
             return incoming;
@@ -125,7 +147,7 @@ impl MatchedItem {
         let mut a = existing.into_iter().peekable();
         let mut b = incoming.into_iter().peekable();
         while a.peek().is_some() && b.peek().is_some() {
-            if a.peek().unwrap().rank <= b.peek().unwrap().rank {
+            if a.peek().unwrap() <= b.peek().unwrap() {
                 merged.push(a.next().unwrap());
             } else {
                 merged.push(b.next().unwrap());
@@ -155,7 +177,8 @@ impl PartialOrd for MatchedItem {
 
 impl Ord for MatchedItem {
     fn cmp(&self, other: &Self) -> CmpOrd {
-        self.rank.cmp(&other.rank)
+        let criteria = self.rank_builder.criteria();
+        self.rank.sort_key(criteria).cmp(&other.rank.sort_key(criteria))
     }
 }
 

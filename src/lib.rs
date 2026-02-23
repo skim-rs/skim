@@ -285,9 +285,25 @@ pub enum MatchRange {
     Chars(MatchIndices),
 }
 
-/// Rank tuple used for sorting match results
-/// The field will be ordered based on the `tiebreak` parameter
-pub type Rank = [i32; 5];
+/// Rank stores the raw match measurements used for sorting results.
+///
+/// Named fields preserve the semantic meaning of each value. The actual
+/// sort key (taking into account the user-configured tiebreak criteria and
+/// their direction) is computed lazily via [`Rank::sort_key`] rather than
+/// being baked in at construction time.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Rank {
+    /// Raw fuzzy/exact match score (higher is a better match)
+    pub score: i32,
+    /// Index of the first matched character (0-based)
+    pub begin: i32,
+    /// Index of the last matched character (0-based)
+    pub end: i32,
+    /// Length of the item text in bytes
+    pub length: i32,
+    /// Ordinal position of the item in the input stream
+    pub index: i32,
+}
 
 /// Result of matching a query against an item
 #[derive(Clone)]

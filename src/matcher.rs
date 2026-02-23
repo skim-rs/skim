@@ -67,6 +67,8 @@ impl Drop for MatcherControl {
 pub struct Matcher {
     engine_factory: Rc<dyn MatchEngineFactory>,
     case_matching: CaseMatching,
+    /// The rank builder shared with all engines; used to attach criteria to `MatchedItem`s.
+    pub rank_builder: Arc<RankBuilder>,
 }
 
 impl Matcher {
@@ -75,12 +77,19 @@ impl Matcher {
         Self {
             engine_factory,
             case_matching: CaseMatching::default(),
+            rank_builder: Arc::new(RankBuilder::default()),
         }
     }
 
     /// Sets the case matching mode (smart, ignore, or respect).
     pub fn case(mut self, case_matching: CaseMatching) -> Self {
         self.case_matching = case_matching;
+        self
+    }
+
+    /// Sets the rank builder (carries tiebreak criteria).
+    pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
+        self.rank_builder = rank_builder;
         self
     }
 
@@ -94,13 +103,22 @@ impl Matcher {
     /// This is useful when you need the factory directly (e.g., for filter mode)
     /// without creating a full Matcher instance.
     pub fn create_engine_factory(options: &SkimOptions) -> Rc<dyn MatchEngineFactory> {
+        Self::create_engine_factory_with_builder(options).0
+    }
+
+    /// Creates a MatchEngineFactory and the associated RankBuilder from the given options.
+    ///
+    /// Returns both so callers can attach the builder to `MatchedItem`s for lazy sort-key
+    /// computation.
+    pub fn create_engine_factory_with_builder(options: &SkimOptions) -> (Rc<dyn MatchEngineFactory>, Arc<RankBuilder>) {
         if options.regex {
             let regex_factory = RegexEngineFactory::builder();
-            if options.normalize {
+            let factory: Rc<dyn MatchEngineFactory> = if options.normalize {
                 Rc::new(NormalizedEngineFactory::new(regex_factory))
             } else {
                 Rc::new(regex_factory)
-            }
+            };
+            (factory, Arc::new(RankBuilder::default()))
         } else {
             let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
             log::debug!("Creating matcher for algo {:?}", options.algorithm);
@@ -108,7 +126,7 @@ impl Matcher {
                 .fuzzy_algorithm(options.algorithm)
                 .exact_mode(options.exact)
                 .typos(options.typos)
-                .rank_builder(rank_builder)
+                .rank_builder(rank_builder.clone())
                 .build();
 
             // If split_match is enabled, wrap the fuzzy factory with SplitMatchEngineFactory
@@ -121,18 +139,22 @@ impl Matcher {
             };
 
             // Wrap with NormalizedEngineFactory if normalization is requested
-            if options.normalize {
+            let factory: Rc<dyn MatchEngineFactory> = if options.normalize {
                 Rc::new(NormalizedEngineFactory::new(andor_factory))
             } else {
                 Rc::new(andor_factory)
-            }
+            };
+            (factory, rank_builder)
         }
     }
 
     /// Creates a Matcher configured from the given SkimOptions.
     pub fn from_options(options: &SkimOptions) -> Self {
-        let engine_factory = Self::create_engine_factory(options);
-        Matcher::builder(engine_factory).case(options.case).build()
+        let (engine_factory, rank_builder) = Self::create_engine_factory_with_builder(options);
+        Matcher::builder(engine_factory)
+            .case(options.case)
+            .rank_builder(rank_builder)
+            .build()
     }
 
     /// Returns the case matching setting for this matcher.
@@ -163,6 +185,7 @@ impl Matcher {
         let processed_clone = processed.clone();
         let matched = Arc::new(AtomicUsize::new(0));
         let matched_clone = matched.clone();
+        let rank_builder = self.rank_builder.clone();
 
         // Take items synchronously before spawning to avoid a race condition:
         // if we took items inside the spawned closure, a subsequent restart_matcher()
@@ -191,6 +214,7 @@ impl Matcher {
                         MatchedItem {
                             item,
                             rank: match_result.rank,
+                            rank_builder: rank_builder.clone(),
                             matched_range: Some(match_result.matched_range),
                         }
                     })

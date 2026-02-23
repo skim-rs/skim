@@ -20,6 +20,7 @@
             cargo-nextest
             cargo-insta
             cargo-llvm-cov
+            cargo-edit
             git-cliff
             tmux
             rustup

@@ -144,7 +144,7 @@ sk_test!(opt_print_score, "x\\nyx\\nyz", &["--print-score"], {
     @capture[1] trim().starts_with("2/3");
     @keys Enter;
     @output[0] trim().eq("x");
-    @output[1] trim().eq("-31");
+    @output[1] trim().eq("31");
 });
 
 sk_test!(opt_print_score_multi, "x\\nyx\\nyz", &["--print-score", "-m"], {
@@ -159,9 +159,9 @@ sk_test!(opt_print_score_multi, "x\\nyx\\nyz", &["--print-score", "-m"], {
     @capture[3] trim().eq(">>yx");
     @keys Enter;
     @output[0] trim().eq("x");
-    @output[1] trim().eq("-31");
+    @output[1] trim().eq("31");
     @output[2] trim().eq("yx");
-    @output[3] trim().eq("-15");
+    @output[3] trim().eq("15");
 });
 
 sk_test!(opt_ansi_null, "a\\0b", &["--ansi"], {

@@ -6,9 +6,14 @@ fn main() {
     for i in 0..3 {
         let opts = SkimOptionsBuilder::default()
             .header(format!("run {i}"))
+            .cmd("cat benches/fixtures/10M.txt")
             .build()
             .unwrap();
         let res = Skim::run_with(opts, None).unwrap();
+        #[cfg(target_os = "linux")]
+        unsafe {
+            nix::libc::malloc_trim(0);
+        }
         println!(
             "run {i}: {:?}, sleeping for 5 secs",
             res.selected_items.first().map(|x| x.output())

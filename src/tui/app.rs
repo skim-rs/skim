@@ -734,7 +734,8 @@ impl App {
                 self.item_pool.append(vec![item.clone()]);
                 self.item_list.append(&mut vec![MatchedItem {
                     item,
-                    rank: [0, 0, 0, 0, 0],
+                    rank: Default::default(),
+                    rank_builder: self.matcher.rank_builder.clone(),
                     matched_range: None,
                 }]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
@@ -1247,7 +1248,7 @@ impl App {
                 debug!("Got {} results from matcher, sending to item list...", matches.len());
 
                 if !no_sort {
-                    matches.sort_by_key(|item| item.rank);
+                    matches.sort();
                 }
 
                 use crate::tui::item_list::{MergeStrategy, ProcessedItems};

@@ -22,8 +22,8 @@ use rand::{RngExt as _, distr::Alphanumeric};
 use which::which;
 
 use crate::{
-    SkimItem, SkimOptions, SkimOutput,
-    item::MatchedItem,
+    Rank, SkimItem, SkimOptions, SkimOutput,
+    item::{MatchedItem, RankBuilder},
     tui::{Event, event::Action},
 };
 
@@ -302,7 +302,11 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         let score: i32 = stdout.next().unwrap_or_default().parse().unwrap_or_default();
         let item = MatchedItem {
             item: Arc::new(SkimTmuxOutput { line: line.to_string() }),
-            rank: [score, 0, 0, 0, 0],
+            rank: Rank {
+                score,
+                ..Default::default()
+            },
+            rank_builder: Arc::new(RankBuilder::default()),
             matched_range: None,
         };
         output_lines.push(Arc::new(item));
