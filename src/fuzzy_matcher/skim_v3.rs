@@ -284,6 +284,15 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
         return false;
     }
 
+    // The first pattern character must appear somewhere in the choice. Any
+    // alignment that substitutes pat[0] starts with a MISMATCH_PENALTY from
+    // score 0, which saturates to 0, so it can never outperform an alignment
+    // anchored at a true match of pat[0]. Reject early if absent.
+    let first = pattern[0];
+    if !choice.iter().any(|&c| first.eq(c, respect_case)) {
+        return false;
+    }
+
     // Condition 1 threshold — score break-even (no magic numbers):
     //   k × (MATCH_BONUS + MISMATCH_PENALTY) > n × MISMATCH_PENALTY
     let lhs_factor = (MATCH_BONUS + MISMATCH_PENALTY) as usize;
@@ -476,6 +485,101 @@ fn col_row_bounds_at(
 /// to capture all viable alignments while still pruning far-off cells.
 const TYPO_BAND_SLACK: usize = 4;
 
+/// Maximum number of first-character match positions tracked for multi-band
+/// typo-mode banding. Positions beyond this cap are ignored (the existing
+/// bands are wide enough to absorb the slack).
+const MAX_FIRST_CHAR_STARTS: usize = 4;
+
+/// Collect all 1-indexed columns where `pat[0]` matches in `cho`.
+///
+/// Returns `None` if `pat[0]` is not found anywhere (caller should return
+/// `None`). At most `MAX_FIRST_CHAR_STARTS` positions are recorded.
+#[inline]
+fn find_first_char_starts<C: Atom>(
+    pat: &[C],
+    cho: &[C],
+    respect_case: bool,
+) -> Option<([usize; MAX_FIRST_CHAR_STARTS], usize)> {
+    let first = pat[0];
+    let mut starts = [0usize; MAX_FIRST_CHAR_STARTS];
+    let mut count = 0usize;
+    let mut chars = cho.iter().enumerate();
+    while let Some((idx, &c)) = chars.next() {
+        if first.eq(c, respect_case) && count < MAX_FIRST_CHAR_STARTS {
+            starts[count] = idx + 1; // 1-indexed
+            chars.nth(pat.len() + (TYPO_BAND_SLACK - 1));
+            count += 1;
+        }
+    }
+    if count == 0 { None } else { Some((starts, count)) }
+}
+
+/// Compute typo-mode row bounds at column `j` using a multi-band strategy
+/// (column-major DP variant).
+///
+/// One diagonal band is created per first-character match position. Each
+/// band is centered on the diagonal `i = j − start + 1` with the given
+/// `bandwidth`. The returned `(i_lo, i_hi)` is the union of all bands,
+/// clamped to `[1, n]`.
+#[inline(always)]
+fn typo_bands(
+    j: usize,
+    n: usize,
+    bandwidth: usize,
+    starts: &[usize; MAX_FIRST_CHAR_STARTS],
+    num_starts: usize,
+) -> (usize, usize) {
+    let mut lo = usize::MAX;
+    let mut hi = 0usize;
+    let mut k = 0;
+    while k < num_starts {
+        let s = starts[k];
+        let anchored_i = (j + 1).saturating_sub(s);
+        let band_lo = anchored_i.saturating_sub(bandwidth).max(1);
+        let band_hi = (anchored_i + bandwidth).min(n);
+        if band_lo < lo {
+            lo = band_lo;
+        }
+        if band_hi > hi {
+            hi = band_hi;
+        }
+        k += 1;
+    }
+    (lo, hi)
+}
+
+/// Row-major variant of multi-band: compute column bounds at row `i`.
+///
+/// One diagonal band per first-character match position. Each band is
+/// centered on `j = i + start − 1`. The returned `(j_lo, j_hi)` is the
+/// union of all bands, clamped to `[1, m]`.
+#[inline(always)]
+fn typo_bands_row(
+    i: usize,
+    m: usize,
+    bandwidth: usize,
+    starts: &[usize; MAX_FIRST_CHAR_STARTS],
+    num_starts: usize,
+) -> (usize, usize) {
+    let mut lo = usize::MAX;
+    let mut hi = 0usize;
+    let mut k = 0;
+    while k < num_starts {
+        let s = starts[k];
+        let anchored_j = i + s - 1;
+        let band_lo = anchored_j.saturating_sub(bandwidth).max(1);
+        let band_hi = (anchored_j + bandwidth).min(m);
+        if band_lo < lo {
+            lo = band_lo;
+        }
+        if band_hi > hi {
+            hi = band_hi;
+        }
+        k += 1;
+    }
+    (lo, hi)
+}
+
 // ---------------------------------------------------------------------------
 // Smith-Waterman DP — Score-only (column-major, stack arrays)
 // ---------------------------------------------------------------------------
@@ -504,6 +608,11 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 ) -> Option<(Score, usize)> {
     let n = pat.len();
     let m = cho.len();
+
+    // Collect all positions where pat[0] matches in cho (1-indexed).
+    // The first entry is also the earliest column any alignment can start at.
+    let (starts, num_starts) = find_first_char_starts(pat, cho, respect_case)?;
+    let j_start = starts[0]; // earliest match — skip columns before this
 
     // Precompute banding bounds.
     // For exact mode: use first/last match columns per pattern char, expanded
@@ -553,17 +662,15 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     // so we only enforce this threshold in typo mode where substitutions exist.
     let min_true_matches: u8 = if ALLOW_TYPOS { n.div_ceil(2) as u8 } else { 0 };
 
-    for j in 1..=m {
+    for j in j_start..=m {
         let cj = cho[j - 1];
         let bonus_j = bonuses[j - 1];
 
         // --- Compute row bounds for this column ---
         let (i_lo, i_hi) = if ALLOW_TYPOS {
-            // Diagonal banding: row i ≈ j scaled by n/m, with bandwidth slack.
-            // Simple version: i ∈ [j - bandwidth, j + bandwidth] clamped to [1, n].
-            let lo = if j > bandwidth { j - bandwidth } else { 1 };
-            let hi = (j + bandwidth).min(n);
-            (lo, hi)
+            // Multi-band: union of diagonal bands anchored at every
+            // first-character match position.
+            typo_bands(j, n, bandwidth, &starts, num_starts)
         } else {
             // Exact mode: use precomputed per-row column bounds, inverted
             // to find which rows are active at this column.
@@ -721,6 +828,11 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
+    // Collect all positions where pat[0] matches in cho (1-indexed).
+    // The first entry is also the earliest column any alignment can start at.
+    let (starts, num_starts) = find_first_char_starts(pat, cho, respect_case)?;
+    let j_start = starts[0]; // earliest match — skip columns before this
+
     // Precompute banding bounds (reuse helpers from score_only path).
     let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])> = if !ALLOW_TYPOS {
         let fm = compute_first_match_cols(pat, cho, respect_case)?;
@@ -766,14 +878,16 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
         // --- Compute column bounds for this row ---
         let (j_lo, j_hi) = if ALLOW_TYPOS {
-            // Diagonal banding: j ≈ i scaled by m/n, with bandwidth slack.
-            let lo = if i > bandwidth { i - bandwidth } else { 1 };
-            let hi = (i + bandwidth).min(m);
-            (lo, hi)
+            // Dual-band: union of top-left diagonal band and anchored band
+            // starting at j_start.
+            typo_bands_row(i, m, bandwidth, &starts, num_starts)
         } else {
             let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
             (row_lo[i - 1], row_hi[i - 1])
         };
+        // No alignment can start before the first occurrence of pat[0],
+        // so raise the lower bound for each row.
+        let j_lo = j_lo.max(j_start);
 
         // Zero out cells outside the band for this row so LEFT moves
         // don't read stale data from a previous resize.
@@ -1453,5 +1567,89 @@ mod tests {
                 choice
             );
         }
+    }
+
+    // Property test: typos mode must be a strict superset of no-typos mode.
+    // For every choice that no-typos mode matches, typos mode must also match.
+    #[test]
+    fn typos_is_superset_of_no_typos() {
+        let exact = matcher();
+        let typos = matcher_typos();
+        let patterns = ["test", "ab", "rs", "src", "foo", "re", "az"];
+        let choices = [
+            // Typical file-system paths
+            "src/reader.rs",
+            "audio/audio/bin/temp/usr/uploads/mnt/cache/media_3445258",
+            "audio/audio/audio/docs/cache/temp/downloads/backup/shared/data_9591740",
+            "audio/audio/audio/opt/media/sys/sys/backup/etc_744357",
+            "audio/audio/audio/temp/shared/uploads/downloads/config/home/mnt_9037278",
+            "audio/audio/opt/cache/usr/usr/var/temp_1579492",
+            "tests/snapshots/normalize__insta_normalize_accented_item_unaccented_query.snap",
+            "FooBar",
+            "axbycz",
+            "hello world",
+            "src/tmux.rs",
+            "lib/src/fuzzy_matcher/skim_v3.rs",
+        ];
+        for pattern in &patterns {
+            for choice in &choices {
+                let exact_result = exact.fuzzy_match(choice, pattern);
+                let typos_result = typos.fuzzy_match(choice, pattern);
+                if exact_result.is_some() {
+                    assert!(
+                        typos_result.is_some(),
+                        "typos mode should match everything no-typos mode matches, \
+                         but missed: choice={choice:?} pattern={pattern:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn debug_typos_superset_specific() {
+        let choice = "tests/snapshots/normalize__insta_normalize_accented_item_unaccented_query.snap";
+        let pattern = "src";
+        let cho = choice.as_bytes();
+        let pat = pattern.as_bytes();
+        let respect_case = false;
+
+        let prefilter_pass = cheap_typo_prefilter(pat, cho, respect_case);
+        eprintln!("prefilter_pass={prefilter_pass}");
+        assert!(prefilter_pass, "prefilter rejected the input");
+
+        // Check which positions t/e/s/t appear at (0-indexed)
+        let n = pat.len();
+        let m = cho.len();
+        eprintln!("n={n}, m={m}");
+        for (i, &c) in cho.iter().enumerate() {
+            if pat.contains(&c) {
+                eprintln!("  cho[{i}]={}", c as char);
+            }
+        }
+
+        // Trace what bands cover for key columns
+        let j_first = cho.iter().position(|&c| c == b't').map_or(0, |p| p + 1);
+        eprintln!("j_first={j_first}");
+        let bw = n + TYPO_BAND_SLACK;
+        let gap = (m + 1).saturating_sub(j_first + (n - 1));
+        let anc_bw = gap / 2 + TYPO_BAND_SLACK;
+        eprintln!("bw={bw}, gap={gap}, anc_bw={anc_bw}");
+        for j in [16usize, 18, 24, 35] {
+            let lo1 = j.saturating_sub(bw).max(1);
+            let hi1 = (j + bw).min(n);
+            let anc = (j + 1).saturating_sub(j_first);
+            let lo2 = anc.saturating_sub(anc_bw).max(1);
+            let hi2 = (anc + anc_bw).min(n);
+            let lo = lo1.min(lo2);
+            let hi = hi1.max(hi2);
+            eprintln!("  j={j}: band1=[{lo1},{hi1}], band2=[{lo2},{hi2}] (anc={anc}), union=[{lo},{hi}]");
+        }
+
+        let mut bonus_buf = Vec::new();
+        precompute_bonuses(cho, &mut bonus_buf);
+        let result = score_only_colmajor::<true, u8>(cho, pat, &bonus_buf, respect_case);
+        eprintln!("score_only_colmajor result={result:?}");
+        assert!(result.is_some(), "score_only_colmajor returned None");
     }
 }
