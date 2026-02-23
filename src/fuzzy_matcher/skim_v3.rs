@@ -116,42 +116,56 @@ impl SWMatrix {
         res.resize(rows, cols);
         res
     }
+    /// Returns a mutable slice for the entire row `row` (length == self.cols).
     #[inline(always)]
-    pub fn at(&mut self, row: usize, col: usize) -> &mut Cell {
-        // Optimization to avoid the mult every time ?
-        // 1d coord ? Vec of Vec ?
-        if row >= self.rows {
-            panic!("Row index {row} is out of bounds for rows {}", self.rows);
-        }
-        if col >= self.cols {
-            panic!("Col index {col} is out of bounds for cols {}", self.cols);
-        }
-        &mut self.data[row * self.cols + col]
+    pub fn row_mut(&mut self, row: usize) -> &mut [Cell] {
+        let start = row * self.cols;
+        debug_assert!(start + self.cols <= self.data.len());
+        // SAFETY: resize() guarantees rows*cols <= data.len().
+        unsafe { self.data.get_unchecked_mut(start..start + self.cols) }
+    }
+    /// Returns an immutable slice for the entire row `row`.
+    #[inline(always)]
+    pub fn row(&self, row: usize) -> &[Cell] {
+        let start = row * self.cols;
+        debug_assert!(start + self.cols <= self.data.len());
+        unsafe { self.data.get_unchecked(start..start + self.cols) }
     }
     pub fn resize(&mut self, rows: usize, cols: usize) {
-        if rows * cols > self.rows * self.cols {
-            self.data.resize(rows * cols, CELL_ZERO);
+        let needed = rows * cols;
+        if needed > self.data.len() {
+            self.data.resize(needed, CELL_ZERO);
         }
         self.rows = rows;
         self.cols = cols;
     }
 }
 
+/// Check if a character is a word separator for bonus computation.
+#[inline(always)]
+fn is_separator<C: Atom>(c: C) -> bool {
+    let ch: char = c.into();
+    matches!(ch, ' ' | '/' | '\\' | '-' | '_' | '.')
+}
+
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     buf.clear();
     buf.reserve(cho.len());
-    for (j, &ch) in cho.iter().enumerate() {
+    if cho.is_empty() {
+        return;
+    }
+    // First character always gets START_OF_STRING_BONUS.
+    buf.push(START_OF_STRING_BONUS);
+    // Remaining characters: look at previous character for word boundary / camelCase.
+    for j in 1..cho.len() {
+        let prev = cho[j - 1];
+        let ch = cho[j];
         let mut bonus: Score = 0;
-        if j == 0 {
-            bonus += START_OF_STRING_BONUS;
-        } else {
-            let prev = cho[j - 1];
-            if matches!(prev.into(), ' ' | '/' | '\\' | '-' | '_' | '.') {
-                bonus += START_OF_WORD_BONUS;
-            }
-            if prev.is_lowercase() && !ch.is_lowercase() {
-                bonus += CAMEL_CASE_BONUS;
-            }
+        if is_separator(prev) {
+            bonus += START_OF_WORD_BONUS;
+        }
+        if prev.is_lowercase() && !ch.is_lowercase() {
+            bonus += CAMEL_CASE_BONUS;
         }
         buf.push(bonus);
     }
@@ -284,15 +298,6 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
         return false;
     }
 
-    // The first pattern character must appear somewhere in the choice. Any
-    // alignment that substitutes pat[0] starts with a MISMATCH_PENALTY from
-    // score 0, which saturates to 0, so it can never outperform an alignment
-    // anchored at a true match of pat[0]. Reject early if absent.
-    let first = pattern[0];
-    if !choice.iter().any(|&c| first.eq(c, respect_case)) {
-        return false;
-    }
-
     // Condition 1 threshold — score break-even (no magic numbers):
     //   k × (MATCH_BONUS + MISMATCH_PENALTY) > n × MISMATCH_PENALTY
     let lhs_factor = (MATCH_BONUS + MISMATCH_PENALTY) as usize;
@@ -306,6 +311,9 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
 
     // --- Method 1: greedy subsequence count ---
     // Counts pattern characters reachable in order via gap moves; good for sparse matches.
+    // Since the greedy scan tries pattern[0] first, subseq == 0 implies pattern[0]
+    // was never found. Any alignment that substitutes pat[0] starts from
+    // score 0 − MISMATCH_PENALTY = 0, so reject early when pat[0] is absent.
     let mut subseq = 0usize;
     let mut pi = 0usize;
     for &c in choice {
@@ -313,6 +321,9 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
             subseq += 1;
             pi += 1;
         }
+    }
+    if subseq == 0 {
+        return false;
     }
     if passes(subseq) {
         return true;
@@ -322,18 +333,19 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     // For each alignment start, counts character matches in a lockstep window of length n;
     // good for compact matches with substitutions.
     let mut best_diag = 0usize;
-    for start in 0..m {
+    for start in 0..m.saturating_sub(n - 1) {
         let mut matched = 0usize;
-        for (pi, &c) in choice[start..].iter().take(n).enumerate() {
+        let window = &choice[start..start + n];
+        for (pi, &c) in window.iter().enumerate() {
             if pattern[pi].eq(c, respect_case) {
                 matched += 1;
             }
         }
         if matched > best_diag {
             best_diag = matched;
-        }
-        if passes(best_diag) {
-            return true;
+            if passes(best_diag) {
+                return true;
+            }
         }
     }
 
@@ -850,22 +862,15 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     buf.resize(n + 1, m + 1);
 
     // Initialize row 0 and column 0
-    for j in 0..=m {
-        *buf.at(0, j) = CELL_ZERO;
-    }
+    buf.row_mut(0)[..=m].fill(CELL_ZERO);
     for i in 1..=n {
-        *buf.at(i, 0) = CELL_ZERO;
+        buf.row_mut(i)[0] = CELL_ZERO;
     }
 
     let mut best_score = 0;
     let mut best_j = 0;
 
     // Minimum number of true character matches required to return Some.
-    // In exact mode every row transition requires a character match (diag_val = 0
-    // when !is_match), so any score > 0 at row n already implies n true matches.
-    // The true-count bookkeeping can be corrupted by tiebreaking when a character
-    // coincidentally matches at a column where diag_score = 0 (fresh local start),
-    // so we only enforce this threshold in typo mode where substitutions exist.
     let min_true_matches: usize = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
 
     // Interpair pruning: consecutive rows where no column had a non-zero score.
@@ -878,34 +883,31 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
         // --- Compute column bounds for this row ---
         let (j_lo, j_hi) = if ALLOW_TYPOS {
-            // Dual-band: union of top-left diagonal band and anchored band
-            // starting at j_start.
             typo_bands_row(i, m, bandwidth, &starts, num_starts)
         } else {
             let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
             (row_lo[i - 1], row_hi[i - 1])
         };
-        // No alignment can start before the first occurrence of pat[0],
-        // so raise the lower bound for each row.
+        // No alignment can start before the first occurrence of pat[0].
         let j_lo = j_lo.max(j_start);
 
-        // Zero out cells outside the band for this row so LEFT moves
-        // don't read stale data from a previous resize.
-        for j in 1..j_lo.min(m + 1) {
-            *buf.at(i, j) = CELL_ZERO;
-        }
-        for j in (j_hi + 1)..=m {
-            *buf.at(i, j) = CELL_ZERO;
+        // Zero out cells outside the band for this row using bulk fill.
+        {
+            let cur = buf.row_mut(i);
+            let zero_hi = j_lo.min(m + 1);
+            if zero_hi > 1 {
+                cur[1..zero_hi].fill(CELL_ZERO);
+            }
+            if j_hi < m {
+                cur[j_hi + 1..=m].fill(CELL_ZERO);
+            }
         }
 
         if j_lo > j_hi || j_lo > m {
             dead_rows += 1;
             if dead_rows >= DEAD_ROW_LIMIT && i > 1 {
-                // Zero remaining rows and bail.
                 for ri in (i + 1)..=n {
-                    for rj in 0..=m {
-                        *buf.at(ri, rj) = CELL_ZERO;
-                    }
+                    buf.row_mut(ri)[..=m].fill(CELL_ZERO);
                 }
                 break;
             }
@@ -914,12 +916,25 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
         let mut row_has_life = false;
 
+        // Get prev_row as immutable pointer, cur_row as mutable pointer.
+        // SAFETY: i >= 1 so rows i-1 and i are distinct; each row is
+        // cols-aligned inside the contiguous data vec.
+        let (prev_row, cur_row) = {
+            let ptr = buf.data.as_mut_ptr();
+            let cols = buf.cols;
+            unsafe {
+                let pr = std::slice::from_raw_parts(ptr.add((i - 1) * cols), cols);
+                let cr = std::slice::from_raw_parts_mut(ptr.add(i * cols), cols);
+                (pr, cr)
+            }
+        };
+
         for j in j_lo..=j_hi {
             let cj = cho[j - 1];
             let is_match = pi.eq(cj, respect_case);
 
-            // DIAGONAL
-            let diag_cell = *buf.at(i - 1, j - 1);
+            // DIAGONAL — from (i-1, j-1)
+            let diag_cell = prev_row[j - 1];
             let diag_score = diag_cell.score();
             let diag_was_diag = diag_cell.dir() == Dir::Diag;
 
@@ -939,9 +954,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 0
             };
 
-            // UP (skip pattern char, typos only)
+            // UP (skip pattern char, typos only) — from (i-1, j)
             let up_val = if ALLOW_TYPOS {
-                let up_cell = *buf.at(i - 1, j);
+                let up_cell = prev_row[j];
                 let pen = if up_cell.dir() == Dir::Diag {
                     GAP_OPEN
                 } else {
@@ -952,9 +967,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 0
             };
 
-            // LEFT (skip choice char)
+            // LEFT (skip choice char) — from (i, j-1)
             let left_val = {
-                let left_cell = *buf.at(i, j - 1);
+                let left_cell = cur_row[j - 1];
                 let pen = if left_cell.dir() == Dir::Diag {
                     GAP_OPEN
                 } else {
@@ -975,15 +990,11 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 Dir::Left
             };
 
-            let score = Cell::new(best, dir);
-            *buf.at(i, j) = score;
+            cur_row[j] = Cell::new(best, dir);
 
             if best > 0 {
                 row_has_life = true;
             }
-            // Only track the best completion column at the last pattern row.
-            // Updating on every row would make best_j point to an intermediate
-            // row's column, causing the traceback to start from the wrong cell.
             if i == n && best > best_score {
                 best_score = best;
                 best_j = j;
@@ -996,9 +1007,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             dead_rows += 1;
             if dead_rows >= DEAD_ROW_LIMIT && i > 1 {
                 for ri in (i + 1)..=n {
-                    for rj in 0..=m {
-                        *buf.at(ri, rj) = CELL_ZERO;
-                    }
+                    buf.row_mut(ri)[..=m].fill(CELL_ZERO);
                 }
                 break;
             }
@@ -1016,7 +1025,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let mut true_matches = 0usize;
 
     while i > 0 && j > 0 {
-        let c = *buf.at(i, j);
+        let c = buf.row(i)[j];
         match c.dir() {
             Dir::Diag => {
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
