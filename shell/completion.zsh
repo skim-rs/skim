@@ -32,10 +32,10 @@ skim_v3\:"SkimV3\: Needleman-Wunsch + Damerau-Levenshtein variation with affine 
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
-'--typos=[Enable typo-tolerant matching]' \
-'--split-match=[Enable split matching and set delimiter]' \
-'*-b+[Comma separated list of bindings]' \
-'*--bind=[Comma separated list of bindings]' \
+'--typos=[Enable typo-tolerant matching]::TYPOS:_default' \
+'--split-match=[Enable split matching and set delimiter]::SPLIT_MATCH:_default' \
+'*-b+[Comma separated list of bindings]::BIND:_default' \
+'*--bind=[Comma separated list of bindings]::BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '--cmd=[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
@@ -57,7 +57,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--info=[Set matching result count display position]:INFO:(default inline hidden)' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
-'--border=[Draw borders around the UI components]' \
+'--border=[Draw borders around the UI components]::BORDER:(plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside)' \
 '--history=[History file]:HISTORY_FILE:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
 '--cmd-history=[Command history file]:CMD_HISTORY_FILE:_default' \
@@ -80,9 +80,9 @@ fish\:"Friendly Interactive SHell"
 nushell\:"Nushell (nu)"
 power-shell\:"PowerShell"
 zsh\:"Zsh"))' \
-'--listen=[Run an IPC socket with optional name (defaults to sk)]' \
-'--remote=[Send commands to an IPC socket with optional name (defaults to sk)]' \
-'--tmux=[Run in a tmux popup]' \
+'--listen=[Run an IPC socket with optional name (defaults to sk)]::LISTEN:_default' \
+'--remote=[Send commands to an IPC socket with optional name (defaults to sk)]::REMOTE:_default' \
+'--tmux=[Run in a tmux popup]::TMUX:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
 print-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"))' \
