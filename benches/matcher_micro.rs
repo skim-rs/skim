@@ -19,54 +19,54 @@ fn load_lines() -> Vec<String> {
 fn bench_matcher(c: &mut Criterion) {
     let lines = load_lines();
 
-    // c.bench_function("micro_skim_v2", |b| {
-    //     let m = SkimMatcherV2::default().smart_case();
-    //     b.iter(|| {
-    //         let mut count = 0u64;
-    //         for line in &lines {
-    //             if m.fuzzy_indices(line, "test").is_some() {
-    //                 count += 1;
-    //             }
-    //         }
-    //         count
-    //     });
-    // });
-    // c.bench_function("micro_frizbee", |b| {
-    //     let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(0));
-    //     b.iter(|| {
-    //         let mut count = 0u64;
-    //         for line in &lines {
-    //             if m.fuzzy_indices(line, "test").is_some() {
-    //                 count += 1;
-    //             }
-    //         }
-    //         count
-    //     });
-    // });
-    // c.bench_function("micro_typos_frizbee", |b| {
-    //     let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(1));
-    //     b.iter(|| {
-    //         let mut count = 0u64;
-    //         for line in &lines {
-    //             if m.fuzzy_indices(line, "test").is_some() {
-    //                 count += 1;
-    //             }
-    //         }
-    //         count
-    //     });
-    // });
-    // c.bench_function("micro_skim_v3", |b| {
-    //     let m = SkimV3Matcher::new(CaseMatching::Smart, false);
-    //     b.iter(|| {
-    //         let mut count = 0u64;
-    //         for line in &lines {
-    //             if m.fuzzy_indices(line, "test").is_some() {
-    //                 count += 1;
-    //             }
-    //         }
-    //         count
-    //     });
-    // });
+    c.bench_function("micro_skim_v2", |b| {
+        let m = SkimMatcherV2::default().smart_case();
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_indices(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
+    c.bench_function("micro_frizbee", |b| {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(0));
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_indices(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
+    c.bench_function("micro_typos_frizbee", |b| {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(1));
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_indices(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
+    c.bench_function("micro_skim_v3", |b| {
+        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_indices(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
     c.bench_function("micro_typos_skim_v3", |b| {
         let m = SkimV3Matcher::new(CaseMatching::Smart, true);
         b.iter(|| {

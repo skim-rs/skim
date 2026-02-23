@@ -12,10 +12,18 @@
 //! - **SIMD batch scoring**: 8 items at once using `wide::i16x32`.
 //!
 //!
+//! ## Pruning strategies
+//!
+//! - **Row-range banding**: each DP cell is only computed when the row/column
+//!   pair falls within the feasible alignment band. In exact mode the band is
+//!   derived from precomputed first/last match columns for each pattern
+//!   character; in typo mode a diagonal ± bandwidth envelope is used.
+//! - **Interpair max-score pruning**: after processing a column (score-only)
+//!   or row (full DP), if all cells are zero for several consecutive
+//!   iterations, the alignment is dead and we terminate early.
+//!
 //! Optimizations to explore:
 //! - SSW SIMD "Striped" (https://github.com/mengyao/Complete-Striped-Smith-Waterman-Library)
-//! - Banding & interpair pruning to add better filtering heuristics, making sure this is pertinent
-//! to our problem
 
 use std::cell::RefCell;
 
@@ -285,7 +293,7 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     let rhs_factor = MISMATCH_PENALTY as usize;
 
     // Condition 2 threshold — mirrors the DP's min_true_matches = ceil(n / 2).
-    let min_true = (n + 1) / 2;
+    let min_true = n.div_ceil(2);
 
     // Helper: true iff k satisfies both conditions.
     let passes = |k: usize| k >= min_true && k * lhs_factor > n * rhs_factor;
@@ -337,12 +345,160 @@ fn find_begin<C: Atom>(cho: &[C], pat: &[C], end: usize, respect_case: bool) -> 
 }
 
 // ---------------------------------------------------------------------------
+// Banding helpers
+// ---------------------------------------------------------------------------
+
+/// For exact (non-typo) mode, compute the earliest column (1-indexed) at which
+/// each pattern character can first be matched. This tightens the diagonal
+/// lower bound so we never compute cells that cannot participate in a valid
+/// alignment.
+///
+/// Returns `None` if any pattern character has no match in the choice (the
+/// subsequence check should have caught this, but we guard anyway).
+fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; COLMAJOR_MAX_N]> {
+    let n = pat.len();
+    let mut first = [0usize; COLMAJOR_MAX_N];
+    let mut start = 0usize; // search from this choice index onward
+    for i in 0..n {
+        let found = cho[start..].iter().position(|&c| pat[i].eq(c, respect_case));
+        match found {
+            Some(pos) => {
+                first[i] = start + pos + 1; // 1-indexed column
+                start = start + pos + 1; // next char must be strictly after
+            }
+            None => return None,
+        }
+    }
+    Some(first)
+}
+
+/// Compute the last column (1-indexed) at which each pattern character can be
+/// matched, scanning from the end. Used to tighten the diagonal upper bound.
+fn compute_last_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; COLMAJOR_MAX_N]> {
+    let n = pat.len();
+    let m = cho.len();
+    let mut last = [0usize; COLMAJOR_MAX_N];
+    let mut end = m; // search up to this choice index (exclusive)
+    for i in (0..n).rev() {
+        let found = cho[..end].iter().rposition(|&c| pat[i].eq(c, respect_case));
+        match found {
+            Some(pos) => {
+                last[i] = pos + 1; // 1-indexed column
+                end = pos; // previous char must be strictly before
+            }
+            None => return None,
+        }
+    }
+    Some(last)
+}
+
+/// For the **row-major** full DP (outer loop over rows), compute per-row
+/// column bounds `(j_lo, j_hi)` accounting for cross-row Diag reads.
+///
+/// Row `i` (1-indexed) matches pattern char `i-1`. The Diag move at
+/// `(i, j)` reads `buf[i-1][j-1]`, so row `i-1` must have computed
+/// column `j-1`. We expand each row's upper bound to satisfy the next
+/// row's lower-bound Diag dependency, and each row's lower bound to
+/// satisfy the previous row's upper-bound Diag dependency.
+fn compute_row_col_bounds(
+    n: usize,
+    m: usize,
+    first_match: &[usize; COLMAJOR_MAX_N],
+    last_match: &[usize; COLMAJOR_MAX_N],
+) -> ([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N]) {
+    let mut lo = [0usize; COLMAJOR_MAX_N];
+    let mut hi = [0usize; COLMAJOR_MAX_N];
+
+    // Start with the raw first/last match bounds.
+    lo[..n].copy_from_slice(&first_match[..n]);
+    hi[..n].copy_from_slice(&last_match[..n]);
+
+    // Forward pass: row i's upper bound must extend so that row i+1 can
+    // read Diag at (i+1, j_lo[i+1]) → needs buf[i][j_lo[i+1]-1].
+    // Also, LEFT propagation within row i+1 starts at j_lo[i+1], but
+    // score flows from row i via Diag, so row i must reach j_lo[i+1]-1.
+    for i in 0..n.saturating_sub(1) {
+        let next_lo = lo[i + 1];
+        if next_lo > 1 {
+            hi[i] = hi[i].max(next_lo - 1);
+        }
+    }
+
+    // Backward pass: row i's lower bound can't be later than row i-1's
+    // upper bound + 1 (Diag from (i-1, hi[i-1]) can reach (i, hi[i-1]+1)).
+    // This is rarely binding but ensures consistency.
+    for i in 1..n {
+        lo[i] = lo[i].min(hi[i - 1] + 1);
+    }
+
+    // Clamp to valid range.
+    for i in 0..n {
+        lo[i] = lo[i].max(1).min(m);
+        hi[i] = hi[i].max(lo[i]).min(m);
+    }
+
+    (lo, hi)
+}
+
+/// For the **column-major** score-only DP (outer loop over columns),
+/// compute per-column row bounds `(i_lo(j), i_hi(j))` on the fly from
+/// per-row column bounds.
+///
+/// Given per-row bounds `(row_lo[i], row_hi[i])` for i in 0..n (0-indexed,
+/// representing rows 1..=n in 1-indexed DP coords), this returns the row
+/// range that should be active at column `j` (1-indexed):
+///   i_lo = min {i+1 : row_lo[i] <= j}  (first row active at column j)
+///   i_hi = max {i+1 : row_hi[i] >= j}  (last row active at column j)
+#[inline]
+fn col_row_bounds_at(
+    j: usize,
+    n: usize,
+    row_lo: &[usize; COLMAJOR_MAX_N],
+    row_hi: &[usize; COLMAJOR_MAX_N],
+) -> (usize, usize) {
+    let mut i_lo = n + 1;
+    let mut i_hi = 0usize;
+    for idx in 0..n {
+        if row_lo[idx] <= j && row_hi[idx] >= j {
+            let i = idx + 1; // 1-indexed row
+            if i < i_lo {
+                i_lo = i;
+            }
+            if i > i_hi {
+                i_hi = i;
+            }
+        }
+    }
+    (i_lo, i_hi)
+}
+
+/// Bandwidth for typo-mode banding. In typo mode we allow diagonal moves
+/// (match/mismatch) plus UP (skip pattern char) and LEFT (skip choice char),
+/// so the optimal path can wander off the main diagonal. A bandwidth of
+/// `n + TYPO_BAND_SLACK` columns around the diagonal is generous enough
+/// to capture all viable alignments while still pruning far-off cells.
+const TYPO_BAND_SLACK: usize = 4;
+
+// ---------------------------------------------------------------------------
 // Smith-Waterman DP — Score-only (column-major, stack arrays)
 // ---------------------------------------------------------------------------
 
 const COLMAJOR_MAX_N: usize = 16;
 
 /// Column-major score-only for byte slices (n <= 16, stack allocated).
+///
+/// Implements two pruning strategies:
+///
+/// 1. **Row-range banding** – for each column `j` only compute rows
+///    `i_lo..=i_hi` that can participate in a valid alignment.
+///    - Exact mode: bounded by precomputed first/last match columns.
+///    - Typo mode: bounded by diagonal ± bandwidth.
+///
+/// 2. **Interpair max-score pruning** – after processing a column, if every
+///    row's score has dropped to 0, all active alignments are dead and we
+///    can restart cheaply (reset the "last column with life" counter). If
+///    the last row (`i == n`) hasn't seen improvement for many consecutive
+///    columns, we can also stop early.
 fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
@@ -351,6 +507,20 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 ) -> Option<(Score, usize)> {
     let n = pat.len();
     let m = cho.len();
+
+    // Precompute banding bounds.
+    // For exact mode: use first/last match columns per pattern char, expanded
+    // to satisfy cross-row Diag dependencies.
+    // For typo mode: use diagonal banding with slack.
+    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])> = if !ALLOW_TYPOS {
+        let fm = compute_first_match_cols(pat, cho, respect_case)?;
+        let lm = compute_last_match_cols(pat, cho, respect_case)?;
+        Some(compute_row_col_bounds(n, m, &fm, &lm))
+    } else {
+        None
+    };
+
+    let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
 
     // Two columns + direction tracking + true-match count
     let mut score_a = [0u16; COLMAJOR_MAX_N + 1];
@@ -372,19 +542,64 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let mut global_best_j: usize = 0;
     let mut global_best_true: u8 = 0;
 
+    // Interpair pruning: count consecutive columns where every row is zero.
+    let mut dead_cols: usize = 0;
+    /// After this many consecutive all-zero columns past the first possible
+    /// completion column, we can give up — no alignment can recover.
+    const DEAD_COL_LIMIT: usize = 8;
+
     // Minimum number of true character matches required to return Some.
     // Ensures the DP does not accept pure gap/substitution alignments with no real matches.
-    let min_true_matches = ((n + 1) / 2) as u8;
+    let min_true_matches = n.div_ceil(2) as u8;
 
     for j in 1..=m {
         let cj = cho[j - 1];
         let bonus_j = bonuses[j - 1];
 
+        // --- Compute row bounds for this column ---
+        let (i_lo, i_hi) = if ALLOW_TYPOS {
+            // Diagonal banding: row i ≈ j scaled by n/m, with bandwidth slack.
+            // Simple version: i ∈ [j - bandwidth, j + bandwidth] clamped to [1, n].
+            let lo = if j > bandwidth { j - bandwidth } else { 1 };
+            let hi = (j + bandwidth).min(n);
+            (lo, hi)
+        } else {
+            // Exact mode: use precomputed per-row column bounds, inverted
+            // to find which rows are active at this column.
+            let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
+            col_row_bounds_at(j, n, row_lo, row_hi)
+        };
+
+        // Zero out cells outside the band for this column, so they don't
+        // carry stale data from a previous column swap.
         cur_s[0] = 0;
         cur_d[0] = false;
         cur_t[0] = 0;
 
-        for i in 1..=n {
+        // Zero cells below the band (rows < i_lo) that UP moves might read.
+        for i in 1..i_lo.min(n + 1) {
+            cur_s[i] = 0;
+            cur_d[i] = false;
+            cur_t[i] = 0;
+        }
+        // Zero cells above the band (rows > i_hi).
+        for i in (i_hi + 1)..=n {
+            cur_s[i] = 0;
+            cur_d[i] = false;
+            cur_t[i] = 0;
+        }
+
+        if i_lo > i_hi || i_lo > n {
+            // No active rows this column — swap and continue.
+            std::mem::swap(&mut prev_s, &mut cur_s);
+            std::mem::swap(&mut prev_d, &mut cur_d);
+            std::mem::swap(&mut prev_t, &mut cur_t);
+            continue;
+        }
+
+        let mut col_has_life = false;
+
+        for i in i_lo..=i_hi {
             let pi = pat[i - 1];
             let is_match = pi.eq(cj, respect_case);
             let is_first = i == 1;
@@ -443,10 +658,26 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
                 prev_t[i]
             };
 
+            if best > 0 {
+                col_has_life = true;
+            }
+
             if i == n && best > global_best {
                 global_best = best;
                 global_best_j = j;
                 global_best_true = cur_t[i];
+            }
+        }
+
+        // Interpair pruning: if the column is entirely dead, increment counter.
+        if col_has_life {
+            dead_cols = 0;
+        } else {
+            dead_cols += 1;
+            // Only apply early-exit after we've passed the minimum column where
+            // the last pattern char could start matching (at least column n).
+            if j > n && dead_cols >= DEAD_COL_LIMIT {
+                break;
             }
         }
 
@@ -467,6 +698,18 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 // ---------------------------------------------------------------------------
 
 /// Full DP for byte slices using packed cells.
+///
+/// Implements two pruning strategies:
+///
+/// 1. **Row-range banding** – for each row `i` only compute columns
+///    `j_lo..=j_hi` that can participate in a valid alignment.
+///    - Exact mode: bounded by precomputed first/last match columns.
+///    - Typo mode: bounded by diagonal ± bandwidth.
+///
+/// 2. **Interpair max-score pruning** – after processing a row, if no
+///    column produced a non-zero score, all active alignments for this
+///    and subsequent rows are dead (since UP/LEFT can only propagate
+///    existing scores). We track this and allow early termination.
 fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
@@ -476,6 +719,17 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 ) -> Option<(Score, MatchIndices)> {
     let n = pat.len();
     let m = cho.len();
+
+    // Precompute banding bounds (reuse helpers from score_only path).
+    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])> = if !ALLOW_TYPOS {
+        let fm = compute_first_match_cols(pat, cho, respect_case)?;
+        let lm = compute_last_match_cols(pat, cho, respect_case)?;
+        Some(compute_row_col_bounds(n, m, &fm, &lm))
+    } else {
+        None
+    };
+
+    let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
 
     let mut buf = full_buf
         .get_or(|| RefCell::new(SWMatrix::zero(n + 1, m + 1)))
@@ -495,13 +749,53 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     // Minimum number of true character matches required to return Some.
     // Ensures the DP does not accept pure gap/substitution alignments with no real matches.
-    let min_true_matches = (n + 1) / 2;
+    let min_true_matches = n.div_ceil(2);
+
+    // Interpair pruning: consecutive rows where no column had a non-zero score.
+    let mut dead_rows: usize = 0;
+    const DEAD_ROW_LIMIT: usize = 4;
 
     for i in 1..=n {
         let pi = pat[i - 1];
         let is_first = i == 1;
 
-        for j in 1..=m {
+        // --- Compute column bounds for this row ---
+        let (j_lo, j_hi) = if ALLOW_TYPOS {
+            // Diagonal banding: j ≈ i scaled by m/n, with bandwidth slack.
+            let lo = if i > bandwidth { i - bandwidth } else { 1 };
+            let hi = (i + bandwidth).min(m);
+            (lo, hi)
+        } else {
+            let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
+            (row_lo[i - 1], row_hi[i - 1])
+        };
+
+        // Zero out cells outside the band for this row so LEFT moves
+        // don't read stale data from a previous resize.
+        for j in 1..j_lo.min(m + 1) {
+            *buf.at(i, j) = CELL_ZERO;
+        }
+        for j in (j_hi + 1)..=m {
+            *buf.at(i, j) = CELL_ZERO;
+        }
+
+        if j_lo > j_hi || j_lo > m {
+            dead_rows += 1;
+            if dead_rows >= DEAD_ROW_LIMIT && i > 1 {
+                // Zero remaining rows and bail.
+                for ri in (i + 1)..=n {
+                    for rj in 0..=m {
+                        *buf.at(ri, rj) = CELL_ZERO;
+                    }
+                }
+                break;
+            }
+            continue;
+        }
+
+        let mut row_has_life = false;
+
+        for j in j_lo..=j_hi {
             let cj = cho[j - 1];
             let is_match = pi.eq(cj, respect_case);
 
@@ -564,9 +858,27 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
             let score = Cell::new(best, dir);
             *buf.at(i, j) = score;
+
+            if best > 0 {
+                row_has_life = true;
+            }
             if best > best_score {
                 best_score = best;
                 best_j = j;
+            }
+        }
+
+        if row_has_life {
+            dead_rows = 0;
+        } else {
+            dead_rows += 1;
+            if dead_rows >= DEAD_ROW_LIMIT && i > 1 {
+                for ri in (i + 1)..=n {
+                    for rj in 0..=m {
+                        *buf.at(ri, rj) = CELL_ZERO;
+                    }
+                }
+                break;
             }
         }
     }
