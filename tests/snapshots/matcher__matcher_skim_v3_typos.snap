@@ -1,10 +1,9 @@
 ---
 source: tests/matcher.rs
-assertion_line: 85
 expression: buf + & cursor_pos
 ---
+"  src/manpage.rs                                                                "
 "  src/util.rs                                                                   "
-"  src/matcher.rs                                                                "
 "  src/item.rs                                                                   "
 "  src/fuzzy_matcher/clangd.rs                                                   "
 "  src/fuzzy_matcher/frizbee.rs                                                  "
@@ -25,6 +24,6 @@ expression: buf + & cursor_pos
 "  src/tui/util.rs                                                               "
 "  src/tui/item_list.rs                                                          "
 "> src/tui/mod.rs                                                                "
-"  29/49                                                                      0/0"
+"  37/49                                                                      0/0"
 "> stum                                                                          "
 cursor: (24, 7)
