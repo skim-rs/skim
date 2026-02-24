@@ -37,7 +37,7 @@ use crate::{
 type Score = i16;
 
 /// Points awarded for each correctly matched character.
-const MATCH_BONUS: Score = 32;
+const MATCH_BONUS: Score = 18;
 
 /// Extra bonus when the match is at position 0 of the choice string.
 const START_OF_STRING_BONUS: Score = 12;
@@ -58,7 +58,7 @@ const FIRST_CHAR_BONUS_MULTIPLIER: Score = 2;
 const GAP_OPEN: Score = 6;
 
 /// Cost to extend a gap by one more character.
-const GAP_EXTEND: Score = 0;
+const GAP_EXTEND: Score = 2;
 
 const TYPO_PENALTY: Score = 4;
 

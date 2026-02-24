@@ -22,3 +22,9 @@ codecov.json
 *.profraw
 
 benches/fixtures/*.txt
+
+# Profiling
+profile.json.gz
+perf.data.old
+perf.data
+flamegraph.svg

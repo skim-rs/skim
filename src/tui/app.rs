@@ -1271,8 +1271,8 @@ impl App {
                         if no_sort {
                             existing.items.extend(matches);
                         } else {
-                            let old = std::mem::take(&mut existing.items);
-                            existing.items = MatchedItem::sorted_merge(old, matches);
+                            // Merge incoming matches into existing sorted list in-place.
+                            MatchedItem::merge_into_sorted(&mut existing.items, matches);
                         }
                     } else {
                         *guard = Some(ProcessedItems {
