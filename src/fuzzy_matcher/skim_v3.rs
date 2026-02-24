@@ -497,99 +497,47 @@ fn col_row_bounds_at(
 /// to capture all viable alignments while still pruning far-off cells.
 const TYPO_BAND_SLACK: usize = 4;
 
-/// Maximum number of first-character match positions tracked for multi-band
-/// typo-mode banding. Positions beyond this cap are ignored (the existing
-/// bands are wide enough to absorb the slack).
-const MAX_FIRST_CHAR_STARTS: usize = 4;
-
-/// Collect all 1-indexed columns where `pat[0]` matches in `cho`.
+/// Find the first and last 1-indexed columns where `pat[0]` matches in `cho`.
 ///
 /// Returns `None` if `pat[0]` is not found anywhere (caller should return
-/// `None`). At most `MAX_FIRST_CHAR_STARTS` positions are recorded.
+/// `None`). The two positions define the V-shaped banding envelope.
 #[inline]
-fn find_first_char_starts<C: Atom>(
-    pat: &[C],
-    cho: &[C],
-    respect_case: bool,
-) -> Option<([usize; MAX_FIRST_CHAR_STARTS], usize)> {
+fn find_first_char<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<usize> {
     let first = pat[0];
-    let mut starts = [0usize; MAX_FIRST_CHAR_STARTS];
-    let mut count = 0usize;
-    let mut chars = cho.iter().enumerate();
-    while let Some((idx, &c)) = chars.next() {
-        if first.eq(c, respect_case) && count < MAX_FIRST_CHAR_STARTS {
-            starts[count] = idx + 1; // 1-indexed
-            chars.nth(pat.len() + (TYPO_BAND_SLACK - 1));
-            count += 1;
+    let mut j_first = 0usize;
+    for (idx, &c) in cho.iter().enumerate() {
+        if first.eq(c, respect_case) {
+            let col = idx + 1; // 1-indexed
+            j_first = col;
+            break;
         }
     }
-    if count == 0 { None } else { Some((starts, count)) }
+    if j_first > 0 { Some(j_first) } else { None }
 }
 
-/// Compute typo-mode row bounds at column `j` using a multi-band strategy
+/// Compute typo-mode row bounds at column `j` using a V-shaped band
 /// (column-major DP variant).
 ///
-/// One diagonal band is created per first-character match position. Each
-/// band is centered on the diagonal `i = j − start + 1` with the given
-/// `bandwidth`. The returned `(i_lo, i_hi)` is the union of all bands,
-/// clamped to `[1, n]`.
+/// The result is an upper triangle starting at the diagonal (j ~ i + j_first - 1)
 #[inline(always)]
-fn typo_bands(
-    j: usize,
-    n: usize,
-    bandwidth: usize,
-    starts: &[usize; MAX_FIRST_CHAR_STARTS],
-    num_starts: usize,
-) -> (usize, usize) {
-    let mut lo = usize::MAX;
-    let mut hi = 0usize;
-    let mut k = 0;
-    while k < num_starts {
-        let s = starts[k];
-        let anchored_i = (j + 1).saturating_sub(s);
-        let band_lo = anchored_i.saturating_sub(bandwidth).max(1);
-        let band_hi = (anchored_i + bandwidth).min(n);
-        if band_lo < lo {
-            lo = band_lo;
-        }
-        if band_hi > hi {
-            hi = band_hi;
-        }
-        k += 1;
-    }
-    (lo, hi)
+fn typo_vband(j: usize, n: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
+    // Band 1: diagonal anchored at j_first → i = j - j_first + 1
+    let i = (j + 1).saturating_sub(j_first);
+    let lo = i.saturating_sub(bandwidth).max(1);
+
+    // Union of the two bands
+    (lo, n)
 }
 
-/// Row-major variant of multi-band: compute column bounds at row `i`.
+/// Row-major variant of V-shaped band: compute column bounds at row `i`.
 ///
-/// One diagonal band per first-character match position. Each band is
-/// centered on `j = i + start − 1`. The returned `(j_lo, j_hi)` is the
-/// union of all bands, clamped to `[1, m]`.
+/// The result is an upper triangle starting at the diagonal (j ~ i + j_first - 1)
 #[inline(always)]
-fn typo_bands_row(
-    i: usize,
-    m: usize,
-    bandwidth: usize,
-    starts: &[usize; MAX_FIRST_CHAR_STARTS],
-    num_starts: usize,
-) -> (usize, usize) {
-    let mut lo = usize::MAX;
-    let mut hi = 0usize;
-    let mut k = 0;
-    while k < num_starts {
-        let s = starts[k];
-        let anchored_j = i + s - 1;
-        let band_lo = anchored_j.saturating_sub(bandwidth).max(1);
-        let band_hi = (anchored_j + bandwidth).min(m);
-        if band_lo < lo {
-            lo = band_lo;
-        }
-        if band_hi > hi {
-            hi = band_hi;
-        }
-        k += 1;
-    }
-    (lo, hi)
+fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
+    let j = i + j_first - 1;
+    let lo = j.saturating_sub(bandwidth).max(1);
+
+    (lo, m)
 }
 
 // ---------------------------------------------------------------------------
@@ -621,10 +569,10 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
-    // Collect all positions where pat[0] matches in cho (1-indexed).
-    // The first entry is also the earliest column any alignment can start at.
-    let (starts, num_starts) = find_first_char_starts(pat, cho, respect_case)?;
-    let j_start = starts[0]; // earliest match — skip columns before this
+    // Find the first and last occurrence of pat[0] in cho (1-indexed).
+    // These define the V-shaped banding envelope for typo mode.
+    let j_first = find_first_char(pat, cho, respect_case)?;
+    let j_start = j_first; // earliest match — skip columns before this
 
     // Precompute banding bounds.
     // For exact mode: use first/last match columns per pattern char, expanded
@@ -680,9 +628,9 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 
         // --- Compute row bounds for this column ---
         let (i_lo, i_hi) = if ALLOW_TYPOS {
-            // Multi-band: union of diagonal bands anchored at every
-            // first-character match position.
-            typo_bands(j, n, bandwidth, &starts, num_starts)
+            // V-shaped band: union of diagonals anchored at the first
+            // and last occurrence of pat[0].
+            typo_vband(j, n, bandwidth, j_first)
         } else {
             // Exact mode: use precomputed per-row column bounds, inverted
             // to find which rows are active at this column.
@@ -840,10 +788,10 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
-    // Collect all positions where pat[0] matches in cho (1-indexed).
-    // The first entry is also the earliest column any alignment can start at.
-    let (starts, num_starts) = find_first_char_starts(pat, cho, respect_case)?;
-    let j_start = starts[0]; // earliest match — skip columns before this
+    // Find the first and last occurrence of pat[0] in cho (1-indexed).
+    // These define the V-shaped banding envelope for typo mode.
+    let j_first = find_first_char(pat, cho, respect_case)?;
+    let j_start = j_first; // earliest match — skip columns before this
 
     // Precompute banding bounds (reuse helpers from score_only path).
     let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])> = if !ALLOW_TYPOS {
@@ -856,19 +804,25 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
 
+    // Column offset: the matrix stores only columns from j_start onward.
+    // Matrix column 0 is the left wall (all zeros); matrix column `jm`
+    // corresponds to original 1-indexed column `j = jm + j_start - 1`.
+    let col_off = j_start - 1; // subtract from original j to get matrix col
+    let mcols = m - col_off + 1; // matrix columns: 0 ..= (m - col_off)
+
     let mut buf = full_buf
-        .get_or(|| RefCell::new(SWMatrix::zero(n + 1, m + 1)))
+        .get_or(|| RefCell::new(SWMatrix::zero(n + 1, mcols)))
         .borrow_mut();
-    buf.resize(n + 1, m + 1);
+    buf.resize(n + 1, mcols);
 
     // Initialize row 0 and column 0
-    buf.row_mut(0)[..=m].fill(CELL_ZERO);
+    buf.row_mut(0)[..mcols].fill(CELL_ZERO);
     for i in 1..=n {
         buf.row_mut(i)[0] = CELL_ZERO;
     }
 
     let mut best_score = 0;
-    let mut best_j = 0;
+    let mut best_j = 0usize; // stored in original 1-indexed space
 
     // Minimum number of true character matches required to return Some.
     let min_true_matches: usize = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
@@ -881,9 +835,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         let pi = pat[i - 1];
         let is_first = i == 1;
 
-        // --- Compute column bounds for this row ---
+        // --- Compute column bounds for this row (original 1-indexed space) ---
         let (j_lo, j_hi) = if ALLOW_TYPOS {
-            typo_bands_row(i, m, bandwidth, &starts, num_starts)
+            typo_vband_row(i, m, bandwidth, j_first)
         } else {
             let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
             (row_lo[i - 1], row_hi[i - 1])
@@ -891,27 +845,34 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         // No alignment can start before the first occurrence of pat[0].
         let j_lo = j_lo.max(j_start);
 
-        // Zero out cells outside the band for this row using bulk fill.
-        {
-            let cur = buf.row_mut(i);
-            let zero_hi = j_lo.min(m + 1);
-            if zero_hi > 1 {
-                cur[1..zero_hi].fill(CELL_ZERO);
-            }
-            if j_hi < m {
-                cur[j_hi + 1..=m].fill(CELL_ZERO);
-            }
-        }
-
         if j_lo > j_hi || j_lo > m {
+            // Entire row is outside the band — zero it and check dead-row limit.
+            buf.row_mut(i)[..mcols].fill(CELL_ZERO);
             dead_rows += 1;
             if dead_rows >= DEAD_ROW_LIMIT && i > 1 {
                 for ri in (i + 1)..=n {
-                    buf.row_mut(ri)[..=m].fill(CELL_ZERO);
+                    buf.row_mut(ri)[..mcols].fill(CELL_ZERO);
                 }
                 break;
             }
             continue;
+        }
+
+        // Convert to matrix-local column indices (safe: j_lo >= j_start here).
+        let jm_lo = j_lo - col_off;
+        let jm_hi = j_hi - col_off;
+        let jm_max = mcols - 1; // last valid matrix column
+
+        // Zero out cells outside the band for this row using bulk fill.
+        {
+            let cur = buf.row_mut(i);
+            let zero_end = jm_lo.min(jm_max + 1);
+            if zero_end > 1 {
+                cur[1..zero_end].fill(CELL_ZERO);
+            }
+            if jm_hi < jm_max {
+                cur[jm_hi + 1..=jm_max].fill(CELL_ZERO);
+            }
         }
 
         let mut row_has_life = false;
@@ -930,11 +891,12 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         };
 
         for j in j_lo..=j_hi {
+            let jm = j - col_off; // matrix column
             let cj = cho[j - 1];
             let is_match = pi.eq(cj, respect_case);
 
-            // DIAGONAL — from (i-1, j-1)
-            let diag_cell = prev_row[j - 1];
+            // DIAGONAL — from (i-1, jm-1)
+            let diag_cell = prev_row[jm - 1];
             let diag_score = diag_cell.score();
             let diag_was_diag = diag_cell.dir() == Dir::Diag;
 
@@ -954,9 +916,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 0
             };
 
-            // UP (skip pattern char, typos only) — from (i-1, j)
+            // UP (skip pattern char, typos only) — from (i-1, jm)
             let up_val = if ALLOW_TYPOS {
-                let up_cell = prev_row[j];
+                let up_cell = prev_row[jm];
                 let pen = if up_cell.dir() == Dir::Diag {
                     GAP_OPEN
                 } else {
@@ -967,9 +929,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 0
             };
 
-            // LEFT (skip choice char) — from (i, j-1)
+            // LEFT (skip choice char) — from (i, jm-1)
             let left_val = {
-                let left_cell = cur_row[j - 1];
+                let left_cell = cur_row[jm - 1];
                 let pen = if left_cell.dir() == Dir::Diag {
                     GAP_OPEN
                 } else {
@@ -990,14 +952,14 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 Dir::Left
             };
 
-            cur_row[j] = Cell::new(best, dir);
+            cur_row[jm] = Cell::new(best, dir);
 
             if best > 0 {
                 row_has_life = true;
             }
             if i == n && best > best_score {
                 best_score = best;
-                best_j = j;
+                best_j = j; // keep in original space
             }
         }
 
@@ -1007,7 +969,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             dead_rows += 1;
             if dead_rows >= DEAD_ROW_LIMIT && i > 1 {
                 for ri in (i + 1)..=n {
-                    buf.row_mut(ri)[..=m].fill(CELL_ZERO);
+                    buf.row_mut(ri)[..mcols].fill(CELL_ZERO);
                 }
                 break;
             }
@@ -1018,14 +980,16 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         return None;
     }
 
-    // Traceback
+    // Traceback — j walks in original 1-indexed space, convert to matrix
+    // column for buf access; output indices in original 0-indexed space.
     let mut indices: MatchIndices = Vec::with_capacity(n);
     let mut i = n;
     let mut j = best_j;
     let mut true_matches = 0usize;
 
-    while i > 0 && j > 0 {
-        let c = buf.row(i)[j];
+    while i > 0 && j >= j_start {
+        let jm = j - col_off;
+        let c = buf.row(i)[jm];
         match c.dir() {
             Dir::Diag => {
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
