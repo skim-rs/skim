@@ -608,12 +608,6 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let mut global_best_j: usize = 0;
     let mut global_best_true: u8 = 0;
 
-    // Interpair pruning: count consecutive columns where every row is zero.
-    let mut dead_cols: usize = 0;
-    /// After this many consecutive all-zero columns past the first possible
-    /// completion column, we can give up — no alignment can recover.
-    const DEAD_COL_LIMIT: usize = 8;
-
     // Minimum number of true character matches required to return Some.
     // In exact mode every row transition requires a character match (diag_val = 0
     // when !is_match), so any score > 0 at row n already implies n true matches.
@@ -664,8 +658,6 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
             std::mem::swap(&mut prev_t, &mut cur_t);
             continue;
         }
-
-        let mut col_has_life = false;
 
         for i in i_lo..=i_hi {
             let pi = pat[i - 1];
@@ -726,26 +718,10 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
                 prev_t[i]
             };
 
-            if best > 0 {
-                col_has_life = true;
-            }
-
             if i == n && best > global_best {
                 global_best = best;
                 global_best_j = j;
                 global_best_true = cur_t[i];
-            }
-        }
-
-        // Interpair pruning: if the column is entirely dead, increment counter.
-        if col_has_life {
-            dead_cols = 0;
-        } else {
-            dead_cols += 1;
-            // Only apply early-exit after we've passed the minimum column where
-            // the last pattern char could start matching (at least column n).
-            if j > n && dead_cols >= DEAD_COL_LIMIT {
-                break;
             }
         }
 
