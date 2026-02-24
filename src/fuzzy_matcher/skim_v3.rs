@@ -143,11 +143,22 @@ impl SWMatrix {
     }
 }
 
+/// Bitmask lookup for ASCII word separators: ' ' (32), '-' (45), '.' (46), '/' (47),
+/// '\\' (92), '_' (95).  Bits 0-63 cover codepoints 0-63; bits 64-127 cover 64-127.
+const SEPARATOR_MASK_LO: u64 = (1u64 << 32) | (1u64 << 45) | (1u64 << 46) | (1u64 << 47);
+const SEPARATOR_MASK_HI: u64 = (1u64 << (92 - 64)) | (1u64 << (95 - 64));
+
 /// Check if a character is a word separator for bonus computation.
 #[inline(always)]
 fn is_separator<C: Atom>(c: C) -> bool {
-    let ch: char = c.into();
-    matches!(ch, ' ' | '/' | '\\' | '-' | '_' | '.')
+    let ch = c.into() as u32;
+    if ch < 64 {
+        SEPARATOR_MASK_LO & (1u64 << ch) != 0
+    } else if ch < 128 {
+        SEPARATOR_MASK_HI & (1u64 << (ch - 64)) != 0
+    } else {
+        false
+    }
 }
 
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
@@ -191,29 +202,43 @@ enum Dir {
     None = 3,
 }
 
-/// Packed cell: bits [31:16] = score, bits [1:0] = direction.
-/// Using u32 for cache-friendly single-vector full DP.
-#[derive(Debug, Copy, Clone)]
-#[repr(C)]
-struct Cell {
-    dir: Dir,
-    score: Score,
-}
+/// Packed cell stored as a `u32`: bits [15:0] = score (as u16 bitcast from
+/// i16), bits [17:16] = direction tag.  This gives 4 bytes per cell with no
+/// padding and enables branchless direction extraction via bitmask.
+#[derive(Copy, Clone)]
+struct Cell(u32);
 
 const CELL_ZERO: Cell = Cell::new(0, Dir::None);
+
+impl std::fmt::Debug for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cell")
+            .field("score", &self.score())
+            .field("dir", &self.dir())
+            .finish()
+    }
+}
 
 impl Cell {
     #[inline(always)]
     pub const fn new(score: Score, dir: Dir) -> Cell {
-        Cell { dir, score }
+        // Store score as u16 bits in low 16 bits, dir in bits 16-17.
+        Cell((score as u16 as u32) | ((dir as u32) << 16))
     }
     #[inline(always)]
     pub fn score(self) -> Score {
-        self.score
+        self.0 as u16 as i16
     }
     #[inline(always)]
     fn dir(self) -> Dir {
-        self.dir
+        // SAFETY: Dir has repr(u8) with values 0..=3 and we only ever store
+        // valid Dir values in bits 16-17.
+        unsafe { std::mem::transmute((self.0 >> 16) as u8 & 0x3) }
+    }
+    /// Branchless check: true when dir == Diag (tag 0).
+    #[inline(always)]
+    fn is_diag(self) -> bool {
+        (self.0 >> 16) & 0x3 == 0 && self.0 != CELL_ZERO.0
     }
 }
 
@@ -228,6 +253,7 @@ pub struct SkimV3Matcher {
     pub(crate) case: CaseMatching,
     pub(crate) allow_typos: bool,
     full_buf: ThreadLocal<RefCell<SWMatrix>>,
+    indices_buf: ThreadLocal<RefCell<MatchIndices>>,
     #[allow(clippy::type_complexity)]
     char_buf: ThreadLocal<RefCell<(Vec<char>, Vec<char>)>>,
     bonus_buf: ThreadLocal<RefCell<Vec<Score>>>,
@@ -311,19 +337,25 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     let mut matched = 0usize;
     let mut ci = 0usize; // cursor into choice
     for &pi in &pattern[1..] {
+        let ci_save = ci;
+        let mut found = false;
         while ci < m {
             if pi.eq(choice[ci], respect_case) {
                 matched += 1;
                 ci += 1;
+                found = true;
                 break;
             }
             ci += 1;
         }
+        // If this pattern char wasn't found, restore the cursor so
+        // subsequent pattern chars (the typo-tolerant case) can still
+        // scan from the same position.
+        if !found {
+            ci = ci_save;
+        }
         if matched >= min_tail {
             return true;
-        }
-        if ci >= m {
-            break;
         }
     }
 
@@ -646,7 +678,6 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
             let diag_was_diag = prev_d[i - 1];
 
             let up_score = cur_s[i - 1]; // same col, prev row (already computed)
-            let up_was_diag = cur_d[i - 1];
 
             let left_score = prev_s[i]; // prev col, same row
             let left_was_diag = prev_d[i];
@@ -668,13 +699,8 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
                 0
             };
 
-            // UP (typos only)
-            let up_val = if ALLOW_TYPOS {
-                let pen = if up_was_diag { GAP_OPEN } else { GAP_EXTEND };
-                up_score - pen
-            } else {
-                0
-            };
+            // UP (skip pattern char, typos only)
+            let up_val = if ALLOW_TYPOS { up_score - TYPO_PENALTY } else { 0 };
 
             // LEFT
             let left_val = {
@@ -738,24 +764,28 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     bonuses: &[Score],
     respect_case: bool,
     full_buf: &ThreadLocal<RefCell<SWMatrix>>,
+    indices_buf: &ThreadLocal<RefCell<MatchIndices>>,
 ) -> Option<(Score, MatchIndices)> {
     let n = pat.len();
     let m = cho.len();
 
-    // Find the first and last occurrence of pat[0] in cho (1-indexed).
-    // These define the V-shaped banding envelope for typo mode.
-    let j_first = find_first_char(pat, cho, respect_case)?;
-    let j_start = j_first; // earliest match — skip columns before this
+    // Precompute banding bounds. In exact mode, compute_first_match_cols
+    // already finds the first match of pat[0] — reuse it to avoid a
+    // redundant find_first_char scan.
+    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])>;
+    let j_first: usize;
 
-    // Precompute banding bounds (reuse helpers from score_only path).
-    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])> = if !ALLOW_TYPOS {
+    if !ALLOW_TYPOS {
         let fm = compute_first_match_cols(pat, cho, respect_case)?;
         let lm = compute_last_match_cols(pat, cho, respect_case)?;
-        Some(compute_row_col_bounds(n, m, &fm, &lm))
+        j_first = fm[0]; // first match of pat[0], 1-indexed
+        row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
     } else {
-        None
-    };
+        j_first = find_first_char(pat, cho, respect_case)?;
+        row_bounds = None;
+    }
 
+    let j_start = j_first; // earliest match — skip columns before this
     let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
 
     // Column offset: the matrix stores only columns from j_start onward.
@@ -781,6 +811,10 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // Minimum number of true character matches required to return Some.
     let min_true_matches: usize = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
 
+    // Hoist pointer and stride outside the row loop to avoid redundant loads.
+    let base_ptr = buf.data.as_mut_ptr();
+    let cols = buf.cols;
+
     for i in 1..=n {
         let pi = pat[i - 1];
         let is_first = i == 1;
@@ -796,8 +830,32 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         let j_lo = j_lo.max(j_start);
 
         if j_lo > j_hi || j_lo > m {
-            // Entire row is outside the band — zero it and check dead-row limit.
-            buf.row_mut(i)[..mcols].fill(CELL_ZERO);
+            // Entire row is outside the band. Only zero the cells the next
+            // row's Diag (reads [i][jm-1]) and Up (reads [i][jm]) will touch.
+            // Peek at the next row's bounds to limit work.
+            if i < n {
+                let (nj_lo, nj_hi) = if ALLOW_TYPOS {
+                    typo_vband_row(i + 1, m, bandwidth, j_first)
+                } else {
+                    let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
+                    (row_lo[i], row_hi[i])
+                };
+                let nj_lo = nj_lo.max(j_start);
+                if nj_lo <= nj_hi && nj_lo <= m {
+                    let njm_lo = nj_lo - col_off;
+                    let njm_hi = (nj_hi - col_off).min(mcols - 1);
+                    // Diag reads jm-1, Up reads jm → need [njm_lo-1 .. njm_hi].
+                    let zero_lo = njm_lo.saturating_sub(1);
+                    let zero_hi = njm_hi.min(mcols - 1);
+                    // SAFETY: row i is within the allocated matrix.
+                    unsafe {
+                        let row_ptr = base_ptr.add(i * cols);
+                        for k in zero_lo..=zero_hi {
+                            *row_ptr.add(k) = CELL_ZERO;
+                        }
+                    }
+                }
+            }
             continue;
         }
 
@@ -806,29 +864,28 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         let jm_hi = j_hi - col_off;
         let jm_max = mcols - 1; // last valid matrix column
 
-        // Zero out cells outside the band for this row using bulk fill.
-        {
-            let cur = buf.row_mut(i);
-            let zero_end = jm_lo.min(jm_max + 1);
-            if zero_end > 1 {
-                cur[1..zero_end].fill(CELL_ZERO);
+        // Zero only the boundary cells that Diag/Left/Up moves will read:
+        // - Cell at jm_lo-1: read by Left at jm_lo and Diag from next row.
+        // - Cell at jm_hi+1: read by Up from next row at jm_hi+1 (if in next band).
+        // SAFETY: indices are within the row's allocation.
+        unsafe {
+            let row_ptr = base_ptr.add(i * cols);
+            if jm_lo > 1 {
+                *row_ptr.add(jm_lo - 1) = CELL_ZERO;
             }
             if jm_hi < jm_max {
-                cur[jm_hi + 1..=jm_max].fill(CELL_ZERO);
+                *row_ptr.add(jm_hi + 1) = CELL_ZERO;
             }
         }
 
-        // Get prev_row as immutable pointer, cur_row as mutable pointer.
+        // Get prev_row as immutable slice, cur_row as mutable slice.
         // SAFETY: i >= 1 so rows i-1 and i are distinct; each row is
-        // cols-aligned inside the contiguous data vec.
-        let (prev_row, cur_row) = {
-            let ptr = buf.data.as_mut_ptr();
-            let cols = buf.cols;
-            unsafe {
-                let pr = std::slice::from_raw_parts(ptr.add((i - 1) * cols), cols);
-                let cr = std::slice::from_raw_parts_mut(ptr.add(i * cols), cols);
-                (pr, cr)
-            }
+        // cols-aligned inside the contiguous data vec. base_ptr/cols are
+        // hoisted outside the loop.
+        let (prev_row, cur_row) = unsafe {
+            let pr = std::slice::from_raw_parts(base_ptr.add((i - 1) * cols), cols);
+            let cr = std::slice::from_raw_parts_mut(base_ptr.add(i * cols), cols);
+            (pr, cr)
         };
 
         for j in j_lo..=j_hi {
@@ -839,7 +896,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             // DIAGONAL — from (i-1, jm-1)
             let diag_cell = prev_row[jm - 1];
             let diag_score = diag_cell.score();
-            let diag_was_diag = diag_cell.dir() == Dir::Diag;
+            let diag_was_diag = diag_cell.is_diag();
 
             let mut bonus = bonuses[j - 1];
             if diag_was_diag {
@@ -868,11 +925,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             // LEFT (skip choice char) — from (i, jm-1)
             let left_val = {
                 let left_cell = cur_row[jm - 1];
-                let pen = if left_cell.dir() == Dir::Diag {
-                    GAP_OPEN
-                } else {
-                    GAP_EXTEND
-                };
+                let pen = if left_cell.is_diag() { GAP_OPEN } else { GAP_EXTEND };
                 left_cell.score() - pen
             };
 
@@ -903,7 +956,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     // Traceback — j walks in original 1-indexed space, convert to matrix
     // column for buf access; output indices in original 0-indexed space.
-    let mut indices: MatchIndices = Vec::with_capacity(n);
+    // Reuse a thread-local Vec to avoid per-call allocation.
+    let mut indices_ref = indices_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+    indices_ref.clear();
     let mut i = n;
     let mut j = best_j;
     let mut true_matches = 0usize;
@@ -914,7 +969,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         match c.dir() {
             Dir::Diag => {
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
-                    indices.push((j - 1) as IndexType);
+                    indices_ref.push((j - 1) as IndexType);
                     true_matches += 1;
                 }
                 i -= 1;
@@ -934,9 +989,11 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         return None;
     }
 
-    indices.sort_unstable();
-    indices.dedup();
+    // Traceback produces indices in reverse order; reverse is O(n)
+    // vs sort_unstable's O(n log n).
+    indices_ref.reverse();
 
+    let indices = indices_ref.clone();
     Some((best_score, indices))
 }
 
@@ -1099,9 +1156,9 @@ impl FuzzyMatcher for SkimV3Matcher {
             precompute_bonuses(cho, &mut bonus_buf);
 
             let result = if self.allow_typos {
-                full_dp::<true, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf)
+                full_dp::<true, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf, &self.indices_buf)
             } else {
-                full_dp::<false, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf)
+                full_dp::<false, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf, &self.indices_buf)
             };
             return result.map(|(s, idx)| (s as ScoreType, idx));
         }
@@ -1130,9 +1187,23 @@ impl FuzzyMatcher for SkimV3Matcher {
         precompute_bonuses(cho_buf, &mut bonus_buf);
 
         let result = if self.allow_typos {
-            full_dp::<true, _>(cho_buf, pat_buf, &bonus_buf, respect_case, &self.full_buf)
+            full_dp::<true, _>(
+                cho_buf,
+                pat_buf,
+                &bonus_buf,
+                respect_case,
+                &self.full_buf,
+                &self.indices_buf,
+            )
         } else {
-            full_dp::<false, _>(cho_buf, pat_buf, &bonus_buf, respect_case, &self.full_buf)
+            full_dp::<false, _>(
+                cho_buf,
+                pat_buf,
+                &bonus_buf,
+                respect_case,
+                &self.full_buf,
+                &self.indices_buf,
+            )
         };
         result.map(|(s, idx)| (s as ScoreType, idx))
     }

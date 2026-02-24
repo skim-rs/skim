@@ -206,14 +206,6 @@ impl MatchEngine for FuzzyEngine {
             matched_range,
         })
     }
-
-    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
-        // Delegate to per-item matching (default implementation).
-        // SIMD batch score-only can't skip enough full-DP calls to be worthwhile:
-        // with typos enabled, nearly all prefilter-passing items score > 0,
-        // so the 2-pass approach just adds overhead.
-        items.iter().map(|item| self.match_item(item.as_ref())).collect()
-    }
 }
 
 impl Display for FuzzyEngine {

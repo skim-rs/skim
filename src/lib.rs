@@ -333,12 +333,6 @@ impl MatchResult {
 pub trait MatchEngine: Sync + Send + Display {
     /// Matches an item against the query, returning a result if matched
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult>;
-
-    /// Match a batch of items. Default implementation calls `match_item` per item.
-    /// Engines may override this for batch-optimized processing (e.g. SIMD).
-    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
-        items.iter().map(|item| self.match_item(item.as_ref())).collect()
-    }
 }
 
 /// Factory for creating match engines

@@ -21,6 +21,11 @@ strip = true
 [profile.dist]
 inherits = "release"
 
+[profile.release-debug]
+inherits = "release"
+debug = true
+strip = false
+
 
 [lib]
 name = "skim"

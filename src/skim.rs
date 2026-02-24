@@ -49,14 +49,8 @@ impl Skim {
     /// # Panics
     ///
     /// Panics if the tui fails to initilize
-    pub fn run_with(mut options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
+    pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         trace!("running skim");
-        // In filter mode, use the filter string as the query for matching
-        if let Some(ref filter_query) = options.filter
-            && options.query.is_none()
-        {
-            options.query = Some(filter_query.clone());
-        }
         let mut skim = Self::init(options, source)?;
 
         skim.start();

@@ -1,5 +1,4 @@
 use std::fmt::{Display, Error, Formatter};
-use std::sync::Arc;
 
 use crate::fuzzy_matcher::MatchIndices;
 use crate::{MatchEngine, MatchRange, MatchResult, SkimItem};
@@ -34,14 +33,6 @@ impl MatchEngine for OrEngine {
             .max_by_key(|res| res.as_ref().map(|matched| matched.rank.score));
 
         result?
-    }
-
-    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
-        if self.engines.len() == 1 {
-            self.engines[0].match_items(items)
-        } else {
-            items.iter().map(|item| self.match_item(item.as_ref())).collect()
-        }
     }
 }
 
@@ -118,16 +109,6 @@ impl MatchEngine for AndEngine {
             None
         } else {
             Some(self.merge_matched_items(results, &item.text()))
-        }
-    }
-
-    fn match_items(&self, items: &[Arc<dyn SkimItem>]) -> Vec<Option<MatchResult>> {
-        if self.engines.len() == 1 {
-            // Single engine — delegate directly for batch optimization
-            self.engines[0].match_items(items)
-        } else {
-            // Multiple engines — fall back to per-item
-            items.iter().map(|item| self.match_item(item.as_ref())).collect()
         }
     }
 }
