@@ -118,21 +118,6 @@ impl SWMatrix {
         res.resize(rows, cols);
         res
     }
-    /// Returns a mutable slice for the entire row `row` (length == self.cols).
-    #[inline(always)]
-    pub fn row_mut(&mut self, row: usize) -> &mut [Cell] {
-        let start = row * self.cols;
-        debug_assert!(start + self.cols <= self.data.len());
-        // SAFETY: resize() guarantees rows*cols <= data.len().
-        unsafe { self.data.get_unchecked_mut(start..start + self.cols) }
-    }
-    /// Returns an immutable slice for the entire row `row`.
-    #[inline(always)]
-    pub fn row(&self, row: usize) -> &[Cell] {
-        let start = row * self.cols;
-        debug_assert!(start + self.cols <= self.data.len());
-        unsafe { self.data.get_unchecked(start..start + self.cols) }
-    }
     pub fn resize(&mut self, rows: usize, cols: usize) {
         let needed = rows * cols;
         if needed > self.data.len() {
@@ -162,13 +147,17 @@ fn is_separator<C: Atom>(c: C) -> bool {
 }
 
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
-    buf.clear();
-    buf.reserve(cho.len());
     if cho.is_empty() {
         return;
     }
+    buf.reserve(cho.len().saturating_sub(buf.len()));
+    let buf_ptr = buf.as_mut_ptr();
+
     // First character always gets START_OF_STRING_BONUS.
-    buf.push(START_OF_STRING_BONUS);
+    // SAFETY: We reserved enough capacity above
+    unsafe {
+        *buf_ptr = START_OF_STRING_BONUS;
+    }
     // Remaining characters: look at previous character for word boundary / camelCase.
     for j in 1..cho.len() {
         let prev = cho[j - 1];
@@ -180,7 +169,13 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
         if prev.is_lowercase() && !ch.is_lowercase() {
             bonus += CAMEL_CASE_BONUS;
         }
-        buf.push(bonus);
+        unsafe {
+            *buf_ptr.add(j) = bonus;
+        }
+    }
+    // SAFETY: We will overwrite all elements of the buf
+    unsafe {
+        buf.set_len(cho.len());
     }
 }
 
@@ -238,7 +233,7 @@ impl Cell {
     /// Branchless check: true when dir == Diag (tag 0).
     #[inline(always)]
     fn is_diag(self) -> bool {
-        (self.0 >> 16) & 0x3 == 0 && self.0 != CELL_ZERO.0
+        (self.0 >> 16) & 0x3 == 0
     }
 }
 
@@ -484,19 +479,26 @@ fn col_row_bounds_at(
     row_lo: &[usize; COLMAJOR_MAX_N],
     row_hi: &[usize; COLMAJOR_MAX_N],
 ) -> (usize, usize) {
+    // Find first active row (scan forward) and last active row (scan backward).
     let mut i_lo = n + 1;
-    let mut i_hi = 0usize;
     for idx in 0..n {
-        if row_lo[idx] <= j && row_hi[idx] >= j {
-            let i = idx + 1; // 1-indexed row
-            if i < i_lo {
-                i_lo = i;
-            }
-            if i > i_hi {
-                i_hi = i;
+        if row_lo[idx] <= j {
+            // this row might be active; confirm row_hi
+            if row_hi[idx] >= j {
+                i_lo = idx + 1;
+                break;
             }
         }
     }
+
+    let mut i_hi = 0usize;
+    for idx in (0..n).rev() {
+        if row_hi[idx] >= j && row_lo[idx] <= j {
+            i_hi = idx + 1;
+            break;
+        }
+    }
+
     (i_lo, i_hi)
 }
 
@@ -579,22 +581,20 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
-    // Find the first and last occurrence of pat[0] in cho (1-indexed).
-    // These define the V-shaped banding envelope for typo mode.
-    let j_first = find_first_char(pat, cho, respect_case)?;
-    let j_start = j_first; // earliest match — skip columns before this
-
-    // Precompute banding bounds.
-    // For exact mode: use first/last match columns per pattern char, expanded
-    // to satisfy cross-row Diag dependencies.
-    // For typo mode: use diagonal banding with slack.
-    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])> = if !ALLOW_TYPOS {
+    // Precompute banding bounds. In exact mode we can reuse fm[0] as
+    // j_first to avoid an extra scan for the first occurrence.
+    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])>;
+    let j_first: usize;
+    if !ALLOW_TYPOS {
         let fm = compute_first_match_cols(pat, cho, respect_case)?;
         let lm = compute_last_match_cols(pat, cho, respect_case)?;
-        Some(compute_row_col_bounds(n, m, &fm, &lm))
+        j_first = fm[0];
+        row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
     } else {
-        None
-    };
+        j_first = find_first_char(pat, cho, respect_case)?;
+        row_bounds = None;
+    }
+    let j_start = j_first; // earliest match — skip columns before this
 
     let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
 
@@ -799,10 +799,19 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         .borrow_mut();
     buf.resize(n + 1, mcols);
 
-    // Initialize row 0 and column 0
-    buf.row_mut(0)[..mcols].fill(CELL_ZERO);
-    for i in 1..=n {
-        buf.row_mut(i)[0] = CELL_ZERO;
+    // Hoist pointer and stride before initialization to use raw access.
+    let base_ptr = buf.data.as_mut_ptr();
+    let cols = buf.cols;
+
+    // Initialize row 0 and column 0 using raw pointer access (fewer borrows).
+    unsafe {
+        let row0 = base_ptr;
+        for c in 0..mcols {
+            *row0.add(c) = CELL_ZERO;
+        }
+        for i in 1..=n {
+            *base_ptr.add(i * cols) = CELL_ZERO;
+        }
     }
 
     let mut best_score = 0;
@@ -811,9 +820,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // Minimum number of true character matches required to return Some.
     let min_true_matches: usize = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
 
-    // Hoist pointer and stride outside the row loop to avoid redundant loads.
-    let base_ptr = buf.data.as_mut_ptr();
-    let cols = buf.cols;
+    // base_ptr and cols already set above
 
     for i in 1..=n {
         let pi = pat[i - 1];
@@ -888,17 +895,24 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             (pr, cr)
         };
 
+        // Hoist raw pointers for unchecked access inside the hot loop.
+        let cho_ptr = cho.as_ptr();
+        let bonuses_ptr = bonuses.as_ptr();
+        let prev_ptr = prev_row.as_ptr();
+        let cur_ptr = cur_row.as_mut_ptr();
+
         for j in j_lo..=j_hi {
             let jm = j - col_off; // matrix column
-            let cj = cho[j - 1];
+            // SAFETY: j and jm are inside the band and within array bounds.
+            let cj = unsafe { *cho_ptr.add(j - 1) };
             let is_match = pi.eq(cj, respect_case);
 
             // DIAGONAL — from (i-1, jm-1)
-            let diag_cell = prev_row[jm - 1];
+            let diag_cell = unsafe { *prev_ptr.add(jm - 1) };
             let diag_score = diag_cell.score();
             let diag_was_diag = diag_cell.is_diag();
 
-            let mut bonus = bonuses[j - 1];
+            let mut bonus = unsafe { *bonuses_ptr.add(j - 1) };
             if diag_was_diag {
                 bonus += CONSECUTIVE_BONUS;
             }
@@ -916,7 +930,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
             // UP (skip pattern char, typos only) — from (i-1, jm)
             let up_val = if ALLOW_TYPOS {
-                let up_cell = prev_row[jm];
+                let up_cell = unsafe { *prev_ptr.add(jm) };
                 up_cell.score() - TYPO_PENALTY
             } else {
                 0
@@ -924,7 +938,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
             // LEFT (skip choice char) — from (i, jm-1)
             let left_val = {
-                let left_cell = cur_row[jm - 1];
+                let left_cell = unsafe { *cur_ptr.add(jm - 1) };
                 let pen = if left_cell.is_diag() { GAP_OPEN } else { GAP_EXTEND };
                 left_cell.score() - pen
             };
@@ -941,7 +955,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 Dir::Left
             };
 
-            cur_row[jm] = Cell::new(best, dir);
+            unsafe {
+                *cur_ptr.add(jm) = Cell::new(best, dir);
+            }
 
             if i == n && best > best_score {
                 best_score = best;
@@ -957,7 +973,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // Traceback — j walks in original 1-indexed space, convert to matrix
     // column for buf access; output indices in original 0-indexed space.
     // Reuse a thread-local Vec to avoid per-call allocation.
-    let mut indices_ref = indices_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+    let indices_ref_cell = indices_buf.get_or(|| RefCell::new(Vec::new()));
+    let mut indices_ref = indices_ref_cell.borrow_mut();
     indices_ref.clear();
     let mut i = n;
     let mut j = best_j;
@@ -965,7 +982,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     while i > 0 && j >= j_start {
         let jm = j - col_off;
-        let c = buf.row(i)[jm];
+        // SAFETY: jm and i are within the matrix bounds established above.
+        let c = unsafe { *base_ptr.add(i * cols).add(jm) };
         match c.dir() {
             Dir::Diag => {
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
@@ -993,8 +1011,11 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // vs sort_unstable's O(n log n).
     indices_ref.reverse();
 
-    let indices = indices_ref.clone();
-    Some((best_score, indices))
+    // Move ownership out of the thread-local buffer by cloning the vec's
+    // contents into a fresh Vec (cheap since MatchIndices is Vec<usize>),
+    // but avoid an extra clone by using `to_vec()` which reallocates once.
+    let out = indices_ref.to_vec();
+    Some((best_score, out))
 }
 
 // ---------------------------------------------------------------------------
