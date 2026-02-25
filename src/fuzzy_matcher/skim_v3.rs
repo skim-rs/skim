@@ -65,6 +65,10 @@ const TYPO_PENALTY: Score = 4;
 /// Penalty for aligning a pattern char to a different choice char (typos only).
 const MISMATCH_PENALTY: Score = 12;
 
+/// Extra penalty applied per consecutive Up (typo skip) move.
+/// The 2nd and next typos will be penalized by TYPO_PENALTY << CONSECUTIVE_TYPO_FACT
+const CONSECUTIVE_TYPO_FACT: Score = 4;
+
 // ---------------------------------------------------------------------------
 // Byte-level helpers
 // ---------------------------------------------------------------------------
@@ -173,7 +177,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
             *buf_ptr.add(j) = bonus;
         }
     }
-    // SAFETY: We will overwrite all elements of the buf
+    // SAFETY: We overwrote all elements of the buf in the previous loop
     unsafe {
         buf.set_len(cho.len());
     }
@@ -234,6 +238,11 @@ impl Cell {
     #[inline(always)]
     fn is_diag(self) -> bool {
         (self.0 >> 16) & 0x3 == 0
+    }
+    /// Branchless check: true when dir == Up (tag 1).
+    #[inline(always)]
+    fn is_up(self) -> bool {
+        (self.0 >> 16) & 0x3 == 1
     }
 }
 
@@ -509,6 +518,123 @@ fn col_row_bounds_at(
 /// to capture all viable alignments while still pruning far-off cells.
 const TYPO_BAND_SLACK: usize = 4;
 
+// ---------------------------------------------------------------------------
+// Shared DP helpers
+// ---------------------------------------------------------------------------
+
+/// Precomputed banding information shared by both score-only and full DP.
+struct BandingInfo {
+    /// Per-row column bounds (only present in exact mode).
+    row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])>,
+    /// 1-indexed column of the first match of `pat[0]` in `cho`.
+    j_first: usize,
+    /// Bandwidth for typo-mode diagonal banding (0 in exact mode).
+    bandwidth: usize,
+    /// Minimum number of true (non-substitution) matches to accept.
+    min_true_matches: usize,
+}
+
+/// Compute banding information for the DP. Returns `None` if the pattern
+/// cannot possibly match (e.g. a pattern character has no occurrence).
+fn compute_banding<const ALLOW_TYPOS: bool, C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<BandingInfo> {
+    let n = pat.len();
+    let m = cho.len();
+    let row_bounds;
+    let j_first;
+
+    if !ALLOW_TYPOS {
+        let fm = compute_first_match_cols(pat, cho, respect_case)?;
+        let lm = compute_last_match_cols(pat, cho, respect_case)?;
+        j_first = fm[0];
+        row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
+    } else {
+        j_first = find_first_char(pat, cho, respect_case)?;
+        row_bounds = None;
+    }
+
+    let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
+    let min_true_matches = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
+
+    Some(BandingInfo {
+        row_bounds,
+        j_first,
+        bandwidth,
+        min_true_matches,
+    })
+}
+
+/// Core cell scoring kernel shared by both score-only and full DP.
+///
+/// Computes the best score and direction for a single DP cell from its
+/// three neighbours (diagonal, up, left). The caller is responsible for
+/// fetching the neighbour values from whatever storage layout it uses.
+///
+/// Returns `(best_score, direction)`. The direction is `Dir::None` when
+/// `best_score <= 0`.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn compute_cell<const ALLOW_TYPOS: bool>(
+    is_match: bool,
+    is_first: bool,
+    bonus_j: Score,
+    diag_score: Score,
+    diag_was_diag: bool,
+    up_score: Score,
+    up_was_up: bool,
+    left_score: Score,
+    left_was_diag: bool,
+) -> (Score, Dir) {
+    // --- Bonus ---
+    let mut bonus = bonus_j;
+    if diag_was_diag {
+        bonus += CONSECUTIVE_BONUS;
+    }
+    if is_first {
+        bonus *= FIRST_CHAR_BONUS_MULTIPLIER;
+    }
+
+    // --- DIAGONAL ---
+    let diag_val = if is_match {
+        diag_score + MATCH_BONUS + bonus
+    } else if ALLOW_TYPOS {
+        diag_score - MISMATCH_PENALTY
+    } else {
+        0
+    };
+
+    // --- UP (skip pattern char, typos only) ---
+    let up_val = if ALLOW_TYPOS {
+        let pen = if up_was_up {
+            TYPO_PENALTY << CONSECUTIVE_TYPO_FACT
+        } else {
+            TYPO_PENALTY
+        };
+        up_score - pen
+    } else {
+        0
+    };
+
+    // --- LEFT (skip choice char) ---
+    let left_val = {
+        let pen = if left_was_diag { GAP_OPEN } else { GAP_EXTEND };
+        left_score - pen
+    };
+
+    let best = diag_val.max(up_val).max(left_val);
+
+    let dir = if best <= 0 {
+        Dir::None
+    } else if diag_val >= up_val && diag_val >= left_val && (is_match || ALLOW_TYPOS) {
+        Dir::Diag
+    } else if ALLOW_TYPOS && up_val >= left_val {
+        Dir::Up
+    } else {
+        Dir::Left
+    };
+
+    (best, dir)
+}
+
 /// Find the first and last 1-indexed columns where `pat[0]` matches in `cho`.
 ///
 /// Returns `None` if `pat[0]` is not found anywhere (caller should return
@@ -581,28 +707,18 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
-    // Precompute banding bounds. In exact mode we can reuse fm[0] as
-    // j_first to avoid an extra scan for the first occurrence.
-    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])>;
-    let j_first: usize;
-    if !ALLOW_TYPOS {
-        let fm = compute_first_match_cols(pat, cho, respect_case)?;
-        let lm = compute_last_match_cols(pat, cho, respect_case)?;
-        j_first = fm[0];
-        row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
-    } else {
-        j_first = find_first_char(pat, cho, respect_case)?;
-        row_bounds = None;
-    }
-    let j_start = j_first; // earliest match — skip columns before this
-
-    let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
+    let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
+    let j_start = banding.j_first; // earliest match — skip columns before this
 
     // Two columns + direction tracking + true-match count
     let mut score_a: [Score; _] = [0; COLMAJOR_MAX_N + 1];
     let mut score_b: [Score; _] = [0; COLMAJOR_MAX_N + 1];
     let mut diag_a = [false; COLMAJOR_MAX_N + 1];
     let mut diag_b = [false; COLMAJOR_MAX_N + 1];
+    // Whether this cell took Up (typo skip) — tracked per-column for
+    // consecutive-Up penalty. Only cur_u is read (same column, prior row).
+    let mut up_a = [false; COLMAJOR_MAX_N + 1];
+    let mut up_b = [false; COLMAJOR_MAX_N + 1];
     // Number of true (non-substitution) matches on the best path to each cell.
     let mut true_a = [0u8; COLMAJOR_MAX_N + 1];
     let mut true_b = [0u8; COLMAJOR_MAX_N + 1];
@@ -611,6 +727,8 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let mut cur_s = &mut score_b;
     let mut prev_d = &mut diag_a;
     let mut cur_d = &mut diag_b;
+    let mut cur_u = &mut up_a;
+    let mut spare_u = &mut up_b;
     let mut prev_t = &mut true_a;
     let mut cur_t = &mut true_b;
 
@@ -618,27 +736,15 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let mut global_best_j: usize = 0;
     let mut global_best_true: u8 = 0;
 
-    // Minimum number of true character matches required to return Some.
-    // In exact mode every row transition requires a character match (diag_val = 0
-    // when !is_match), so any score > 0 at row n already implies n true matches.
-    // The true-count bookkeeping can be corrupted by tiebreaking when a character
-    // coincidentally matches at a column where diag_score = 0 (fresh local start),
-    // so we only enforce this threshold in typo mode where substitutions exist.
-    let min_true_matches: u8 = if ALLOW_TYPOS { n.div_ceil(2) as u8 } else { 0 };
-
     for j in j_start..=m {
         let cj = cho[j - 1];
         let bonus_j = bonuses[j - 1];
 
         // --- Compute row bounds for this column ---
         let (i_lo, i_hi) = if ALLOW_TYPOS {
-            // V-shaped band: union of diagonals anchored at the first
-            // and last occurrence of pat[0].
-            typo_vband(j, n, bandwidth, j_first)
+            typo_vband(j, n, banding.bandwidth, banding.j_first)
         } else {
-            // Exact mode: use precomputed per-row column bounds, inverted
-            // to find which rows are active at this column.
-            let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
+            let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
             col_row_bounds_at(j, n, row_lo, row_hi)
         };
 
@@ -646,18 +752,21 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
         // carry stale data from a previous column swap.
         cur_s[0] = 0;
         cur_d[0] = false;
+        cur_u[0] = false;
         cur_t[0] = 0;
 
         // Zero cells below the band (rows < i_lo) that UP moves might read.
         for i in 1..i_lo.min(n + 1) {
             cur_s[i] = 0;
             cur_d[i] = false;
+            cur_u[i] = false;
             cur_t[i] = 0;
         }
         // Zero cells above the band (rows > i_hi).
         for i in (i_hi + 1)..=n {
             cur_s[i] = 0;
             cur_d[i] = false;
+            cur_u[i] = false;
             cur_t[i] = 0;
         }
 
@@ -665,6 +774,7 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
             // No active rows this column — swap and continue.
             std::mem::swap(&mut prev_s, &mut cur_s);
             std::mem::swap(&mut prev_d, &mut cur_d);
+            std::mem::swap(&mut cur_u, &mut spare_u);
             std::mem::swap(&mut prev_t, &mut cur_t);
             continue;
         }
@@ -676,47 +786,32 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 
             let diag_score = prev_s[i - 1];
             let diag_was_diag = prev_d[i - 1];
-
             let up_score = cur_s[i - 1]; // same col, prev row (already computed)
-
+            let up_was_up = cur_u[i - 1]; // same col, prev row
             let left_score = prev_s[i]; // prev col, same row
             let left_was_diag = prev_d[i];
 
-            // DIAGONAL
-            let mut bonus = bonus_j;
-            if diag_was_diag {
-                bonus += CONSECUTIVE_BONUS;
-            }
-            if is_first {
-                bonus *= FIRST_CHAR_BONUS_MULTIPLIER;
-            }
+            let (best, dir) = compute_cell::<ALLOW_TYPOS>(
+                is_match,
+                is_first,
+                bonus_j,
+                diag_score,
+                diag_was_diag,
+                up_score,
+                up_was_up,
+                left_score,
+                left_was_diag,
+            );
 
-            let diag_val = if is_match {
-                diag_score + MATCH_BONUS + bonus
-            } else if ALLOW_TYPOS {
-                diag_score - MISMATCH_PENALTY
-            } else {
-                0
-            };
-
-            // UP (skip pattern char, typos only)
-            let up_val = if ALLOW_TYPOS { up_score - TYPO_PENALTY } else { 0 };
-
-            // LEFT
-            let left_val = {
-                let pen = if left_was_diag { GAP_OPEN } else { GAP_EXTEND };
-                left_score - pen
-            };
-
-            let best = diag_val.max(up_val).max(left_val);
-            let took_diag = best > 0 && diag_val >= up_val && diag_val >= left_val;
+            let took_diag = dir == Dir::Diag;
             cur_s[i] = best;
             cur_d[i] = took_diag;
-            cur_t[i] = if best == 0 {
+            cur_u[i] = dir == Dir::Up;
+            cur_t[i] = if best <= 0 {
                 0
             } else if took_diag {
                 prev_t[i - 1] + is_match as u8
-            } else if up_val >= left_val {
+            } else if ALLOW_TYPOS && dir == Dir::Up {
                 cur_t[i - 1]
             } else {
                 prev_t[i]
@@ -731,10 +826,11 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 
         std::mem::swap(&mut prev_s, &mut cur_s);
         std::mem::swap(&mut prev_d, &mut cur_d);
+        std::mem::swap(&mut cur_u, &mut spare_u);
         std::mem::swap(&mut prev_t, &mut cur_t);
     }
 
-    if global_best > 0 && global_best_true >= min_true_matches {
+    if global_best > 0 && global_best_true >= banding.min_true_matches as u8 {
         Some((global_best, global_best_j))
     } else {
         None
@@ -769,24 +865,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let n = pat.len();
     let m = cho.len();
 
-    // Precompute banding bounds. In exact mode, compute_first_match_cols
-    // already finds the first match of pat[0] — reuse it to avoid a
-    // redundant find_first_char scan.
-    let row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])>;
-    let j_first: usize;
-
-    if !ALLOW_TYPOS {
-        let fm = compute_first_match_cols(pat, cho, respect_case)?;
-        let lm = compute_last_match_cols(pat, cho, respect_case)?;
-        j_first = fm[0]; // first match of pat[0], 1-indexed
-        row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
-    } else {
-        j_first = find_first_char(pat, cho, respect_case)?;
-        row_bounds = None;
-    }
-
-    let j_start = j_first; // earliest match — skip columns before this
-    let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
+    let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
+    let j_start = banding.j_first; // earliest match — skip columns before this
 
     // Column offset: the matrix stores only columns from j_start onward.
     // Matrix column 0 is the left wall (all zeros); matrix column `jm`
@@ -817,9 +897,6 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let mut best_score = 0;
     let mut best_j = 0usize; // stored in original 1-indexed space
 
-    // Minimum number of true character matches required to return Some.
-    let min_true_matches: usize = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
-
     // base_ptr and cols already set above
 
     for i in 1..=n {
@@ -828,9 +905,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
         // --- Compute column bounds for this row (original 1-indexed space) ---
         let (j_lo, j_hi) = if ALLOW_TYPOS {
-            typo_vband_row(i, m, bandwidth, j_first)
+            typo_vband_row(i, m, banding.bandwidth, banding.j_first)
         } else {
-            let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
+            let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
             (row_lo[i - 1], row_hi[i - 1])
         };
         // No alignment can start before the first occurrence of pat[0].
@@ -842,9 +919,9 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             // Peek at the next row's bounds to limit work.
             if i < n {
                 let (nj_lo, nj_hi) = if ALLOW_TYPOS {
-                    typo_vband_row(i + 1, m, bandwidth, j_first)
+                    typo_vband_row(i + 1, m, banding.bandwidth, banding.j_first)
                 } else {
-                    let (row_lo, row_hi) = row_bounds.as_ref().unwrap();
+                    let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
                     (row_lo[i], row_hi[i])
                 };
                 let nj_lo = nj_lo.max(j_start);
@@ -907,53 +984,27 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             let cj = unsafe { *cho_ptr.add(j - 1) };
             let is_match = pi.eq(cj, respect_case);
 
-            // DIAGONAL — from (i-1, jm-1)
+            // Fetch neighbour values from the matrix.
             let diag_cell = unsafe { *prev_ptr.add(jm - 1) };
-            let diag_score = diag_cell.score();
-            let diag_was_diag = diag_cell.is_diag();
-
-            let mut bonus = unsafe { *bonuses_ptr.add(j - 1) };
-            if diag_was_diag {
-                bonus += CONSECUTIVE_BONUS;
-            }
-            if is_first {
-                bonus *= FIRST_CHAR_BONUS_MULTIPLIER;
-            }
-
-            let diag_val = if is_match {
-                diag_score + MATCH_BONUS + bonus
-            } else if ALLOW_TYPOS {
-                diag_score - MISMATCH_PENALTY
-            } else {
-                0
-            };
-
-            // UP (skip pattern char, typos only) — from (i-1, jm)
-            let up_val = if ALLOW_TYPOS {
+            let (up_score, up_was_up) = if ALLOW_TYPOS {
                 let up_cell = unsafe { *prev_ptr.add(jm) };
-                up_cell.score() - TYPO_PENALTY
+                (up_cell.score(), up_cell.is_up())
             } else {
-                0
+                (0, false)
             };
+            let left_cell = unsafe { *cur_ptr.add(jm - 1) };
 
-            // LEFT (skip choice char) — from (i, jm-1)
-            let left_val = {
-                let left_cell = unsafe { *cur_ptr.add(jm - 1) };
-                let pen = if left_cell.is_diag() { GAP_OPEN } else { GAP_EXTEND };
-                left_cell.score() - pen
-            };
-
-            let best = diag_val.max(up_val).max(left_val);
-
-            let dir = if best <= 0 {
-                Dir::None
-            } else if diag_val >= up_val && diag_val >= left_val && (is_match || ALLOW_TYPOS) {
-                Dir::Diag
-            } else if ALLOW_TYPOS && up_val >= left_val {
-                Dir::Up
-            } else {
-                Dir::Left
-            };
+            let (best, dir) = compute_cell::<ALLOW_TYPOS>(
+                is_match,
+                is_first,
+                unsafe { *bonuses_ptr.add(j - 1) },
+                diag_cell.score(),
+                diag_cell.is_diag(),
+                up_score,
+                up_was_up,
+                left_cell.score(),
+                left_cell.is_diag(),
+            );
 
             unsafe {
                 *cur_ptr.add(jm) = Cell::new(best, dir);
@@ -1003,7 +1054,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         }
     }
 
-    if true_matches < min_true_matches {
+    if true_matches < banding.min_true_matches {
         return None;
     }
 
