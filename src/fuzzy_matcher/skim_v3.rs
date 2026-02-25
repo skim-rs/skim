@@ -65,10 +65,6 @@ const TYPO_PENALTY: Score = 4;
 /// Penalty for aligning a pattern char to a different choice char (typos only).
 const MISMATCH_PENALTY: Score = 12;
 
-/// Extra penalty applied per consecutive Up (typo skip) move.
-/// The 2nd and next typos will be penalized by TYPO_PENALTY << CONSECUTIVE_TYPO_FACT
-const CONSECUTIVE_TYPO_FACT: Score = 4;
-
 // ---------------------------------------------------------------------------
 // Byte-level helpers
 // ---------------------------------------------------------------------------
@@ -238,11 +234,6 @@ impl Cell {
     #[inline(always)]
     fn is_diag(self) -> bool {
         (self.0 >> 16) & 0x3 == 0
-    }
-    /// Branchless check: true when dir == Up (tag 1).
-    #[inline(always)]
-    fn is_up(self) -> bool {
-        (self.0 >> 16) & 0x3 == 1
     }
 }
 
@@ -580,7 +571,6 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     diag_score: Score,
     diag_was_diag: bool,
     up_score: Score,
-    up_was_up: bool,
     left_score: Score,
     left_was_diag: bool,
 ) -> (Score, Dir) {
@@ -603,16 +593,7 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     };
 
     // --- UP (skip pattern char, typos only) ---
-    let up_val = if ALLOW_TYPOS {
-        let pen = if up_was_up {
-            TYPO_PENALTY << CONSECUTIVE_TYPO_FACT
-        } else {
-            TYPO_PENALTY
-        };
-        up_score - pen
-    } else {
-        0
-    };
+    let up_val = if ALLOW_TYPOS { up_score - TYPO_PENALTY } else { 0 };
 
     // --- LEFT (skip choice char) ---
     let left_val = {
@@ -787,7 +768,6 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
             let diag_score = prev_s[i - 1];
             let diag_was_diag = prev_d[i - 1];
             let up_score = cur_s[i - 1]; // same col, prev row (already computed)
-            let up_was_up = cur_u[i - 1]; // same col, prev row
             let left_score = prev_s[i]; // prev col, same row
             let left_was_diag = prev_d[i];
 
@@ -798,7 +778,6 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
                 diag_score,
                 diag_was_diag,
                 up_score,
-                up_was_up,
                 left_score,
                 left_was_diag,
             );
@@ -986,11 +965,11 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
             // Fetch neighbour values from the matrix.
             let diag_cell = unsafe { *prev_ptr.add(jm - 1) };
-            let (up_score, up_was_up) = if ALLOW_TYPOS {
+            let up_score = if ALLOW_TYPOS {
                 let up_cell = unsafe { *prev_ptr.add(jm) };
-                (up_cell.score(), up_cell.is_up())
+                up_cell.score()
             } else {
-                (0, false)
+                0
             };
             let left_cell = unsafe { *cur_ptr.add(jm - 1) };
 
@@ -1001,7 +980,6 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 diag_cell.score(),
                 diag_cell.is_diag(),
                 up_score,
-                up_was_up,
                 left_cell.score(),
                 left_cell.is_diag(),
             );
