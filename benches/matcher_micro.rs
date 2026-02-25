@@ -67,12 +67,60 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
+    c.bench_function("micro_skim_v3_range", |b| {
+        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_match_range(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
+    c.bench_function("micro_skim_v3_score", |b| {
+        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_match(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
     c.bench_function("micro_typos_skim_v3", |b| {
         let m = SkimV3Matcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
                 if m.fuzzy_indices(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
+    c.bench_function("micro_typos_skim_v3_range", |b| {
+        let m = SkimV3Matcher::new(CaseMatching::Smart, true);
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_match_range(line, "test").is_some() {
+                    count += 1;
+                }
+            }
+            count
+        });
+    });
+    c.bench_function("micro_typos_skim_v3_score", |b| {
+        let m = SkimV3Matcher::new(CaseMatching::Smart, true);
+        b.iter(|| {
+            let mut count = 0u64;
+            for line in &lines {
+                if m.fuzzy_match(line, "test").is_some() {
                     count += 1;
                 }
             }

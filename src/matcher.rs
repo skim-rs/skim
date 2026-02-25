@@ -126,6 +126,7 @@ impl Matcher {
                 .fuzzy_algorithm(options.algorithm)
                 .exact_mode(options.exact)
                 .typos(options.typos)
+                .filter_mode(options.filter.is_some())
                 .rank_builder(rank_builder.clone())
                 .build();
 

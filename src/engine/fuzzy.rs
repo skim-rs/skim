@@ -47,6 +47,10 @@ pub struct FuzzyEngineBuilder {
     /// - `Typos::Smart`: adaptive (pattern_length / 4)
     /// - `Typos::Fixed(n)`: exactly n typos allowed
     typos: Typos,
+    /// When true, use `fuzzy_match_range` instead of `fuzzy_indices` to avoid
+    /// per-character index computation (useful in filter mode where highlighting
+    /// is not needed).
+    filter_mode: bool,
 }
 
 impl FuzzyEngineBuilder {
@@ -72,6 +76,11 @@ impl FuzzyEngineBuilder {
 
     pub fn typos(mut self, typos: Typos) -> Self {
         self.typos = typos;
+        self
+    }
+
+    pub fn filter_mode(mut self, filter_mode: bool) -> Self {
+        self.filter_mode = filter_mode;
         self
     }
 
@@ -143,6 +152,7 @@ impl FuzzyEngineBuilder {
             matcher,
             query: self.query,
             rank_builder: self.rank_builder,
+            filter_mode: self.filter_mode,
         }
     }
 }
@@ -152,6 +162,7 @@ pub struct FuzzyEngine {
     query: String,
     matcher: Box<dyn FuzzyMatcher>,
     rank_builder: Arc<RankBuilder>,
+    filter_mode: bool,
 }
 
 impl FuzzyEngine {
@@ -166,45 +177,85 @@ impl MatchEngine for FuzzyEngine {
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
 
-        let mut matched_result = None;
-        for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-            let start = min(start, item_text.len());
-            let end = min(end, item_text.len());
+        if self.filter_mode {
+            // Fast path: use fuzzy_match_range to avoid per-character index computation
+            let mut best: Option<(i64, usize, usize)> = None;
+            for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
+                let start = min(start, item_text.len());
+                let end = min(end, item_text.len());
 
-            let result = if self.query.is_empty() {
-                Some((0i64, MatchIndices::new()))
-            } else if item_text[start..end].is_empty() {
-                None
-            } else {
-                self.matcher.fuzzy_indices(&item_text[start..end], &self.query)
-            };
-
-            matched_result = result.map(|(s, vec)| {
-                if start != 0 {
-                    let start_char = item_text[..start].chars().count();
-                    (s, vec.iter().map(|x| x + start_char).collect::<MatchIndices>())
+                let result = if self.query.is_empty() {
+                    Some((0i64, 0, 0))
+                } else if item_text[start..end].is_empty() {
+                    None
                 } else {
-                    (s, vec)
+                    self.matcher
+                        .fuzzy_match_range(&item_text[start..end], &self.query)
+                        .map(|(s, b, e)| {
+                            let offset = if start != 0 {
+                                item_text[..start].chars().count()
+                            } else {
+                                0
+                            };
+                            (s, b + offset, e + offset)
+                        })
+                };
+
+                if result.is_some() {
+                    best = result;
+                    break;
                 }
-            });
-
-            if matched_result.is_some() {
-                break;
             }
+
+            let (score, begin, end) = best?;
+            let item_len = item_text.len();
+            Some(MatchResult {
+                rank: self
+                    .rank_builder
+                    .build_rank(score as i32, begin, end, item_len, item.get_index()),
+                matched_range: MatchRange::ByteRange(begin, end),
+            })
+        } else {
+            let mut matched_result = None;
+            for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
+                let start = min(start, item_text.len());
+                let end = min(end, item_text.len());
+
+                let result = if self.query.is_empty() {
+                    Some((0i64, MatchIndices::new()))
+                } else if item_text[start..end].is_empty() {
+                    None
+                } else {
+                    self.matcher.fuzzy_indices(&item_text[start..end], &self.query)
+                };
+
+                matched_result = result.map(|(s, vec)| {
+                    if start != 0 {
+                        let start_char = item_text[..start].chars().count();
+                        (s, vec.iter().map(|x| x + start_char).collect::<MatchIndices>())
+                    } else {
+                        (s, vec)
+                    }
+                });
+
+                if matched_result.is_some() {
+                    break;
+                }
+            }
+
+            let (score, matched_indices) = matched_result?;
+            let begin = *matched_indices.first().unwrap_or(&0);
+            let end = *matched_indices.last().unwrap_or(&0);
+            let item_len = item_text.len();
+            let matched_range = MatchRange::Chars(matched_indices);
+
+            Some(MatchResult {
+                rank: self
+                    .rank_builder
+                    .build_rank(score as i32, begin, end, item_len, item.get_index()),
+                matched_range,
+            })
         }
-
-        let (score, matched_indices) = matched_result?;
-        let begin = *matched_indices.first().unwrap_or(&0);
-        let end = *matched_indices.last().unwrap_or(&0);
-        let item_len = item_text.len();
-        let matched_range = MatchRange::Chars(matched_indices);
-
-        Some(MatchResult {
-            rank: self
-                .rank_builder
-                .build_rank(score as i32, begin, end, item_len, item.get_index()),
-            matched_range,
-        })
     }
 }
 

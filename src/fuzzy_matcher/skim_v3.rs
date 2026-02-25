@@ -26,8 +26,8 @@ use std::cell::RefCell;
 use thread_local::ThreadLocal;
 
 use crate::{
-    CaseMatching,
     fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType},
+    CaseMatching,
 };
 
 // ---------------------------------------------------------------------------
@@ -502,6 +502,50 @@ fn col_row_bounds_at(
     (i_lo, i_hi)
 }
 
+/// Maximum choice length for which we precompute per-column bounds.
+/// Beyond this we fall back to per-column `col_row_bounds_at`.
+const PRECOMPUTED_COL_BOUNDS_MAX_M: usize = 4096;
+
+/// Precompute per-column `(i_lo, i_hi)` bounds for exact-mode banding,
+/// replacing the per-column O(n) scan with a single O(n + m) pass.
+///
+/// The output slices are indexed by column `j` (1-indexed), so `out_lo[j]`
+/// and `out_hi[j]` give the active row range at column `j`.
+fn precompute_col_bounds(
+    n: usize,
+    m: usize,
+    row_lo: &[usize; COLMAJOR_MAX_N],
+    row_hi: &[usize; COLMAJOR_MAX_N],
+    out_lo: &mut [u8],
+    out_hi: &mut [u8],
+) {
+    // Initialize with "no active rows" sentinel.
+    for j in 0..=m {
+        out_lo[j] = (n + 1) as u8;
+        out_hi[j] = 0;
+    }
+
+    // For each row i (0-indexed, representing 1-indexed row i+1), mark the
+    // columns it spans.
+    for idx in 0..n {
+        let jlo = row_lo[idx];
+        let jhi = row_hi[idx];
+        let row_1idx = (idx + 1) as u8;
+        // Update i_lo: this row starts being active at column jlo.
+        // i_lo[j] = min over all rows active at j of (row 1-index).
+        // Since we iterate rows in ascending order, the first row to
+        // cover column j sets the minimum.
+        for j in jlo..=jhi.min(m) {
+            if row_1idx < out_lo[j] {
+                out_lo[j] = row_1idx;
+            }
+            if row_1idx > out_hi[j] {
+                out_hi[j] = row_1idx;
+            }
+        }
+    }
+}
+
 /// Bandwidth for typo-mode banding. In typo mode we allow diagonal moves
 /// (match/mismatch) plus UP (skip pattern char) and LEFT (skip choice char),
 /// so the optimal path can wander off the main diagonal. A bandwidth of
@@ -631,21 +675,24 @@ fn find_first_char<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<
             break;
         }
     }
-    if j_first > 0 { Some(j_first) } else { None }
+    if j_first > 0 {
+        Some(j_first)
+    } else {
+        None
+    }
 }
 
-/// Compute typo-mode row bounds at column `j` using a V-shaped band
-/// (column-major DP variant).
+/// Compute typo-mode row bounds at column `j` using the same band geometry
+/// as `typo_vband_row` (column-major DP variant).
 ///
-/// The result is an upper triangle starting at the diagonal (j ~ i + j_first - 1)
+/// `typo_vband_row` gives column bounds `(max(1, i + j_first - 1 - bandwidth), m)`
+/// for each row `i`.  Inverting: row `i` is active at column `j` iff
+/// `i + j_first - 1 - bandwidth <= j`, i.e. `i <= j - j_first + 1 + bandwidth`.
+/// There is no lower row bound (full_dp has no upper column bound), so `lo = 1`.
 #[inline(always)]
 fn typo_vband(j: usize, n: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
-    // Band 1: diagonal anchored at j_first → i = j - j_first + 1
-    let i = (j + 1).saturating_sub(j_first);
-    let lo = i.saturating_sub(bandwidth).max(1);
-
-    // Union of the two bands
-    (lo, n)
+    let hi = n.min(j.saturating_sub(j_first) + 1 + bandwidth);
+    (1, hi)
 }
 
 /// Row-major variant of V-shaped band: compute column bounds at row `i`.
@@ -665,20 +712,64 @@ fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usiz
 
 const COLMAJOR_MAX_N: usize = 16;
 
+/// Packed per-cell state for the column-major score-only DP.
+///
+/// Packing score, direction flag, and true-match count into a single 4-byte
+/// struct ensures all per-cell data lives on the same cache line, halving
+/// memory traffic compared to four separate arrays.
+#[derive(Copy, Clone)]
+#[repr(C)]
+struct ColCell {
+    /// DP score at this cell.
+    score: Score,
+    /// Bit 0: took Diag direction. Bit 1: took Up direction.
+    flags: u8,
+    /// Number of true (non-substitution) matches on the best path.
+    true_matches: u8,
+}
+
+impl ColCell {
+    const ZERO: ColCell = ColCell {
+        score: 0,
+        flags: 0,
+        true_matches: 0,
+    };
+
+    const FLAG_DIAG: u8 = 1;
+    const FLAG_UP: u8 = 2;
+
+    #[inline(always)]
+    fn is_diag(self) -> bool {
+        self.flags & Self::FLAG_DIAG != 0
+    }
+}
+
 /// Column-major score-only for byte slices (n <= 16, stack allocated).
 ///
-/// Implements two pruning strategies:
+/// Implements several pruning and micro-optimization strategies:
 ///
 /// 1. **Row-range banding** – for each column `j` only compute rows
 ///    `i_lo..=i_hi` that can participate in a valid alignment.
-///    - Exact mode: bounded by precomputed first/last match columns.
+///    - Exact mode: bounded by precomputed per-column row bounds (O(1) lookup).
 ///    - Typo mode: bounded by diagonal ± bandwidth.
 ///
-/// 2. **Interpair max-score pruning** – after processing a column, if every
-///    row's score has dropped to 0, all active alignments are dead and we
-///    can restart cheaply (reset the "last column with life" counter). If
-///    the last row (`i == n`) hasn't seen improvement for many consecutive
-///    columns, we can also stop early.
+/// 2. **Packed cell layout** – score, flags, and true-match count are packed
+///    into a 4-byte `ColCell` struct so all per-cell data shares a cache line.
+///
+/// 3. **Delta-zeroing** – only cells that entered or left the active band
+///    since the previous column are zeroed, replacing O(n) zeroing with O(1)
+///    amortized work.
+///
+/// 4. **Flip-flop indexing** – a boolean flag selects between two column
+///    buffers, eliminating `std::mem::swap` overhead.
+///
+/// 5. **Early termination** – if the last pattern row is outside the active
+///    band for several consecutive columns, the alignment is dead and we
+///    break out early.
+///
+/// 6. **Pointer hoisting** – raw pointers for `cho`, `pat`, and `bonuses`
+///    are hoisted outside the inner loop with `unsafe get_unchecked` to
+///    eliminate bounds checks.
 fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
@@ -691,122 +782,179 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
     let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
     let j_start = banding.j_first; // earliest match — skip columns before this
 
-    // Two columns + direction tracking + true-match count
-    let mut score_a: [Score; _] = [0; COLMAJOR_MAX_N + 1];
-    let mut score_b: [Score; _] = [0; COLMAJOR_MAX_N + 1];
-    let mut diag_a = [false; COLMAJOR_MAX_N + 1];
-    let mut diag_b = [false; COLMAJOR_MAX_N + 1];
-    // Whether this cell took Up (typo skip) — tracked per-column for
-    // consecutive-Up penalty. Only cur_u is read (same column, prior row).
-    let mut up_a = [false; COLMAJOR_MAX_N + 1];
-    let mut up_b = [false; COLMAJOR_MAX_N + 1];
-    // Number of true (non-substitution) matches on the best path to each cell.
-    let mut true_a = [0u8; COLMAJOR_MAX_N + 1];
-    let mut true_b = [0u8; COLMAJOR_MAX_N + 1];
+    // --- Opt 2: Packed cell arrays (score + flags + true_matches in 4 bytes) ---
+    let mut cols_a = [ColCell::ZERO; COLMAJOR_MAX_N + 1];
+    let mut cols_b = [ColCell::ZERO; COLMAJOR_MAX_N + 1];
 
-    let mut prev_s = &mut score_a;
-    let mut cur_s = &mut score_b;
-    let mut prev_d = &mut diag_a;
-    let mut cur_d = &mut diag_b;
-    let mut cur_u = &mut up_a;
-    let mut spare_u = &mut up_b;
-    let mut prev_t = &mut true_a;
-    let mut cur_t = &mut true_b;
+    // --- Opt 8: Flip-flop index instead of mem::swap ---
+    let mut flip = false; // false → a=prev, b=cur; true → b=prev, a=cur
 
     let mut global_best: Score = 0;
     let mut global_best_j: usize = 0;
     let mut global_best_true: u8 = 0;
 
+    // --- Opt 1: Track previous column's band for delta-zeroing ---
+    let mut prev_i_lo: usize = 1;
+    let mut prev_i_hi: usize = 0; // empty band initially
+
+    // --- Opt 5: Precompute per-column bounds for exact mode ---
+    // For exact mode with m <= PRECOMPUTED_COL_BOUNDS_MAX_M, precompute all
+    // (i_lo, i_hi) bounds in a single pass to replace per-column O(n) scans.
+    let mut precomp_lo = [0u8; PRECOMPUTED_COL_BOUNDS_MAX_M + 1];
+    let mut precomp_hi = [0u8; PRECOMPUTED_COL_BOUNDS_MAX_M + 1];
+    let use_precomputed = !ALLOW_TYPOS && m <= PRECOMPUTED_COL_BOUNDS_MAX_M;
+    if use_precomputed {
+        let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
+        precompute_col_bounds(n, m, row_lo, row_hi, &mut precomp_lo, &mut precomp_hi);
+    }
+
+    // --- Opt 6: Early termination counter ---
+    // When the last row (i == n) is outside the active band, count consecutive
+    // such columns. After a threshold, no future column can yield a better
+    // score, so we break.
+    let early_term_threshold = if ALLOW_TYPOS { banding.bandwidth + 2 } else { n + 2 };
+    let mut dead_cols: usize = 0;
+
+    // --- Opt 3: Hoist raw pointers for bounds-check-free inner loop ---
+    let cho_ptr = cho.as_ptr();
+    let pat_ptr = pat.as_ptr();
+    let bonus_ptr = bonuses.as_ptr();
+
     for j in j_start..=m {
-        let cj = cho[j - 1];
-        let bonus_j = bonuses[j - 1];
+        // SAFETY: j is in 1..=m, so j-1 is a valid index into cho and bonuses.
+        let cj = unsafe { *cho_ptr.add(j - 1) };
+        let bonus_j = unsafe { *bonus_ptr.add(j - 1) };
 
         // --- Compute row bounds for this column ---
         let (i_lo, i_hi) = if ALLOW_TYPOS {
             typo_vband(j, n, banding.bandwidth, banding.j_first)
+        } else if use_precomputed {
+            (precomp_lo[j] as usize, precomp_hi[j] as usize)
         } else {
             let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
             col_row_bounds_at(j, n, row_lo, row_hi)
         };
 
-        // Zero out cells outside the band for this column, so they don't
-        // carry stale data from a previous column swap.
-        cur_s[0] = 0;
-        cur_d[0] = false;
-        cur_u[0] = false;
-        cur_t[0] = 0;
+        // Select prev/cur based on flip-flop.
+        let (prev, cur) = if flip {
+            (&cols_b as &[ColCell; COLMAJOR_MAX_N + 1], &mut cols_a)
+        } else {
+            (&cols_a as &[ColCell; COLMAJOR_MAX_N + 1], &mut cols_b)
+        };
 
-        // Zero cells below the band (rows < i_lo) that UP moves might read.
-        for i in 1..i_lo.min(n + 1) {
-            cur_s[i] = 0;
-            cur_d[i] = false;
-            cur_u[i] = false;
-            cur_t[i] = 0;
+        // --- Opt 1: Delta-zero only cells that changed band membership ---
+        // Always zero row 0 (it's the sentinel boundary).
+        cur[0] = ColCell::ZERO;
+
+        // Zero cells that are now below the band but were in-band last column.
+        // These cells may carry stale data from the previous swap.
+        // New cells below band: rows 1..i_lo that overlap with prev's band.
+        if i_lo > 1 {
+            let zero_end = i_lo.min(n + 1);
+            let zero_start = 1.max(prev_i_lo.saturating_sub(1));
+            for i in zero_start..zero_end {
+                cur[i] = ColCell::ZERO;
+            }
         }
-        // Zero cells above the band (rows > i_hi).
-        for i in (i_hi + 1)..=n {
-            cur_s[i] = 0;
-            cur_d[i] = false;
-            cur_u[i] = false;
-            cur_t[i] = 0;
+
+        // Zero cells that are now above the band but were in-band last column.
+        if i_hi < n {
+            let zero_start = (i_hi + 1).max(prev_i_lo);
+            let zero_end = (prev_i_hi + 2).min(n + 1);
+            for i in zero_start..zero_end {
+                cur[i] = ColCell::ZERO;
+            }
+        }
+
+        // Also zero the cell just before the band start (i_lo - 1) if it's
+        // in range, because the diagonal read at i_lo needs prev[i_lo-1]
+        // which is from `prev`, but the UP move at i_lo reads cur[i_lo-1].
+        if i_lo > 1 && i_lo <= n + 1 {
+            cur[i_lo - 1] = ColCell::ZERO;
         }
 
         if i_lo > i_hi || i_lo > n {
-            // No active rows this column — swap and continue.
-            std::mem::swap(&mut prev_s, &mut cur_s);
-            std::mem::swap(&mut prev_d, &mut cur_d);
-            std::mem::swap(&mut cur_u, &mut spare_u);
-            std::mem::swap(&mut prev_t, &mut cur_t);
+            // No active rows this column.
+            // --- Opt 6: Track consecutive dead columns ---
+            dead_cols += 1;
+            if global_best > 0 && dead_cols >= early_term_threshold {
+                break;
+            }
+            prev_i_lo = i_lo;
+            prev_i_hi = i_hi;
+            flip = !flip;
             continue;
         }
 
+        // Reset dead column counter if the last row is active.
+        if i_hi >= n {
+            dead_cols = 0;
+        } else {
+            dead_cols += 1;
+            if global_best > 0 && dead_cols >= early_term_threshold {
+                // Finish writing this column then break.
+                prev_i_lo = i_lo;
+                prev_i_hi = i_hi;
+                flip = !flip;
+                break;
+            }
+        }
+
         for i in i_lo..=i_hi {
-            let pi = pat[i - 1];
+            // SAFETY: i is in 1..=n, so i-1 is valid for pat.
+            let pi = unsafe { *pat_ptr.add(i - 1) };
             let is_match = pi.eq(cj, respect_case);
             let is_first = i == 1;
 
-            let diag_score = prev_s[i - 1];
-            let diag_was_diag = prev_d[i - 1];
-            let up_score = cur_s[i - 1]; // same col, prev row (already computed)
-            let left_score = prev_s[i]; // prev col, same row
-            let left_was_diag = prev_d[i];
+            let diag = prev[i - 1];
+            let up_score = cur[i - 1].score; // same col, prev row (already computed)
+            let left = prev[i];
 
             let (best, dir) = compute_cell::<ALLOW_TYPOS>(
                 is_match,
                 is_first,
                 bonus_j,
-                diag_score,
-                diag_was_diag,
+                diag.score,
+                diag.is_diag(),
                 up_score,
-                left_score,
-                left_was_diag,
+                left.score,
+                left.is_diag(),
             );
 
             let took_diag = dir == Dir::Diag;
-            cur_s[i] = best;
-            cur_d[i] = took_diag;
-            cur_u[i] = dir == Dir::Up;
-            cur_t[i] = if best <= 0 {
+            let flags = if took_diag {
+                ColCell::FLAG_DIAG
+            } else if ALLOW_TYPOS && dir == Dir::Up {
+                ColCell::FLAG_UP
+            } else {
+                0
+            };
+            let true_matches = if best <= 0 {
                 0
             } else if took_diag {
-                prev_t[i - 1] + is_match as u8
+                diag.true_matches + is_match as u8
             } else if ALLOW_TYPOS && dir == Dir::Up {
-                cur_t[i - 1]
+                cur[i - 1].true_matches
             } else {
-                prev_t[i]
+                left.true_matches
+            };
+
+            cur[i] = ColCell {
+                score: best,
+                flags,
+                true_matches,
             };
 
             if i == n && best > global_best {
                 global_best = best;
                 global_best_j = j;
-                global_best_true = cur_t[i];
+                global_best_true = true_matches;
             }
         }
 
-        std::mem::swap(&mut prev_s, &mut cur_s);
-        std::mem::swap(&mut prev_d, &mut cur_d);
-        std::mem::swap(&mut cur_u, &mut spare_u);
-        std::mem::swap(&mut prev_t, &mut cur_t);
+        prev_i_lo = i_lo;
+        prev_i_hi = i_hi;
+        flip = !flip;
     }
 
     if global_best > 0 && global_best_true >= banding.min_true_matches as u8 {
@@ -959,7 +1107,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
         for j in j_lo..=j_hi {
             let jm = j - col_off; // matrix column
-            // SAFETY: j and jm are inside the band and within array bounds.
+                                  // SAFETY: j and jm are inside the band and within array bounds.
             let cj = unsafe { *cho_ptr.add(j - 1) };
             let is_match = pi.eq(cj, respect_case);
 
@@ -1582,5 +1730,40 @@ mod tests {
                 choice
             );
         }
+    }
+    #[test]
+    fn score_and_full_dp_same() {
+        let cases = [("dist-workspace.toml", "tst")];
+        let m = matcher_typos();
+        for (choice, pat) in cases {
+            assert_eq!(
+                m.fuzzy_indices(choice, pat).map(|(s, _)| s),
+                m.fuzzy_match_range(choice, pat).map(|(s, _, _)| s)
+            )
+        }
+    }
+
+    // Temporary debug test to reproduce the mismatch between full_dp and
+    // score-only on the failing case. Prints the two scores so we can inspect
+    // differences while iterating. Remove or disable once the root cause is
+    // fixed.
+    #[test]
+    fn debug_score_vs_full() {
+        let choice = "dist-workspace.toml";
+        let pat = "tst";
+        let m = matcher_typos();
+        let full_idx = m.fuzzy_indices(choice, pat);
+        let full_score = full_idx.as_ref().map(|(s, _)| *s);
+        let score_range = m.fuzzy_match_range(choice, pat);
+        let score_only_score = score_range.map(|(s, _, _)| s);
+        println!("full_idx: {:?}, score_range: {:?}", full_idx, score_range);
+        if let Some((_, idx)) = full_idx.as_ref() {
+            println!("full indices: {:?}", idx);
+        }
+        if let Some((s, b, e)) = score_range {
+            println!("score_only range: score={}, begin={}, end={}", s, b, e);
+        }
+        // keep the assertion to reflect intended equality of scores
+        assert_eq!(full_score, score_only_score);
     }
 }

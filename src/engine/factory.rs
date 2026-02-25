@@ -19,6 +19,7 @@ pub struct ExactOrFuzzyEngineFactory {
     fuzzy_algorithm: FuzzyAlgorithm,
     rank_builder: Arc<RankBuilder>,
     typos: Typos,
+    filter_mode: bool,
 }
 
 impl ExactOrFuzzyEngineFactory {
@@ -29,6 +30,7 @@ impl ExactOrFuzzyEngineFactory {
             fuzzy_algorithm: FuzzyAlgorithm::SkimV2,
             rank_builder: Default::default(),
             typos: Typos::Disabled,
+            filter_mode: false,
         }
     }
 
@@ -57,6 +59,12 @@ impl ExactOrFuzzyEngineFactory {
     /// - `Typos::Fixed(n)`: exactly n typos allowed
     pub fn typos(mut self, typos: Typos) -> Self {
         self.typos = typos;
+        self
+    }
+
+    /// Sets filter mode (skips per-character match indices for faster matching)
+    pub fn filter_mode(mut self, filter_mode: bool) -> Self {
+        self.filter_mode = filter_mode;
         self
     }
 
@@ -126,6 +134,7 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
                     .algorithm(self.fuzzy_algorithm)
                     .case(case)
                     .typos(self.typos)
+                    .filter_mode(self.filter_mode)
                     .rank_builder(self.rank_builder.clone())
                     .build(),
             )

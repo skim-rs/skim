@@ -17,9 +17,7 @@ mod util;
 pub(crate) type IndexType = usize;
 pub(crate) type ScoreType = i64;
 
-/// Stack-allocated match indices. 4 elements covers patterns up to 4 chars
-/// without heap allocation (same as one `Vec` header: pointer + len + cap).
-pub type MatchIndices = Vec<IndexType>;
+pub(crate) type MatchIndices = Vec<IndexType>;
 
 /// Trait for fuzzy matching text patterns against choices
 pub trait FuzzyMatcher: Send + Sync {
@@ -41,8 +39,8 @@ pub trait FuzzyMatcher: Send + Sync {
     /// Default implementation falls back to `fuzzy_indices`.
     fn fuzzy_match_range(&self, choice: &str, pattern: &str) -> Option<(i64, usize, usize)> {
         self.fuzzy_indices(choice, pattern).map(|(score, indices)| {
-            let begin = indices.first().copied().unwrap_or(0);
-            let end = indices.last().copied().unwrap_or(0);
+            let begin = indices.iter().min().copied().unwrap_or(0);
+            let end = indices.iter().max().copied().unwrap_or(0);
             (score, begin, end)
         })
     }
