@@ -16,6 +16,7 @@ use clap::builder::PossibleValue;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
 use crate::{MatchRange, Rank, SkimItem};
+use tokio::sync::Notify;
 
 //------------------------------------------------------------------------------
 
@@ -271,6 +272,12 @@ pub struct ItemPool {
     lines_to_reserve: usize,
     /// Reverse the order of items (--tac flag)
     tac: bool,
+
+    /// Notified whenever new items are appended to the pool.
+    ///
+    /// Listeners (e.g. the event loop) can `await` this to wake up
+    /// immediately when items arrive instead of polling on a timer.
+    pub items_available: Arc<Notify>,
 }
 
 impl Default for ItemPool {
@@ -282,6 +289,7 @@ impl Default for ItemPool {
             reserved_items: SpinLock::new(Vec::new()),
             lines_to_reserve: 0,
             tac: false,
+            items_available: Arc::new(Notify::new()),
         }
     }
 }
@@ -301,6 +309,7 @@ impl ItemPool {
             reserved_items: SpinLock::new(Vec::new()),
             lines_to_reserve: options.header_lines,
             tac: options.tac,
+            items_available: Arc::new(Notify::new()),
         }
     }
 
@@ -376,7 +385,14 @@ impl ItemPool {
         }
         self.length.store(pool.len(), Ordering::SeqCst);
         trace!("item pool, done append {len} items, total: {}", pool.len());
-        pool.len()
+        let new_len = pool.len();
+        drop(pool);
+        drop(header_items);
+        // Wake any listener that is waiting for new items (e.g. the event loop,
+        // so it can restart the matcher immediately instead of waiting for the
+        // next periodic tick).
+        self.items_available.notify_one();
+        new_len
     }
 
     /// Takes items from the pool, copying new items since last take and releasing lock immediately

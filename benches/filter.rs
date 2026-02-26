@@ -80,7 +80,7 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             let opts = SkimOptionsBuilder::default()
                 .cmd("cat benches/fixtures/10M.txt")
                 .filter("test")
-                .algorithm(FuzzyAlgorithm::SkimV3)
+                .algorithm(FuzzyAlgorithm::Arinae)
                 .build()?;
             Skim::run_with(opts, None)
         });
@@ -91,7 +91,7 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
                 .cmd("cat benches/fixtures/10M.txt")
                 .filter("test")
                 .typos(Typos::Smart)
-                .algorithm(FuzzyAlgorithm::SkimV3)
+                .algorithm(FuzzyAlgorithm::Arinae)
                 .build()?;
             Skim::run_with(opts, None)
         });
@@ -176,7 +176,7 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
             let opts = SkimOptionsBuilder::default()
                 .cmd("cat benches/fixtures/1M.txt")
                 .filter("test")
-                .algorithm(FuzzyAlgorithm::SkimV3)
+                .algorithm(FuzzyAlgorithm::Arinae)
                 .build()?;
             Skim::run_with(opts, None)
         });
@@ -187,7 +187,7 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
                 .cmd("cat benches/fixtures/1M.txt")
                 .filter("test")
                 .typos(Typos::Smart)
-                .algorithm(FuzzyAlgorithm::SkimV3)
+                .algorithm(FuzzyAlgorithm::Arinae)
                 .build()?;
             Skim::run_with(opts, None)
         });

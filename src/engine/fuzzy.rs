@@ -28,8 +28,9 @@ pub enum FuzzyAlgorithm {
     Fzy,
     /// Frizbee matching algorithm, typo resistant
     Frizbee,
-    /// SkimV3: Needleman-Wunsch + Damerau-Levenshtein variation with affine gaps
-    SkimV3,
+    /// Arinae: typo-resistant & natural algorithm
+    #[cfg_attr(feature = "cli", clap(alias = "ari"))]
+    Arinae,
 }
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
@@ -139,7 +140,7 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Fzy algorithm (max_typos: {:?})", max_typos);
                 Box::new(matcher)
             }
-            FuzzyAlgorithm::SkimV3 => {
+            FuzzyAlgorithm::Arinae => {
                 let mut matcher = ArinaeMatcher::default();
                 matcher.case = self.case;
                 matcher.allow_typos = !matches!(self.typos, Typos::Disabled);

@@ -423,6 +423,7 @@ where
     /// ```
     pub async fn tick(&mut self) -> Result<bool> {
         let matcher_interval = &mut self.matcher_interval;
+        let items_available = self.app.item_pool.items_available.clone();
         select! {
             event = self.tui.as_mut().expect("TUI should be initialized before the event loop can start").next() => {
                 let evt = event.ok_or_eyre("Could not acquire next event")?;
@@ -451,6 +452,11 @@ where
                 }
             } => {
               self.app.restart_matcher(false);
+            }
+            // Wake immediately when new items arrive in the pool so the matcher
+            // can pick them up without waiting for the next periodic interval.
+            _ = items_available.notified() => {
+                self.app.restart_matcher(false);
             }
             Ok(stream) = async {
                 match &self.listener {
@@ -484,7 +490,7 @@ where
     /// until the user accepts or aborts. Use `tick()` directly if you need
     /// to interleave your own logic between iterations.
     pub async fn run(&mut self) -> Result<()> {
-        self.matcher_interval = Some(tokio::time::interval(Duration::from_millis(100)));
+        self.matcher_interval = Some(tokio::time::interval(Duration::from_millis(10)));
         trace!("Starting event loop");
         loop {
             if self.tick().await? {

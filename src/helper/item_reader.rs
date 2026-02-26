@@ -17,7 +17,7 @@ use crate::{SkimItem, SkimItemReceiver, SkimItemSender, SkimOptions};
 
 const DELIMITER_STR: &str = r"[\t\n ]+";
 const READ_BUFFER_SIZE: usize = 1024;
-const ITEMS_BUFFER_SIZE: usize = 128;
+const ITEMS_BUFFER_SIZE: usize = 1024;
 const SEND_TIMEOUT_MS: u64 = 100; // Send items if we haven't sent anything in 100ms
 
 pub enum CollectorInput {
