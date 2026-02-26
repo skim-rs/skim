@@ -263,6 +263,9 @@ pub struct SkimV3Matcher {
     pub(crate) case: CaseMatching,
     pub(crate) allow_typos: bool,
     full_buf: ThreadLocal<RefCell<SWMatrix>>,
+    /// Two-row rolling buffer used by the score-only DP path (no traceback).
+    /// Stores rows as a flat vec: row 0 occupies [0..mcols], row 1 [mcols..2*mcols].
+    score_buf: ThreadLocal<RefCell<Vec<Cell>>>,
     indices_buf: ThreadLocal<RefCell<MatchIndices>>,
     #[allow(clippy::type_complexity)]
     char_buf: ThreadLocal<RefCell<(Vec<char>, Vec<char>)>>,
@@ -285,8 +288,12 @@ impl SkimV3Matcher {
             || (self.case == CaseMatching::Smart && !pattern.iter().all(|b| b.is_lowercase()))
     }
 
-    /// Dispatch to `full_dp` with the appropriate const generics.
+    /// Dispatch to the appropriate DP with the appropriate const generics.
     /// Assumes prefilters and bonuses have already been computed.
+    ///
+    /// When `compute_indices` is false we use a 2-row rolling buffer (O(m)
+    /// memory instead of O(n×m)) since we never need to traceback through the
+    /// full matrix.
     fn dispatch_dp<C: Atom>(
         &self,
         cho: &[C],
@@ -295,16 +302,21 @@ impl SkimV3Matcher {
         respect_case: bool,
         compute_indices: bool,
     ) -> Option<(ScoreType, MatchIndices)> {
-        let res = if self.allow_typos {
-            if compute_indices {
-                full_dp::<true, true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+        let res = if compute_indices {
+            // Full matrix needed for traceback.
+            if self.allow_typos {
+                full_dp::<true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
             } else {
-                full_dp::<true, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+                full_dp::<false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
             }
-        } else if compute_indices {
-            full_dp::<false, true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
         } else {
-            full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+            // Score-only: 2-row rolling buffer, no traceback.
+            let score = if self.allow_typos {
+                score_only_dp::<true, _>(cho, pat, bonuses, respect_case, &self.score_buf)
+            } else {
+                score_only_dp::<false, _>(cho, pat, bonuses, respect_case, &self.score_buf)
+            };
+            score.map(|s| (s, MatchIndices::default()))
         };
         res.map(|(s, idx)| (s as ScoreType, idx))
     }
@@ -723,23 +735,176 @@ fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usiz
 }
 
 // ---------------------------------------------------------------------------
+// Score-only DP — 2-row rolling buffer (no traceback)
+// ---------------------------------------------------------------------------
+
+/// Score-only DP using a 2-row rolling buffer.
+///
+/// Since we never need to traceback through the full matrix when only the
+/// score is requested, we store only two rows at a time: the previous row
+/// (`prev`) and the current row (`cur`). After processing each row we swap
+/// the two buffers. This reduces memory from O(n×m) to O(m) and dramatically
+/// improves cache utilization for large choice strings.
+///
+/// The banding and cell computation logic is identical to `full_dp`.
+fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
+    cho: &[C],
+    pat: &[C],
+    bonuses: &[Score],
+    respect_case: bool,
+    score_buf: &ThreadLocal<RefCell<Vec<Cell>>>,
+) -> Option<Score> {
+    let n = pat.len();
+    let m = cho.len();
+
+    let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
+    let j_start = banding.j_first;
+
+    let col_off = j_start - 1;
+    let mcols = m - col_off + 1; // columns: 0 ..= (m - col_off)
+
+    // Allocate/reuse a flat buffer for two rows: [prev_row | cur_row].
+    let needed = 2 * mcols;
+    let mut score_buf_ref = score_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+    if score_buf_ref.len() < needed {
+        score_buf_ref.resize(needed, CELL_ZERO);
+    }
+    let buf_ptr = score_buf_ref.as_mut_ptr();
+
+    // Initialize both rows to CELL_ZERO.
+    unsafe {
+        for k in 0..needed {
+            *buf_ptr.add(k) = CELL_ZERO;
+        }
+    }
+
+    // Pre-extract row bounds.
+    let (row_lo_arr, row_hi_arr) = if !ALLOW_TYPOS {
+        let (lo, hi) = banding.row_bounds.as_ref().unwrap();
+        (*lo, *hi)
+    } else {
+        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
+    };
+
+    let cho_ptr = cho.as_ptr();
+    let bonuses_ptr = bonuses.as_ptr();
+
+    // `cur_half` toggles between 0 and 1 selecting which half of the buffer
+    // is the "current" row. The other half is the "previous" row.
+    let mut cur_half = 0usize;
+
+    for i in 1..=n {
+        let pi = pat[i - 1];
+        let is_first = i == 1;
+
+        let (j_lo, j_hi) = if ALLOW_TYPOS {
+            typo_vband_row(i, m, banding.bandwidth, banding.j_first)
+        } else {
+            (row_lo_arr[i - 1], row_hi_arr[i - 1])
+        };
+        let j_lo = j_lo.max(j_start);
+
+        // Swap: cur_half becomes prev, the new cur_half is the other half.
+        let prev_half = cur_half;
+        cur_half = 1 - cur_half;
+
+        let prev_ptr = unsafe { buf_ptr.add(prev_half * mcols) };
+        let cur_ptr = unsafe { buf_ptr.add(cur_half * mcols) };
+
+        if j_lo > j_hi || j_lo > m {
+            // Row outside band: zero the new current row so the next row
+            // reads clean values.
+            unsafe {
+                for k in 0..mcols {
+                    *cur_ptr.add(k) = CELL_ZERO;
+                }
+            }
+            continue;
+        }
+
+        let jm_lo = j_lo - col_off;
+        let jm_hi = j_hi - col_off;
+        let jm_max = mcols - 1;
+
+        // Zero the boundary sentinels and cells outside the band.
+        unsafe {
+            // Zero everything before jm_lo (including the left sentinel at jm_lo-1).
+            for k in 0..jm_lo {
+                *cur_ptr.add(k) = CELL_ZERO;
+            }
+            // Zero everything after jm_hi (including the right sentinel at jm_hi+1).
+            for k in (jm_hi + 1)..=jm_max {
+                *cur_ptr.add(k) = CELL_ZERO;
+            }
+        }
+
+        for j in j_lo..=j_hi {
+            let jm = j - col_off;
+            let cj = unsafe { *cho_ptr.add(j - 1) };
+            let is_match = pi.eq(cj, respect_case);
+
+            let diag_cell = unsafe { *prev_ptr.add(jm - 1) };
+            let up_score = if ALLOW_TYPOS {
+                unsafe { (*prev_ptr.add(jm)).score() }
+            } else {
+                0
+            };
+            let left_cell = unsafe { *cur_ptr.add(jm - 1) };
+
+            let (best, dir) = compute_cell::<ALLOW_TYPOS>(
+                is_match,
+                is_first,
+                unsafe { *bonuses_ptr.add(j - 1) },
+                diag_cell.score(),
+                diag_cell.is_diag(),
+                up_score,
+                left_cell.score(),
+                left_cell.is_diag(),
+            );
+
+            unsafe {
+                *cur_ptr.add(jm) = Cell::new(best, dir);
+            }
+        }
+    }
+
+    // Scan the last row (cur_half) for the best score.
+    let (last_j_lo, last_j_hi) = if ALLOW_TYPOS {
+        typo_vband_row(n, m, banding.bandwidth, banding.j_first)
+    } else {
+        (row_lo_arr[n - 1], row_hi_arr[n - 1])
+    };
+    let last_j_lo = last_j_lo.max(j_start);
+
+    let mut best_score: Score = 0;
+    if last_j_lo <= last_j_hi && last_j_lo <= m {
+        let last_row_ptr = unsafe { buf_ptr.add(cur_half * mcols) };
+        for j in last_j_lo..=last_j_hi {
+            let jm = j - col_off;
+            let s = unsafe { (*last_row_ptr.add(jm)).score() };
+            let better = s > best_score;
+            best_score = if better { s } else { best_score };
+        }
+    }
+
+    if best_score > 0 { Some(best_score) } else { None }
+}
+
+// ---------------------------------------------------------------------------
 // Full DP with traceback — packed Cell (u32 = score + dir)
 // ---------------------------------------------------------------------------
 
-/// Full DP for byte slices using packed cells.
+/// Full DP for byte slices using packed cells, with traceback support.
 ///
-/// Implements two pruning strategies:
+/// Allocates the full `(n+1) × mcols` matrix so that traceback can follow
+/// direction pointers back to the source. Use `score_only_dp` instead when
+/// only the score is needed — it uses a O(m) rolling buffer.
 ///
-/// 1. **Row-range banding** – for each row `i` only compute columns
-///    `j_lo..=j_hi` that can participate in a valid alignment.
-///    - Exact mode: bounded by precomputed first/last match columns.
-///    - Typo mode: bounded by diagonal ± bandwidth.
+/// Implements row-range banding:
 ///
-/// 2. **Interpair max-score pruning** – after processing a row, if no
-///    column produced a non-zero score, all active alignments for this
-///    and subsequent rows are dead (since UP/LEFT can only propagate
-///    existing scores). We track this and allow early termination.
-fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: Atom>(
+/// - Exact mode: bounded by precomputed first/last match columns.
+/// - Typo mode: bounded by diagonal ± bandwidth.
+fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
     bonuses: &[Score],
@@ -778,8 +943,6 @@ fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: Atom>(
             *base_ptr.add(i * cols) = CELL_ZERO;
         }
     }
-
-    // base_ptr and cols already set above
 
     // Pre-extract row bounds once (avoids repeated unwrap inside the loop).
     // For exact mode we copy the arrays out; for typo mode these are unused.
@@ -931,56 +1094,52 @@ fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: Atom>(
         return None;
     }
 
-    if COMPUTE_INDICES {
-        // Traceback — j walks in original 1-indexed space, convert to matrix
-        // column for buf access; output indices in original 0-indexed space.
-        // Reuse a thread-local Vec to avoid per-call allocation.
-        let indices_ref_cell = indices_buf.get_or(|| RefCell::new(Vec::new()));
-        let mut indices_ref = indices_ref_cell.borrow_mut();
-        indices_ref.clear();
-        let mut i = n;
-        let mut j = best_j;
-        let mut true_matches = 0usize;
+    // Traceback — j walks in original 1-indexed space, convert to matrix
+    // column for buf access; output indices in original 0-indexed space.
+    // Reuse a thread-local Vec to avoid per-call allocation.
+    let indices_ref_cell = indices_buf.get_or(|| RefCell::new(Vec::new()));
+    let mut indices_ref = indices_ref_cell.borrow_mut();
+    indices_ref.clear();
+    let mut i = n;
+    let mut j = best_j;
+    let mut true_matches = 0usize;
 
-        while i > 0 && j >= j_start {
-            let jm = j - col_off;
-            // SAFETY: jm and i are within the matrix bounds established above.
-            let c = unsafe { *base_ptr.add(i * cols).add(jm) };
-            match c.dir() {
-                Dir::Diag => {
-                    if pat[i - 1].eq(cho[j - 1], respect_case) {
-                        indices_ref.push((j - 1) as IndexType);
-                        true_matches += 1;
-                    }
-                    i -= 1;
-                    j -= 1;
+    while i > 0 && j >= j_start {
+        let jm = j - col_off;
+        // SAFETY: jm and i are within the matrix bounds established above.
+        let c = unsafe { *base_ptr.add(i * cols).add(jm) };
+        match c.dir() {
+            Dir::Diag => {
+                if pat[i - 1].eq(cho[j - 1], respect_case) {
+                    indices_ref.push((j - 1) as IndexType);
+                    true_matches += 1;
                 }
-                Dir::Up => {
-                    i -= 1;
-                }
-                Dir::Left => {
-                    j -= 1;
-                }
-                Dir::None => break,
+                i -= 1;
+                j -= 1;
             }
+            Dir::Up => {
+                i -= 1;
+            }
+            Dir::Left => {
+                j -= 1;
+            }
+            Dir::None => break,
         }
-
-        if true_matches < banding.min_true_matches {
-            return None;
-        }
-
-        // Traceback produces indices in reverse order; reverse is O(n)
-        // vs sort_unstable's O(n log n).
-        indices_ref.reverse();
-
-        // Move ownership out of the thread-local buffer by cloning the vec's
-        // contents into a fresh Vec (cheap since MatchIndices is Vec<usize>),
-        // but avoid an extra clone by using `to_vec()` which reallocates once.
-        let out = indices_ref.to_vec();
-        Some((best_score, out))
-    } else {
-        Some((best_score, Vec::default()))
     }
+
+    if true_matches < banding.min_true_matches {
+        return None;
+    }
+
+    // Traceback produces indices in reverse order; reverse is O(n)
+    // vs sort_unstable's O(n log n).
+    indices_ref.reverse();
+
+    // Move ownership out of the thread-local buffer by cloning the vec's
+    // contents into a fresh Vec (cheap since MatchIndices is Vec<usize>),
+    // but avoid an extra clone by using `to_vec()` which reallocates once.
+    let out = indices_ref.to_vec();
+    Some((best_score, out))
 }
 
 // ---------------------------------------------------------------------------
