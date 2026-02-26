@@ -3,8 +3,8 @@ use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::MatchIndices;
+use crate::fuzzy_matcher::arinae::ArinaeMatcher;
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use crate::fuzzy_matcher::skim_v3::SkimV3Matcher;
 use crate::fuzzy_matcher::{FuzzyMatcher, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2};
 
 use crate::item::RankBuilder;
@@ -140,7 +140,7 @@ impl FuzzyEngineBuilder {
                 Box::new(matcher)
             }
             FuzzyAlgorithm::SkimV3 => {
-                let mut matcher = SkimV3Matcher::default();
+                let mut matcher = ArinaeMatcher::default();
                 matcher.case = self.case;
                 matcher.allow_typos = !matches!(self.typos, Typos::Disabled);
                 debug!("Initialized SkimV3 algorithm");

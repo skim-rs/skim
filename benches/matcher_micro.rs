@@ -7,8 +7,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 use skim::CaseMatching;
 use skim::fuzzy_matcher::FuzzyMatcher;
+use skim::fuzzy_matcher::arinae::ArinaeMatcher;
 use skim::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use skim::fuzzy_matcher::skim_v3::SkimV3Matcher;
 use skim::prelude::SkimMatcherV2;
 
 fn load_lines() -> Vec<String> {
@@ -56,7 +56,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_skim_v3", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -68,7 +68,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_skim_v3_range", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -80,7 +80,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_skim_v3_score", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, false);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -92,7 +92,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_typos_skim_v3", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, true);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -104,7 +104,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_typos_skim_v3_range", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, true);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -116,7 +116,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_typos_skim_v3_score", |b| {
-        let m = SkimV3Matcher::new(CaseMatching::Smart, true);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {

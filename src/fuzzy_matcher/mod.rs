@@ -3,6 +3,8 @@
 //! This module provides different fuzzy matching algorithms including
 //! skim's own algorithm and clangd's algorithm for matching text patterns.
 
+/// Arinae fuzzy matching algorithm (Smith-Waterman with affine gaps)
+pub mod arinae;
 /// Clangd fuzzy matching algorithm
 pub mod clangd;
 pub mod frizbee;
@@ -10,8 +12,6 @@ pub mod frizbee;
 pub mod fzy;
 /// Skim fuzzy matching algorithm
 pub mod skim;
-/// SkimV3 fuzzy matching algorithm (Smith-Waterman with affine gaps)
-pub mod skim_v3;
 mod util;
 
 pub(crate) type IndexType = usize;
