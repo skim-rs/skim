@@ -334,10 +334,10 @@ impl SkimV3Matcher {
 
         let respect_case = self.respect_case(pat);
 
-        // Prefilters
-        if !self.allow_typos && !is_subsequence(pat, cho, respect_case) {
-            return None;
-        }
+        // Prefilter for typo mode.
+        // In exact mode (non-typo) we skip is_subsequence here: compute_banding
+        // calls compute_first_match_cols which already validates the subsequence
+        // and returns None if any pattern character is absent — no redundant scan.
         if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
             return None;
         }
@@ -376,10 +376,7 @@ impl SkimV3Matcher {
 
         let respect_case = self.respect_case(pat_buf);
 
-        // Prefilter
-        if !self.allow_typos && !is_subsequence(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
+        // Prefilter for typo mode only (see match_slices for rationale).
         if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
             return None;
         }
@@ -408,9 +405,7 @@ impl SkimV3Matcher {
             let cho = choice.as_bytes();
             let pat = pattern.as_bytes();
             let respect_case = self.respect_case(pat);
-            if !self.allow_typos && !is_subsequence(pat, cho, respect_case) {
-                return None;
-            }
+            // Exact mode: compute_banding validates the subsequence implicitly.
             if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
                 return None;
             }
@@ -432,9 +427,7 @@ impl SkimV3Matcher {
             cho_buf.clear();
             cho_buf.extend(choice.chars());
             let respect_case = self.respect_case(pat_buf);
-            if !self.allow_typos && !is_subsequence(pat_buf, cho_buf, respect_case) {
-                return None;
-            }
+            // Exact mode: compute_banding validates the subsequence implicitly.
             if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
                 return None;
             }
@@ -453,16 +446,6 @@ impl SkimV3Matcher {
 // ---------------------------------------------------------------------------
 // Prefilters
 // ---------------------------------------------------------------------------
-
-fn is_subsequence<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool) -> bool {
-    let mut pi = 0;
-    for &c in choice {
-        if pi < pattern.len() && pattern[pi].eq(c, respect_case) {
-            pi += 1;
-        }
-    }
-    pi == pattern.len()
-}
 
 /// Cheap prefilter for typo-tolerant matching.
 ///
