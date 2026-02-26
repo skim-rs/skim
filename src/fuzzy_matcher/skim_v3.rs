@@ -301,37 +301,20 @@ static SEPARATOR_TABLE: [u8; 128] = {
 };
 
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
-    if cho.is_empty() {
-        buf.clear();
-        return;
-    }
-    // Reset length to 0 (O(1), no deallocation) then ensure capacity for
-    // exactly cho.len() elements. This avoids the previous bug where
-    // reserve(cho.len().saturating_sub(buf.len())) could over-reserve when
-    // buf.len() was stale from a previous (longer) call.
+    // Reset length (O(1), no deallocation) then fill with fresh values.
     buf.clear();
-    buf.reserve(cho.len());
-    let buf_ptr = buf.as_mut_ptr();
-
-    // First character always gets START_OF_STRING_BONUS.
-    // SAFETY: We reserved enough capacity above; buf_ptr is valid for cho.len() writes.
-    unsafe {
-        *buf_ptr = START_OF_STRING_BONUS;
-    }
-    // Remaining characters: branchless bonus computation using bool-as-int.
-    for j in 1..cho.len() {
-        let prev = cho[j - 1];
-        let ch = cho[j];
-        let bonus: Score = START_OF_WORD_BONUS * (prev.is_sep() as Score)
-            + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !ch.is_lowercase()) as Score);
-        unsafe {
-            *buf_ptr.add(j) = bonus;
-        }
-    }
-    // SAFETY: We wrote all cho.len() elements above; buf has capacity >= cho.len().
-    unsafe {
-        buf.set_len(cho.len());
-    }
+    // The first character always gets START_OF_STRING_BONUS.
+    // Subsequent characters get a bonus based on the previous character:
+    //   - START_OF_WORD_BONUS when the previous char is a separator, or
+    //   - CAMEL_CASE_BONUS when transitioning from lowercase to non-lowercase.
+    // Using a safe iterator lets the compiler auto-vectorise the loop.
+    let bonus_iter = std::iter::once(START_OF_STRING_BONUS).chain(cho.windows(2).map(|w| {
+        let prev = w[0];
+        let cur = w[1];
+        START_OF_WORD_BONUS * (prev.is_sep() as Score)
+            + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !cur.is_lowercase()) as Score)
+    }));
+    buf.extend(bonus_iter);
 }
 
 // ---------------------------------------------------------------------------
