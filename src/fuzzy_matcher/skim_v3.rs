@@ -602,25 +602,12 @@ impl SkimV3Matcher {
 /// available (e.g. non-ASCII input).  Pattern cursors reset on miss so that
 /// subsequent pattern chars can still match even when a middle char is absent
 /// (typo-tolerant semantics).
-///
-/// Early-exit: if the remaining choice positions plus already-matched chars
-/// cannot reach `min_needed`, the scan terminates immediately.
 #[inline]
 fn count_tail_present_ordered<C: Atom>(pat_tail: &[C], choice: &[C], respect_case: bool, min_needed: usize) -> usize {
     let m = choice.len();
-    let n_tail = pat_tail.len();
     let mut matched = 0usize;
     let mut ci = 0usize;
-    for (pi_idx, &pi) in pat_tail.iter().enumerate() {
-        // If matched + remaining pattern chars can't reach min_needed, give up.
-        let remaining_pat = n_tail - pi_idx;
-        if matched + remaining_pat < min_needed {
-            return matched;
-        }
-        // If no choice chars remain, stop.
-        if ci >= m {
-            return matched;
-        }
+    for &pi in pat_tail {
         let ci_save = ci;
         let mut found = false;
         while ci < m {
