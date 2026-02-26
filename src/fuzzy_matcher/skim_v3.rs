@@ -484,6 +484,38 @@ impl SkimV3Matcher {
         self.dispatch_dp(cho, pat, bonus_buf, respect_case, compute_indices)
     }
 
+    /// Generic helper: run range DP over slices of Atom.
+    ///
+    /// Shared by the ASCII and non-ASCII paths of `run_range`.  Mirrors
+    /// `match_slices` but calls `range_dp` instead of `dispatch_dp`.
+    fn match_slices_range<C: Atom>(&self, cho: &[C], pat: &[C]) -> Option<(ScoreType, usize, usize)> {
+        if pat.is_empty() {
+            return Some((0, 0, 0));
+        }
+        if cho.is_empty() {
+            return None;
+        }
+
+        let respect_case = self.respect_case(pat);
+
+        // Prefilter for typo mode; compute_banding handles the exact-mode
+        // subsequence check implicitly.
+        if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
+            return None;
+        }
+
+        // SAFETY: bonus_buf is not accessed elsewhere on this call stack.
+        let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
+        precompute_bonuses(cho, bonus_buf);
+
+        let res = if self.allow_typos {
+            range_dp::<true, _>(cho, pat, bonus_buf, respect_case, &self.full_buf)
+        } else {
+            range_dp::<false, _>(cho, pat, bonus_buf, respect_case, &self.full_buf)
+        };
+        res.map(|(s, b, e)| (s as ScoreType, b, e))
+    }
+
     fn run(&self, choice: &str, pattern: &str, compute_indices: bool) -> Option<(ScoreType, MatchIndices)> {
         if pattern.is_empty() {
             return Some((0, MatchIndices::new()));
@@ -536,45 +568,37 @@ impl SkimV3Matcher {
             return None;
         }
 
-        let range = if choice.is_ascii() && pattern.is_ascii() {
-            let cho = choice.as_bytes();
-            let pat = pattern.as_bytes();
-            let respect_case = self.respect_case(pat);
-            // Exact mode: compute_banding validates the subsequence implicitly.
-            if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
-                return None;
-            }
-            // SAFETY: bonus_buf is not accessed elsewhere on this call stack.
-            let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
-            precompute_bonuses(cho, bonus_buf);
-            if self.allow_typos {
-                range_dp::<true, _>(cho, pat, bonus_buf, respect_case, &self.full_buf)
-            } else {
-                range_dp::<false, _>(cho, pat, bonus_buf, respect_case, &self.full_buf)
-            }
+        if choice.is_ascii() && pattern.is_ascii() {
+            return self.match_slices_range(choice.as_bytes(), pattern.as_bytes());
+        }
+
+        // Non-ASCII: convert to char slices in the thread-local buffer, then
+        // call the generic helper.
+        // SAFETY: char_buf is not accessed elsewhere on this call stack.
+        let bufs = unsafe { tl_get_mut(&self.char_buf) };
+        let (ref mut pat_buf, ref mut cho_buf) = *bufs;
+        pat_buf.clear();
+        pat_buf.extend(pattern.chars());
+        cho_buf.clear();
+        cho_buf.extend(choice.chars());
+
+        // Temporarily reborrow as slices to satisfy the borrow checker; the
+        // char_buf borrow ends before match_slices_range borrows bonus_buf.
+        let (pat_slice, cho_slice): (&[char], &[char]) = (pat_buf, cho_buf);
+
+        // SAFETY: bonus_buf and char_buf are distinct thread-locals.
+        let respect_case = self.respect_case(pat_slice);
+        if self.allow_typos && !cheap_typo_prefilter(pat_slice, cho_slice, respect_case) {
+            return None;
+        }
+        let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
+        precompute_bonuses(cho_slice, bonus_buf);
+        let res = if self.allow_typos {
+            range_dp::<true, _>(cho_slice, pat_slice, bonus_buf, respect_case, &self.full_buf)
         } else {
-            // SAFETY: char_buf is not accessed elsewhere on this call stack.
-            let bufs = unsafe { tl_get_mut(&self.char_buf) };
-            let (ref mut pat_buf, ref mut cho_buf) = *bufs;
-            pat_buf.clear();
-            pat_buf.extend(pattern.chars());
-            cho_buf.clear();
-            cho_buf.extend(choice.chars());
-            let respect_case = self.respect_case(pat_buf);
-            // Exact mode: compute_banding validates the subsequence implicitly.
-            if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
-                return None;
-            }
-            // SAFETY: bonus_buf and char_buf are distinct thread-locals.
-            let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
-            precompute_bonuses(cho_buf, bonus_buf);
-            if self.allow_typos {
-                range_dp::<true, _>(cho_buf, pat_buf, bonus_buf, respect_case, &self.full_buf)
-            } else {
-                range_dp::<false, _>(cho_buf, pat_buf, bonus_buf, respect_case, &self.full_buf)
-            }
+            range_dp::<false, _>(cho_slice, pat_slice, bonus_buf, respect_case, &self.full_buf)
         };
-        range.map(|(s, b, e)| (s as ScoreType, b, e))
+        res.map(|(s, b, e)| (s as ScoreType, b, e))
     }
 }
 
