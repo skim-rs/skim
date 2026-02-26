@@ -141,16 +141,6 @@ trait Atom: PartialEq + Into<char> + Copy {
         haystack.iter().position(|&c| self.eq(c, respect_case))
     }
 
-    /// Return true if this atom is an ASCII word separator.
-    ///
-    /// The default implementation converts to `char` (via `Into`) then indexes
-    /// the lookup table.  The `u8` specialisation skips the conversion.
-    #[inline(always)]
-    fn is_sep(self) -> bool {
-        let ch = self.into() as u32;
-        SEPARATOR_TABLE.get(ch as usize).copied().unwrap_or(0) != 0
-    }
-
     /// Count how many elements of `pat_tail` are present (unordered) in
     /// `choice`.  The count is capped at `min_needed` so callers can
     /// short-circuit as soon as the threshold is met.
@@ -213,15 +203,6 @@ impl Atom for u8 {
             }
         }
         matched
-    }
-
-    /// Direct table lookup — avoids the `u8 → char → u32` conversion in the
-    /// default implementation.
-    #[inline(always)]
-    fn is_sep(self) -> bool {
-        // u8 values ≥ 128 are not ASCII and cannot be separators; the table is
-        // only 128 bytes, so we use `get` to handle out-of-range safely.
-        SEPARATOR_TABLE.get(self as usize).copied().unwrap_or(0) != 0
     }
 
     /// Case-sensitive search uses SIMD-backed `memchr`; case-insensitive
@@ -300,6 +281,17 @@ static SEPARATOR_TABLE: [u8; 128] = {
     t
 };
 
+/// Check if a character is a word separator for bonus computation.
+/// Uses a table lookup — a single bounds check replaces three branches.
+#[inline(always)]
+fn is_separator<C: Atom>(c: C) -> bool {
+    let ch = c.into() as u32;
+    // For ch < 128 we do a table lookup; for ch >= 128 we return false.
+    // The `get` returns None for out-of-range, and `copied().unwrap_or(0)` is
+    // typically compiled as a conditional move (branchless).
+    SEPARATOR_TABLE.get(ch as usize).copied().unwrap_or(0) != 0
+}
+
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     // Reset length (O(1), no deallocation) then fill with fresh values.
     buf.clear();
@@ -311,7 +303,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     let bonus_iter = std::iter::once(START_OF_STRING_BONUS).chain(cho.windows(2).map(|w| {
         let prev = w[0];
         let cur = w[1];
-        START_OF_WORD_BONUS * (prev.is_sep() as Score)
+        START_OF_WORD_BONUS * (is_separator(prev) as Score)
             + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !cur.is_lowercase()) as Score)
     }));
     buf.extend(bonus_iter);
