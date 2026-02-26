@@ -294,14 +294,18 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
 #[repr(u8)]
 #[allow(dead_code)] // variants are constructed via transmute from bits
 enum Dir {
+    /// No valid path (score == 0).
+    ///
+    /// Assigned tag 0 so that `Cell::new(0, Dir::None)` encodes as all-zero
+    /// bits, allowing boundary rows/columns to be bulk-zeroed with
+    /// `write_bytes(0)` instead of a scalar loop.
+    None = 0,
     /// Diagonal: match or mismatch (came from [i-1][j-1])
-    Diag = 0,
+    Diag = 1,
     /// Up: gap in choice (came from [i-1][j], skip pattern char)
-    Up = 1,
+    Up = 2,
     /// Left: gap in pattern (came from [i][j-1], skip choice char)
-    Left = 2,
-    /// No valid path (score == 0)
-    None = 3,
+    Left = 3,
 }
 
 /// Packed cell stored as a `u32`: bits [15:0] = score (as u16 bitcast from
@@ -337,10 +341,10 @@ impl Cell {
         // valid Dir values in bits 16-17.
         unsafe { std::mem::transmute((self.0 >> 16) as u8 & 0x3) }
     }
-    /// Branchless check: true when dir == Diag (tag 0).
+    /// Branchless check: true when dir == Diag (tag 1).
     #[inline(always)]
     fn is_diag(self) -> bool {
-        (self.0 >> 16) & 0x3 == 0
+        (self.0 >> 16) & 0x3 == 1
     }
 }
 
@@ -834,12 +838,13 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     let up_wins = ALLOW_TYPOS && !diag_wins && up_val >= left_val;
 
     // Branchless cascade: select dir as integer.
-    // Dir::Left=2 is the base; override with Up=1 or Diag=0.
-    let dir_bits: u8 = Dir::Left as u8 - (up_wins as u8) - (diag_wins as u8) * (Dir::Left as u8);
-    // If best <= 0, force Dir::None (3).
+    // Dir encoding: None=0, Diag=1, Up=2, Left=3.
+    // Base is Left(3); subtract 1 if Up wins, subtract 2 if Diag wins.
+    let dir_bits: u8 = Dir::Left as u8 - (up_wins as u8) - (diag_wins as u8) * 2;
+    // If best <= 0, force Dir::None (0) — achieved by ANDing with all-zeros.
     let positive = best > 0;
-    // When positive: dir_bits; when not: Dir::None (3).
-    let dir_val = (dir_bits & (positive as u8).wrapping_neg()) | (Dir::None as u8 & (!positive as u8).wrapping_neg());
+    // When positive: dir_bits; when not: 0 (Dir::None).
+    let dir_val = dir_bits & (positive as u8).wrapping_neg();
 
     // SAFETY: dir_val is in 0..=3 because of the construction above.
     let dir: Dir = unsafe { std::mem::transmute(dir_val) };
@@ -913,11 +918,10 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
     }
     let buf_ptr = score_buf_ref.as_mut_ptr();
 
-    // Initialize both rows to CELL_ZERO.
+    // Initialize both rows to CELL_ZERO (all-zero bytes: score=0, dir=None=0).
+    // SAFETY: buf_ptr points to `needed` valid Cell slots; Cell is u32-aligned.
     unsafe {
-        for k in 0..needed {
-            *buf_ptr.add(k) = CELL_ZERO;
-        }
+        std::ptr::write_bytes(buf_ptr, 0, needed);
     }
 
     // Pre-extract row bounds.
@@ -1093,12 +1097,13 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let base_ptr = buf.data.as_mut_ptr();
     let cols = buf.cols;
 
-    // Initialize row 0 and column 0 using raw pointer access (fewer borrows).
+    // Initialize row 0 to CELL_ZERO (all-zero bytes: score=0, dir=None=0).
+    // Column 0 of each subsequent row is also CELL_ZERO.
+    // SAFETY: base_ptr points to a valid allocation of (n+1)*cols Cells.
     unsafe {
-        let row0 = base_ptr;
-        for c in 0..mcols {
-            *row0.add(c) = CELL_ZERO;
-        }
+        // Row 0: mcols contiguous Cells starting at base_ptr.
+        std::ptr::write_bytes(base_ptr, 0, mcols);
+        // Column 0 of rows 1..=n: one Cell per row, stride = cols.
         for i in 1..=n {
             *base_ptr.add(i * cols) = CELL_ZERO;
         }
@@ -1351,11 +1356,11 @@ fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let base_ptr = buf.data.as_mut_ptr();
     let cols = buf.cols;
 
+    // Initialize row 0 to CELL_ZERO (all-zero bytes: score=0, dir=None=0).
+    // Column 0 of each subsequent row is also CELL_ZERO.
+    // SAFETY: base_ptr points to a valid allocation of (n+1)*cols Cells.
     unsafe {
-        let row0 = base_ptr;
-        for c in 0..mcols {
-            *row0.add(c) = CELL_ZERO;
-        }
+        std::ptr::write_bytes(base_ptr, 0, mcols);
         for i in 1..=n {
             *base_ptr.add(i * cols) = CELL_ZERO;
         }
