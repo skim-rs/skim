@@ -57,6 +57,7 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
    * [Interactive mode](#interactive-mode)
       + [How does it work?](#how-does-it-work)
    * [Executing external programs](#executing-external-programs)
+   * [Algorithms](#algorithms)
    * [Preview Window](#preview-window)
       + [How does it work?](#how-does-it-work-1)
    * [Fields support](#fields-support)
@@ -84,7 +85,7 @@ The skim project contains several components:
 | macOS          | MacPorts          | `sudo port install skim`     |
 | Alpine         | apk               | `apk add skim`               |
 | Arch           | pacman            | `pacman -S skim`             |
-| Fedora         | COPR              |   see below                  | 
+| Fedora         | COPR              |   see below                  |
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
 | Guix           | guix              | `guix install skim`          |
 | Void           | XBPS              | `xbps-install -S skim`       |
@@ -451,6 +452,14 @@ You can configure key bindings to start external processes without leaving Skim 
 # Press CTRL-Y to copy the line to clipboard and aborts skim (requires pbcopy)
 sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 ```
+
+## Algorithms
+
+Skim offers multiple algorithms, check the help or manpage for an exhaustive list. Among them are:
+- `skim_v2`, the default algorithm, loosely based on `fzf`'s algorithm
+- `frizbee`([crate](https://crates.io/frizbee), the typo-resistant algorithm used in the [blink.cmp](https://github.com/saghen/blink.cmp) neovim plugin
+- `fzy`, based on [fzy](https://github.com/jhawthorn/fzy/)'s algorithm expanded for basic typo-resistance
+- `arinae`, skim's newest algorithm, designed in-house with typo-resistance in mind, expanding on all the above to make typo-resistant matching feel more natural while keeping the per-item performance up to the best standards
 
 ## Preview Window
 
