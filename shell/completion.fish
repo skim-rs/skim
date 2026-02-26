@@ -17,7 +17,7 @@ skim_v2\t'Improved skim fuzzy matching algorithm (v2, default)'
 clangd\t'Clangd fuzzy matching algorithm'
 fzy\t'Fzy matching algorithm (https://github.com/jhawthorn/fzy)'
 frizbee\t'Frizbee matching algorithm, typo resistant'
-skim_v3\t'SkimV3: Needleman-Wunsch + Damerau-Levenshtein variation with affine gaps'"
+arinae\t'Arinae: typo-resistant & natural algorithm'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"
