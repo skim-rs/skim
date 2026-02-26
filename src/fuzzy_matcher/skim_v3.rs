@@ -324,6 +324,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
 /// Direction the optimal path took to reach a cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[allow(dead_code)] // variants are constructed via transmute from bits
 enum Dir {
     /// No valid path (score == 0).
     ///
@@ -368,12 +369,9 @@ impl Cell {
     }
     #[inline(always)]
     fn dir(self) -> Dir {
-        match (self.0 >> 16) & 0x3 {
-            0 => Dir::None,
-            1 => Dir::Diag,
-            2 => Dir::Up,
-            _ => Dir::Left,
-        }
+        // SAFETY: Dir has repr(u8) with values 0..=3 and we only ever store
+        // valid Dir values in bits 16-17.
+        unsafe { std::mem::transmute((self.0 >> 16) as u8 & 0x3) }
     }
     /// Branchless check: true when dir == Diag (tag 1).
     #[inline(always)]
@@ -925,12 +923,8 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     // When positive: dir_bits; when not: 0 (Dir::None).
     let dir_val = dir_bits & (positive as u8).wrapping_neg();
 
-    let dir = match dir_val {
-        0 => Dir::None,
-        1 => Dir::Diag,
-        2 => Dir::Up,
-        _ => Dir::Left,
-    };
+    // SAFETY: dir_val is in 0..=3 because of the construction above.
+    let dir: Dir = unsafe { std::mem::transmute(dir_val) };
 
     (best, dir)
 }
