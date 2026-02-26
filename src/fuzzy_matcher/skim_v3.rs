@@ -623,6 +623,11 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
 /// subsequence check should have caught this, but we guard anyway).
 fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; MAX_PAT_LEN]> {
     let n = pat.len();
+    // Patterns longer than MAX_PAT_LEN cannot be handled by the stack-allocated
+    // banding arrays.  Return None so the caller skips this choice gracefully.
+    if n > MAX_PAT_LEN {
+        return None;
+    }
     let mut first = [0usize; MAX_PAT_LEN];
     let mut start = 0usize; // search from this choice index onward
     for i in 0..n {
@@ -642,6 +647,11 @@ fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -
 /// matched, scanning from the end. Used to tighten the diagonal upper bound.
 fn compute_last_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; MAX_PAT_LEN]> {
     let n = pat.len();
+    // Patterns longer than MAX_PAT_LEN cannot be handled by the stack-allocated
+    // banding arrays.  Return None so the caller skips this choice gracefully.
+    if n > MAX_PAT_LEN {
+        return None;
+    }
     let m = cho.len();
     let mut last = [0usize; MAX_PAT_LEN];
     let mut end = m; // search up to this choice index (exclusive)
