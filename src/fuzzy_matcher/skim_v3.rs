@@ -275,12 +275,33 @@ struct SWMatrix {
     cols: usize,
     rows: usize,
 }
+/// Maximum factor by which the matrix may over-allocate before it is
+/// shrunk.  A factor of 4 means: if the buffer holds ≥4× more cells
+/// than required, truncate its capacity to 2× the required size.
+///
+/// This bounds resident memory after an unusually large input without
+/// thrashing allocations on inputs of similar size.
+const MATRIX_SHRINK_FACTOR: usize = 4;
+
 impl SWMatrix {
     pub fn resize(&mut self, rows: usize, cols: usize) {
         let needed = rows * cols;
-        if needed > self.data.len() {
+        let cap = self.data.capacity();
+
+        if needed > cap {
+            // Grow: reserve enough capacity for `needed` cells.
             self.data.resize(needed, CELL_ZERO);
+        } else if cap > needed.saturating_mul(MATRIX_SHRINK_FACTOR) {
+            // The buffer is more than MATRIX_SHRINK_FACTOR× the needed size;
+            // release excess memory to avoid holding large allocations after
+            // a one-off large input.  shrink_to requests the allocator to
+            // reduce capacity to at most 2× needed (best-effort).
+            self.data.truncate(needed);
+            self.data.shrink_to(needed.saturating_mul(2));
         }
+        // (Otherwise capacity is between needed and SHRINK_FACTOR×needed —
+        // no reallocation needed.)
+
         self.rows = rows;
         self.cols = cols;
     }
