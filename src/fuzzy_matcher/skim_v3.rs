@@ -98,11 +98,6 @@ const CAMEL_CASE_BONUS: Score = 6;
 /// Bonus for each additional consecutive matched character.
 const CONSECUTIVE_BONUS: Score = 8;
 
-/// Multiplier applied to the very first pattern character's positional bonus.
-/// Used as `(1 + is_first as Score)` in the branchless bonus computation.
-#[allow(dead_code)]
-const FIRST_CHAR_BONUS_MULTIPLIER: Score = 2;
-
 /// Cost to open a gap (skip characters in choice).
 const GAP_OPEN: Score = 6;
 
@@ -271,13 +266,6 @@ impl SWMatrix {
         self.cols = cols;
     }
 }
-
-/// Bitmask lookup for ASCII word separators (kept for documentation; the table
-/// lookup `SEPARATOR_TABLE` replaces this at runtime).
-#[allow(dead_code)]
-const SEPARATOR_MASK_LO: u64 = (1u64 << 32) | (1u64 << 45) | (1u64 << 46) | (1u64 << 47);
-#[allow(dead_code)]
-const SEPARATOR_MASK_HI: u64 = (1u64 << (92 - 64)) | (1u64 << (95 - 64));
 
 /// 128-byte lookup table for separator detection. A byte is 1 if the
 /// corresponding ASCII codepoint is a word separator, 0 otherwise.
