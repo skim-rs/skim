@@ -766,13 +766,17 @@ fn find_first_char<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<
 
 /// Row-major V-shaped band: compute column bounds at row `i`.
 ///
-/// The result is an upper triangle starting at the diagonal (j ~ i + j_first - 1)
+/// The band is a symmetric window of width `bandwidth` around the main
+/// diagonal `j ≈ i + j_first - 1`. Both lower and upper bounds are clamped
+/// to `[1, m]`. Tightening the upper bound (previously always `m`) avoids
+/// computing cells in the right half of the matrix for early rows.
 #[inline(always)]
 fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
     let j = i + j_first - 1;
     let lo = j.saturating_sub(bandwidth).max(1);
+    let hi = (j + bandwidth).min(m);
 
-    (lo, m)
+    (lo, hi)
 }
 
 // ---------------------------------------------------------------------------
