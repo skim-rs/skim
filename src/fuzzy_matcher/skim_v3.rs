@@ -746,6 +746,11 @@ fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usiz
 /// the two buffers. This reduces memory from O(n×m) to O(m) and dramatically
 /// improves cache utilization for large choice strings.
 ///
+/// **Early termination**: after processing a row, if no cell had a positive
+/// score we increment a dead-row counter. Once the counter reaches 2, we
+/// terminate — no subsequent row can produce a positive score since gap
+/// penalties can only decrease an existing score.
+///
 /// The banding and cell computation logic is identical to `full_dp`.
 fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
@@ -792,6 +797,8 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // `cur_half` toggles between 0 and 1 selecting which half of the buffer
     // is the "current" row. The other half is the "previous" row.
     let mut cur_half = 0usize;
+    // Consecutive all-zero-row counter for early termination.
+    let mut dead_rows = 0u32;
 
     for i in 1..=n {
         let pi = pat[i - 1];
@@ -819,6 +826,10 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
                     *cur_ptr.add(k) = CELL_ZERO;
                 }
             }
+            dead_rows += 1;
+            if dead_rows >= 2 {
+                return None;
+            }
             continue;
         }
 
@@ -838,6 +849,7 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
             }
         }
 
+        let mut row_positive = false;
         for j in j_lo..=j_hi {
             let jm = j - col_off;
             let cj = unsafe { *cho_ptr.add(j - 1) };
@@ -862,8 +874,20 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 left_cell.is_diag(),
             );
 
+            row_positive |= best > 0;
             unsafe {
                 *cur_ptr.add(jm) = Cell::new(best, dir);
+            }
+        }
+
+        // Early termination: if this row had no positive score, no downstream
+        // row can produce one either (gap penalties only decrease scores).
+        if row_positive {
+            dead_rows = 0;
+        } else {
+            dead_rows += 1;
+            if dead_rows >= 2 {
+                return None;
             }
         }
     }
@@ -956,6 +980,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // Hoist invariant pointers outside the row loop.
     let cho_ptr = cho.as_ptr();
     let bonuses_ptr = bonuses.as_ptr();
+    // Consecutive all-zero-row counter for early termination.
+    let mut dead_rows = 0u32;
 
     for i in 1..=n {
         let pi = pat[i - 1];
@@ -996,6 +1022,10 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                     }
                 }
             }
+            dead_rows += 1;
+            if dead_rows >= 2 {
+                return None;
+            }
             continue;
         }
 
@@ -1032,6 +1062,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         let prev_ptr = prev_row.as_ptr();
         let cur_ptr = cur_row.as_mut_ptr();
 
+        let mut row_positive = false;
         for j in j_lo..=j_hi {
             let jm = j - col_off; // matrix column
             // SAFETY: j and jm are inside the band and within array bounds.
@@ -1059,8 +1090,20 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 left_cell.is_diag(),
             );
 
+            row_positive |= best > 0;
             unsafe {
                 *cur_ptr.add(jm) = Cell::new(best, dir);
+            }
+        }
+
+        // Early termination: if this row had no positive score, no downstream
+        // row can produce one either.
+        if row_positive {
+            dead_rows = 0;
+        } else {
+            dead_rows += 1;
+            if dead_rows >= 2 {
+                return None;
             }
         }
     }
