@@ -21,10 +21,56 @@
 //!   or row (full DP), if all cells are zero for several consecutive
 //!   iterations, the alignment is dead and we terminate early.
 
-use std::cell::RefCell;
+use std::cell::UnsafeCell;
 
 use memchr::memchr;
 use thread_local::ThreadLocal;
+
+/// A newtype wrapping `UnsafeCell<T>` that is `Send`.
+///
+/// # Safety
+/// This is safe to mark `Send` only because the surrounding `ThreadLocal<T>`
+/// guarantees that each instance is accessed from at most one thread at a time.
+/// Never use this outside of `ThreadLocal` contexts.
+struct TLCell<T>(UnsafeCell<T>);
+// SAFETY: ThreadLocal ensures single-thread access; we never send an active
+// reference across threads.
+unsafe impl<T: Send> Send for TLCell<T> {}
+
+impl<T: Default> Default for TLCell<T> {
+    fn default() -> Self {
+        TLCell(UnsafeCell::new(T::default()))
+    }
+}
+
+impl<T> std::fmt::Debug for TLCell<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TLCell(...)")
+    }
+}
+
+/// Helper to get a `&mut T` from a `ThreadLocal<TLCell<T>>`.
+///
+/// # Safety
+/// This is safe as long as:
+/// 1. Only one mutable reference to the cell is live at a time (no re-entrant
+///    access to the same thread-local on the same call stack).
+/// 2. The `ThreadLocal` wrapper ensures distinct per-thread storage, so no
+///    concurrent access from other threads is possible.
+///
+/// All callers in this module satisfy both conditions: each thread-local is
+/// borrowed for a short lexical scope, and no two borrows of the same
+/// thread-local overlap in any call path.
+#[inline(always)]
+#[allow(clippy::mut_from_ref)]
+// `mut_from_ref` is intentional here: `ThreadLocal` guarantees per-thread
+// isolation so the returned `&mut T` cannot alias any reference held by another
+// thread, and single-thread aliasing is prevented by the documented call-site
+// invariant that no two `tl_get_mut` calls on the same TL overlap.
+unsafe fn tl_get_mut<T: Default + Send>(tl: &ThreadLocal<TLCell<T>>) -> &mut T {
+    // SAFETY: caller guarantees no aliasing mutable reference is alive.
+    unsafe { &mut *tl.get_or_default().0.get() }
+}
 
 use crate::{
     CaseMatching,
@@ -163,11 +209,6 @@ struct SWMatrix {
     rows: usize,
 }
 impl SWMatrix {
-    pub fn zero(rows: usize, cols: usize) -> Self {
-        let mut res = SWMatrix::default();
-        res.resize(rows, cols);
-        res
-    }
     pub fn resize(&mut self, rows: usize, cols: usize) {
         let needed = rows * cols;
         if needed > self.data.len() {
@@ -303,18 +344,22 @@ impl Cell {
 
 /// SkimV3 fuzzy matcher: Smith-Waterman local alignment with affine gap
 /// penalties and context-sensitive bonuses.
+///
+/// Thread-local buffers use `TLCell` (an `UnsafeCell` newtype) instead of
+/// `RefCell` to avoid the runtime borrow-check overhead. Safety is maintained
+/// by the single-writer invariant described on `tl_get_mut`.
 #[derive(Debug, Default)]
 pub struct SkimV3Matcher {
     pub(crate) case: CaseMatching,
     pub(crate) allow_typos: bool,
-    full_buf: ThreadLocal<RefCell<SWMatrix>>,
+    full_buf: ThreadLocal<TLCell<SWMatrix>>,
     /// Two-row rolling buffer used by the score-only DP path (no traceback).
     /// Stores rows as a flat vec: row 0 occupies [0..mcols], row 1 [mcols..2*mcols].
-    score_buf: ThreadLocal<RefCell<Vec<Cell>>>,
-    indices_buf: ThreadLocal<RefCell<MatchIndices>>,
+    score_buf: ThreadLocal<TLCell<Vec<Cell>>>,
+    indices_buf: ThreadLocal<TLCell<MatchIndices>>,
     #[allow(clippy::type_complexity)]
-    char_buf: ThreadLocal<RefCell<(Vec<char>, Vec<char>)>>,
-    bonus_buf: ThreadLocal<RefCell<Vec<Score>>>,
+    char_buf: ThreadLocal<TLCell<(Vec<char>, Vec<char>)>>,
+    bonus_buf: ThreadLocal<TLCell<Vec<Score>>>,
 }
 
 impl SkimV3Matcher {
@@ -387,11 +432,12 @@ impl SkimV3Matcher {
             return None;
         }
 
-        // Prepare bonuses
-        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-        precompute_bonuses(cho, &mut bonus_buf);
+        // Prepare bonuses.
+        // SAFETY: bonus_buf is not accessed elsewhere on this call stack.
+        let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
+        precompute_bonuses(cho, bonus_buf);
 
-        self.dispatch_dp(cho, pat, &bonus_buf, respect_case, compute_indices)
+        self.dispatch_dp(cho, pat, bonus_buf, respect_case, compute_indices)
     }
 
     fn run(&self, choice: &str, pattern: &str, compute_indices: bool) -> Option<(ScoreType, MatchIndices)> {
@@ -409,10 +455,8 @@ impl SkimV3Matcher {
             return self.match_slices(cho, pat, compute_indices);
         }
 
-        let mut bufs = self
-            .char_buf
-            .get_or(|| RefCell::new((Vec::new(), Vec::new())))
-            .borrow_mut();
+        // SAFETY: char_buf is not accessed elsewhere on this call stack.
+        let bufs = unsafe { tl_get_mut(&self.char_buf) };
         let (ref mut pat_buf, ref mut cho_buf) = *bufs;
         pat_buf.clear();
         pat_buf.extend(pattern.chars());
@@ -426,11 +470,13 @@ impl SkimV3Matcher {
             return None;
         }
 
-        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-        precompute_bonuses(cho_buf, &mut bonus_buf);
+        // SAFETY: bonus_buf is not accessed elsewhere on this call stack.
+        // char_buf and bonus_buf are distinct thread-locals; no aliasing.
+        let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
+        precompute_bonuses(cho_buf, bonus_buf);
 
-        // Call dispatch_dp directly to avoid double-borrowing bonus_buf.
-        self.dispatch_dp(cho_buf, pat_buf, &bonus_buf, respect_case, compute_indices)
+        // Call dispatch_dp directly to avoid re-borrowing bonus_buf.
+        self.dispatch_dp(cho_buf, pat_buf, bonus_buf, respect_case, compute_indices)
     }
 
     /// Run the DP and return `(score, begin, end)` without collecting all indices.
@@ -454,18 +500,17 @@ impl SkimV3Matcher {
             if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
                 return None;
             }
-            let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-            precompute_bonuses(cho, &mut bonus_buf);
+            // SAFETY: bonus_buf is not accessed elsewhere on this call stack.
+            let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
+            precompute_bonuses(cho, bonus_buf);
             if self.allow_typos {
-                range_dp::<true, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<true, _>(cho, pat, bonus_buf, respect_case, &self.full_buf)
             } else {
-                range_dp::<false, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<false, _>(cho, pat, bonus_buf, respect_case, &self.full_buf)
             }
         } else {
-            let mut bufs = self
-                .char_buf
-                .get_or(|| RefCell::new((Vec::new(), Vec::new())))
-                .borrow_mut();
+            // SAFETY: char_buf is not accessed elsewhere on this call stack.
+            let bufs = unsafe { tl_get_mut(&self.char_buf) };
             let (ref mut pat_buf, ref mut cho_buf) = *bufs;
             pat_buf.clear();
             pat_buf.extend(pattern.chars());
@@ -476,12 +521,13 @@ impl SkimV3Matcher {
             if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
                 return None;
             }
-            let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-            precompute_bonuses(cho_buf, &mut bonus_buf);
+            // SAFETY: bonus_buf and char_buf are distinct thread-locals.
+            let bonus_buf = unsafe { tl_get_mut(&self.bonus_buf) };
+            precompute_bonuses(cho_buf, bonus_buf);
             if self.allow_typos {
-                range_dp::<true, _>(cho_buf, pat_buf, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<true, _>(cho_buf, pat_buf, bonus_buf, respect_case, &self.full_buf)
             } else {
-                range_dp::<false, _>(cho_buf, pat_buf, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<false, _>(cho_buf, pat_buf, bonus_buf, respect_case, &self.full_buf)
             }
         };
         range.map(|(s, b, e)| (s as ScoreType, b, e))
@@ -831,7 +877,7 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
     pat: &[C],
     bonuses: &[Score],
     respect_case: bool,
-    score_buf: &ThreadLocal<RefCell<Vec<Cell>>>,
+    score_buf: &ThreadLocal<TLCell<Vec<Cell>>>,
 ) -> Option<Score> {
     let n = pat.len();
     let m = cho.len();
@@ -844,7 +890,8 @@ fn score_only_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     // Allocate/reuse a flat buffer for two rows: [prev_row | cur_row].
     let needed = 2 * mcols;
-    let mut score_buf_ref = score_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+    // SAFETY: score_buf is not accessed elsewhere on this call stack.
+    let score_buf_ref = unsafe { tl_get_mut(score_buf) };
     if score_buf_ref.len() < needed {
         score_buf_ref.resize(needed, CELL_ZERO);
     }
@@ -1007,8 +1054,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     pat: &[C],
     bonuses: &[Score],
     respect_case: bool,
-    full_buf: &ThreadLocal<RefCell<SWMatrix>>,
-    indices_buf: &ThreadLocal<RefCell<MatchIndices>>,
+    full_buf: &ThreadLocal<TLCell<SWMatrix>>,
+    indices_buf: &ThreadLocal<TLCell<MatchIndices>>,
 ) -> Option<(Score, MatchIndices)> {
     let n = pat.len();
     let m = cho.len();
@@ -1022,9 +1069,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let col_off = j_start - 1; // subtract from original j to get matrix col
     let mcols = m - col_off + 1; // matrix columns: 0 ..= (m - col_off)
 
-    let mut buf = full_buf
-        .get_or(|| RefCell::new(SWMatrix::zero(n + 1, mcols)))
-        .borrow_mut();
+    // SAFETY: full_buf is not accessed elsewhere on this call stack.
+    let buf = unsafe { tl_get_mut(full_buf) };
     buf.resize(n + 1, mcols);
 
     // Hoist pointer and stride before initialization to use raw access.
@@ -1213,9 +1259,8 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     // Traceback — j walks in original 1-indexed space, convert to matrix
     // column for buf access; output indices in original 0-indexed space.
-    // Reuse a thread-local Vec to avoid per-call allocation.
-    let indices_ref_cell = indices_buf.get_or(|| RefCell::new(Vec::new()));
-    let mut indices_ref = indices_ref_cell.borrow_mut();
+    // SAFETY: indices_buf is not accessed elsewhere on this call stack.
+    let indices_ref = unsafe { tl_get_mut(indices_buf) };
     indices_ref.clear();
     let mut i = n;
     let mut j = best_j;
@@ -1256,7 +1301,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // with an empty Vec so we return the populated Vec directly. The thread-local
     // then starts the next call with a zero-capacity Vec and will reallocate on
     // first push — a small one-time cost traded for zero-copy return here.
-    let out = std::mem::take(&mut *indices_ref);
+    let out = std::mem::take(indices_ref);
     Some((best_score, out))
 }
 
@@ -1273,7 +1318,7 @@ fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     pat: &[C],
     bonuses: &[Score],
     respect_case: bool,
-    full_buf: &ThreadLocal<RefCell<SWMatrix>>,
+    full_buf: &ThreadLocal<TLCell<SWMatrix>>,
 ) -> Option<(Score, usize, usize)> {
     let n = pat.len();
     let m = cho.len();
@@ -1283,9 +1328,8 @@ fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let col_off = j_start - 1;
     let mcols = m - col_off + 1;
 
-    let mut buf = full_buf
-        .get_or(|| RefCell::new(SWMatrix::zero(n + 1, mcols)))
-        .borrow_mut();
+    // SAFETY: full_buf is not accessed elsewhere on this call stack.
+    let buf = unsafe { tl_get_mut(full_buf) };
     buf.resize(n + 1, mcols);
 
     let base_ptr = buf.data.as_mut_ptr();
