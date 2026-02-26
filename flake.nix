@@ -1,22 +1,20 @@
 {
   description = "Nix flake for skim development";
 
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-  };
+  inputs.nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz";
 
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-  }:
-    flake-utils.lib.eachDefaultSystem (
-      system: let
-        pkgs = nixpkgs.legacyPackages.${system};
-      in {
-        devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
+  outputs =
+    inputs:
+    let
+      inherit (inputs.nixpkgs) lib;
+      systems = lib.systems.flakeExposed;
+      eachSystem = lib.genAttrs systems;
+      pkgsFor = inputs.nixpkgs.legacyPackages;
+    in
+    {
+      devShells = eachSystem (system: {
+        default = pkgsFor.${system}.mkShellNoCC {
+          packages = with pkgsFor.${system}; [
             cargo-nextest
             cargo-insta
             cargo-llvm-cov
@@ -28,6 +26,8 @@
             hyperfine
           ];
         };
-      }
-    );
+      });
+
+      formatter = eachSystem (system: pkgsFor.${system}.nixfmt);
+    };
 }
