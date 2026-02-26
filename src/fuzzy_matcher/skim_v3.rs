@@ -142,10 +142,10 @@ impl Atom for char {
     #[inline(always)]
     fn eq_ignore_case(self, b: Self) -> bool {
         // Fast path for ASCII (the common case in filenames and code).
-        // to_ascii_lowercase() is a single arithmetic op vs. the ToLowercase
-        // iterator allocation that to_lowercase() requires.
+        // eq_ignore_ascii_case is a single comparison vs. the ToLowercase
+        // iterator that to_lowercase() requires.
         if self.is_ascii() && b.is_ascii() {
-            self.to_ascii_lowercase() == b.to_ascii_lowercase()
+            self.eq_ignore_ascii_case(&b)
         } else {
             self.to_lowercase().eq(b.to_lowercase())
         }
