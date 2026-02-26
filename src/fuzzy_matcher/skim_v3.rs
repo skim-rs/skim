@@ -23,6 +23,7 @@
 
 use std::cell::RefCell;
 
+use memchr::memchr;
 use thread_local::ThreadLocal;
 
 use crate::{
@@ -88,6 +89,16 @@ trait Atom: PartialEq + Into<char> + Copy {
     }
     fn eq_ignore_case(self, other: Self) -> bool;
     fn is_lowercase(self) -> bool;
+
+    /// Return the index of the first occurrence of `self` in `haystack`,
+    /// or `None` if not found.
+    ///
+    /// Implementations may override this with a SIMD-backed search (e.g.
+    /// `memchr` for `u8` in case-sensitive mode).
+    #[inline]
+    fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
+        haystack.iter().position(|&c| self.eq(c, respect_case))
+    }
 }
 
 impl Atom for u8 {
@@ -98,6 +109,33 @@ impl Atom for u8 {
     #[inline(always)]
     fn is_lowercase(self) -> bool {
         self.is_ascii_lowercase()
+    }
+
+    /// Case-sensitive search uses SIMD-backed `memchr`; case-insensitive
+    /// falls back to the generic scalar loop.
+    #[inline]
+    fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
+        if respect_case {
+            // SAFETY: `self` is a u8 and memchr searches for it in a byte slice.
+            memchr(self, haystack)
+        } else {
+            // Case-insensitive: compare lowercase. Also try the uppercase variant
+            // so a single `memchr` can be used for each case variant.
+            let lo = self.to_ascii_lowercase();
+            let hi = self.to_ascii_uppercase();
+            if lo == hi {
+                // No case distinction for this byte (digit, symbol, etc.).
+                memchr(lo, haystack)
+            } else {
+                // Check both variants and return the earliest occurrence.
+                let p_lo = memchr(lo, haystack);
+                let p_hi = memchr(hi, haystack);
+                match (p_lo, p_hi) {
+                    (None, x) | (x, None) => x,
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                }
+            }
+        }
     }
 }
 impl Atom for char {
@@ -466,15 +504,9 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     }
 
     // The first pattern character must be present in the choice.
+    // Use the SIMD-backed find_first_in (memchr for u8, scalar for char).
     let first = pattern[0];
-    let mut found_first = false;
-    for &c in choice {
-        if first.eq(c, respect_case) {
-            found_first = true;
-            break;
-        }
-    }
-    if !found_first {
+    if first.find_first_in(choice, respect_case).is_none() {
         return false;
     }
 
@@ -746,22 +778,14 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     (best, dir)
 }
 
-/// Find the first and last 1-indexed columns where `pat[0]` matches in `cho`.
+/// Find the 1-indexed column of the first occurrence of `pat[0]` in `cho`.
 ///
 /// Returns `None` if `pat[0]` is not found anywhere (caller should return
-/// `None`). The two positions define the V-shaped banding envelope.
+/// `None`). The position defines the start of the V-shaped banding envelope.
+/// Uses SIMD-backed `find_first_in` for `u8` slices.
 #[inline]
 fn find_first_char<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<usize> {
-    let first = pat[0];
-    let mut j_first = 0usize;
-    for (idx, &c) in cho.iter().enumerate() {
-        if first.eq(c, respect_case) {
-            let col = idx + 1; // 1-indexed
-            j_first = col;
-            break;
-        }
-    }
-    if j_first > 0 { Some(j_first) } else { None }
+    pat[0].find_first_in(cho, respect_case).map(|idx| idx + 1) // 1-indexed
 }
 
 /// Row-major V-shaped band: compute column bounds at row `i`.
