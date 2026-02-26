@@ -140,17 +140,6 @@ trait Atom: PartialEq + Into<char> + Copy {
     fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
         haystack.iter().position(|&c| self.eq(c, respect_case))
     }
-
-    /// Count how many elements of `pat_tail` are present (unordered) in
-    /// `choice`.  The count is capped at `min_needed` so callers can
-    /// short-circuit as soon as the threshold is met.
-    ///
-    /// The default implementation uses an ordered linear scan.  Override for
-    /// better performance (e.g. `u8` uses a 128-bit ASCII presence bitset).
-    #[inline]
-    fn count_tail_present(pat_tail: &[Self], choice: &[Self], respect_case: bool, min_needed: usize) -> usize {
-        count_tail_present_ordered(pat_tail, choice, respect_case, min_needed)
-    }
 }
 
 impl Atom for u8 {
@@ -161,48 +150,6 @@ impl Atom for u8 {
     #[inline(always)]
     fn is_lowercase(self) -> bool {
         self.is_ascii_lowercase()
-    }
-
-    /// Count how many elements of `pat_tail` appear (unordered) in `choice`
-    /// using a 128-bit ASCII presence bitset built from the choice in a single
-    /// O(m) pass.  Each subsequent pattern-char lookup is O(1).
-    ///
-    /// Non-ASCII bytes (≥128) fall back to the generic ordered scan for safety.
-    #[inline]
-    fn count_tail_present(pat_tail: &[Self], choice: &[Self], respect_case: bool, min_needed: usize) -> usize {
-        // Check whether all chars are ASCII so we can use the bitset fast path.
-        let all_ascii = choice.iter().all(|b| b.is_ascii()) && pat_tail.iter().all(|b| b.is_ascii());
-        if !all_ascii {
-            // Fall back to the generic ordered scan.
-            return count_tail_present_ordered(pat_tail, choice, respect_case, min_needed);
-        }
-
-        // Build a 128-bit presence set (two u64s) from the choice.
-        let mut lo = 0u64; // bits for bytes 0..63
-        let mut hi = 0u64; // bits for bytes 64..127
-        for &b in choice {
-            let key = if respect_case { b } else { b.to_ascii_lowercase() };
-            if key < 64 {
-                lo |= 1u64 << key;
-            } else {
-                hi |= 1u64 << (key - 64);
-            }
-        }
-
-        let mut matched = 0usize;
-        for &p in pat_tail {
-            let key = if respect_case { p } else { p.to_ascii_lowercase() };
-            let present = if key < 64 {
-                (lo >> key) & 1
-            } else {
-                (hi >> (key - 64)) & 1
-            };
-            matched += present as usize;
-            if matched >= min_needed {
-                return matched;
-            }
-        }
-        matched
     }
 
     /// Case-sensitive search uses SIMD-backed `memchr`; case-insensitive
@@ -596,39 +543,6 @@ impl SkimV3Matcher {
 // Prefilters
 // ---------------------------------------------------------------------------
 
-/// Ordered scan: count pattern-tail chars found in `choice` left-to-right.
-///
-/// This is the generic fallback used when a faster specialisation is not
-/// available (e.g. non-ASCII input).  Pattern cursors reset on miss so that
-/// subsequent pattern chars can still match even when a middle char is absent
-/// (typo-tolerant semantics).
-#[inline]
-fn count_tail_present_ordered<C: Atom>(pat_tail: &[C], choice: &[C], respect_case: bool, min_needed: usize) -> usize {
-    let m = choice.len();
-    let mut matched = 0usize;
-    let mut ci = 0usize;
-    for &pi in pat_tail {
-        let ci_save = ci;
-        let mut found = false;
-        while ci < m {
-            if pi.eq(choice[ci], respect_case) {
-                matched += 1;
-                ci += 1;
-                found = true;
-                break;
-            }
-            ci += 1;
-        }
-        if !found {
-            ci = ci_save;
-        }
-        if matched >= min_needed {
-            return matched;
-        }
-    }
-    matched
-}
-
 /// Cheap prefilter for typo-tolerant matching.
 ///
 /// Rejects choices that clearly cannot produce a positive score in the DP.
@@ -659,15 +573,40 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     }
 
     // Of the remaining n-1 pattern characters, require at least
-    // floor((n - 1) / 2) to appear in the choice.
-    // For u8 (ASCII) input the check uses a 128-bit presence bitset (O(m)
-    // build + O(n) lookup).  For char input it falls back to an ordered scan.
+    // floor((n - 1) / 2) to appear as an in-order subsequence in the choice.
+    // We scan the tail pattern chars against the choice left-to-right,
+    // counting ordered matches and stopping as soon as we hit the threshold.
     let min_tail = (n - 1) / 2;
     if min_tail == 0 {
         return true;
     }
 
-    C::count_tail_present(&pattern[1..], choice, respect_case, min_tail) >= min_tail
+    let mut matched = 0usize;
+    let mut ci = 0usize; // cursor into choice
+    for &pi in &pattern[1..] {
+        let ci_save = ci;
+        let mut found = false;
+        while ci < m {
+            if pi.eq(choice[ci], respect_case) {
+                matched += 1;
+                ci += 1;
+                found = true;
+                break;
+            }
+            ci += 1;
+        }
+        // If this pattern char wasn't found, restore the cursor so
+        // subsequent pattern chars (the typo-tolerant case) can still
+        // scan from the same position.
+        if !found {
+            ci = ci_save;
+        }
+        if matched >= min_tail {
+            return true;
+        }
+    }
+
+    false
 }
 
 // ---------------------------------------------------------------------------
