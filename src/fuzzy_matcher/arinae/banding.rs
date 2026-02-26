@@ -57,7 +57,7 @@ pub(super) fn compute_banding<const ALLOW_TYPOS: bool, C: Atom>(
 #[inline(always)]
 pub(super) fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
     let j = i + j_first - 1;
-    let lo = j.saturating_sub(bandwidth).max(1);
+    let lo = j.saturating_sub(bandwidth).max(j_first);
 
     (lo, m)
 }

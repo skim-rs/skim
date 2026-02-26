@@ -364,27 +364,3 @@ fn range_consistent_with_indices() {
         }
     }
 }
-
-// Temporary debug test to reproduce the mismatch between full_dp and
-// score-only on the failing case. Prints the two scores so we can inspect
-// differences while iterating. Remove or disable once the root cause is
-// fixed.
-#[test]
-fn debug_score_vs_full() {
-    let choice = "dist-workspace.toml";
-    let pat = "tst";
-    let m = matcher_typos();
-    let full_idx = m.fuzzy_indices(choice, pat);
-    let full_score = full_idx.as_ref().map(|(s, _)| *s);
-    let score_range = m.fuzzy_match_range(choice, pat);
-    let score_only_score = score_range.map(|(s, _, _)| s);
-    println!("full_idx: {:?}, score_range: {:?}", full_idx, score_range);
-    if let Some((_, idx)) = full_idx.as_ref() {
-        println!("full indices: {:?}", idx);
-    }
-    if let Some((s, b, e)) = score_range {
-        println!("score_only range: score={}, begin={}, end={}", s, b, e);
-    }
-    // keep the assertion to reflect intended equality of scores
-    assert_eq!(full_score, score_only_score);
-}
