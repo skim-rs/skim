@@ -253,13 +253,19 @@ fn is_separator<C: Atom>(c: C) -> bool {
 
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     if cho.is_empty() {
+        buf.clear();
         return;
     }
-    buf.reserve(cho.len().saturating_sub(buf.len()));
+    // Reset length to 0 (O(1), no deallocation) then ensure capacity for
+    // exactly cho.len() elements. This avoids the previous bug where
+    // reserve(cho.len().saturating_sub(buf.len())) could over-reserve when
+    // buf.len() was stale from a previous (longer) call.
+    buf.clear();
+    buf.reserve(cho.len());
     let buf_ptr = buf.as_mut_ptr();
 
     // First character always gets START_OF_STRING_BONUS.
-    // SAFETY: We reserved enough capacity above
+    // SAFETY: We reserved enough capacity above; buf_ptr is valid for cho.len() writes.
     unsafe {
         *buf_ptr = START_OF_STRING_BONUS;
     }
@@ -273,7 +279,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
             *buf_ptr.add(j) = bonus;
         }
     }
-    // SAFETY: We overwrote all elements of the buf in the previous loop
+    // SAFETY: We wrote all cho.len() elements above; buf has capacity >= cho.len().
     unsafe {
         buf.set_len(cho.len());
     }
