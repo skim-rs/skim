@@ -26,8 +26,8 @@ use std::cell::RefCell;
 use thread_local::ThreadLocal;
 
 use crate::{
-    fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType},
     CaseMatching,
+    fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType},
 };
 
 // ---------------------------------------------------------------------------
@@ -52,6 +52,8 @@ const CAMEL_CASE_BONUS: Score = 6;
 const CONSECUTIVE_BONUS: Score = 8;
 
 /// Multiplier applied to the very first pattern character's positional bonus.
+/// Used as `(1 + is_first as Score)` in the branchless bonus computation.
+#[allow(dead_code)]
 const FIRST_CHAR_BONUS_MULTIPLIER: Score = 2;
 
 /// Cost to open a gap (skip characters in choice).
@@ -64,6 +66,9 @@ const TYPO_PENALTY: Score = 4;
 
 /// Penalty for aligning a pattern char to a different choice char (typos only).
 const MISMATCH_PENALTY: Score = 12;
+
+/// Maximum pattern length supported by the banding arrays (stack-allocated).
+const MAX_PAT_LEN: usize = 16;
 
 // ---------------------------------------------------------------------------
 // Byte-level helpers
@@ -128,22 +133,36 @@ impl SWMatrix {
     }
 }
 
-/// Bitmask lookup for ASCII word separators: ' ' (32), '-' (45), '.' (46), '/' (47),
-/// '\\' (92), '_' (95).  Bits 0-63 cover codepoints 0-63; bits 64-127 cover 64-127.
+/// Bitmask lookup for ASCII word separators (kept for documentation; the table
+/// lookup `SEPARATOR_TABLE` replaces this at runtime).
+#[allow(dead_code)]
 const SEPARATOR_MASK_LO: u64 = (1u64 << 32) | (1u64 << 45) | (1u64 << 46) | (1u64 << 47);
+#[allow(dead_code)]
 const SEPARATOR_MASK_HI: u64 = (1u64 << (92 - 64)) | (1u64 << (95 - 64));
 
+/// 128-byte lookup table for separator detection. A byte is 1 if the
+/// corresponding ASCII codepoint is a word separator, 0 otherwise.
+/// Non-ASCII (>= 128) is handled by the bounds check in `is_separator`.
+static SEPARATOR_TABLE: [u8; 128] = {
+    let mut t = [0u8; 128];
+    t[b' ' as usize] = 1;
+    t[b'-' as usize] = 1;
+    t[b'.' as usize] = 1;
+    t[b'/' as usize] = 1;
+    t[b'\\' as usize] = 1;
+    t[b'_' as usize] = 1;
+    t
+};
+
 /// Check if a character is a word separator for bonus computation.
+/// Uses a table lookup — a single bounds check replaces three branches.
 #[inline(always)]
 fn is_separator<C: Atom>(c: C) -> bool {
     let ch = c.into() as u32;
-    if ch < 64 {
-        SEPARATOR_MASK_LO & (1u64 << ch) != 0
-    } else if ch < 128 {
-        SEPARATOR_MASK_HI & (1u64 << (ch - 64)) != 0
-    } else {
-        false
-    }
+    // For ch < 128 we do a table lookup; for ch >= 128 we return false.
+    // The `get` returns None for out-of-range, and `copied().unwrap_or(0)` is
+    // typically compiled as a conditional move (branchless).
+    SEPARATOR_TABLE.get(ch as usize).copied().unwrap_or(0) != 0
 }
 
 fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
@@ -158,17 +177,12 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     unsafe {
         *buf_ptr = START_OF_STRING_BONUS;
     }
-    // Remaining characters: look at previous character for word boundary / camelCase.
+    // Remaining characters: branchless bonus computation using bool-as-int.
     for j in 1..cho.len() {
         let prev = cho[j - 1];
         let ch = cho[j];
-        let mut bonus: Score = 0;
-        if is_separator(prev) {
-            bonus += START_OF_WORD_BONUS;
-        }
-        if prev.is_lowercase() && !ch.is_lowercase() {
-            bonus += CAMEL_CASE_BONUS;
-        }
+        let bonus: Score = START_OF_WORD_BONUS * (is_separator(prev) as Score)
+            + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !ch.is_lowercase()) as Score);
         unsafe {
             *buf_ptr.add(j) = bonus;
         }
@@ -186,6 +200,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
 /// Direction the optimal path took to reach a cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
+#[allow(dead_code)] // variants are constructed via transmute from bits
 enum Dir {
     /// Diagonal: match or mismatch (came from [i-1][j-1])
     Diag = 0,
@@ -268,6 +283,100 @@ impl SkimV3Matcher {
     fn respect_case<C: Atom>(&self, pattern: &[C]) -> bool {
         self.case == CaseMatching::Respect
             || (self.case == CaseMatching::Smart && !pattern.iter().all(|b| b.is_lowercase()))
+    }
+
+    /// Dispatch to `full_dp` with the appropriate const generics.
+    /// Assumes prefilters and bonuses have already been computed.
+    fn dispatch_dp<C: Atom>(
+        &self,
+        cho: &[C],
+        pat: &[C],
+        bonuses: &[Score],
+        respect_case: bool,
+        compute_indices: bool,
+    ) -> Option<(ScoreType, MatchIndices)> {
+        let res = if self.allow_typos {
+            if compute_indices {
+                full_dp::<true, true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+            } else {
+                full_dp::<true, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+            }
+        } else if compute_indices {
+            full_dp::<false, true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+        } else {
+            full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+        };
+        res.map(|(s, idx)| (s as ScoreType, idx))
+    }
+
+    /// Generic helper: run full DP over slices of Atom.
+    /// If `compute_indices` is true, returns the matched indices; otherwise
+    /// returns a single-element vec containing the 1-indexed end column.
+    fn match_slices<C: Atom>(&self, cho: &[C], pat: &[C], compute_indices: bool) -> Option<(ScoreType, MatchIndices)> {
+        if pat.is_empty() {
+            return Some((0, MatchIndices::new()));
+        }
+        if cho.is_empty() {
+            return None;
+        }
+
+        let respect_case = self.respect_case(pat);
+
+        // Prefilters
+        if !self.allow_typos && !is_subsequence(pat, cho, respect_case) {
+            return None;
+        }
+        if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
+            return None;
+        }
+
+        // Prepare bonuses
+        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+        precompute_bonuses(cho, &mut bonus_buf);
+
+        self.dispatch_dp(cho, pat, &bonus_buf, respect_case, compute_indices)
+    }
+
+    fn run(&self, choice: &str, pattern: &str, compute_indices: bool) -> Option<(ScoreType, MatchIndices)> {
+        if pattern.is_empty() {
+            return Some((0, MatchIndices::new()));
+        }
+        if choice.is_empty() {
+            return None;
+        }
+
+        // Fast path for ASCII matching
+        if choice.is_ascii() && pattern.is_ascii() {
+            let cho = choice.as_bytes();
+            let pat = pattern.as_bytes();
+            return self.match_slices(cho, pat, compute_indices);
+        }
+
+        let mut bufs = self
+            .char_buf
+            .get_or(|| RefCell::new((Vec::new(), Vec::new())))
+            .borrow_mut();
+        let (ref mut pat_buf, ref mut cho_buf) = *bufs;
+        pat_buf.clear();
+        pat_buf.extend(pattern.chars());
+        cho_buf.clear();
+        cho_buf.extend(choice.chars());
+
+        let respect_case = self.respect_case(pat_buf);
+
+        // Prefilter
+        if !self.allow_typos && !is_subsequence(pat_buf, cho_buf, respect_case) {
+            return None;
+        }
+        if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
+            return None;
+        }
+
+        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
+        precompute_bonuses(cho_buf, &mut bonus_buf);
+
+        // Call dispatch_dp directly to avoid double-borrowing bonus_buf.
+        self.dispatch_dp(cho_buf, pat_buf, &bonus_buf, respect_case, compute_indices)
     }
 }
 
@@ -357,16 +466,6 @@ fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect_case: bool
     false
 }
 
-#[inline]
-fn find_begin<C: Atom>(cho: &[C], pat: &[C], end: usize, respect_case: bool) -> usize {
-    let first = pat[0];
-    let limit = end.min(cho.len().saturating_sub(1));
-    cho.iter()
-        .take(limit + 1)
-        .position(|x| first.eq(*x, respect_case))
-        .unwrap_or(0)
-}
-
 // ---------------------------------------------------------------------------
 // Banding helpers
 // ---------------------------------------------------------------------------
@@ -378,9 +477,9 @@ fn find_begin<C: Atom>(cho: &[C], pat: &[C], end: usize, respect_case: bool) -> 
 ///
 /// Returns `None` if any pattern character has no match in the choice (the
 /// subsequence check should have caught this, but we guard anyway).
-fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; COLMAJOR_MAX_N]> {
+fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; MAX_PAT_LEN]> {
     let n = pat.len();
-    let mut first = [0usize; COLMAJOR_MAX_N];
+    let mut first = [0usize; MAX_PAT_LEN];
     let mut start = 0usize; // search from this choice index onward
     for i in 0..n {
         let found = cho[start..].iter().position(|&c| pat[i].eq(c, respect_case));
@@ -397,10 +496,10 @@ fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -
 
 /// Compute the last column (1-indexed) at which each pattern character can be
 /// matched, scanning from the end. Used to tighten the diagonal upper bound.
-fn compute_last_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; COLMAJOR_MAX_N]> {
+fn compute_last_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<[usize; MAX_PAT_LEN]> {
     let n = pat.len();
     let m = cho.len();
-    let mut last = [0usize; COLMAJOR_MAX_N];
+    let mut last = [0usize; MAX_PAT_LEN];
     let mut end = m; // search up to this choice index (exclusive)
     for i in (0..n).rev() {
         let found = cho[..end].iter().rposition(|&c| pat[i].eq(c, respect_case));
@@ -426,11 +525,11 @@ fn compute_last_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) ->
 fn compute_row_col_bounds(
     n: usize,
     m: usize,
-    first_match: &[usize; COLMAJOR_MAX_N],
-    last_match: &[usize; COLMAJOR_MAX_N],
-) -> ([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N]) {
-    let mut lo = [0usize; COLMAJOR_MAX_N];
-    let mut hi = [0usize; COLMAJOR_MAX_N];
+    first_match: &[usize; MAX_PAT_LEN],
+    last_match: &[usize; MAX_PAT_LEN],
+) -> ([usize; MAX_PAT_LEN], [usize; MAX_PAT_LEN]) {
+    let mut lo = [0usize; MAX_PAT_LEN];
+    let mut hi = [0usize; MAX_PAT_LEN];
 
     // Start with the raw first/last match bounds.
     lo[..n].copy_from_slice(&first_match[..n]);
@@ -463,89 +562,6 @@ fn compute_row_col_bounds(
     (lo, hi)
 }
 
-/// For the **column-major** score-only DP (outer loop over columns),
-/// compute per-column row bounds `(i_lo(j), i_hi(j))` on the fly from
-/// per-row column bounds.
-///
-/// Given per-row bounds `(row_lo[i], row_hi[i])` for i in 0..n (0-indexed,
-/// representing rows 1..=n in 1-indexed DP coords), this returns the row
-/// range that should be active at column `j` (1-indexed):
-///   i_lo = min {i+1 : row_lo[i] <= j}  (first row active at column j)
-///   i_hi = max {i+1 : row_hi[i] >= j}  (last row active at column j)
-#[inline]
-fn col_row_bounds_at(
-    j: usize,
-    n: usize,
-    row_lo: &[usize; COLMAJOR_MAX_N],
-    row_hi: &[usize; COLMAJOR_MAX_N],
-) -> (usize, usize) {
-    // Find first active row (scan forward) and last active row (scan backward).
-    let mut i_lo = n + 1;
-    for idx in 0..n {
-        if row_lo[idx] <= j {
-            // this row might be active; confirm row_hi
-            if row_hi[idx] >= j {
-                i_lo = idx + 1;
-                break;
-            }
-        }
-    }
-
-    let mut i_hi = 0usize;
-    for idx in (0..n).rev() {
-        if row_hi[idx] >= j && row_lo[idx] <= j {
-            i_hi = idx + 1;
-            break;
-        }
-    }
-
-    (i_lo, i_hi)
-}
-
-/// Maximum choice length for which we precompute per-column bounds.
-/// Beyond this we fall back to per-column `col_row_bounds_at`.
-const PRECOMPUTED_COL_BOUNDS_MAX_M: usize = 4096;
-
-/// Precompute per-column `(i_lo, i_hi)` bounds for exact-mode banding,
-/// replacing the per-column O(n) scan with a single O(n + m) pass.
-///
-/// The output slices are indexed by column `j` (1-indexed), so `out_lo[j]`
-/// and `out_hi[j]` give the active row range at column `j`.
-fn precompute_col_bounds(
-    n: usize,
-    m: usize,
-    row_lo: &[usize; COLMAJOR_MAX_N],
-    row_hi: &[usize; COLMAJOR_MAX_N],
-    out_lo: &mut [u8],
-    out_hi: &mut [u8],
-) {
-    // Initialize with "no active rows" sentinel.
-    for j in 0..=m {
-        out_lo[j] = (n + 1) as u8;
-        out_hi[j] = 0;
-    }
-
-    // For each row i (0-indexed, representing 1-indexed row i+1), mark the
-    // columns it spans.
-    for idx in 0..n {
-        let jlo = row_lo[idx];
-        let jhi = row_hi[idx];
-        let row_1idx = (idx + 1) as u8;
-        // Update i_lo: this row starts being active at column jlo.
-        // i_lo[j] = min over all rows active at j of (row 1-index).
-        // Since we iterate rows in ascending order, the first row to
-        // cover column j sets the minimum.
-        for j in jlo..=jhi.min(m) {
-            if row_1idx < out_lo[j] {
-                out_lo[j] = row_1idx;
-            }
-            if row_1idx > out_hi[j] {
-                out_hi[j] = row_1idx;
-            }
-        }
-    }
-}
-
 /// Bandwidth for typo-mode banding. In typo mode we allow diagonal moves
 /// (match/mismatch) plus UP (skip pattern char) and LEFT (skip choice char),
 /// so the optimal path can wander off the main diagonal. A bandwidth of
@@ -560,7 +576,7 @@ const TYPO_BAND_SLACK: usize = 4;
 /// Precomputed banding information shared by both score-only and full DP.
 struct BandingInfo {
     /// Per-row column bounds (only present in exact mode).
-    row_bounds: Option<([usize; COLMAJOR_MAX_N], [usize; COLMAJOR_MAX_N])>,
+    row_bounds: Option<([usize; MAX_PAT_LEN], [usize; MAX_PAT_LEN])>,
     /// 1-indexed column of the first match of `pat[0]` in `cho`.
     j_first: usize,
     /// Bandwidth for typo-mode diagonal banding (0 in exact mode).
@@ -606,6 +622,10 @@ fn compute_banding<const ALLOW_TYPOS: bool, C: Atom>(pat: &[C], cho: &[C], respe
 ///
 /// Returns `(best_score, direction)`. The direction is `Dir::None` when
 /// `best_score <= 0`.
+///
+/// This function is written in a branchless style: all scoring arithmetic
+/// uses `bool as Score` multipliers and `max` instead of if/else, and the
+/// final direction is selected via a branchless cascade of conditional moves.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn compute_cell<const ALLOW_TYPOS: bool>(
@@ -618,44 +638,57 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     left_score: Score,
     left_was_diag: bool,
 ) -> (Score, Dir) {
-    // --- Bonus ---
-    let mut bonus = bonus_j;
-    if diag_was_diag {
-        bonus += CONSECUTIVE_BONUS;
-    }
-    if is_first {
-        bonus *= FIRST_CHAR_BONUS_MULTIPLIER;
-    }
+    // --- Bonus (branchless) ---
+    // consecutive bonus added when diag_was_diag, first-char multiplier doubles the bonus.
+    // `bool as Score` is 0 or 1 — no branch.
+    let bonus = (bonus_j + CONSECUTIVE_BONUS * (diag_was_diag as Score)) * (1 + is_first as Score);
 
-    // --- DIAGONAL ---
-    let diag_val = if is_match {
-        diag_score + MATCH_BONUS + bonus
-    } else if ALLOW_TYPOS {
-        diag_score - MISMATCH_PENALTY
+    // --- DIAGONAL (branchless) ---
+    // Match path: diag_score + MATCH_BONUS + bonus, masked by is_match.
+    // Mismatch path (typos only): diag_score - MISMATCH_PENALTY, masked by !is_match.
+    let match_val = (diag_score + MATCH_BONUS + bonus) * (is_match as Score);
+    let mismatch_val = if ALLOW_TYPOS {
+        (diag_score - MISMATCH_PENALTY) * (!is_match as Score)
     } else {
         0
     };
+    let diag_val = match_val + mismatch_val;
 
-    // --- UP (skip pattern char, typos only) ---
+    // --- UP (skip pattern char, typos only — const-generic elides entirely) ---
     let up_val = if ALLOW_TYPOS { up_score - TYPO_PENALTY } else { 0 };
 
-    // --- LEFT (skip choice char) ---
-    let left_val = {
-        let pen = if left_was_diag { GAP_OPEN } else { GAP_EXTEND };
-        left_score - pen
-    };
+    // --- LEFT (skip choice char, branchless gap penalty) ---
+    // GAP_OPEN when left_was_diag, GAP_EXTEND otherwise.
+    // pen = GAP_EXTEND + (GAP_OPEN - GAP_EXTEND) * left_was_diag
+    let left_val = left_score - (GAP_EXTEND + (GAP_OPEN - GAP_EXTEND) * (left_was_diag as Score));
 
+    // --- Best score (branchless max chain) ---
     let best = diag_val.max(up_val).max(left_val);
 
-    let dir = if best <= 0 {
-        Dir::None
-    } else if diag_val >= up_val && diag_val >= left_val && (is_match || ALLOW_TYPOS) {
-        Dir::Diag
-    } else if ALLOW_TYPOS && up_val >= left_val {
-        Dir::Up
+    // --- Direction (branchless select) ---
+    // We encode direction as a u8 and build it without branches.
+    // Priority: Diag > Up > Left > None (when best <= 0).
+    //
+    // Start with Left (2), override with Up if up wins, override with Diag
+    // if diag wins, override with None if best <= 0.
+    // For exact mode (ALLOW_TYPOS=false), Diag is only valid when is_match.
+    let diag_wins = if ALLOW_TYPOS {
+        diag_val >= up_val && diag_val >= left_val
     } else {
-        Dir::Left
+        is_match && diag_val >= left_val
     };
+    let up_wins = ALLOW_TYPOS && !diag_wins && up_val >= left_val;
+
+    // Branchless cascade: select dir as integer.
+    // Dir::Left=2 is the base; override with Up=1 or Diag=0.
+    let dir_bits: u8 = Dir::Left as u8 - (up_wins as u8) - (diag_wins as u8) * (Dir::Left as u8);
+    // If best <= 0, force Dir::None (3).
+    let positive = best > 0;
+    // When positive: dir_bits; when not: Dir::None (3).
+    let dir_val = (dir_bits & (positive as u8).wrapping_neg()) | (Dir::None as u8 & (!positive as u8).wrapping_neg());
+
+    // SAFETY: dir_val is in 0..=3 because of the construction above.
+    let dir: Dir = unsafe { std::mem::transmute(dir_val) };
 
     (best, dir)
 }
@@ -675,27 +708,10 @@ fn find_first_char<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<
             break;
         }
     }
-    if j_first > 0 {
-        Some(j_first)
-    } else {
-        None
-    }
+    if j_first > 0 { Some(j_first) } else { None }
 }
 
-/// Compute typo-mode row bounds at column `j` using the same band geometry
-/// as `typo_vband_row` (column-major DP variant).
-///
-/// `typo_vband_row` gives column bounds `(max(1, i + j_first - 1 - bandwidth), m)`
-/// for each row `i`.  Inverting: row `i` is active at column `j` iff
-/// `i + j_first - 1 - bandwidth <= j`, i.e. `i <= j - j_first + 1 + bandwidth`.
-/// There is no lower row bound (full_dp has no upper column bound), so `lo = 1`.
-#[inline(always)]
-fn typo_vband(j: usize, n: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
-    let hi = n.min(j.saturating_sub(j_first) + 1 + bandwidth);
-    (1, hi)
-}
-
-/// Row-major variant of V-shaped band: compute column bounds at row `i`.
+/// Row-major V-shaped band: compute column bounds at row `i`.
 ///
 /// The result is an upper triangle starting at the diagonal (j ~ i + j_first - 1)
 #[inline(always)]
@@ -704,264 +720,6 @@ fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usiz
     let lo = j.saturating_sub(bandwidth).max(1);
 
     (lo, m)
-}
-
-// ---------------------------------------------------------------------------
-// Smith-Waterman DP — Score-only (column-major, stack arrays)
-// ---------------------------------------------------------------------------
-
-const COLMAJOR_MAX_N: usize = 16;
-
-/// Packed per-cell state for the column-major score-only DP.
-///
-/// Packing score, direction flag, and true-match count into a single 4-byte
-/// struct ensures all per-cell data lives on the same cache line, halving
-/// memory traffic compared to four separate arrays.
-#[derive(Copy, Clone)]
-#[repr(C)]
-struct ColCell {
-    /// DP score at this cell.
-    score: Score,
-    /// Bit 0: took Diag direction. Bit 1: took Up direction.
-    flags: u8,
-    /// Number of true (non-substitution) matches on the best path.
-    true_matches: u8,
-}
-
-impl ColCell {
-    const ZERO: ColCell = ColCell {
-        score: 0,
-        flags: 0,
-        true_matches: 0,
-    };
-
-    const FLAG_DIAG: u8 = 1;
-    const FLAG_UP: u8 = 2;
-
-    #[inline(always)]
-    fn is_diag(self) -> bool {
-        self.flags & Self::FLAG_DIAG != 0
-    }
-}
-
-/// Column-major score-only for byte slices (n <= 16, stack allocated).
-///
-/// Implements several pruning and micro-optimization strategies:
-///
-/// 1. **Row-range banding** – for each column `j` only compute rows
-///    `i_lo..=i_hi` that can participate in a valid alignment.
-///    - Exact mode: bounded by precomputed per-column row bounds (O(1) lookup).
-///    - Typo mode: bounded by diagonal ± bandwidth.
-///
-/// 2. **Packed cell layout** – score, flags, and true-match count are packed
-///    into a 4-byte `ColCell` struct so all per-cell data shares a cache line.
-///
-/// 3. **Delta-zeroing** – only cells that entered or left the active band
-///    since the previous column are zeroed, replacing O(n) zeroing with O(1)
-///    amortized work.
-///
-/// 4. **Flip-flop indexing** – a boolean flag selects between two column
-///    buffers, eliminating `std::mem::swap` overhead.
-///
-/// 5. **Early termination** – if the last pattern row is outside the active
-///    band for several consecutive columns, the alignment is dead and we
-///    break out early.
-///
-/// 6. **Pointer hoisting** – raw pointers for `cho`, `pat`, and `bonuses`
-///    are hoisted outside the inner loop with `unsafe get_unchecked` to
-///    eliminate bounds checks.
-fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
-    cho: &[C],
-    pat: &[C],
-    bonuses: &[Score],
-    respect_case: bool,
-) -> Option<(Score, usize)> {
-    let n = pat.len();
-    let m = cho.len();
-
-    let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
-    let j_start = banding.j_first; // earliest match — skip columns before this
-
-    // --- Opt 2: Packed cell arrays (score + flags + true_matches in 4 bytes) ---
-    let mut cols_a = [ColCell::ZERO; COLMAJOR_MAX_N + 1];
-    let mut cols_b = [ColCell::ZERO; COLMAJOR_MAX_N + 1];
-
-    // --- Opt 8: Flip-flop index instead of mem::swap ---
-    let mut flip = false; // false → a=prev, b=cur; true → b=prev, a=cur
-
-    let mut global_best: Score = 0;
-    let mut global_best_j: usize = 0;
-    let mut global_best_true: u8 = 0;
-
-    // --- Opt 1: Track previous column's band for delta-zeroing ---
-    let mut prev_i_lo: usize = 1;
-    let mut prev_i_hi: usize = 0; // empty band initially
-
-    // --- Opt 5: Precompute per-column bounds for exact mode ---
-    // For exact mode with m <= PRECOMPUTED_COL_BOUNDS_MAX_M, precompute all
-    // (i_lo, i_hi) bounds in a single pass to replace per-column O(n) scans.
-    let mut precomp_lo = [0u8; PRECOMPUTED_COL_BOUNDS_MAX_M + 1];
-    let mut precomp_hi = [0u8; PRECOMPUTED_COL_BOUNDS_MAX_M + 1];
-    let use_precomputed = !ALLOW_TYPOS && m <= PRECOMPUTED_COL_BOUNDS_MAX_M;
-    if use_precomputed {
-        let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
-        precompute_col_bounds(n, m, row_lo, row_hi, &mut precomp_lo, &mut precomp_hi);
-    }
-
-    // --- Opt 6: Early termination counter ---
-    // When the last row (i == n) is outside the active band, count consecutive
-    // such columns. After a threshold, no future column can yield a better
-    // score, so we break.
-    let early_term_threshold = if ALLOW_TYPOS { banding.bandwidth + 2 } else { n + 2 };
-    let mut dead_cols: usize = 0;
-
-    // --- Opt 3: Hoist raw pointers for bounds-check-free inner loop ---
-    let cho_ptr = cho.as_ptr();
-    let pat_ptr = pat.as_ptr();
-    let bonus_ptr = bonuses.as_ptr();
-
-    for j in j_start..=m {
-        // SAFETY: j is in 1..=m, so j-1 is a valid index into cho and bonuses.
-        let cj = unsafe { *cho_ptr.add(j - 1) };
-        let bonus_j = unsafe { *bonus_ptr.add(j - 1) };
-
-        // --- Compute row bounds for this column ---
-        let (i_lo, i_hi) = if ALLOW_TYPOS {
-            typo_vband(j, n, banding.bandwidth, banding.j_first)
-        } else if use_precomputed {
-            (precomp_lo[j] as usize, precomp_hi[j] as usize)
-        } else {
-            let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
-            col_row_bounds_at(j, n, row_lo, row_hi)
-        };
-
-        // Select prev/cur based on flip-flop.
-        let (prev, cur) = if flip {
-            (&cols_b as &[ColCell; COLMAJOR_MAX_N + 1], &mut cols_a)
-        } else {
-            (&cols_a as &[ColCell; COLMAJOR_MAX_N + 1], &mut cols_b)
-        };
-
-        // --- Opt 1: Delta-zero only cells that changed band membership ---
-        // Always zero row 0 (it's the sentinel boundary).
-        cur[0] = ColCell::ZERO;
-
-        // Zero cells that are now below the band but were in-band last column.
-        // These cells may carry stale data from the previous swap.
-        // New cells below band: rows 1..i_lo that overlap with prev's band.
-        if i_lo > 1 {
-            let zero_end = i_lo.min(n + 1);
-            let zero_start = 1.max(prev_i_lo.saturating_sub(1));
-            for i in zero_start..zero_end {
-                cur[i] = ColCell::ZERO;
-            }
-        }
-
-        // Zero cells that are now above the band but were in-band last column.
-        if i_hi < n {
-            let zero_start = (i_hi + 1).max(prev_i_lo);
-            let zero_end = (prev_i_hi + 2).min(n + 1);
-            for i in zero_start..zero_end {
-                cur[i] = ColCell::ZERO;
-            }
-        }
-
-        // Also zero the cell just before the band start (i_lo - 1) if it's
-        // in range, because the diagonal read at i_lo needs prev[i_lo-1]
-        // which is from `prev`, but the UP move at i_lo reads cur[i_lo-1].
-        if i_lo > 1 && i_lo <= n + 1 {
-            cur[i_lo - 1] = ColCell::ZERO;
-        }
-
-        if i_lo > i_hi || i_lo > n {
-            // No active rows this column.
-            // --- Opt 6: Track consecutive dead columns ---
-            dead_cols += 1;
-            if global_best > 0 && dead_cols >= early_term_threshold {
-                break;
-            }
-            prev_i_lo = i_lo;
-            prev_i_hi = i_hi;
-            flip = !flip;
-            continue;
-        }
-
-        // Reset dead column counter if the last row is active.
-        if i_hi >= n {
-            dead_cols = 0;
-        } else {
-            dead_cols += 1;
-            if global_best > 0 && dead_cols >= early_term_threshold {
-                // Finish writing this column then break.
-                prev_i_lo = i_lo;
-                prev_i_hi = i_hi;
-                flip = !flip;
-                break;
-            }
-        }
-
-        for i in i_lo..=i_hi {
-            // SAFETY: i is in 1..=n, so i-1 is valid for pat.
-            let pi = unsafe { *pat_ptr.add(i - 1) };
-            let is_match = pi.eq(cj, respect_case);
-            let is_first = i == 1;
-
-            let diag = prev[i - 1];
-            let up_score = cur[i - 1].score; // same col, prev row (already computed)
-            let left = prev[i];
-
-            let (best, dir) = compute_cell::<ALLOW_TYPOS>(
-                is_match,
-                is_first,
-                bonus_j,
-                diag.score,
-                diag.is_diag(),
-                up_score,
-                left.score,
-                left.is_diag(),
-            );
-
-            let took_diag = dir == Dir::Diag;
-            let flags = if took_diag {
-                ColCell::FLAG_DIAG
-            } else if ALLOW_TYPOS && dir == Dir::Up {
-                ColCell::FLAG_UP
-            } else {
-                0
-            };
-            let true_matches = if best <= 0 {
-                0
-            } else if took_diag {
-                diag.true_matches + is_match as u8
-            } else if ALLOW_TYPOS && dir == Dir::Up {
-                cur[i - 1].true_matches
-            } else {
-                left.true_matches
-            };
-
-            cur[i] = ColCell {
-                score: best,
-                flags,
-                true_matches,
-            };
-
-            if i == n && best > global_best {
-                global_best = best;
-                global_best_j = j;
-                global_best_true = true_matches;
-            }
-        }
-
-        prev_i_lo = i_lo;
-        prev_i_hi = i_hi;
-        flip = !flip;
-    }
-
-    if global_best > 0 && global_best_true >= banding.min_true_matches as u8 {
-        Some((global_best, global_best_j))
-    } else {
-        None
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -981,7 +739,7 @@ fn score_only_colmajor<const ALLOW_TYPOS: bool, C: Atom>(
 ///    column produced a non-zero score, all active alignments for this
 ///    and subsequent rows are dead (since UP/LEFT can only propagate
 ///    existing scores). We track this and allow early termination.
-fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
+fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
     bonuses: &[Score],
@@ -1021,10 +779,20 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         }
     }
 
-    let mut best_score = 0;
-    let mut best_j = 0usize; // stored in original 1-indexed space
-
     // base_ptr and cols already set above
+
+    // Pre-extract row bounds once (avoids repeated unwrap inside the loop).
+    // For exact mode we copy the arrays out; for typo mode these are unused.
+    let (row_lo_arr, row_hi_arr) = if !ALLOW_TYPOS {
+        let (lo, hi) = banding.row_bounds.as_ref().unwrap();
+        (*lo, *hi)
+    } else {
+        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
+    };
+
+    // Hoist invariant pointers outside the row loop.
+    let cho_ptr = cho.as_ptr();
+    let bonuses_ptr = bonuses.as_ptr();
 
     for i in 1..=n {
         let pi = pat[i - 1];
@@ -1034,8 +802,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         let (j_lo, j_hi) = if ALLOW_TYPOS {
             typo_vband_row(i, m, banding.bandwidth, banding.j_first)
         } else {
-            let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
-            (row_lo[i - 1], row_hi[i - 1])
+            (row_lo_arr[i - 1], row_hi_arr[i - 1])
         };
         // No alignment can start before the first occurrence of pat[0].
         let j_lo = j_lo.max(j_start);
@@ -1048,8 +815,7 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 let (nj_lo, nj_hi) = if ALLOW_TYPOS {
                     typo_vband_row(i + 1, m, banding.bandwidth, banding.j_first)
                 } else {
-                    let (row_lo, row_hi) = banding.row_bounds.as_ref().unwrap();
-                    (row_lo[i], row_hi[i])
+                    (row_lo_arr[i], row_hi_arr[i])
                 };
                 let nj_lo = nj_lo.max(j_start);
                 if nj_lo <= nj_hi && nj_lo <= m {
@@ -1100,14 +866,12 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         };
 
         // Hoist raw pointers for unchecked access inside the hot loop.
-        let cho_ptr = cho.as_ptr();
-        let bonuses_ptr = bonuses.as_ptr();
         let prev_ptr = prev_row.as_ptr();
         let cur_ptr = cur_row.as_mut_ptr();
 
         for j in j_lo..=j_hi {
             let jm = j - col_off; // matrix column
-                                  // SAFETY: j and jm are inside the band and within array bounds.
+            // SAFETY: j and jm are inside the band and within array bounds.
             let cj = unsafe { *cho_ptr.add(j - 1) };
             let is_match = pi.eq(cj, respect_case);
 
@@ -1135,10 +899,30 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
             unsafe {
                 *cur_ptr.add(jm) = Cell::new(best, dir);
             }
+        }
+    }
 
-            if i == n && best > best_score {
-                best_score = best;
-                best_j = j; // keep in original space
+    // --- Find best score in the last row (row n) ---
+    // Moved out of the inner loop to eliminate the `i == n` branch per cell.
+    let mut best_score: Score = 0;
+    let mut best_j = 0usize; // stored in original 1-indexed space
+    {
+        let (last_j_lo, last_j_hi) = if ALLOW_TYPOS {
+            typo_vband_row(n, m, banding.bandwidth, banding.j_first)
+        } else {
+            (row_lo_arr[n - 1], row_hi_arr[n - 1])
+        };
+        let last_j_lo = last_j_lo.max(j_start);
+        if last_j_lo <= last_j_hi && last_j_lo <= m {
+            let last_row_ptr = unsafe { base_ptr.add(n * cols) };
+            for j in last_j_lo..=last_j_hi {
+                let jm = j - col_off;
+                let s = unsafe { (*last_row_ptr.add(jm)).score() };
+                // Branchless max: update best_score and best_j together.
+                let better = s > best_score;
+                // Use conditional moves instead of a branch.
+                best_score = if better { s } else { best_score };
+                best_j = if better { j } else { best_j };
             }
         }
     }
@@ -1147,52 +931,56 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
         return None;
     }
 
-    // Traceback — j walks in original 1-indexed space, convert to matrix
-    // column for buf access; output indices in original 0-indexed space.
-    // Reuse a thread-local Vec to avoid per-call allocation.
-    let indices_ref_cell = indices_buf.get_or(|| RefCell::new(Vec::new()));
-    let mut indices_ref = indices_ref_cell.borrow_mut();
-    indices_ref.clear();
-    let mut i = n;
-    let mut j = best_j;
-    let mut true_matches = 0usize;
+    if COMPUTE_INDICES {
+        // Traceback — j walks in original 1-indexed space, convert to matrix
+        // column for buf access; output indices in original 0-indexed space.
+        // Reuse a thread-local Vec to avoid per-call allocation.
+        let indices_ref_cell = indices_buf.get_or(|| RefCell::new(Vec::new()));
+        let mut indices_ref = indices_ref_cell.borrow_mut();
+        indices_ref.clear();
+        let mut i = n;
+        let mut j = best_j;
+        let mut true_matches = 0usize;
 
-    while i > 0 && j >= j_start {
-        let jm = j - col_off;
-        // SAFETY: jm and i are within the matrix bounds established above.
-        let c = unsafe { *base_ptr.add(i * cols).add(jm) };
-        match c.dir() {
-            Dir::Diag => {
-                if pat[i - 1].eq(cho[j - 1], respect_case) {
-                    indices_ref.push((j - 1) as IndexType);
-                    true_matches += 1;
+        while i > 0 && j >= j_start {
+            let jm = j - col_off;
+            // SAFETY: jm and i are within the matrix bounds established above.
+            let c = unsafe { *base_ptr.add(i * cols).add(jm) };
+            match c.dir() {
+                Dir::Diag => {
+                    if pat[i - 1].eq(cho[j - 1], respect_case) {
+                        indices_ref.push((j - 1) as IndexType);
+                        true_matches += 1;
+                    }
+                    i -= 1;
+                    j -= 1;
                 }
-                i -= 1;
-                j -= 1;
+                Dir::Up => {
+                    i -= 1;
+                }
+                Dir::Left => {
+                    j -= 1;
+                }
+                Dir::None => break,
             }
-            Dir::Up => {
-                i -= 1;
-            }
-            Dir::Left => {
-                j -= 1;
-            }
-            Dir::None => break,
         }
+
+        if true_matches < banding.min_true_matches {
+            return None;
+        }
+
+        // Traceback produces indices in reverse order; reverse is O(n)
+        // vs sort_unstable's O(n log n).
+        indices_ref.reverse();
+
+        // Move ownership out of the thread-local buffer by cloning the vec's
+        // contents into a fresh Vec (cheap since MatchIndices is Vec<usize>),
+        // but avoid an extra clone by using `to_vec()` which reallocates once.
+        let out = indices_ref.to_vec();
+        Some((best_score, out))
+    } else {
+        Some((best_score, Vec::default()))
     }
-
-    if true_matches < banding.min_true_matches {
-        return None;
-    }
-
-    // Traceback produces indices in reverse order; reverse is O(n)
-    // vs sort_unstable's O(n log n).
-    indices_ref.reverse();
-
-    // Move ownership out of the thread-local buffer by cloning the vec's
-    // contents into a fresh Vec (cheap since MatchIndices is Vec<usize>),
-    // but avoid an extra clone by using `to_vec()` which reallocates once.
-    let out = indices_ref.to_vec();
-    Some((best_score, out))
 }
 
 // ---------------------------------------------------------------------------
@@ -1201,209 +989,21 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
 impl FuzzyMatcher for SkimV3Matcher {
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<ScoreType> {
-        if pattern.is_empty() {
-            return Some(0);
-        }
-        if choice.is_empty() {
-            return None;
-        }
-
-        if choice.is_ascii() && pattern.is_ascii() {
-            let cho = choice.as_bytes();
-            let pat = pattern.as_bytes();
-            let respect_case = self.respect_case(pat);
-
-            if !self.allow_typos && !is_subsequence(pat, cho, respect_case) {
-                return None;
-            }
-            if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
-                return None;
-            }
-
-            let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-            precompute_bonuses(cho, &mut bonus_buf);
-
-            let result = if self.allow_typos {
-                score_only_colmajor::<true, _>(cho, pat, &bonus_buf, respect_case)
-            } else {
-                score_only_colmajor::<false, _>(cho, pat, &bonus_buf, respect_case)
-            };
-            return result.map(|(s, _end)| s as ScoreType);
-        }
-
-        let mut bufs = self
-            .char_buf
-            .get_or(|| RefCell::new((Vec::new(), Vec::new())))
-            .borrow_mut();
-        let (ref mut pat_buf, ref mut cho_buf) = *bufs;
-        pat_buf.clear();
-        pat_buf.extend(pattern.chars());
-        cho_buf.clear();
-        cho_buf.extend(choice.chars());
-
-        let respect_case = self.respect_case(pat_buf);
-
-        if !self.allow_typos && !is_subsequence(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
-        if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
-
-        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-        precompute_bonuses(cho_buf, &mut bonus_buf);
-
-        let result = if self.allow_typos {
-            score_only_colmajor::<true, _>(cho_buf, pat_buf, &bonus_buf, respect_case)
-        } else {
-            score_only_colmajor::<false, _>(cho_buf, pat_buf, &bonus_buf, respect_case)
-        };
-        result.map(|(s, _end)| s as ScoreType)
+        let result = self.run(choice, pattern, false);
+        result.map(|x| x.0)
     }
 
     fn fuzzy_match_range(&self, choice: &str, pattern: &str) -> Option<(ScoreType, usize, usize)> {
-        if pattern.is_empty() {
-            return Some((0, 0, 0));
-        }
-        if choice.is_empty() {
-            return None;
-        }
-
-        if choice.is_ascii() && pattern.is_ascii() {
-            let cho = choice.as_bytes();
-            let pat = pattern.as_bytes();
-            let respect_case = self.respect_case(pat);
-
-            if !self.allow_typos && !is_subsequence(pat, cho, respect_case) {
-                return None;
-            }
-            if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
-                return None;
-            }
-
-            let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-            precompute_bonuses(cho, &mut bonus_buf);
-
-            let result = if self.allow_typos {
-                score_only_colmajor::<true, _>(cho, pat, &bonus_buf, respect_case)
-            } else {
-                score_only_colmajor::<false, _>(cho, pat, &bonus_buf, respect_case)
-            };
-            return result.map(|(s, end_col)| {
-                let end = if end_col > 0 { end_col - 1 } else { 0 };
-                let begin = find_begin(cho, pat, end, respect_case);
-                (s as ScoreType, begin, end)
-            });
-        }
-
-        let mut bufs = self
-            .char_buf
-            .get_or(|| RefCell::new((Vec::new(), Vec::new())))
-            .borrow_mut();
-        let (ref mut pat_buf, ref mut cho_buf) = *bufs;
-        pat_buf.clear();
-        pat_buf.extend(pattern.chars());
-        cho_buf.clear();
-        cho_buf.extend(choice.chars());
-
-        let respect_case = self.respect_case(pat_buf);
-
-        if !self.allow_typos && !is_subsequence(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
-        if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
-
-        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-        precompute_bonuses(cho_buf, &mut bonus_buf);
-
-        let result = if self.allow_typos {
-            score_only_colmajor::<true, _>(cho_buf, pat_buf, &bonus_buf, respect_case)
-        } else {
-            score_only_colmajor::<false, _>(cho_buf, pat_buf, &bonus_buf, respect_case)
-        };
-        result.map(|(s, end_col)| {
-            let end = if end_col > 0 { end_col - 1 } else { 0 };
-            let begin = find_begin(cho_buf, pat_buf, end, respect_case);
-            (s as ScoreType, begin, end)
+        let result = self.fuzzy_indices(choice, pattern);
+        result.map(|(s, indices)| {
+            let begin = indices.first().copied().unwrap_or_default();
+            let end = indices.last().copied().unwrap_or_default();
+            (s, begin, end)
         })
     }
 
     fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
-        if pattern.is_empty() {
-            return Some((0, MatchIndices::new()));
-        }
-        if choice.is_empty() {
-            return None;
-        }
-
-        if choice.is_ascii() && pattern.is_ascii() {
-            let cho = choice.as_bytes();
-            let pat = pattern.as_bytes();
-            let respect_case = self.respect_case(pat);
-
-            if !self.allow_typos && !is_subsequence(pat, cho, respect_case) {
-                return None;
-            }
-            if self.allow_typos && !cheap_typo_prefilter(pat, cho, respect_case) {
-                return None;
-            }
-
-            let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-            precompute_bonuses(cho, &mut bonus_buf);
-
-            let result = if self.allow_typos {
-                full_dp::<true, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf, &self.indices_buf)
-            } else {
-                full_dp::<false, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf, &self.indices_buf)
-            };
-            return result.map(|(s, idx)| (s as ScoreType, idx));
-        }
-
-        let mut bufs = self
-            .char_buf
-            .get_or(|| RefCell::new((Vec::new(), Vec::new())))
-            .borrow_mut();
-        let (ref mut pat_buf, ref mut cho_buf) = *bufs;
-        pat_buf.clear();
-        pat_buf.extend(pattern.chars());
-        cho_buf.clear();
-        cho_buf.extend(choice.chars());
-
-        let respect_case = self.respect_case(pat_buf);
-
-        // Prefilter
-        if !self.allow_typos && !is_subsequence(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
-        if self.allow_typos && !cheap_typo_prefilter(pat_buf, cho_buf, respect_case) {
-            return None;
-        }
-
-        let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
-        precompute_bonuses(cho_buf, &mut bonus_buf);
-
-        let result = if self.allow_typos {
-            full_dp::<true, _>(
-                cho_buf,
-                pat_buf,
-                &bonus_buf,
-                respect_case,
-                &self.full_buf,
-                &self.indices_buf,
-            )
-        } else {
-            full_dp::<false, _>(
-                cho_buf,
-                pat_buf,
-                &bonus_buf,
-                respect_case,
-                &self.full_buf,
-                &self.indices_buf,
-            )
-        };
-        result.map(|(s, idx)| (s as ScoreType, idx))
+        self.run(choice, pattern, true)
     }
 }
 

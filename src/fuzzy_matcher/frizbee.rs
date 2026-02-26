@@ -65,4 +65,24 @@ impl FuzzyMatcher for FrizbeeMatcher {
                 }
             })
     }
+    fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<i64> {
+        let scoring = Scoring {
+            matching_case_bonus: match self.case {
+                CaseMatching::Respect => RESPECT_CASE_BONUS,
+                CaseMatching::Ignore => 0,
+                CaseMatching::Smart => {
+                    if pattern.chars().any(|c| c.is_uppercase()) {
+                        RESPECT_CASE_BONUS
+                    } else {
+                        0
+                    }
+                }
+            },
+            ..Default::default()
+        };
+        let mut matcher = SmithWatermanMatcher::new(pattern.as_bytes(), &scoring);
+        matcher
+            .match_haystack(choice.as_bytes(), self.max_typos)
+            .map(|x| x as ScoreType)
+    }
 }
