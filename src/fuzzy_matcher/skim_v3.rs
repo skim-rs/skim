@@ -1219,10 +1219,11 @@ fn full_dp<const ALLOW_TYPOS: bool, C: Atom>(
     // vs sort_unstable's O(n log n).
     indices_ref.reverse();
 
-    // Move ownership out of the thread-local buffer by cloning the vec's
-    // contents into a fresh Vec (cheap since MatchIndices is Vec<usize>),
-    // but avoid an extra clone by using `to_vec()` which reallocates once.
-    let out = indices_ref.to_vec();
+    // Move ownership out of the thread-local buffer without cloning: swap it
+    // with an empty Vec so we return the populated Vec directly. The thread-local
+    // then starts the next call with a zero-capacity Vec and will reallocate on
+    // first push — a small one-time cost traded for zero-copy return here.
+    let out = std::mem::take(&mut *indices_ref);
     Some((best_score, out))
 }
 
