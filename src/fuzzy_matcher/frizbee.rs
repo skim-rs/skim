@@ -49,7 +49,7 @@ impl FuzzyMatcher for FrizbeeMatcher {
         let mut matcher = SmithWatermanMatcher::new(pattern.as_bytes(), &scoring);
         matcher
             .match_haystack_indices(choice.as_bytes(), 0, self.max_typos)
-            .and_then(|(m, indices)| {
+            .and_then(|(m, mut indices)| {
                 debug!("{choice}: {m} ({})", scoring.matching_case_bonus);
                 if m > scoring.matching_case_bonus.saturating_mul(
                     pattern
@@ -59,6 +59,7 @@ impl FuzzyMatcher for FrizbeeMatcher {
                         .try_into()
                         .unwrap(),
                 ) {
+                    indices.reverse();
                     Some((m.into(), MatchIndices::from(indices)))
                 } else {
                     None
