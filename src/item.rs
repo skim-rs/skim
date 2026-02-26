@@ -273,10 +273,11 @@ pub struct ItemPool {
     /// Reverse the order of items (--tac flag)
     tac: bool,
 
-    /// Notified whenever new items are appended to the pool.
+    /// Notified whenever new items are appended to the pool (async path).
     ///
-    /// Listeners (e.g. the event loop) can `await` this to wake up
-    /// immediately when items arrive instead of polling on a timer.
+    /// Listeners (e.g. the TUI event loop) can `await` this to wake up
+    /// immediately when items arrive instead of waiting for the next
+    /// periodic tick.
     pub items_available: Arc<Notify>,
 }
 
@@ -388,10 +389,11 @@ impl ItemPool {
         let new_len = pool.len();
         drop(pool);
         drop(header_items);
-        // Wake any listener that is waiting for new items (e.g. the event loop,
-        // so it can restart the matcher immediately instead of waiting for the
-        // next periodic tick).
+        // Wake any listener that is waiting for new items (e.g. the event loop
+        // or the filter-mode loop) so it can restart the matcher immediately
+        // instead of waiting for the next periodic tick.
         self.items_available.notify_one();
+
         new_len
     }
 

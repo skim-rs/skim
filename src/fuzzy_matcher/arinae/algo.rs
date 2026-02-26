@@ -168,13 +168,7 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
         let is_first = i == 1;
 
         // --- Compute column bounds for this row (original 1-indexed space) ---
-        let (j_lo, j_hi) = if ALLOW_TYPOS {
-            typo_vband_row(i, m, banding.bandwidth, banding.j_first)
-        } else {
-            (row_lo_arr[i - 1], row_hi_arr[i - 1])
-        };
-        // No alignment can start before the first occurrence of pat[0].
-        let j_lo = j_lo.max(j_start);
+        let (j_lo, j_hi) = typo_vband_row(i, m, banding.bandwidth, banding.j_first);
 
         if j_lo > j_hi || j_lo > m {
             // Entire row is outside the band. Only zero the cells the next

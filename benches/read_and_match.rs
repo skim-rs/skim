@@ -28,6 +28,60 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.to_async(rt)
             .iter(async || wait_until_done(SkimOptionsBuilder::default().query("test").build().unwrap()).await);
     });
+    c.bench_function("query_frizbee", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.to_async(rt).iter(async || {
+            wait_until_done(
+                SkimOptionsBuilder::default()
+                    .query("test")
+                    .algorithm(FuzzyAlgorithm::Frizbee)
+                    .no_typos(true)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+        });
+    });
+    c.bench_function("query_ari", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.to_async(rt).iter(async || {
+            wait_until_done(
+                SkimOptionsBuilder::default()
+                    .query("test")
+                    .algorithm(FuzzyAlgorithm::Arinae)
+                    .no_typos(true)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+        });
+    });
+    c.bench_function("query_frizbee_typos", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.to_async(rt).iter(async || {
+            wait_until_done(
+                SkimOptionsBuilder::default()
+                    .query("test")
+                    .algorithm(FuzzyAlgorithm::Frizbee)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+        });
+    });
+    c.bench_function("query_ari_typos", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.to_async(rt).iter(async || {
+            wait_until_done(
+                SkimOptionsBuilder::default()
+                    .query("test")
+                    .algorithm(FuzzyAlgorithm::Arinae)
+                    .build()
+                    .unwrap(),
+            )
+            .await
+        });
+    });
     c.bench_function("typing", |b| {
         let rt = tokio::runtime::Runtime::new().unwrap();
         b.to_async(rt).iter(async || {
@@ -46,7 +100,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                     } else {
                         done_since = 1;
                     }
-                    if sent && done_since > 5 {
+                    if sent && done_since > 50 {
                         s.send(Event::Action(Action::Accept(None))).await?;
                     } else if !sent {
                         s.send(Event::Action(Action::AddChar('t'))).await?;

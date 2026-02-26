@@ -323,7 +323,7 @@ where
                 && (!app.matcher_control.stopped() || !reader_control.is_done())
             {
                 trace!("still waiting");
-                std::thread::sleep(Duration::from_millis(10));
+                std::thread::sleep(Duration::from_millis(1));
                 app.restart_matcher(false);
             }
             trace!(
