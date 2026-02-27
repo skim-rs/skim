@@ -193,34 +193,80 @@ impl Matcher {
         // could call kill() + reset() before the old closure runs, causing the old
         // closure to re-take items that should belong to the new matcher.
         let items = item_pool.take();
-        trace!("matcher start, total: {}", items.len());
+        let total = items.len();
+        trace!("matcher start, total: {}", total);
 
         thread_pool.spawn(move || {
-            // Simpler parallel iteration: process items in parallel and check interrupt
-            // per-item. Using per-item accounting avoids relying on chunk-based
-            // combinators that aren't available across rayon versions.
+            // Process items in parallel using chunk-based accounting to minimize
+            // atomic contention. Each rayon work unit processes a chunk of items,
+            // updating the shared `processed` and `matched` counters only once per
+            // chunk instead of once per item. The interrupt flag is also checked
+            // only once per chunk to amortize the atomic load.
+            //
+            // `with_min_len` ensures rayon doesn't split work into chunks smaller
+            // than CHUNK_SIZE, keeping the overhead of the parallel iterator low
+            // relative to the actual matching work.
+            const CHUNK_SIZE: usize = 512;
+
             let matched_items: Vec<MatchedItem> = items
                 .into_par_iter()
-                .filter_map(|item| {
-                    if interrupt.load(Ordering::Relaxed) {
-                        // If interrupted, skip further processing for this item.
-                        return None;
-                    }
-
-                    // Account this item as processed.
-                    processed.fetch_add(1, Ordering::Relaxed);
-
-                    matcher_engine.match_item(item.as_ref()).map(|match_result| {
-                        matched.fetch_add(1, Ordering::Relaxed);
-                        MatchedItem {
-                            item,
-                            rank: match_result.rank,
-                            rank_builder: rank_builder.clone(),
-                            matched_range: Some(match_result.matched_range),
+                .with_min_len(CHUNK_SIZE)
+                .fold(
+                    || (Vec::new(), 0usize, 0usize), // (local_matches, local_processed, local_matched)
+                    |(mut local_matches, mut local_processed, mut local_matched), item| {
+                        // Check interrupt once at the start of each chunk boundary.
+                        // The fold processes items sequentially within each rayon work unit,
+                        // so checking every CHUNK_SIZE items amortizes the atomic load.
+                        if local_processed % CHUNK_SIZE == 0 && interrupt.load(Ordering::Relaxed) {
+                            return (local_matches, local_processed, local_matched);
                         }
-                    })
+
+                        local_processed += 1;
+
+                        if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
+                            local_matched += 1;
+                            local_matches.push(MatchedItem {
+                                item,
+                                rank: match_result.rank,
+                                rank_builder: rank_builder.clone(),
+                                matched_range: Some(match_result.matched_range),
+                            });
+                        }
+
+                        // Flush counters periodically so the UI sees progress updates.
+                        if local_processed % CHUNK_SIZE == 0 {
+                            processed.fetch_add(CHUNK_SIZE, Ordering::Relaxed);
+                            if local_matched > 0 {
+                                matched.fetch_add(local_matched, Ordering::Relaxed);
+                                local_matched = 0;
+                            }
+                        }
+
+                        (local_matches, local_processed, local_matched)
+                    },
+                )
+                .map(|(local_matches, local_processed, local_matched)| {
+                    // Flush any remaining counts that didn't hit a chunk boundary.
+                    let remainder = local_processed % CHUNK_SIZE;
+                    if remainder > 0 {
+                        processed.fetch_add(remainder, Ordering::Relaxed);
+                    }
+                    if local_matched > 0 {
+                        matched.fetch_add(local_matched, Ordering::Relaxed);
+                    }
+                    local_matches
                 })
-                .collect();
+                .reduce(Vec::new, |mut a, mut b| {
+                    // Merge per-thread result vectors. Always extend the larger one
+                    // to avoid unnecessary reallocations.
+                    if a.len() >= b.len() {
+                        a.extend(b);
+                        a
+                    } else {
+                        b.extend(a);
+                        b
+                    }
+                });
 
             if !interrupt.load(Ordering::SeqCst) {
                 trace!("matcher stop, total matched: {}", matched_items.len());
