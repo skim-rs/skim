@@ -82,7 +82,7 @@ complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (
 complete -c sk -l tmux -d 'Run in a tmux popup' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'
-print-score\t'Display the item\'s match score before its value in the item list (for matcher debugging)'"
+show-score\t'Display the item\'s match score before its value in the item list (for matcher debugging)'"
 complete -c sk -l hscroll-off -r
 complete -c sk -l jump-labels -r
 complete -c sk -l scheme -r

@@ -85,7 +85,7 @@ zsh\:"Zsh"))' \
 '--tmux=[Run in a tmux popup]::TMUX:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
-print-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"))' \
+show-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"))' \
 '--hscroll-off=[]:HSCROLL_OFF:_default' \
 '--jump-labels=[]:JUMP_LABELS:_default' \
 '--scheme=[]:SCHEME:_default' \

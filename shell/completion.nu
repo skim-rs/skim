@@ -29,7 +29,7 @@ module completions {
   }
 
   def "nu-complete sk flags" [] {
-    [ "no-preview-pty" "print-score" ]
+    [ "no-preview-pty" "show-score" ]
   }
 
   # Fuzzy Finder in rust!

@@ -250,7 +250,7 @@ _sk() {
                     return 0
                     ;;
                 --flags)
-                    COMPREPLY=($(compgen -W "no-preview-pty print-score" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "no-preview-pty show-score" -- "${cur}"))
                     return 0
                     ;;
                 --hscroll-off)
