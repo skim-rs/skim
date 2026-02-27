@@ -1236,7 +1236,7 @@ pub enum FeatureFlag {
     /// Disable preview PTY on linux
     NoPreviewPty,
     /// Display the item's match score before its value in the item list (for matcher debugging)
-    PrintScore,
+    ShowScore,
 }
 
 #[allow(unused_macros)]

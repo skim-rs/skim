@@ -571,7 +571,7 @@ impl SkimWidget for ItemList {
             cycle: options.cycle,
             wrap: options.wrap_items,
             border: options.border,
-            print_score: options.flags.contains(&crate::options::FeatureFlag::PrintScore),
+            print_score: options.flags.contains(&crate::options::FeatureFlag::ShowScore),
         }
     }
 

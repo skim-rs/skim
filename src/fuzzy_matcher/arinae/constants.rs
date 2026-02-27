@@ -13,7 +13,7 @@ pub(super) const START_OF_STRING_BONUS: Score = 16;
 pub(super) const CAMEL_CASE_BONUS: Score = 6;
 
 /// Bonus for each additional consecutive matched character.
-pub(super) const CONSECUTIVE_BONUS: Score = 8;
+pub(super) const CONSECUTIVE_BONUS: Score = 11;
 
 /// Cost to open a gap (skip characters in choice).
 pub(super) const GAP_OPEN: Score = 6;
