@@ -55,7 +55,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_skim_v3", |b| {
+    c.bench_function("micro_arinae", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, false);
         b.iter(|| {
             let mut count = 0u64;
@@ -67,7 +67,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_skim_v3_range", |b| {
+    c.bench_function("micro_arinae_range", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, false);
         b.iter(|| {
             let mut count = 0u64;
@@ -79,7 +79,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_skim_v3_score", |b| {
+    c.bench_function("micro_arinae_score", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, false);
         b.iter(|| {
             let mut count = 0u64;
@@ -91,7 +91,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_typos_skim_v3", |b| {
+    c.bench_function("micro_typos_arinae", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;
@@ -103,7 +103,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_typos_skim_v3_range", |b| {
+    c.bench_function("micro_typos_arinae_range", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;
@@ -115,7 +115,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_typos_skim_v3_score", |b| {
+    c.bench_function("micro_typos_arinae_score", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, true);
         b.iter(|| {
             let mut count = 0u64;

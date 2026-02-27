@@ -1,18 +1,7 @@
 //! Byte/Char helpers
+use super::Score;
+use super::constants::SEPARATOR_TABLE;
 use memchr::memchr;
-/// 128-byte lookup table for separator detection. A byte is 1 if the
-/// corresponding ASCII codepoint is a word separator, 0 otherwise.
-/// Non-ASCII (>= 128) is handled by the bounds check in `is_separator`.
-static SEPARATOR_TABLE: [u8; 128] = {
-    let mut t = [0u8; 128];
-    t[b' ' as usize] = 1;
-    t[b'-' as usize] = 1;
-    t[b'.' as usize] = 1;
-    t[b'/' as usize] = 1;
-    t[b'\\' as usize] = 1;
-    t[b'_' as usize] = 1;
-    t
-};
 
 pub(super) trait Atom: PartialEq + Into<char> + Copy {
     #[inline(always)]
@@ -38,15 +27,17 @@ pub(super) trait Atom: PartialEq + Into<char> + Copy {
     fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
         haystack.iter().position(|&c| self.eq(c, respect_case))
     }
-    /// Check if a character is a word separator for bonus computation.
-    /// Uses a table lookup — a single bounds check replaces three branches.
+    /// Return the word-separator bonus for this character, or `0` if it is not
+    /// a separator.  Uses a table lookup — a single bounds check replaces
+    /// several branches and the returned value encodes both *whether* the
+    /// character is a separator and *how much* bonus it carries.
     #[inline(always)]
-    fn is_separator(self) -> bool {
-        let ch = self.into() as u32;
-        // For ch < 128 we do a table lookup; for ch >= 128 we return false.
+    fn separator_bonus(self) -> Score {
+        let ch = self.into() as usize;
+        // For ch < 128 we do a table lookup; for ch >= 128 we return 0.
         // The `get` returns None for out-of-range, and `copied().unwrap_or(0)` is
         // typically compiled as a conditional move (branchless).
-        SEPARATOR_TABLE.get(ch as usize).copied().unwrap_or(0) != 0
+        SEPARATOR_TABLE.get(ch).copied().unwrap_or(0)
     }
 }
 

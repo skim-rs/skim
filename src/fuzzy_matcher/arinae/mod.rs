@@ -53,14 +53,14 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     buf.clear();
     // The first character always gets START_OF_STRING_BONUS.
     // Subsequent characters get a bonus based on the previous character:
-    //   - START_OF_WORD_BONUS when the previous char is a separator, or
+    //   - separator_bonus() when the previous char is a separator (the exact
+    //     bonus depends on the separator — see SEPARATOR_TABLE in constants.rs),
     //   - CAMEL_CASE_BONUS when transitioning from lowercase to non-lowercase.
     // Using a safe iterator lets the compiler auto-vectorise the loop.
     let bonus_iter = std::iter::once(START_OF_STRING_BONUS).chain(cho.windows(2).map(|w| {
         let prev = w[0];
         let cur = w[1];
-        START_OF_WORD_BONUS * (prev.is_separator() as Score)
-            + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !cur.is_lowercase()) as Score)
+        prev.separator_bonus() + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !cur.is_lowercase()) as Score)
     }));
     buf.extend(bonus_iter);
 }

@@ -7,10 +7,7 @@ use super::Score;
 pub(super) const MATCH_BONUS: Score = 18;
 
 /// Extra bonus when the match is at position 0 of the choice string.
-pub(super) const START_OF_STRING_BONUS: Score = 12;
-
-/// Extra bonus when the match follows a word separator.
-pub(super) const START_OF_WORD_BONUS: Score = 8;
+pub(super) const START_OF_STRING_BONUS: Score = 16;
 
 /// Extra bonus for a camelCase transition.
 pub(super) const CAMEL_CASE_BONUS: Score = 6;
@@ -38,3 +35,21 @@ pub(super) const MAX_PAT_LEN: usize = 16;
 /// `n + TYPO_BAND_SLACK` columns around the diagonal is generous enough
 /// to capture all viable alignments while still pruning far-off cells.
 pub(super) const TYPO_BAND_SLACK: usize = 4;
+
+/// Per-separator bonus lookup table. Each entry holds the `Score` awarded when
+/// a matched character immediately follows that ASCII codepoint. Non-separator
+/// characters (and all non-ASCII codepoints) map to `0`.
+///
+/// Different separators can carry different bonuses — for example, `/` and `\`
+/// delimit path components (high bonus), while `_` or `-` delimit sub-words
+/// (standard bonus).  Entries that are `0` are not considered separators.
+pub(super) const SEPARATOR_TABLE: [Score; 128] = {
+    let mut t = [0 as Score; 128];
+    t[b' ' as usize] = 12; // space
+    t[b'-' as usize] = 10; // hyphen / kebab-case
+    t[b'.' as usize] = 12; // dot (file extensions, domain names)
+    t[b'/' as usize] = 16; // forward slash (path separator — higher bonus)
+    t[b'\\' as usize] = 16; // backslash (Windows path separator — higher bonus)
+    t[b'_' as usize] = 12; // underscore / snake_case
+    t
+};
