@@ -364,3 +364,30 @@ fn range_consistent_with_indices() {
         }
     }
 }
+
+// ----- Prefilter regression tests -----
+
+/// Extending a typo-tolerant match with an additional character must not cause
+/// the candidate to be incorrectly rejected.
+///
+/// "fobara" matches "src/fuzzy_matcher/arinae/algo.rs" via the typo-tolerant
+/// DP (score 91). Typing one more character to form "fobaral" should continue
+/// to match — the `a`, `r`, `a` subsequence exists in the choice string and
+/// satisfies the prefilter threshold (min_tail = 3).
+///
+/// The old prefilter used a greedy ordered scan that consumed `o` at position 28,
+/// locking the cursor past all four `a` occurrences (at positions 11, 18, 22, 25),
+/// causing a false negative. The correct approach is an unordered frequency check.
+#[test]
+fn typo_prefilter_no_false_negative_on_extension() {
+    let choice = "src/fuzzy_matcher/arinae/algo.rs";
+    // Both the shorter and the extended pattern must match.
+    assert!(
+        score_typos(choice, "fobara").is_some(),
+        "\"fobara\" should match \"{choice}\""
+    );
+    assert!(
+        score_typos(choice, "fobaral").is_some(),
+        "\"fobaral\" should match \"{choice}\" (regression: greedy prefilter scan false negative)"
+    );
+}
