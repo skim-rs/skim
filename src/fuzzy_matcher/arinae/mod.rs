@@ -1,4 +1,4 @@
-//! SkimV3 fuzzy matching algorithm.
+//! Arinae fuzzy matching algorithm.
 //!
 //! Uses a Smith-Waterman local alignment approach with affine gap penalties
 //! and context-sensitive bonuses.
@@ -65,11 +65,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     buf.extend(bonus_iter);
 }
 
-// ---------------------------------------------------------------------------
-// SkimV3Matcher
-// ---------------------------------------------------------------------------
-
-/// SkimV3 fuzzy matcher: Smith-Waterman local alignment with affine gap
+/// Arinae fuzzy matcher: Smith-Waterman local alignment with affine gap
 /// penalties and context-sensitive bonuses.
 #[derive(Debug, Default)]
 pub struct ArinaeMatcher {
@@ -83,7 +79,7 @@ pub struct ArinaeMatcher {
 }
 
 impl ArinaeMatcher {
-    /// Create a new `SkimV3Matcher` with the given settings.
+    /// Create a new `ArinaeMatcher` with the given settings.
     pub fn new(case: CaseMatching, allow_typos: bool) -> Self {
         Self {
             case,

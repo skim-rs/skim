@@ -75,7 +75,7 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
-    c.bench_function("filter_10M_skim_v3", |b| {
+    c.bench_function("filter_10M_arinae", |b| {
         b.iter(|| {
             let opts = SkimOptionsBuilder::default()
                 .cmd("cat benches/fixtures/10M.txt")
@@ -85,7 +85,7 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
-    c.bench_function("filter_10M_skim_v3_typos", |b| {
+    c.bench_function("filter_10M_arinae_typos", |b| {
         b.iter(|| {
             let opts = SkimOptionsBuilder::default()
                 .cmd("cat benches/fixtures/10M.txt")
@@ -171,7 +171,7 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
-    c.bench_function("filter_1M_skim_v3", |b| {
+    c.bench_function("filter_1M_arinae", |b| {
         b.iter(|| {
             let opts = SkimOptionsBuilder::default()
                 .cmd("cat benches/fixtures/1M.txt")
@@ -181,7 +181,7 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
             Skim::run_with(opts, None)
         });
     });
-    c.bench_function("filter_1M_skim_v3_typos", |b| {
+    c.bench_function("filter_1M_arinae_typos", |b| {
         b.iter(|| {
             let opts = SkimOptionsBuilder::default()
                 .cmd("cat benches/fixtures/1M.txt")

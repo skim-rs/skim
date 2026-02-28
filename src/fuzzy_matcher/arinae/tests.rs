@@ -285,7 +285,7 @@ fn non_ascii_matching() {
 }
 
 // Regression test: all valid subsequences must be returned in --no-typos mode.
-// grep '.*t.*e.*s.*t' should give the same results as skim_v3 with pattern 'test'.
+// grep '.*t.*e.*s.*t' should give the same results as arinae with pattern 'test'.
 #[test]
 fn all_subsequences_must_match() {
     let m = matcher();

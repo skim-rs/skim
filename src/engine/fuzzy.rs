@@ -144,7 +144,7 @@ impl FuzzyEngineBuilder {
                 let mut matcher = ArinaeMatcher::default();
                 matcher.case = self.case;
                 matcher.allow_typos = !matches!(self.typos, Typos::Disabled);
-                debug!("Initialized SkimV3 algorithm");
+                debug!("Initialized Arinae algorithm");
                 Box::new(matcher)
             }
         };
