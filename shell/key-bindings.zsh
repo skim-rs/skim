@@ -4,6 +4,8 @@
 # - $SKIM_CTRL_T_COMMAND
 # - $SKIM_CTRL_T_OPTS
 # - $SKIM_CTRL_R_OPTS
+# - $SKIM_CTRL_R_IDX_COLOR   (default: \033[2m, set NO_COLOR to disable)
+# - $SKIM_CTRL_R_DATE_COLOR  (default: \033[32m, set NO_COLOR to disable)
 # - $SKIM_ALT_C_COMMAND
 # - $SKIM_ALT_C_OPTS
 # - $SKIM_COMPLETION_TRIGGER (default: '**')
