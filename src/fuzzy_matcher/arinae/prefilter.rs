@@ -1,6 +1,7 @@
 //! Prefilters running before the algo to optimize performance on unmatchable items
 
 use super::Atom;
+use super::constants::MAX_PAT_LEN;
 
 /// Cheap prefilter for typo-tolerant matching.
 ///
@@ -80,7 +81,7 @@ fn tail_freq_check<C: Atom>(pattern: &[C], window: &[C], respect_case: bool, min
     //   Pass 2 (O(m)): scan window and increment matching table entries.
     //   Pass 3 (O(n)): walk the tail, decrement table entries, count matches.
 
-    const MAX_TAIL: usize = 15; // MAX_PAT_LEN - 1
+    const MAX_TAIL: usize = MAX_PAT_LEN - 1;
     let tail = &pattern[1..];
     let tail_len = tail.len().min(MAX_TAIL);
 

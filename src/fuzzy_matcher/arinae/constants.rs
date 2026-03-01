@@ -27,7 +27,7 @@ pub(super) const TYPO_PENALTY: Score = 8;
 pub(super) const MISMATCH_PENALTY: Score = 16;
 
 /// Maximum pattern length supported by the banding arrays (stack-allocated).
-pub(super) const MAX_PAT_LEN: usize = 16;
+pub(super) const MAX_PAT_LEN: usize = 32;
 
 /// Bandwidth for typo-mode banding. In typo mode we allow diagonal moves
 /// (match/mismatch) plus UP (skip pattern char) and LEFT (skip choice char),
