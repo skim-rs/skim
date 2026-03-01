@@ -127,23 +127,34 @@ bindkey '\ec' skim-cd-widget
 skim-history-widget() {
   local selected num
   setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases 2> /dev/null
-  local awk_filter='{ cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) print $0 }'  # filter out duplicates
+  local c_idx='' c_date='' c_reset='' ansi_opt=''
+  if [[ ! -v NO_COLOR ]]; then
+    c_idx="${SKIM_CTRL_R_IDX_COLOR:-\033[2m}"
+    c_date="${SKIM_CTRL_R_DATE_COLOR:-\033[32m}"
+    c_reset='\033[0m'
+    ansi_opt='--ansi'
+  fi
+  local awk_filter='{ cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) { idx=$1; sub(idx, c_idx idx c_reset); print } }'
   local n=2 fc_opts=''
   if [[ -o extended_history ]]; then
     local today=$(date +%Y-%m-%d)
     # For today's commands, replace date ($2) with "today", otherwise remove time ($3).
     # And filter out duplicates.
     awk_filter='{
-      if ($2 == "'$today'") sub($2 " ", "today'\''")
-      else sub($3, "")
-      line=$0; $1=""; $2=""; $3=""
-      if (!seen[$0]++) print line
+      cmd = $0; sub(/^[ \t]*[0-9]+\**[ \t]+[^ \t]+[ \t]+[^ \t]+[ \t]+/, "", cmd)
+      if (!seen[cmd]++) {
+        time = $3; date = $2; idx = $1
+        if (date == today) sub(date " " time "  ", c_date "today " time c_reset "\t")
+        else sub(date " " time "  ", c_date date c_reset "\t")
+        sub(idx, c_idx idx c_reset)
+        print
+      }
     }'
     fc_opts='-i'
     n=3
   fi
-  selected=( $(fc -rl $fc_opts 1 | awk "$awk_filter" |
-    SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n$n..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi" $(__skimcmd)) )
+  selected=( $(fc -rl $fc_opts 1 | awk -v c_idx="$c_idx" -v c_date="$c_date" -v c_reset="$c_reset" -v today="$today" "$awk_filter" |
+    SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n$n..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi $ansi_opt --tabstop=20" $(__skimcmd)) )
   local ret=$?
   if [ -n "$selected" ]; then
     num=$selected[1]
