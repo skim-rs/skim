@@ -26,6 +26,9 @@
 #[macro_use]
 extern crate log;
 
+#[global_allocator]
+static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Display;
