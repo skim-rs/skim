@@ -104,16 +104,12 @@ impl ArinaeMatcher {
         respect_case: bool,
         compute_indices: bool,
     ) -> Option<(ScoreType, MatchIndices)> {
-        let res = if self.allow_typos {
-            if compute_indices {
-                full_dp::<true, true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
-            } else {
-                full_dp::<true, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
-            }
-        } else if compute_indices {
-            full_dp::<false, true, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
-        } else {
-            full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf)
+        #[rustfmt::skip]
+        let res = match (self.allow_typos, compute_indices) {
+            (true, true)   => full_dp::<true , true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
+            (true, false)  => full_dp::<true , false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
+            (false, true)  => full_dp::<false, true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
+            (false, false) => full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
         };
         res.map(|(s, idx)| (s as ScoreType, idx))
     }
