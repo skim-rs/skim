@@ -105,7 +105,7 @@ impl ArinaeMatcher {
         compute_indices: bool,
     ) -> Option<(ScoreType, MatchIndices)> {
         #[rustfmt::skip]
-        let res = match (compute_indices, self.allow_typos) {
+        let res = match (self.allow_typos, compute_indices) {
             (true, true)   => full_dp::<true , true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
             (true, false)  => full_dp::<true , false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
             (false, true)  => full_dp::<false, true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
