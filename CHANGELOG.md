@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-03-02
+
+This version adds the Arinae algorithm as an option.
+
+Arinae is designed to become skim's default algorithm in the future.
+
+Technically, it uses Smith-Waterman and a modified Levenshtein distance with affine gaps for scoring, as well as multiple optimizations (the main ones being a loose prefilter and checks for early dismissal of paths that cannot lead to the best match). It also forbids typos on the first char of the query.
+
+In practice, it should feel close to FZY's scoring with typos disabled, but with a more natural behavior regarding typos as Frizbee or other algorithms.
+
+These other algorithms usually work by allowing a set number of typos using 3D matrices for computations, the max-typos value being set based on the length of the query. In practice, that meant that tes will match exactly, but test will allow one typo, meaning that typing a single character will change the filtered items completely. This algorithm will instead penalize typos, not block them completely.
+
+This algorithm does not aim to revolution anything, but it aims at making typo-resistant fuzzy matching feel more like an actual alternative to the current options (namely FZF and FZY), while maintaining per-item performance at least as good as the current algorithms.
+
+### 🚀 Features
+
+- Merge ranks in AndOr engine matcher
+- Add Arinae algorithm (#990)
+- *(shell)* Colored history widgets & remove perl completely (#994)
+
+### 🐛 Bug Fixes
+
+- Make sure we drop Skim before returning the output
+
+### 💼 Other
+
+- Drop flake-utils, add formatter (#992)
+
+### New Contributors
+* @faukah made their first contribution in [#992](https://github.com/skim-rs/skim/pull/992)
+
 ## [3.5.0] - 2026-02-22
 
 ### 🚀 Features
