@@ -45,7 +45,7 @@ derive_builder = "=0.20.2"
 env_logger = { version = "=0.11.9", optional = true, features = ["humantime"] }
 indexmap = "=2.13.0"
 log = "=0.4.29"
-nix = { version = "=0.31.1", features = ["fs", "poll"] }
+nix = { version = "=0.31.2", features = ["fs", "poll"] }
 rand = "=0.10.0"
 rayon = "=1.11.0"
 regex = "=1.12.3"
