@@ -24,6 +24,10 @@
 #   ./bench.sh -g testdata.txt -n 2000000         # Generate file and exit
 
 set -e
+
+# Send all non-final output to stderr. Save original stdout on fd 3 so we can
+# restore it later for the final results which should go to stdout.
+exec 3>&1 1>&2
 export SHELL="/bin/sh"
 unset HISTFILE
 
@@ -35,6 +39,37 @@ RUNS=1
 INPUT_FILE=""
 GENERATE_FILE=""
 EXTRA_ARGS=""
+JSON=0
+
+# Print unified JSON result. Expects the aggregate variables to be set:
+# AVG_MATCHED, MIN_MATCHED, MAX_MATCHED,
+# AVG_TIME, MIN_TIME, MAX_TIME,
+# AVG_RATE, MIN_RATE, MAX_RATE,
+# AVG_MEM, MIN_MEM, MAX_MEM (use string "null" when not measured)
+# AVG_CPU, MIN_CPU, MAX_CPU (use string "null" when not measured)
+print_json() {
+	printf '{'
+	printf '"num_items":%s,' "$NUM_ITEMS"
+	printf '"runs":%s,' "$RUNS"
+	printf '"completed_runs":%s,' "$COMPLETED_COUNT"
+	printf '"items_matched":{"avg":%s,"min":%s,"max":%s},' "$AVG_MATCHED" "$MIN_MATCHED" "$MAX_MATCHED"
+	printf '"time_s":{"avg":%s,"min":%s,"max":%s},' "$AVG_TIME" "$MIN_TIME" "$MAX_TIME"
+	printf '"items_per_second":{"avg":%s,"min":%s,"max":%s},' "$AVG_RATE" "$MIN_RATE" "$MAX_RATE"
+
+	if [ "$AVG_MEM" = "null" ] || [ "$MIN_MEM" = "null" ] || [ "$MAX_MEM" = "null" ]; then
+		printf '"peak_memory_kb":{"avg":null,"min":null,"max":null},'
+	else
+		printf '"peak_memory_kb":{"avg":%s,"min":%s,"max":%s},' "$AVG_MEM" "$MIN_MEM" "$MAX_MEM"
+	fi
+
+	if [ "$AVG_CPU" = "null" ] || [ "$MIN_CPU" = "null" ] || [ "$MAX_CPU" = "null" ]; then
+		printf '"peak_cpu":{"avg":null,"min":null,"max":null}'
+	else
+		printf '"peak_cpu":{"avg":%s,"min":%s,"max":%s}' "$AVG_CPU" "$MIN_CPU" "$MAX_CPU"
+	fi
+
+	printf '}\n'
+}
 
 # Parse arguments
 ARGS=()
@@ -74,6 +109,9 @@ while [ $i -lt ${#ARGS[@]} ]; do
 	-g | --generate-file)
 		i=$((i + 1))
 		GENERATE_FILE="${ARGS[$i]}"
+		;;
+	-j | --json)
+		JSON=1
 		;;
 	-*)
 		echo "Unknown option: $arg" >&2
@@ -193,18 +231,23 @@ for RUN in $(seq 1 $RUNS); do
 	# Record start time
 	START=$(date +%s%N)
 
-	# Wait a bit for skim to actually start
-	sleep 0.2
-
-	# Find skim PID for resource monitoring
+	# Find skim PID for resource monitoring.
+	# We combine -P (parent = tmux pane shell) with -f (full cmdline contains
+	# BINARY_PATH) so that transient children like direnv that run before sk
+	# are ignored.  Using -P avoids the self-match problem of plain pgrep -f
+	# (where the pgrep invocation's own argv would contain BINARY_PATH).
+	TMUX_PANE_PID=$(tmux list-panes -t "$SESSION_NAME" -F '#{pane_pid}' 2>/dev/null || echo "")
 	SK_PID=""
-	for i in 1 2 3 4 5; do
-		sleep 0.5
-		SK_PID=$(pgrep -lf "$BINARY_PATH" | grep -E "sk|fzf" | head -1 | cut -d' ' -f1)
-		if [ -n "$SK_PID" ]; then
-			break
-		fi
-	done
+	MONITOR_LOG=""
+	if [ -n "$TMUX_PANE_PID" ]; then
+		for i in $(seq 1 50); do
+			sleep 0.1
+			SK_PID=$(pgrep -P "$TMUX_PANE_PID" -f "$BINARY_PATH" 2>/dev/null | head -1)
+			if [ -n "$SK_PID" ]; then
+				break
+			fi
+		done
+	fi
 
 	if [ -n "$SK_PID" ]; then
 		# Start background monitoring of CPU and RAM
@@ -227,7 +270,7 @@ for RUN in $(seq 1 $RUNS); do
 					fi
 				fi
 				echo "$MEM $CPU" >>"$MONITOR_LOG"
-				sleep 0.1
+				sleep 0.05
 			done
 			echo "PEAK:$PEAK_MEM:$PEAK_CPU" >>"$MONITOR_LOG"
 		) &
@@ -236,23 +279,38 @@ for RUN in $(seq 1 $RUNS); do
 		MONITOR_PID=""
 	fi
 
-	# Monitor for matcher completion by checking status line
-	# Wait for matched count to stabilize for 10 seconds to ensure matching is truly complete
+	# Monitor for matcher completion by checking the tmux status line.
+	# We consider matching done when:
+	#   (a) total ingested == NUM_ITEMS, AND
+	#   (b) the matched count has been stable for REQUIRED_STABLE_DURATION_NS.
+	# We also bail out early if skim has exited (tmux pane gone / SK_PID dead).
 	COMPLETED=0
 	MATCHED_COUNT=0
 	TOTAL_INGESTED=0
 	PREV_MATCHED_COUNT=-1
 	STABLE_START_TIME=0
-	REQUIRED_STABLE_DURATION_NS=10000000000 # 10 seconds in nanoseconds
-	MAX_WAIT=60
-	CHECK_INTERVAL=0.05 # 50ms for <0.05s precision
-	ELAPSED_CHECKS=0
-	MAX_CHECKS=$((MAX_WAIT * 20)) # 60 seconds * 20 checks per second = 1200 checks
+	REQUIRED_STABLE_DURATION_NS=5000000000 # 5 seconds in nanoseconds
+	MAX_WAIT_NS=$((60 * 1000000000))       # 60-second hard timeout
+	CHECK_INTERVAL=0.05                    # 50 ms between checks
 	END=0
+	LOOP_START=$(date +%s%N)
 
-	while [ $ELAPSED_CHECKS -lt $MAX_CHECKS ]; do
+	while true; do
 		sleep $CHECK_INTERVAL
-		ELAPSED_CHECKS=$((ELAPSED_CHECKS + 1))
+
+		# Hard timeout: give up after MAX_WAIT_NS regardless
+		NOW=$(date +%s%N)
+		if [ $((NOW - LOOP_START)) -ge $MAX_WAIT_NS ]; then
+			break
+		fi
+
+		# Early-exit: if the skim process has exited, stop waiting.
+		# We only break on a dead PID — the pane-child fallback is removed
+		# because transient pre-sk processes (e.g. direnv) would trigger it
+		# falsely before sk has even launched.
+		if [ -n "$SK_PID" ] && ! kill -0 "$SK_PID" 2>/dev/null; then
+			break
+		fi
 
 		# Capture and check status using bench.sh's method
 		tmux capture-pane -b "status-$SESSION_NAME" -t "$SESSION_NAME" 2>/dev/null || true
@@ -260,7 +318,6 @@ for RUN in $(seq 1 $RUNS); do
 
 		if [ -f "$STATUS_FILE" ]; then
 			# Skim status line format is typically: "  > query  matched/total"
-			# We need to find the last occurrence of the pattern matched/total
 			# The first number is matched items, second is total ingested items
 			STATUS_LINE=$(grep -oE '[0-9]+/[0-9]+' "$STATUS_FILE" 2>/dev/null | head -1 || echo "")
 			if [ -n "$STATUS_LINE" ]; then
@@ -269,22 +326,17 @@ for RUN in $(seq 1 $RUNS); do
 
 				# Check if ingestion is complete
 				if [ "$TOTAL_INGESTED" = "$NUM_ITEMS" ]; then
-					# Check if matched count has changed
 					if [ "$MATCHED_COUNT" != "$PREV_MATCHED_COUNT" ]; then
-						# Count changed, reset stability timer and mark end time
+						# Count changed: reset stability timer and record candidate end time
 						PREV_MATCHED_COUNT=$MATCHED_COUNT
 						STABLE_START_TIME=$(date +%s%N)
 						END=$STABLE_START_TIME
-					else
-						# Count is same as before, check if we've been stable long enough
-						if [ $STABLE_START_TIME -gt 0 ]; then
-							CURRENT_TIME=$(date +%s%N)
-							STABLE_NS=$((CURRENT_TIME - STABLE_START_TIME))
-
-							if [ $STABLE_NS -ge $REQUIRED_STABLE_DURATION_NS ]; then
-								COMPLETED=1
-								break
-							fi
+					elif [ $STABLE_START_TIME -gt 0 ]; then
+						# Count unchanged: check if stable long enough
+						CURRENT_TIME=$(date +%s%N)
+						if [ $((CURRENT_TIME - STABLE_START_TIME)) -ge $REQUIRED_STABLE_DURATION_NS ]; then
+							COMPLETED=1
+							break
 						fi
 					fi
 				fi
@@ -313,14 +365,19 @@ for RUN in $(seq 1 $RUNS); do
 	ELAPSED_SEC=$(awk "BEGIN {printf \"%.3f\", $ELAPSED_NS / 1000000000}")
 	RATE=$(awk "BEGIN {printf \"%.0f\", $NUM_ITEMS / $ELAPSED_SEC}")
 
-	# Extract peak CPU and RAM usage
-	PEAK_MEM=0
-	PEAK_CPU=0
-	if [ -n "$MONITOR_PID" ] && [ -f "$MONITOR_LOG" ]; then
+	# Extract peak CPU and RAM usage.
+	# Use empty string as sentinel for "not measured" so that averaging logic
+	# can skip these runs rather than treating 0 as a valid sample.
+	PEAK_MEM=""
+	PEAK_CPU=""
+	if [ -n "$MONITOR_PID" ] && [ -n "$MONITOR_LOG" ] && [ -f "$MONITOR_LOG" ]; then
 		PEAK_LINE=$(grep "^PEAK:" "$MONITOR_LOG" 2>/dev/null || echo "")
 		if [ -n "$PEAK_LINE" ]; then
 			PEAK_MEM=$(echo "$PEAK_LINE" | cut -d: -f2)
 			PEAK_CPU=$(echo "$PEAK_LINE" | cut -d: -f3)
+			# Treat 0 as "not measured" (monitor never sampled anything meaningful)
+			[ "$PEAK_MEM" = "0" ] && PEAK_MEM=""
+			[ "$PEAK_CPU" = "0" ] && PEAK_CPU=""
 		fi
 		rm -f "$MONITOR_LOG"
 	fi
@@ -342,94 +399,112 @@ for RUN in $(seq 1 $RUNS); do
 		echo "Items matched: $MATCHED_COUNT / $NUM_ITEMS"
 		echo "Total time: ${ELAPSED_SEC}s"
 		echo "Items/second: ${RATE}"
-		if [ -n "$PEAK_MEM" ] && [ "$PEAK_MEM" -gt 0 ]; then
+		if [ -n "$PEAK_MEM" ]; then
 			echo "Peak memory usage: $((PEAK_MEM / 1024)) MB"
+		fi
+		if [ -n "$PEAK_CPU" ]; then
 			echo "Peak CPU usage: ${PEAK_CPU}%"
 		fi
 	fi
 done
 
-# Calculate and display average results
+echo "Completed runs: $COMPLETED_COUNT / $RUNS"
+
+# Calculate averages
+AVG_TIME=$(awk -v times="${ELAPSED_TIMES[*]}" 'BEGIN {
+n = split(times, arr, " ")
+sum = 0
+for (i = 1; i <= n; i++) sum += arr[i]
+printf "%.3f", sum / n
+}')
+
+AVG_RATE=$(awk -v rates="${RATES[*]}" 'BEGIN {
+n = split(rates, arr, " ")
+sum = 0
+for (i = 1; i <= n; i++) sum += arr[i]
+printf "%.0f", sum / n
+}')
+
+AVG_MATCHED=$(awk -v counts="${MATCHED_COUNTS[*]}" 'BEGIN {
+n = split(counts, arr, " ")
+sum = 0
+for (i = 1; i <= n; i++) sum += arr[i]
+printf "%.0f", sum / n
+}')
+
+AVG_MEM=$(awk -v mems="${PEAK_MEMS[*]}" 'BEGIN {
+n = split(mems, arr, " ")
+sum = 0
+count = 0
+for (i = 1; i <= n; i++) {
+    if (arr[i] != "" && arr[i] + 0 > 0) {
+        sum += arr[i]
+        count++
+    }
+}
+if (count > 0) printf "%.0f", sum / count
+else print ""
+}')
+
+AVG_CPU=$(awk -v cpus="${PEAK_CPUS[*]}" 'BEGIN {
+n = split(cpus, arr, " ")
+sum = 0
+count = 0
+for (i = 1; i <= n; i++) {
+    if (arr[i] != "" && arr[i] + 0 > 0) {
+        sum += arr[i]
+        count++
+    }
+}
+if (count > 0) printf "%.1f", sum / count
+else print ""
+}')
+
+# Calculate min/max for several metrics so we can show them alongside averages
+read -r MIN_TIME MAX_TIME <<<"$(awk -v times="${ELAPSED_TIMES[*]}" 'BEGIN { n=split(times,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.3f %.3f", min, max }')"
+read -r MIN_RATE MAX_RATE <<<"$(awk -v rates="${RATES[*]}" 'BEGIN { n=split(rates,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.0f %.0f", min, max }')"
+read -r MIN_MATCHED MAX_MATCHED <<<"$(awk -v counts="${MATCHED_COUNTS[*]}" 'BEGIN { n=split(counts,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.0f %.0f", min, max }')"
+
+# For memory and CPU, ignore empty/zero entries (meaning not measured).
+# Output is empty string when no run was measured, so that downstream null
+# checks work correctly.
+read -r MIN_MEM MAX_MEM <<<"$(awk -v mems="${PEAK_MEMS[*]}" 'BEGIN { n=split(mems,a," "); min=1e18; max=0; found=0; for(i=1;i<=n;i++){ if(a[i] != "" && a[i]+0 > 0){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; found=1 } } if(found) printf "%.0f %.0f", min, max; else print "" }')"
+read -r MIN_CPU MAX_CPU <<<"$(awk -v cpus="${PEAK_CPUS[*]}" 'BEGIN { n=split(cpus,a," "); min=1e18; max=0; found=0; for(i=1;i<=n;i++){ if(a[i] != "" && a[i]+0 > 0){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; found=1 } } if(found) printf "%.1f %.1f", min, max; else print "" }')"
+
+# Restore stdout for final results and display them on stdout
 echo ""
-echo "=== Results ==="
+exec 1>&3 3>&-
 
-if [ $RUNS -gt 1 ]; then
-	echo "Completed runs: $COMPLETED_COUNT / $RUNS"
-
-	# Calculate averages
-	AVG_TIME=$(awk -v times="${ELAPSED_TIMES[*]}" 'BEGIN {
-        n = split(times, arr, " ")
-        sum = 0
-        for (i = 1; i <= n; i++) sum += arr[i]
-        printf "%.3f", sum / n
-    }')
-
-	AVG_RATE=$(awk -v rates="${RATES[*]}" 'BEGIN {
-        n = split(rates, arr, " ")
-        sum = 0
-        for (i = 1; i <= n; i++) sum += arr[i]
-        printf "%.0f", sum / n
-    }')
-
-	AVG_MATCHED=$(awk -v counts="${MATCHED_COUNTS[*]}" 'BEGIN {
-        n = split(counts, arr, " ")
-        sum = 0
-        for (i = 1; i <= n; i++) sum += arr[i]
-        printf "%.0f", sum / n
-    }')
-
-	AVG_MEM=$(awk -v mems="${PEAK_MEMS[*]}" 'BEGIN {
-        n = split(mems, arr, " ")
-        sum = 0
-        count = 0
-        for (i = 1; i <= n; i++) {
-            if (arr[i] > 0) {
-                sum += arr[i]
-                count++
-            }
-        }
-        if (count > 0) printf "%.0f", sum / count
-        else print "0"
-    }')
-
-	AVG_CPU=$(awk -v cpus="${PEAK_CPUS[*]}" 'BEGIN {
-        n = split(cpus, arr, " ")
-        sum = 0
-        count = 0
-        for (i = 1; i <= n; i++) {
-            if (arr[i] > 0) {
-                sum += arr[i]
-                count++
-            }
-        }
-        if (count > 0) printf "%.1f", sum / count
-        else print "0"
-    }')
-
-	# Calculate min/max for several metrics so we can show them alongside averages
-	read -r MIN_TIME MAX_TIME <<<"$(awk -v times="${ELAPSED_TIMES[*]}" 'BEGIN { n=split(times,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.3f %.3f", min, max }')"
-	read -r MIN_RATE MAX_RATE <<<"$(awk -v rates="${RATES[*]}" 'BEGIN { n=split(rates,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.0f %.0f", min, max }')"
-	read -r MIN_MATCHED MAX_MATCHED <<<"$(awk -v counts="${MATCHED_COUNTS[*]}" 'BEGIN { n=split(counts,a," "); min=a[1]; max=a[1]; for(i=1;i<=n;i++){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; } printf "%.0f %.0f", min, max }')"
-
-	# For memory and CPU, ignore zero entries (meaning not measured)
-	read -r MIN_MEM MAX_MEM <<<"$(awk -v mems="${PEAK_MEMS[*]}" 'BEGIN { n=split(mems,a," "); min=1e18; max=0; found=0; for(i=1;i<=n;i++){ if(a[i] > 0){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; found=1 } } if(found) printf "%.0f %.0f", min, max; else print "0 0" }')"
-	read -r MIN_CPU MAX_CPU <<<"$(awk -v cpus="${PEAK_CPUS[*]}" 'BEGIN { n=split(cpus,a," "); min=1e18; max=0; found=0; for(i=1;i<=n;i++){ if(a[i] > 0){ if(a[i]<min) min=a[i]; if(a[i]>max) max=a[i]; found=1 } } if(found) printf "%.1f %.1f", min, max; else print "0 0" }')"
+# If JSON output requested, emit a single-line JSON object and exit
+if [ "$JSON" -eq 1 ]; then
+	# Ensure numeric defaults
+	AVG_MEM=${AVG_MEM:-"null"}
+	MIN_MEM=${MIN_MEM:-"null"}
+	MAX_MEM=${MAX_MEM:-"null"}
+	AVG_CPU=${AVG_CPU:-"null"}
+	MIN_CPU=${MIN_CPU:-"null"}
+	MAX_CPU=${MAX_CPU:-"null"}
+	printf '{'
+	printf '"num_items":%s,' "$NUM_ITEMS"
+	printf '"runs":%s,' "$RUNS"
+	printf '"completed_runs":%s,' "$COMPLETED_COUNT"
+	printf '"items_matched":{"avg":%s,"min":%s,"max":%s},' "$AVG_MATCHED" "$MIN_MATCHED" "$MAX_MATCHED"
+	printf '"time_s":{"avg":%s,"min":%s,"max":%s},' "$AVG_TIME" "$MIN_TIME" "$MAX_TIME"
+	printf '"items_per_second":{"avg":%s,"min":%s,"max":%s},' "$AVG_RATE" "$MIN_RATE" "$MAX_RATE"
+	printf '"peak_memory_kb":{"avg":%s,"min":%s,"max":%s},' "$AVG_MEM" "$MIN_MEM" "$MAX_MEM"
+	printf '"peak_cpu":{"avg":%s,"min":%s,"max":%s}' "$AVG_CPU" "$MIN_CPU" "$MAX_CPU"
+	printf '}\n'
+	exit 0
+else
+	echo "=== Results ==="
 
 	echo "Average items matched: $AVG_MATCHED / $NUM_ITEMS (min: $MIN_MATCHED, max: $MAX_MATCHED)"
 	echo "Average time: ${AVG_TIME}s (min: ${MIN_TIME}s, max: ${MAX_TIME}s)"
 	echo "Average items/second: ${AVG_RATE} (min: ${MIN_RATE}, max: ${MAX_RATE})"
-	if [ "$AVG_MEM" != "0" ] && [ -n "$AVG_MEM" ]; then
+	if [ -n "$AVG_MEM" ]; then
 		echo "Average peak memory usage: $((AVG_MEM / 1024)) MB (min: $((MIN_MEM / 1024)) MB, max: $((MAX_MEM / 1024)) MB)"
-		echo "Average peak CPU usage: ${AVG_CPU}% (min: ${MIN_CPU}%, max: ${MAX_CPU}%)"
 	fi
-else
-	# Single run - display results
-	echo "Status: $(if [ $COMPLETED_COUNT -eq 1 ]; then echo 'COMPLETED'; else echo 'TIMEOUT'; fi)"
-	echo "Items matched: ${MATCHED_COUNTS[0]} / $NUM_ITEMS"
-	echo "Total time: ${ELAPSED_TIMES[0]}s"
-	echo "Items/second: ${RATES[0]}"
-	if [ "${PEAK_MEMS[0]}" != "0" ] && [ -n "${PEAK_MEMS[0]}" ]; then
-		echo "Peak memory usage: $((${PEAK_MEMS[0]} / 1024)) MB"
-		echo "Peak CPU usage: ${PEAK_CPUS[0]}%"
+	if [ -n "$AVG_CPU" ]; then
+		echo "Average peak CPU usage: ${AVG_CPU}% (min: ${MIN_CPU}%, max: ${MAX_CPU}%)"
 	fi
 fi
