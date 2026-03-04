@@ -66,9 +66,20 @@ impl ColorTheme {
     }
 
     fn none() -> Self {
+        let def = Style::default();
         Self {
             spinner: Style::default().bold(),
-            ..ColorTheme::default()
+            normal: def,
+            matched: def,
+            current: def,
+            current_match: def,
+            query: def,
+            info: def,
+            prompt: def,
+            cursor: def,
+            selected: def,
+            header: def,
+            border: def,
         }
     }
 
