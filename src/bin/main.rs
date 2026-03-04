@@ -31,14 +31,17 @@ fn main() -> Result<()> {
         e.exit();
     });
     color_eyre::install()?;
-    let log_target = if let Some(ref log_file) = opts.log_file {
-        env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
-    } else {
-        env_logger::Target::Stdout
-    };
-    env_logger::builder()
-        .target(log_target)
-        .format(|buf, record| {
+    {
+        let target = if let Some(ref log_file) = opts.log_file.as_ref().or(std::env::var("SKIM_LOG_FILE").ok().as_ref())
+        {
+            env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
+        } else {
+            env_logger::Target::Stdout
+        };
+
+        let env_var = "SKIM_LOG";
+
+        let format = |buf: &mut env_logger::fmt::Formatter, record: &log::Record<'_>| {
             writeln!(
                 buf,
                 "[{} {} {} ({}:{})] [{}/{:?}] {}",
@@ -51,8 +54,23 @@ fn main() -> Result<()> {
                 std::thread::current().id(),
                 record.args()
             )
-        })
-        .init();
+        };
+
+        if let Some(level) = opts.log_level {
+            env_logger::builder()
+                .filter_level(level)
+                .parse_env(env_var)
+                .target(target)
+                .format(format)
+                .init();
+        } else {
+            env_logger::builder()
+                .parse_env(env_var)
+                .target(target)
+                .format(format)
+                .init();
+        };
+    }
     // Build the options after setting the log target
     opts = opts.build();
     trace!("Command line: {:?}", std::env::args());

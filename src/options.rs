@@ -757,6 +757,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
     pub tmux: Option<String>,
 
+    /// Set the log level
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
+    pub log_level: Option<log::LevelFilter>,
+
     /// Pipe log output to a file
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub log_file: Option<String>,
@@ -1100,6 +1104,7 @@ impl Default for SkimOptions {
             #[cfg(feature = "cli")]
             shell_bindings: false,
             flags: Default::default(),
+            log_level: Default::default(),
         }
     }
 }
