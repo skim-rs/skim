@@ -79,8 +79,8 @@ pub enum Event {
     Redraw,
     /// Reload with a new command
     Reload(String),
-    /// Resize the widgets
-    Resize,
+    /// Terminal was resized to (columns, rows)
+    Resize(u16, u16),
 }
 
 /// Actions that can be performed in skim

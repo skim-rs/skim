@@ -191,8 +191,8 @@ where
                         Some(Ok(crossterm::event::Event::Mouse(mouse))) => {
                           _ = event_tx_clone.try_send(Event::Mouse(mouse));
                         }
-                        Some(Ok(crossterm::event::Event::Resize(_, _))) => {
-                          _ = event_tx_clone.try_send(Event::Resize);
+                        Some(Ok(crossterm::event::Event::Resize(cols, rows))) => {
+                          _ = event_tx_clone.try_send(Event::Resize(cols, rows));
                           _ = event_tx_clone.try_send(Event::Render);
                         }
                         Some(Err(e)) => {

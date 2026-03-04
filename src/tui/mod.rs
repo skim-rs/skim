@@ -22,6 +22,8 @@ pub mod header;
 mod input;
 /// Item list display and management
 pub mod item_list;
+/// Pre-computed widget layout areas
+pub mod layout;
 /// TUI-specific options and configuration
 pub mod options;
 mod preview;

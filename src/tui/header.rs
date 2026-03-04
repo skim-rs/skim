@@ -29,6 +29,10 @@ pub struct Header {
     pub header: String,
     /// Dynamic header lines from input (from --header-lines option)
     pub header_lines: Vec<Arc<dyn SkimItem>>,
+    /// Fixed number of rows reserved for dynamic header lines (`--header-lines`).
+    /// This is set once from the option and never changes, so that the layout
+    /// height is stable before the items actually arrive.
+    header_lines_count: u16,
     /// The number of spaces to show before the header
     indent_size: u16,
     theme: Arc<ColorTheme>,
@@ -45,6 +49,7 @@ impl Default for Header {
         Self {
             header: Default::default(),
             header_lines: Vec::new(),
+            header_lines_count: 0,
             indent_size: 0,
             theme: Arc::new(*DEFAULT_THEME),
             border: None,
@@ -60,17 +65,18 @@ impl Header {
         self.theme = theme;
         self
     }
-    /// Gets the header height (number of lines)
+    /// Returns the total height (in rows) reserved for this header widget.
+    ///
+    /// This value is stable at construction time: it is derived purely from
+    /// `options.header` (static text) and `options.header_lines` (reserved-item
+    /// count), so the layout does not shift as items arrive at runtime.
     pub fn height(&self) -> u16 {
         let static_lines = if self.header.is_empty() {
             0
         } else {
-            self.header.lines().count()
+            self.header.lines().count() as u16
         };
-        let dynamic_lines = self.header_lines.len();
-        (static_lines + dynamic_lines)
-            .try_into()
-            .expect("Failed to fit header height into an u16")
+        static_lines + self.header_lines_count
     }
 
     /// Sets the dynamic header lines from input (--header-lines)
@@ -121,6 +127,10 @@ impl SkimWidget for Header {
         Self {
             header: expanded_header,
             header_lines: Vec::new(),
+            header_lines_count: options
+                .header_lines
+                .try_into()
+                .expect("header_lines count overflows u16"),
             indent_size: (options.selector_icon.chars().count() + options.multi_select_icon.chars().count())
                 .try_into()
                 .expect("Failed to fit selector lens into an u16"),
@@ -142,11 +152,27 @@ impl SkimWidget for Header {
         }
         .padding(ratatui::widgets::Padding::left(self.indent_size));
 
+        let content_height = if self.header.is_empty() {
+            0
+        } else {
+            self.header_text().lines.len()
+        } + self.header_lines.len();
+
+        let container_height = if self.border.is_some() {
+            area.height - 2
+        } else {
+            area.height
+        };
+
         // Combine static header with dynamic header_lines
         let mut combined_header = if self.reverse && !self.header.is_empty() {
             self.header_text()
         } else {
-            Text::default()
+            let mut r = Text::default();
+            for _ in 0..(container_height.saturating_sub(content_height.try_into().unwrap())) {
+                r.push_line("");
+            }
+            r
         };
 
         let display_context = DisplayContext {
