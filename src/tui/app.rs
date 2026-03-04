@@ -8,6 +8,7 @@ use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::SkimRender;
 use crate::tui::input::StatusInfo;
+use crate::tui::layout::{AppLayout, LayoutTemplate};
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
@@ -26,7 +27,7 @@ use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::KeyCode::Char;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::widgets::Widget;
 use rayon::ThreadPool;
@@ -108,8 +109,10 @@ pub struct App {
     pub options: SkimOptions,
     /// The command being executed
     pub cmd: String,
-    /// Preview area rectangle for mouse event handling
-    pub preview_area: Option<Rect>,
+    /// Pre-computed layout template built from options; rebuilt when options change.
+    pub layout_template: LayoutTemplate,
+    /// Concrete widget areas for the last rendered frame; updated in `render()`.
+    pub layout: AppLayout,
     /// Last time preview was spawned (for debouncing)
     pub last_preview_spawn: std::time::Instant,
     /// Whether a preview run was debounced and needs to be retried
@@ -123,131 +126,24 @@ impl Widget for &mut App {
         let mut res = SkimRender::default();
         let has_border = self.options.border.is_some();
 
-        // Update header with reserved items (from --header-lines)
-        let reserved_items = self.item_pool.reserved();
-        self.header.set_header_lines(reserved_items);
+        // Update header with reserved items (from --header-lines), then apply
+        // the pre-built template to the current terminal area.  The template
+        // encodes all option-derived constraints so this is a cheap set of
+        // rect splits with no option inspection.
+        self.header.set_header_lines(self.item_pool.reserved());
+        self.layout = self.layout_template.apply(area);
 
-        // Check if header should be shown (either static header or header_lines)
-        let show_header = self.options.header.is_some() || self.options.header_lines > 0;
-
-        // Compute heights early, accounting for borders
-        // Status line is now always part of the input (as title), so we don't allocate separate space for it
-        let heights = if has_border {
-            // With borders: each bordered widget needs +2 height (top + bottom border)
-            WidgetHeights {
-                input: 3, // 1 line content + 2 border (status is shown as title within border)
-                header: if show_header { self.header.height() + 2 } else { 0 },
-            }
-        } else {
-            // Without borders: input needs +1 for status line title above
-            WidgetHeights {
-                input: 1 + if self.options.info == InfoDisplay::Default {
-                    1
-                } else {
-                    0
-                },
-                header: if show_header { self.header.height() } else { 0 },
-            }
-        };
-
-        let remaining_height = heights.input + heights.header;
-
-        // Determine if preview should be split from the root area (for left/right) or from list area (for up/down)
-        let preview_visible = (self.options.preview.is_some() || self.options.preview_fn.is_some())
-            && !self.options.preview_window.hidden;
-
-        // Split preview from root area if it's on left/right
-        let (work_area, preview_area_opt) = if preview_visible {
-            let size = match self.options.preview_window.size {
-                super::Size::Fixed(n) => Constraint::Length(n),
-                super::Size::Percent(n) => Constraint::Percentage(n),
-            };
-            match self.options.preview_window.direction {
-                super::Direction::Left => {
-                    let areas: [_; 2] = Layout::new(Direction::Horizontal, [size, Constraint::Fill(1)]).areas(area);
-                    (areas[1], Some(areas[0]))
-                }
-                super::Direction::Right => {
-                    let areas: [_; 2] = Layout::new(Direction::Horizontal, [Constraint::Fill(1), size]).areas(area);
-                    (areas[0], Some(areas[1]))
-                }
-                super::Direction::Up => {
-                    let areas: [_; 2] = Layout::new(Direction::Vertical, [size, Constraint::Fill(1)]).areas(area);
-                    (areas[1], Some(areas[0]))
-                }
-                super::Direction::Down => {
-                    let areas: [_; 2] = Layout::new(Direction::Vertical, [Constraint::Fill(1), size]).areas(area);
-                    (areas[0], Some(areas[1]))
-                }
-            }
-        } else {
-            (area, None)
-        };
-
-        let [mut list_area, mut remaining_area] = match self.options.layout {
-            TuiLayout::Default | TuiLayout::ReverseList => {
-                Layout::vertical([Constraint::Fill(1), Constraint::Length(remaining_height)]).areas(work_area)
-            }
-            TuiLayout::Reverse => {
-                let mut layout =
-                    Layout::vertical([Constraint::Length(remaining_height), Constraint::Fill(1)]).areas(work_area);
-                layout.reverse();
-                layout
-            }
-        };
-        if show_header {
-            let header_area;
-            [header_area, remaining_area] = match self.options.layout {
-                TuiLayout::Default | TuiLayout::ReverseList => {
-                    Layout::vertical([Constraint::Length(heights.header), Constraint::Fill(1)]).areas(remaining_area)
-                }
-                TuiLayout::Reverse => {
-                    let mut a = Layout::vertical([Constraint::Fill(1), Constraint::Length(heights.header)])
-                        .areas(remaining_area);
-                    a.reverse();
-                    a
-                }
-            };
+        if let Some(header_area) = self.layout.header_area {
             res |= self.header.render(header_area, buf);
         }
 
-        // Render input (status is now shown as its title)
-        let input_area = remaining_area;
-
-        // Render preview if enabled
-        if let Some(preview_area) = preview_area_opt {
-            // Preview was already split at the root level (left/right)
-            self.preview_area = Some(preview_area);
+        if let Some(preview_area) = self.layout.preview_area {
             res |= self.preview.render(preview_area, buf);
-        } else if self.options.preview.is_some() && !self.options.preview_window.hidden {
-            // Preview needs to be split from list area (up/down)
-            let direction = Direction::Vertical;
-            let size = match self.options.preview_window.size {
-                super::Size::Fixed(n) => Constraint::Length(n),
-                super::Size::Percent(n) => Constraint::Percentage(n),
-            };
-            let preview_area = match self.options.preview_window.direction {
-                super::Direction::Down => {
-                    let areas: [_; 2] = Layout::new(direction, [size, Constraint::Fill(1)]).areas(list_area);
-                    list_area = areas[1];
-                    areas[0]
-                }
-                super::Direction::Up => {
-                    let areas: [_; 2] = Layout::new(direction, [Constraint::Fill(1), size]).areas(list_area);
-                    list_area = areas[0];
-                    areas[1]
-                }
-                _ => unreachable!(),
-            };
-            self.preview_area = Some(preview_area);
-            res |= self.preview.render(preview_area, buf);
-        } else {
-            self.preview_area = None;
         }
-        res |= self.item_list.render(list_area, buf);
 
-        // Render the input after the item list so that the status shows correct information
-        // Build status info for the input's title
+        res |= self.item_list.render(self.layout.list_area, buf);
+
+        // Render the input after the item list so that the status shows correct information.
         self.input.status_info = if self.options.info != InfoDisplay::Hidden {
             Some(StatusInfo {
                 total: self.item_pool.len(),
@@ -268,13 +164,12 @@ impl Widget for &mut App {
         } else {
             None
         };
-        res |= self.input.render(input_area, buf);
+        res |= self.input.render(self.layout.input_area, buf);
 
-        // Cursor position needs to account for input border and title
-        // Always +1 for title line (whether bordered or not)
+        // Cursor position needs to account for input border and title.
         self.cursor_pos = (
-            input_area.x + self.input.cursor_pos() + if has_border { 1 } else { 0 },
-            input_area.y
+            self.layout.input_area.x + self.input.cursor_pos() + if has_border { 1 } else { 0 },
+            self.layout.input_area.y
                 + if self.options.layout == TuiLayout::Reverse && self.options.border.is_none() {
                     0
                 } else {
@@ -287,20 +182,17 @@ impl Widget for &mut App {
     }
 }
 
-/// Helper struct to hold computed widget heights
-struct WidgetHeights {
-    input: u16,
-    header: u16,
-}
-
 impl Default for App {
     fn default() -> Self {
         let theme = Arc::new(crate::theme::ColorTheme::default());
         let opts = SkimOptions::default();
+        let header = Header::from_options(&opts, theme.clone());
+        let layout_template = LayoutTemplate::from_options(&opts, header.height());
+        let layout = layout_template.apply(Rect::default());
         Self {
             input: Input::from_options(&opts, theme.clone()),
             preview: Preview::from_options(&opts, theme.clone()),
-            header: Header::from_options(&opts, theme.clone()),
+            header,
             item_list: ItemList::from_options(&opts, theme.clone()),
             thread_pool: Arc::new(
                 rayon::ThreadPoolBuilder::new()
@@ -332,9 +224,10 @@ impl Default for App {
             cmd_history: Vec::new(),
             cmd_history_index: None,
             saved_cmd_input: String::new(),
-            options: SkimOptions::default(),
+            options: opts,
             cmd: String::new(),
-            preview_area: None,
+            layout_template,
+            layout,
             last_preview_spawn: std::time::Instant::now(),
             pending_preview_run: false,
             reader_timer: std::time::Instant::now(),
@@ -344,12 +237,15 @@ impl Default for App {
 }
 
 impl App {
-    /// Creates a new App from skim options
+    /// Creates a new App from skim options.
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
+        let header = Header::from_options(&options, theme.clone());
+        let layout_template = LayoutTemplate::from_options(&options, header.height());
+        let layout = layout_template.apply(Rect::default());
         Self {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
-            header: Header::from_options(&options, theme.clone()),
+            header,
             thread_pool: Arc::new(
                 rayon::ThreadPoolBuilder::new()
                     .num_threads(*NUM_THREADS)
@@ -383,10 +279,22 @@ impl App {
             saved_cmd_input: String::new(),
             options,
             cmd,
-            preview_area: None,
+            layout_template,
+            layout,
             last_preview_spawn: std::time::Instant::now() - std::time::Duration::from_secs(1),
             pending_preview_run: false,
         }
+    }
+
+    /// Rebuild the layout template for the given terminal dimensions.
+    ///
+    /// The template encodes all option-derived constraints; `apply` in render
+    /// is then a cheap set of rect splits with no option inspection.
+    /// Called on `Event::Resize(cols, rows)` and whenever a layout-affecting
+    /// option changes (e.g. `TogglePreview`).
+    pub fn resize(&mut self, cols: u16, rows: u16) {
+        self.layout_template = LayoutTemplate::from_options(&self.options, self.header.height());
+        self.layout = self.layout_template.apply(Rect::new(0, 0, cols, rows));
     }
 }
 
@@ -419,6 +327,10 @@ impl App {
                 .parse::<u16>()
                 .unwrap_or(0)
         }
+    }
+
+    fn needs_render(&mut self) {
+        self.needs_render.store(true, Ordering::Relaxed)
     }
 
     /// Call after items are added or filtered (e.g., Event::NewItem, matcher completes)
@@ -659,7 +571,8 @@ impl App {
             Event::Redraw => {
                 tui.clear()?;
             }
-            Event::Resize => {
+            Event::Resize(cols, rows) => {
+                self.resize(*cols, *rows);
                 if let Err(e) = self.run_preview(tui) {
                     warn!("error while rerunnig preview after resize: {e}");
                 }
@@ -979,21 +892,27 @@ impl App {
             }
             PreviewUp(n) => {
                 self.preview.scroll_up(*n as u16);
+                self.needs_render();
             }
             PreviewDown(n) => {
                 self.preview.scroll_down(*n as u16);
+                self.needs_render();
             }
             PreviewLeft(n) => {
                 self.preview.scroll_left(*n as u16);
+                self.needs_render();
             }
             PreviewRight(n) => {
                 self.preview.scroll_right(*n as u16);
+                self.needs_render();
             }
             PreviewPageUp(_n) => {
                 self.preview.page_up();
+                self.needs_render();
             }
             PreviewPageDown(_n) => {
                 self.preview.page_down();
+                self.needs_render();
             }
             PreviousHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
@@ -1094,6 +1013,9 @@ impl App {
             SetHeader(opt_header) => {
                 self.options.header = opt_header.to_owned();
                 self.header = Header::from_options(&self.options, self.theme.clone());
+                // Rebuild the layout template so that the header area is
+                // included (or excluded) on the next render.
+                self.layout_template = LayoutTemplate::from_options(&self.options, self.header.height());
             }
             SetPreviewCmd(cmd) => {
                 self.options.preview = Some(cmd.to_owned());
@@ -1137,9 +1059,12 @@ impl App {
             }
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
+                self.layout_template = LayoutTemplate::from_options(&self.options, self.header.height());
+                self.needs_render();
             }
             TogglePreviewWrap => {
                 self.preview.wrap = !self.preview.wrap;
+                self.needs_render();
             }
             ToggleSort => {
                 self.options.no_sort = !self.options.no_sort;
@@ -1337,7 +1262,7 @@ impl App {
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
                 // Check if mouse is over preview area
-                if let Some(preview_area) = self.preview_area
+                if let Some(preview_area) = self.layout.preview_area
                     && preview_area.contains(mouse_pos)
                 {
                     // Scroll preview up
@@ -1353,7 +1278,7 @@ impl App {
             }
             MouseEventKind::ScrollDown => {
                 // Check if mouse is over preview area
-                if let Some(preview_area) = self.preview_area
+                if let Some(preview_area) = self.layout.preview_area
                     && preview_area.contains(mouse_pos)
                 {
                     // Scroll preview down
