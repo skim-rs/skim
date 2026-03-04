@@ -5,7 +5,6 @@ use crate::DisplayContext;
 use crate::SkimItem;
 use crate::SkimOptions;
 use crate::theme::ColorTheme;
-use crate::theme::DEFAULT_THEME;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
 use crate::tui::util::char_display_width;
@@ -23,7 +22,7 @@ use std::cmp::max;
 use std::sync::Arc;
 
 /// Header widget for displaying static text above the item list
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Header {
     /// The static header string (from --header option), with expanded tabstop
     pub header: String,
@@ -42,21 +41,6 @@ pub struct Header {
     reverse_lines: bool,
     /// Reverse layout
     reverse: bool,
-}
-
-impl Default for Header {
-    fn default() -> Self {
-        Self {
-            header: Default::default(),
-            header_lines: Vec::new(),
-            header_lines_count: 0,
-            indent_size: 0,
-            theme: Arc::new(*DEFAULT_THEME),
-            border: None,
-            reverse_lines: false,
-            reverse: false,
-        }
-    }
 }
 
 impl Header {

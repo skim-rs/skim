@@ -1,12 +1,7 @@
 //! Handle the color theme
-use std::sync::LazyLock;
-
 use ratatui::style::{Color, Modifier, Style};
 
 use crate::options::SkimOptions;
-
-/// Theme defaults to Dark256
-pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark256);
 
 /// The color scheme of skim's UI
 ///
@@ -19,7 +14,7 @@ pub static DEFAULT_THEME: LazyLock<ColorTheme> = LazyLock::new(ColorTheme::dark2
 /// |> query         |  --> prompt & query
 /// +----------------+
 /// </pre>
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct ColorTheme {
     /// Non-selected lines and general text
     pub normal: Style,
@@ -45,6 +40,13 @@ pub struct ColorTheme {
     pub header: Style,
     /// Border
     pub border: Style,
+}
+
+impl Default for ColorTheme {
+    /// Theme defaults to Dark256
+    fn default() -> Self {
+        ColorTheme::dark256()
+    }
 }
 
 #[allow(dead_code)]
