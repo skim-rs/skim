@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.2] - 2026-03-04
+
+### ⚙️ Miscellaneous Tasks
+
+- Refactor app layout computations to take them out of the hot loop (#996)
+- Allow using flag or env vars for both log level and file
+
 ## [3.6.1] - 2026-03-03
 
 ### ⚙️ Miscellaneous Tasks
