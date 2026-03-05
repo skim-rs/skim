@@ -312,7 +312,7 @@ pub struct Rank {
 }
 
 /// Result of matching a query against an item
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MatchResult {
     /// The rank/score of this match
     pub rank: Rank,

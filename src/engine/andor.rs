@@ -72,7 +72,12 @@ impl AndEngine {
 
     fn merge_matched_items(&self, items: Vec<MatchResult>, text: &str) -> MatchResult {
         let mut ranges = MatchIndices::new();
-        let mut rank = items[0].rank;
+        let mut rank = crate::Rank {
+            score: 0,
+            begin: i32::MAX,
+            end: i32::MIN,
+            ..items[0].rank
+        };
         for item in items {
             match item.matched_range {
                 MatchRange::ByteRange(..) => {
