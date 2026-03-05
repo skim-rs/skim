@@ -53,9 +53,7 @@ impl RankBuilder {
     /// Computes the byte offset of the first character after the last path separator
     /// (`/` or `\`) in `text`.  Returns `0` when no separator is present.
     fn path_name_offset(text: &str) -> i32 {
-        text.rfind(|c| c == '/' || c == '\\')
-            .map(|pos| pos as i32 + 1)
-            .unwrap_or(0)
+        text.rfind(['/', '\\']).map(|pos| pos as i32 + 1).unwrap_or(0)
     }
 
     /// Builds a `Rank` from raw match measurements.

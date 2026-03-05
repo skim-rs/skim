@@ -82,7 +82,7 @@ impl AndEngine {
                     ranges.extend(vec.iter().copied());
                 }
             }
-            rank.score = rank.score.max(item.rank.score);
+            rank.score = rank.score.saturating_add(item.rank.score);
             rank.begin = rank.begin.min(item.rank.begin);
             rank.end = rank.end.max(item.rank.end);
         }

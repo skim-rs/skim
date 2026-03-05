@@ -21,7 +21,7 @@ pub(super) const GAP_OPEN: Score = 6;
 /// Cost to extend a gap by one more character.
 pub(super) const GAP_EXTEND: Score = 2;
 
-pub(super) const TYPO_PENALTY: Score = 8;
+pub(super) const TYPO_PENALTY: Score = 10;
 
 /// Penalty for aligning a pattern char to a different choice char (typos only).
 pub(super) const MISMATCH_PENALTY: Score = 16;

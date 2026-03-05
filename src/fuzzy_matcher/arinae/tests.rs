@@ -396,8 +396,10 @@ fn typo_prefilter_no_false_negative_on_extension() {
 fn use_last_match_prefers_later_occurrence() {
     // "man/man1/sk.1" contains "man" at indices 0..=2 and again at 4..=6.
     // With use_last_match=true, the matcher should highlight the second one.
-    let mut m = ArinaeMatcher::default();
-    m.use_last_match = true;
+    let m = ArinaeMatcher {
+        use_last_match: true,
+        ..Default::default()
+    };
     let (_, got) = m.fuzzy_indices("man/man1/sk.1", "man").expect("should match");
     assert_eq!(got, vec![4, 5, 6], "expected second 'man' (indices 4,5,6), got {got:?}");
 }
