@@ -21,7 +21,7 @@ pub enum Shell {
 }
 
 /// Generate the completion and write it to stdout
-pub fn generate(sh: &Shell) {
+pub fn generate_completions(sh: &Shell) {
     use Shell::*;
     let output = &mut std::io::stdout();
     let cmd = &mut SkimOptions::command();
@@ -39,5 +39,19 @@ pub fn generate(sh: &Shell) {
             Nushell => unreachable!(),
         };
         clap_complete::generate(clap_shell, cmd, bin_name, output)
+    }
+}
+
+/// Generate the key-bindings script and write it to stdout
+pub fn generate_key_bindings(sh: &Shell) {
+    use Shell::*;
+    let binds_script = match sh {
+        Bash => include_str!("../shell/key-bindings.bash"),
+        Zsh => include_str!("../shell/key-bindings.zsh"),
+        Fish => include_str!("../shell/key-bindings.fish"),
+        _ => "",
+    };
+    if !binds_script.is_empty() {
+        println!("{binds_script}");
     }
 }

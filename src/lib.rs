@@ -69,9 +69,9 @@ pub mod tui;
 mod util;
 
 #[cfg(feature = "cli")]
-pub mod completions;
-#[cfg(feature = "cli")]
 pub mod manpage;
+#[cfg(feature = "cli")]
+pub mod shell;
 
 //------------------------------------------------------------------------------
 /// Trait for downcasting to concrete types from trait objects
@@ -306,6 +306,9 @@ pub struct Rank {
     pub length: i32,
     /// Ordinal position of the item in the input stream
     pub index: i32,
+    /// Byte offset of the first character after the last path separator (`/` or `\`).
+    /// Equal to `0` when the item text contains no path separator.
+    pub path_name_offset: i32,
 }
 
 /// Result of matching a query against an item

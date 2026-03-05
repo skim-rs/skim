@@ -71,6 +71,8 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
 pub struct ArinaeMatcher {
     pub(crate) case: CaseMatching,
     pub(crate) allow_typos: bool,
+    pub(crate) use_last_match: bool,
+
     full_buf: ThreadLocal<RefCell<SWMatrix>>,
     indices_buf: ThreadLocal<RefCell<MatchIndices>>,
     #[allow(clippy::type_complexity)]
@@ -80,10 +82,11 @@ pub struct ArinaeMatcher {
 
 impl ArinaeMatcher {
     /// Create a new `ArinaeMatcher` with the given settings.
-    pub fn new(case: CaseMatching, allow_typos: bool) -> Self {
+    pub fn new(case: CaseMatching, allow_typos: bool, use_last_match: bool) -> Self {
         Self {
             case,
             allow_typos,
+            use_last_match,
             ..Default::default()
         }
     }
@@ -106,10 +109,10 @@ impl ArinaeMatcher {
     ) -> Option<(ScoreType, MatchIndices)> {
         #[rustfmt::skip]
         let res = match (self.allow_typos, compute_indices) {
-            (true, true)   => full_dp::<true , true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
-            (true, false)  => full_dp::<true , false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
-            (false, true)  => full_dp::<false, true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
-            (false, false) => full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf),
+            (true, true)   => full_dp::<true , true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf, self.use_last_match),
+            (true, false)  => full_dp::<true , false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf, self.use_last_match),
+            (false, true)  => full_dp::<false, true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf, self.use_last_match),
+            (false, false) => full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf, self.use_last_match),
         };
         res.map(|(s, idx)| (s as ScoreType, idx))
     }
@@ -205,9 +208,9 @@ impl ArinaeMatcher {
             let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
             precompute_bonuses(cho, &mut bonus_buf);
             if self.allow_typos {
-                range_dp::<true, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<true, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf, self.use_last_match)
             } else {
-                range_dp::<false, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<false, _>(cho, pat, &bonus_buf, respect_case, &self.full_buf, self.use_last_match)
             }
         } else {
             let mut bufs = self
@@ -227,9 +230,23 @@ impl ArinaeMatcher {
             let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
             precompute_bonuses(cho_buf, &mut bonus_buf);
             if self.allow_typos {
-                range_dp::<true, _>(cho_buf, pat_buf, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<true, _>(
+                    cho_buf,
+                    pat_buf,
+                    &bonus_buf,
+                    respect_case,
+                    &self.full_buf,
+                    self.use_last_match,
+                )
             } else {
-                range_dp::<false, _>(cho_buf, pat_buf, &bonus_buf, respect_case, &self.full_buf)
+                range_dp::<false, _>(
+                    cho_buf,
+                    pat_buf,
+                    &bonus_buf,
+                    respect_case,
+                    &self.full_buf,
+                    self.use_last_match,
+                )
             }
         };
         range.map(|(s, b, e)| (s as ScoreType, b, e))

@@ -56,7 +56,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_arinae", |b| {
-        let m = ArinaeMatcher::new(CaseMatching::Smart, false);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, false, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -68,7 +68,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_arinae_range", |b| {
-        let m = ArinaeMatcher::new(CaseMatching::Smart, false);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, false, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -80,7 +80,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_arinae_score", |b| {
-        let m = ArinaeMatcher::new(CaseMatching::Smart, false);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, false, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -92,7 +92,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_typos_arinae", |b| {
-        let m = ArinaeMatcher::new(CaseMatching::Smart, true);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, true, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -104,7 +104,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_typos_arinae_range", |b| {
-        let m = ArinaeMatcher::new(CaseMatching::Smart, true);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, true, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {
@@ -116,7 +116,7 @@ fn bench_matcher(c: &mut Criterion) {
         });
     });
     c.bench_function("micro_typos_arinae_score", |b| {
-        let m = ArinaeMatcher::new(CaseMatching::Smart, true);
+        let m = ArinaeMatcher::new(CaseMatching::Smart, true, false);
         b.iter(|| {
             let mut count = 0u64;
             for line in &lines {

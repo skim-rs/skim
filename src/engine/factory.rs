@@ -20,6 +20,7 @@ pub struct ExactOrFuzzyEngineFactory {
     rank_builder: Arc<RankBuilder>,
     typos: Typos,
     filter_mode: bool,
+    last_match: bool,
 }
 
 impl ExactOrFuzzyEngineFactory {
@@ -31,6 +32,7 @@ impl ExactOrFuzzyEngineFactory {
             rank_builder: Default::default(),
             typos: Typos::Disabled,
             filter_mode: false,
+            last_match: false,
         }
     }
 
@@ -65,6 +67,12 @@ impl ExactOrFuzzyEngineFactory {
     /// Sets filter mode (skips per-character match indices for faster matching)
     pub fn filter_mode(mut self, filter_mode: bool) -> Self {
         self.filter_mode = filter_mode;
+        self
+    }
+
+    /// When true, prefer the last (rightmost) occurrence on tied scores
+    pub fn last_match(mut self, last_match: bool) -> Self {
+        self.last_match = last_match;
         self
     }
 
@@ -135,6 +143,7 @@ impl MatchEngineFactory for ExactOrFuzzyEngineFactory {
                     .case(case)
                     .typos(self.typos)
                     .filter_mode(self.filter_mode)
+                    .last_match(self.last_match)
                     .rank_builder(self.rank_builder.clone())
                     .build(),
             )

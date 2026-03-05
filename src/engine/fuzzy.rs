@@ -52,6 +52,8 @@ pub struct FuzzyEngineBuilder {
     /// per-character index computation (useful in filter mode where highlighting
     /// is not needed).
     filter_mode: bool,
+    /// When true, prefer the last (rightmost) occurrence on tied scores.
+    last_match: bool,
 }
 
 impl FuzzyEngineBuilder {
@@ -82,6 +84,11 @@ impl FuzzyEngineBuilder {
 
     pub fn filter_mode(mut self, filter_mode: bool) -> Self {
         self.filter_mode = filter_mode;
+        self
+    }
+
+    pub fn last_match(mut self, last_match: bool) -> Self {
+        self.last_match = last_match;
         self
     }
 
@@ -141,9 +148,7 @@ impl FuzzyEngineBuilder {
                 Box::new(matcher)
             }
             FuzzyAlgorithm::Arinae => {
-                let mut matcher = ArinaeMatcher::default();
-                matcher.case = self.case;
-                matcher.allow_typos = !matches!(self.typos, Typos::Disabled);
+                let matcher = ArinaeMatcher::new(self.case, !matches!(self.typos, Typos::Disabled), self.last_match);
                 debug!("Initialized Arinae algorithm");
                 Box::new(matcher)
             }
@@ -209,11 +214,10 @@ impl MatchEngine for FuzzyEngine {
             }
 
             let (score, begin, end) = best?;
-            let item_len = item_text.len();
             Some(MatchResult {
                 rank: self
                     .rank_builder
-                    .build_rank(score as i32, begin, end, item_len, item.get_index()),
+                    .build_rank(score as i32, begin, end, &item_text, item.get_index()),
                 matched_range: MatchRange::ByteRange(begin, end),
             })
         } else {
@@ -247,13 +251,12 @@ impl MatchEngine for FuzzyEngine {
             let (score, matched_indices) = matched_result?;
             let begin = *matched_indices.first().unwrap_or(&0);
             let end = *matched_indices.last().unwrap_or(&0);
-            let item_len = item_text.len();
             let matched_range = MatchRange::Chars(matched_indices);
 
             Some(MatchResult {
                 rank: self
                     .rank_builder
-                    .build_rank(score as i32, begin, end, item_len, item.get_index()),
+                    .build_rank(score as i32, begin, end, &item_text, item.get_index()),
                 matched_range,
             })
         }

@@ -81,3 +81,23 @@ insta_test!(tiebreak_neg_length, ["aaba", "b", "c", "aba", "ac"], &["--tiebreak=
     @char 'c';
     @snap;
 });
+
+// PathName tiebreak: prefer matches that fall within the filename portion (after the last `/` or `\`)
+// With items "foo/bar", "baz/foo", "foo", typing "foo":
+//   "foo"     → match at begin=0, path_name_offset=0  → score = 0-0 = 0  (best)
+//   "baz/foo" → match at begin=4, path_name_offset=4  → score = 4-4 = 0  (best, tied)
+//   "foo/bar" → match at begin=0, path_name_offset=4  → score = 4-0 = 4  (penalised, match is in dir part)
+// "foo" wins (selected), "baz/foo" second, "foo/bar" last.
+insta_test!(tiebreak_pathname, ["foo/bar", "baz/foo", "foo"], &["--tiebreak=pathname,score"], {
+    @snap;
+    @type "foo";
+    @snap;
+});
+
+// Negative PathName tiebreak: prefer matches in directory components over the filename
+// Typing "foo" should prefer "foo/bar" (match starts in a dir component) when -pathname is used.
+insta_test!(tiebreak_neg_pathname, ["foo/bar", "baz/foo", "foo"], &["--tiebreak=-pathname,score"], {
+    @snap;
+    @type "foo";
+    @snap;
+});

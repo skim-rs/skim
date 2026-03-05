@@ -114,6 +114,7 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
     respect_case: bool,
     full_buf: &ThreadLocal<RefCell<SWMatrix>>,
     indices_buf: &ThreadLocal<RefCell<MatchIndices>>,
+    use_last_match: bool,
 ) -> Option<(Score, MatchIndices)> {
     let n = pat.len();
     let m = cho.len();
@@ -270,14 +271,24 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
     let mut best_score: Score = 0;
     let mut best_j = 0usize; // stored in original 1-indexed space
     {
-        let (last_j_lo, last_j_hi) = if ALLOW_TYPOS {
+        let (last_j_lo_raw, last_j_hi) = if ALLOW_TYPOS {
             typo_vband_row(n, m, banding.bandwidth, banding.j_first)
         } else {
             (row_lo_arr[n - 1], row_hi_arr[n - 1])
         };
-        let last_j_lo = last_j_lo.max(j_start);
-        if last_j_lo <= last_j_hi && last_j_lo <= m {
-            let last_row_ptr = unsafe { base_ptr.add(n * cols) };
+        let last_j_lo = last_j_lo_raw.max(j_start);
+        let last_row_ptr = unsafe { base_ptr.add(n * cols) };
+        if use_last_match {
+            // Iterate left-to-right with `>=` so that every column tying the
+            // running best overwrites best_j — the last (rightmost) tie wins.
+            for j in last_j_lo..=last_j_hi {
+                let jm = j - col_off;
+                let s = unsafe { (*last_row_ptr.add(jm)).score() };
+                let better = s >= best_score && s > 0;
+                best_score = if better { s } else { best_score };
+                best_j = if better { j } else { best_j };
+            }
+        } else {
             for j in last_j_lo..=last_j_hi {
                 let jm = j - col_off;
                 let s = unsafe { (*last_row_ptr.add(jm)).score() };
@@ -360,6 +371,7 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     bonuses: &[Score],
     respect_case: bool,
     full_buf: &ThreadLocal<RefCell<SWMatrix>>,
+    use_last_match: bool,
 ) -> Option<(Score, usize, usize)> {
     let n = pat.len();
     let m = cho.len();
@@ -517,7 +529,14 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
             for j in last_j_lo..=last_j_hi {
                 let jm = j - col_off;
                 let s = unsafe { (*last_row_ptr.add(jm)).score() };
-                let better = s > best_score;
+                // When use_last_match: `>=` keeps overwriting best_j so the
+                // rightmost tied column wins. Otherwise strict `>` means the
+                // leftmost (first) column with the best score wins.
+                let better = if use_last_match {
+                    s >= best_score && s > 0
+                } else {
+                    s > best_score
+                };
                 best_score = if better { s } else { best_score };
                 best_j = if better { j } else { best_j };
             }

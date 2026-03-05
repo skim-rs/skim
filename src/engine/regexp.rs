@@ -68,12 +68,11 @@ impl MatchEngine for RegexEngine {
 
         let (begin, end) = matched_result?;
         let score = (end - begin) as i32;
-        let item_len = item_text.len();
 
         Some(MatchResult {
             rank: self
                 .rank_builder
-                .build_rank(score, begin, end, item_len, item.get_index()),
+                .build_rank(score, begin, end, &item_text, item.get_index()),
             matched_range: MatchRange::ByteRange(begin, end),
         })
     }

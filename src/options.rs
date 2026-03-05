@@ -50,9 +50,24 @@ fn parse_typos(s: &str) -> Result<Typos, String> {
     }
 }
 
+/// The options for `--scheme`
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub enum MatchScheme {
+    /// Default scheme, no modifications to the options
+    #[default]
+    Default,
+    /// Path scheme: will find the furthest match in the item and set `pathname` as the main
+    /// tiebreak
+    Path,
+    /// History scheme: will force `index` as the first tiebreak
+    History,
+}
+
 /// sk - fuzzy finder in Rust
 ///
 /// sk is a general purpose command-line fuzzy finder.
+#[allow(missing_docs)] // derive_builder seems to have issues with doc comments ?
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"), setter(into, strip_option))]
 #[builder(default)]
@@ -226,6 +241,15 @@ pub struct SkimOptions {
         )
     )]
     pub split_match: Option<char>,
+
+    /// Highlight the last match found, not the first one
+    /// This makes tiebreak more pertinent on path items where we want to prioritize a match on the
+    /// last parts
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
+    pub last_match: bool,
+
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Search", default_value = "default"))]
+    scheme: Option<MatchScheme>,
 
     //  --- Interface ---
     /// Comma separated list of bindings
@@ -717,7 +741,7 @@ pub struct SkimOptions {
         feature = "cli",
         arg(long, value_name = "SHELL", help_heading = "Scripting", value_enum)
     )]
-    pub shell: Option<crate::completions::Shell>,
+    pub shell: Option<crate::shell::Shell>,
 
     /// Generate shell key bindings - only for bash, zsh and fish
     ///
@@ -791,9 +815,6 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     phony: bool,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    scheme: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     tail: Option<usize>,
@@ -981,6 +1002,7 @@ impl Default for SkimOptions {
             typos: Typos::Disabled,
             no_typos: false,
             normalize: false,
+            last_match: false,
             bind: Default::default(),
             multi: Default::default(),
             no_multi: Default::default(),
@@ -1156,6 +1178,17 @@ impl SkimOptions {
             && self.query.is_none()
         {
             self.query = Some(filter_query.clone());
+        }
+
+        match self.scheme {
+            None => (),
+            Some(MatchScheme::Default) => (),
+            Some(MatchScheme::Path) => {
+                self.last_match = true;
+                self.tiebreak.insert(0, RankCriteria::PathName);
+                self.tiebreak.insert(0, RankCriteria::Score);
+            }
+            Some(MatchScheme::History) => self.tiebreak.insert(0, RankCriteria::Index),
         }
 
         self

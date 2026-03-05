@@ -1,0 +1,29 @@
+---
+source: tests/tiebreak.rs
+expression: buf + & cursor_pos
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  baz/foo                                                                       "
+"  foo                                                                           "
+"> foo/bar                                                                       "
+"  3/3                                                                        0/0"
+"> foo                                                                           "
+cursor: (24, 6)

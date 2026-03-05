@@ -25,52 +25,54 @@ use std::{env, io};
 
 use skim::prelude::*;
 
+fn init_logger(opts: &SkimOptions) {
+    let target = if let Some(ref log_file) = opts.log_file.as_ref().or(std::env::var("SKIM_LOG_FILE").ok().as_ref()) {
+        env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
+    } else {
+        env_logger::Target::Stdout
+    };
+
+    let env_var = "SKIM_LOG";
+
+    let format = |buf: &mut env_logger::fmt::Formatter, record: &log::Record<'_>| {
+        writeln!(
+            buf,
+            "[{} {} {} ({}:{})] [{}/{:?}] {}",
+            buf.timestamp_nanos(),
+            record.level().as_str(),
+            record.module_path().unwrap_or("sk"),
+            record.file().unwrap_or_default(),
+            record.line().unwrap_or_default(),
+            std::thread::current().name().unwrap_or("?"),
+            std::thread::current().id(),
+            record.args()
+        )
+    };
+
+    if let Some(level) = opts.log_level {
+        env_logger::builder()
+            .filter_level(level)
+            .parse_env(env_var)
+            .target(target)
+            .format(format)
+            .init();
+    } else {
+        env_logger::builder()
+            .parse_env(env_var)
+            .target(target)
+            .format(format)
+            .init();
+    };
+}
+
 //------------------------------------------------------------------------------
 fn main() -> Result<()> {
     let mut opts = SkimOptions::from_env().unwrap_or_else(|e| {
         e.exit();
     });
     color_eyre::install()?;
-    {
-        let target = if let Some(ref log_file) = opts.log_file.as_ref().or(std::env::var("SKIM_LOG_FILE").ok().as_ref())
-        {
-            env_logger::Target::Pipe(Box::new(File::create(log_file).expect("Failed to create log file")))
-        } else {
-            env_logger::Target::Stdout
-        };
+    init_logger(&opts);
 
-        let env_var = "SKIM_LOG";
-
-        let format = |buf: &mut env_logger::fmt::Formatter, record: &log::Record<'_>| {
-            writeln!(
-                buf,
-                "[{} {} {} ({}:{})] [{}/{:?}] {}",
-                buf.timestamp_nanos(),
-                record.level().as_str(),
-                record.module_path().unwrap_or("sk"),
-                record.file().unwrap_or_default(),
-                record.line().unwrap_or_default(),
-                std::thread::current().name().unwrap_or("?"),
-                std::thread::current().id(),
-                record.args()
-            )
-        };
-
-        if let Some(level) = opts.log_level {
-            env_logger::builder()
-                .filter_level(level)
-                .parse_env(env_var)
-                .target(target)
-                .format(format)
-                .init();
-        } else {
-            env_logger::builder()
-                .parse_env(env_var)
-                .target(target)
-                .format(format)
-                .init();
-        };
-    }
     // Build the options after setting the log target
     opts = opts.build();
     trace!("Command line: {:?}", std::env::args());
@@ -78,18 +80,9 @@ fn main() -> Result<()> {
     // Shell completion scripts
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
-        skim::completions::generate(&shell);
+        skim::shell::generate_completions(&shell);
         if opts.shell_bindings {
-            use skim::completions::Shell::*;
-            let binds_script = match &shell {
-                Bash => include_str!("../../shell/key-bindings.bash"),
-                Zsh => include_str!("../../shell/key-bindings.zsh"),
-                Fish => include_str!("../../shell/key-bindings.fish"),
-                _ => "",
-            };
-            if !binds_script.is_empty() {
-                println!("{binds_script}");
-            }
+            skim::shell::generate_key_bindings(&shell);
         }
         return Ok(());
     }

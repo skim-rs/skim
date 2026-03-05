@@ -50,17 +50,26 @@ impl RankBuilder {
         &self.criterion
     }
 
+    /// Computes the byte offset of the first character after the last path separator
+    /// (`/` or `\`) in `text`.  Returns `0` when no separator is present.
+    fn path_name_offset(text: &str) -> i32 {
+        text.rfind(|c| c == '/' || c == '\\')
+            .map(|pos| pos as i32 + 1)
+            .unwrap_or(0)
+    }
+
     /// Builds a `Rank` from raw match measurements.
     ///
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
     /// applied lazily by [`Rank::sort_key`] at comparison time.
-    pub fn build_rank(&self, score: i32, begin: usize, end: usize, length: usize, index: usize) -> Rank {
+    pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str, index: usize) -> Rank {
         Rank {
             score,
             begin: begin as i32,
             end: end as i32,
-            length: length as i32,
+            length: item_text.len() as i32,
             index: index as i32,
+            path_name_offset: Self::path_name_offset(item_text),
         }
     }
 }
@@ -85,6 +94,12 @@ impl Rank {
                 RankCriteria::NegLength => -self.length,
                 RankCriteria::Index => self.index,
                 RankCriteria::NegIndex => -self.index,
+                // PathName: prefer matches that fall within the filename portion (i.e. at or
+                // after the last path separator).  `path_name_offset - begin` is <= 0 when the
+                // match starts inside the filename, and positive when it starts in a directory
+                // component.  Lower values sort first, so filename matches rank higher.
+                RankCriteria::PathName => self.path_name_offset - self.begin,
+                RankCriteria::NegPathName => self.begin - self.path_name_offset,
             };
         }
         key
@@ -452,6 +467,10 @@ pub enum RankCriteria {
     Index,
     /// Sort by item index (reversed)
     NegIndex,
+    /// Give a bonus to matches that are after the last path separator (`/` or `\`)
+    PathName,
+    /// Give a bonus to matches that are after the last path separator (reversed)
+    NegPathName,
 }
 
 #[cfg(feature = "cli")]
@@ -459,7 +478,18 @@ impl ValueEnum for RankCriteria {
     fn value_variants<'a>() -> &'a [Self] {
         use RankCriteria::*;
         &[
-            Score, NegScore, Begin, NegBegin, End, NegEnd, Length, NegLength, Index, NegIndex,
+            Score,
+            NegScore,
+            Begin,
+            NegBegin,
+            End,
+            NegEnd,
+            Length,
+            NegLength,
+            Index,
+            NegIndex,
+            PathName,
+            NegPathName,
         ]
     }
 
@@ -476,6 +506,8 @@ impl ValueEnum for RankCriteria {
             NegLength => PossibleValue::new("-length"),
             Index => PossibleValue::new("index"),
             NegIndex => PossibleValue::new("-index"),
+            PathName => PossibleValue::new("pathname"),
+            NegPathName => PossibleValue::new("-pathname"),
         })
     }
 }
