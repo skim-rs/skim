@@ -19,7 +19,7 @@ pub(super) const CONSECUTIVE_BONUS: Score = 11;
 pub(super) const GAP_OPEN: Score = 6;
 
 /// Cost to extend a gap by one more character.
-pub(super) const GAP_EXTEND: Score = 2;
+pub(super) const GAP_EXTEND: Score = 4;
 
 pub(super) const TYPO_PENALTY: Score = 10;
 

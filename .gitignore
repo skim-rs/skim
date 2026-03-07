@@ -28,5 +28,6 @@ profile.json.gz
 perf.data.old
 perf.data
 flamegraph.svg
+cachegrind.out.*
 
 /scripts/data/
