@@ -78,6 +78,8 @@ pub struct ItemList {
     pub border: Option<BorderType>,
     /// When true, prepend each item's match score to its display text
     pub(crate) print_score: bool,
+    /// When true, highlight the entire current line (not just the matched text)
+    pub(crate) highlight_line: bool,
 }
 
 impl Default for ItemList {
@@ -114,6 +116,7 @@ impl Default for ItemList {
             multiline: None,
             border: None,
             print_score: false,
+            highlight_line: false,
         }
     }
 }
@@ -418,6 +421,7 @@ impl SkimWidget for ItemList {
                 .map(|opt_m| opt_m.unwrap_or(String::from("\\n"))),
             border: options.border,
             print_score: options.flags.contains(&crate::options::FeatureFlag::ShowScore),
+            highlight_line: options.highlight_line,
         }
     }
 
