@@ -141,6 +141,7 @@ show-score\:"Display the item'\''s match score before its value in the item list
 '--no-mouse[Disable mouse]' \
 '-i[Start skim in interactive mode]' \
 '--interactive[Start skim in interactive mode]' \
+'--highlight-line[Highlight the entire current line, not just the text]' \
 '--no-hscroll[Disable horizontal scroll]' \
 '--keep-right[Keep the right end of the line visible on overflow]' \
 '--no-clear-if-empty[Do not clear previous line if the command returns an empty result]' \
@@ -177,7 +178,6 @@ show-score\:"Display the item'\''s match score before its value in the item list
 '--no-bold[]' \
 '--phony[]' \
 '--no-color[]' \
-'--highlight-line[]' \
 '--no-multi-line[]' \
 '--raw[]' \
 '--track[]' \
