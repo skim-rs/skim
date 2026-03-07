@@ -25,7 +25,7 @@ pub(crate) struct ItemRenderer<'a> {
     pub manual_hscroll: i32,
     pub skip_to_pattern: Option<&'a regex::Regex>,
     /// When true, reverse the order of sub-lines within each multiline item
-    /// before appending to the output. Required for BottomToTop list direction
+    /// before appending to the output. Required for `BottomToTop` list direction
     /// so that sub-line 0 appears visually above sub-line 1.
     pub reverse_sub_lines: bool,
     /// When true, fill the rest of the current line with the `current` background color
@@ -65,6 +65,7 @@ impl<'a> ItemRenderer<'a> {
     /// `available_rows` is how many rows remain; rendering stops when exhausted.
     /// Returns the number of rows appended.
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_lines)]
     pub fn render_item(
         &self,
         item: &MatchedItem,
@@ -86,10 +87,10 @@ impl<'a> ItemRenderer<'a> {
         // Match positions for hscroll on the first sub-line.
         let (match_start_char, match_end_char) = match &item.matched_range {
             Some(MatchRange::Chars(indices)) => {
-                if !indices.is_empty() {
-                    (indices[0], indices[indices.len() - 1] + 1)
-                } else {
+                if indices.is_empty() {
                     (0, 0)
+                } else {
+                    (indices[0], indices[indices.len() - 1] + 1)
                 }
             }
             Some(MatchRange::ByteRange(start, end)) => {
@@ -193,7 +194,7 @@ impl<'a> ItemRenderer<'a> {
                     } else {
                         self.theme.normal
                     },
-                    matched_syle: if is_current {
+                    matched_style: if is_current {
                         self.theme.current_match
                     } else {
                         self.theme.matched
@@ -252,7 +253,7 @@ impl<'a> ItemRenderer<'a> {
 
             let mut all_spans: Vec<Span<'static>> = prefix;
             if needs_ellipsis {
-                let ell_width = display_width(self.ellipsis) as usize;
+                let ell_width = usize::try_from(display_width(self.ellipsis)).unwrap();
                 let base_style = if is_current {
                     self.theme.current
                 } else {
@@ -316,7 +317,7 @@ impl<'a> ItemRenderer<'a> {
         if let Some(regex) = self.skip_to_pattern
             && let Some(mat) = regex.find(text)
         {
-            return display_width(&text[..mat.start()]) as usize;
+            return usize::try_from(display_width(&text[..mat.start()])).unwrap();
         }
         0
     }
@@ -330,7 +331,7 @@ impl<'a> ItemRenderer<'a> {
             }
         });
 
-        let ell_w = display_width(self.ellipsis) as usize;
+        let ell_w = usize::try_from(display_width(self.ellipsis)).unwrap();
         let available_width = if self.container_width >= ell_w {
             self.container_width
         } else {
@@ -401,7 +402,7 @@ impl<'a> ItemRenderer<'a> {
         let has_left = shift > 0;
         let has_right = shift + container_width < full_width;
 
-        let ell_w = display_width(self.ellipsis) as usize;
+        let ell_w = usize::try_from(display_width(self.ellipsis)).unwrap();
         let left_w = if has_left { ell_w } else { 0 };
         let right_w = if has_right { ell_w } else { 0 };
         let content_width = container_width.saturating_sub(left_w + right_w);
@@ -442,7 +443,7 @@ impl<'a> ItemRenderer<'a> {
                 }
             }
             current_char_index += span_chars.len();
-            current_width += display_width(span_text) as usize;
+            current_width += usize::try_from(display_width(span_text)).unwrap();
         }
 
         if has_right {

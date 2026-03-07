@@ -6,7 +6,7 @@ use regex::Regex;
 
 use crate::options::feature_flag;
 use crate::{
-    Selector, SkimItem, SkimOptions,
+    Selector, SkimOptions,
     item::MatchedItem,
     spinlock::SpinLock,
     theme::ColorTheme,
@@ -149,7 +149,6 @@ impl ItemList {
         self.showing_stale_items = false;
     }
 
-
     /// Toggles the selection state of the item at the given index
     pub fn toggle_at(&mut self, index: usize) {
         if self.items.is_empty() {
@@ -214,7 +213,7 @@ impl ItemList {
         let reserved = self.reserved;
 
         if rows > 0 {
-            let mut remaining = rows as usize;
+            let mut remaining = rows.unsigned_abs() as usize;
             let mut idx = self.current;
             while remaining > 0 && idx + 1 < total {
                 idx += 1;
@@ -223,7 +222,7 @@ impl ItemList {
             }
             self.current = idx;
         } else {
-            let mut remaining = (-rows) as usize;
+            let mut remaining = rows.unsigned_abs() as usize;
             let mut idx = self.current;
             while remaining > 0 && idx > reserved {
                 let row_count = self.item_row_count(idx);
@@ -453,11 +452,11 @@ impl SkimWidget for ItemList {
         let available_rows = inner_area.height as usize;
 
         // Clamp current to valid range after any item list replacement.
-        if !this.items.is_empty() {
-            this.current = this.current.min(this.items.len() - 1).max(this.reserved);
-        } else {
+        if this.items.is_empty() {
             this.current = 0;
             this.offset = 0;
+        } else {
+            this.current = this.current.min(this.items.len() - 1).max(this.reserved);
         }
 
         if this.current < this.offset {

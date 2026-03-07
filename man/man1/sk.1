@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 3.6.2" 
+.TH sk 1  "sk 4.1.0" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -45,7 +45,33 @@ Comma\-separated list of sort criteria to apply when the scores are tied.
 .br
 
 .br
-[\fIpossible values: \fRscore, \-score, begin, \-begin, end, \-end, length, \-length, index, \-index, pathname, \-pathname]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+score
+.IP \(bu 2
+\-score
+.IP \(bu 2
+begin
+.IP \(bu 2
+\-begin
+.IP \(bu 2
+end
+.IP \(bu 2
+\-end
+.IP \(bu 2
+length
+.IP \(bu 2
+\-length
+.IP \(bu 2
+index
+.IP \(bu 2
+\-index
+.IP \(bu 2
+pathname
+.IP \(bu 2
+\-pathname
+.RE
 .TP
 \fB\-n\fR, \fB\-\-nth\fR \fI<NTH>\fR [default: ]
 Fields to be matched
@@ -79,22 +105,20 @@ Run in exact mode
 \fB\-\-regex\fR
 Start in regex mode instead of fuzzy\-match
 .TP
-\fB\-\-algo\fR \fI<ALGORITHM>\fR [default: skim_v2]
+\fB\-\-algo\fR \fI<ALGORITHM>\fR [default: arinae]
 Fuzzy matching algorithm
 
-skim_v2 Latest skim algorithm, should be better in almost any case
-skim_v1 Legacy skim algorithm
+arinae (ari) Latest algorithm
+`skim_v2` Legacy skim algorithm
 clangd  Used in clangd for keyword completion
-fzy     Algorithm from fzy (https://github.com/jhawthorn/fzy)
+fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
 .br
 
 .br
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-skim_v1: Original skim fuzzy matching algorithm (v1)
-.IP \(bu 2
-skim_v2: Improved skim fuzzy matching algorithm (v2, default)
+skim_v2: Improved skim fuzzy matching algorithm (v2)
 .IP \(bu 2
 clangd: Clangd fuzzy matching algorithm
 .IP \(bu 2
@@ -102,7 +126,7 @@ fzy: Fzy matching algorithm (https://github.com/jhawthorn/fzy)
 .IP \(bu 2
 frizbee: Frizbee matching algorithm, typo resistant
 .IP \(bu 2
-arinae: Arinae: typo\-resistant & natural algorithm
+arinae: Arinae: typo\-resistant & natural algorithm, default
 .RE
 .TP
 \fB\-\-case\fR \fI<CASE>\fR [default: smart]
@@ -122,7 +146,7 @@ ignore: Case\-insensitive matching
 smart: Smart case: case\-insensitive unless query contains uppercase
 .RE
 .TP
-\fB\-\-typos\fR [\fI<TYPOS>\fR] [default: smart]
+\fB\-\-typos\fR [\fI<TYPOS>\fR] [default: disabled]
 Enable typo\-tolerant matching
 
 When passed without a value (\-\-typos), uses adaptive formula (pattern_length / 4). When passed with a value (e.g. \-\-typos=2), uses that exact number as the maximum allowed typos. \-\-typos=0 explicitly disables typo tolerance. Applies to both fzy and frizbee matchers.
@@ -211,7 +235,7 @@ Disable mouse
 \fB\-c\fR, \fB\-\-cmd\fR \fI<CMD>\fR
 Command to invoke dynamically in interactive mode
 
-Will be invoked using sh \-c
+Will be invoked using sh \-c on unix\-like systems and cmd /c on Windows
 .TP
 \fB\-i\fR, \fB\-\-interactive\fR
 Start skim in interactive mode
@@ -359,7 +383,15 @@ Set matching result count display position
 .br
 
 .br
-[\fIpossible values: \fRdefault, inline, hidden]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+default
+.IP \(bu 2
+inline
+.IP \(bu 2
+hidden
+.RE
 .TP
 \fB\-\-no\-info\fR
 Alias for \-\-info=hidden
@@ -382,7 +414,33 @@ Draw borders around the UI components
 .br
 
 .br
-[\fIpossible values: \fRplain, rounded, double, thick, light\-double\-dashed, heavy\-double\-dashed, light\-triple\-dashed, heavy\-triple\-dashed, light\-quadruple\-dashed, heavy\-quadruple\-dashed, quadrant\-inside, quadrant\-outside]
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+plain
+.IP \(bu 2
+rounded
+.IP \(bu 2
+double
+.IP \(bu 2
+thick
+.IP \(bu 2
+light\-double\-dashed
+.IP \(bu 2
+heavy\-double\-dashed
+.IP \(bu 2
+light\-triple\-dashed
+.IP \(bu 2
+heavy\-triple\-dashed
+.IP \(bu 2
+light\-quadruple\-dashed
+.IP \(bu 2
+heavy\-quadruple\-dashed
+.IP \(bu 2
+quadrant\-inside
+.IP \(bu 2
+quadrant\-outside
+.RE
 .TP
 \fB\-\-wrap\fR
 Wrap items in the item list
@@ -400,6 +458,7 @@ Format: `sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
 Depending on the direction, the order and behavior of the sizes varies:
 
 Default: center,50%
+Ignored on Windows
 .SH HISTORY
 .TP
 \fB\-\-history\fR \fI<HISTORY_FILE>\fR
@@ -537,8 +596,6 @@ Generate shell completion script
 Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use)
 
 Supported shells: bash, zsh, fish, powershell, elvish
-
-Note: While PowerShell completions are supported, Windows is not supported for now.
 .br
 
 .br
@@ -902,7 +959,11 @@ It will expand to the corresponding fields, separated by the `\-\-delimiter|\-d`
 .SH "ENVIRONMENT VARIABLES"
 
 .SS SKIM_DEFAULT_COMMAND
-If set, skim will collect items with this command if no input is piped in (defaults to `find .` if not set)
+
+.br
+If set, skim will collect items with this command if no input is piped in.
+.br
+If not set, defaults to `find .` on unix\-like systems and `dir /s /b /A:\-D` on Windows.
 .br
 
 .SS SKIM_DEFAULT_OPTIONS
@@ -1070,4 +1131,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v3.6.2
+v4.1.0

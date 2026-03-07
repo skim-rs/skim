@@ -1166,9 +1166,9 @@ impl SkimOptions {
 
         if let Some(None) = self.multiline {
             if self.read0 {
-                self.multiline = Some(Some(String::from("\n")))
+                self.multiline = Some(Some(String::from("\n")));
             } else {
-                self.multiline = Some(Some(String::from("\\n")))
+                self.multiline = Some(Some(String::from("\\n")));
             }
         }
 
