@@ -76,6 +76,7 @@ portable-pty = "=0.9.0"
 tui-term = "=0.3.2"
 kanal = "=0.1.1"
 mimalloc = { version = "0.1.48", features = ["v3"] }
+gungraun = { version = "0.17.2", optional = true }
 
 [features]
 default = ["cli"]
@@ -83,13 +84,15 @@ default = ["cli"]
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
 # Enable test utilities (e.g., Tui::new_for_test)
 test-utils = []
+# Enable gungraun (Valgrind-based) benchmarks
+gungraun = ["dep:gungraun"]
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["async_tokio"] }
 insta = "1.46"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils"))', 'cfg(coverage, coverage_nightly)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils", "gungraun"))', 'cfg(coverage, coverage_nightly)'] }
 
 [[bench]]
 name = "read_and_match"
@@ -106,3 +109,8 @@ harness = false
 [[bench]]
 name = "matcher_micro"
 harness = false
+
+[[bench]]
+name = "gungraun"
+harness = false
+required-features = ["gungraun"]

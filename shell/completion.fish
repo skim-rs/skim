@@ -8,7 +8,9 @@ end\t''
 length\t''
 -length\t''
 index\t''
--index\t''"
+-index\t''
+pathname\t''
+-pathname\t''"
 complete -c sk -s n -l nth -d 'Fields to be matched' -r
 complete -c sk -l with-nth -d 'Fields to be transformed' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
@@ -23,6 +25,9 @@ ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"
 complete -c sk -l typos -d 'Enable typo-tolerant matching' -r
 complete -c sk -l split-match -d 'Enable split matching and set delimiter' -r
+complete -c sk -l scheme -r -f -a "default\t'Default scheme, no modifications to the options'
+path\t'Path scheme: will find the furthest match in the item and set pathname as the main tiebreak'
+history\t'History scheme: will force index as the first tiebreak'"
 complete -c sk -s b -l bind -d 'Comma separated list of bindings' -r
 complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode' -r
 complete -c sk -s I -d 'Replace replstr with the selected item in commands' -r
@@ -57,6 +62,7 @@ light-quadruple-dashed\t''
 heavy-quadruple-dashed\t''
 quadrant-inside\t''
 quadrant-outside\t''"
+complete -c sk -l multiline -d 'Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)' -r
 complete -c sk -l history -d 'History file' -r
 complete -c sk -l history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l cmd-history -d 'Command history file' -r
@@ -86,7 +92,6 @@ complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable pr
 show-score\t'Display the item\'s match score before its value in the item list (for matcher debugging)'"
 complete -c sk -l hscroll-off -r
 complete -c sk -l jump-labels -r
-complete -c sk -l scheme -r
 complete -c sk -l tail -r
 complete -c sk -l style -r
 complete -c sk -l padding -r
@@ -127,10 +132,12 @@ complete -c sk -s e -l exact -d 'Run in exact mode'
 complete -c sk -l regex -d 'Start in regex mode instead of fuzzy-match'
 complete -c sk -l no-typos -d 'Disable typo-resistant matching'
 complete -c sk -l normalize -d 'Normalize unicode characters'
+complete -c sk -l last-match -d 'Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts'
 complete -c sk -s m -l multi -d 'Enable multiple selection'
 complete -c sk -l no-multi -d 'Disable multiple selection'
 complete -c sk -l no-mouse -d 'Disable mouse'
 complete -c sk -s i -l interactive -d 'Start skim in interactive mode'
+complete -c sk -l highlight-line -d 'Highlight the entire current line, not just the text'
 complete -c sk -l no-hscroll -d 'Disable horizontal scroll'
 complete -c sk -l keep-right -d 'Keep the right end of the line visible on overflow'
 complete -c sk -l no-clear-if-empty -d 'Do not clear previous line if the command returns an empty result'
@@ -164,7 +171,6 @@ complete -c sk -l filepath-word
 complete -c sk -l no-bold
 complete -c sk -l phony
 complete -c sk -l no-color
-complete -c sk -l highlight-line
 complete -c sk -l no-multi-line
 complete -c sk -l raw
 complete -c sk -l track

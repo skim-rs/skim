@@ -17,14 +17,23 @@
           cargo-llvm-cov
           cargo-edit
           git-cliff
+          libclang
+          binutils
           tmux
           rustup
           just
           hyperfine
           uv
+          valgrind
           python313Packages.matplotlib
           python313Packages.requests
         ];
+        shellHook = let
+          pkgs = pkgsFor.${system};
+        in ''
+          export LIBCLANG_PATH="${pkgs.libclang.lib}/lib"
+          export LD_LIBRARY_PATH="${pkgs.valgrind.out}/lib:$LD_LIBRARY_PATH"
+        '';
       };
     });
 
