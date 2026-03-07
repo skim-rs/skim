@@ -385,9 +385,9 @@ Draw borders around the UI components
 Wrap items in the item list
 .TP
 \fB\-\-multiline\fR [\fI<MULTILINE>\fR]
-Split item text into multiple display lines at the given separator character
+Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)
 
-Each item\*(Aqs text will be split on the separator and each part will be displayed as a separate line within that item\*(Aqs row. Defaults to splitting on newlines (\\n) when the flag is present with no value.
+Each item\*(Aqs text will be split on the separator and each part will be displayed as a separate line within that item\*(Aqs row.
 .TP
 \fB\-\-tmux\fR [\fI<TMUX>...\fR]
 Run in a tmux popup
