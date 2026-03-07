@@ -334,6 +334,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub color: Option<String>,
 
+    /// Highlight the entire current line, not just the text
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
+    pub highlight_line: bool,
+
     /// Disable horizontal scroll
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_hscroll: bool,
@@ -844,9 +848,6 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     border_label_pos: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    highlight_line: bool,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     wrap_sign: Option<String>,

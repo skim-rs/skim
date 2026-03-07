@@ -80,6 +80,8 @@ pub struct ItemList {
     /// When true, prepend each item's match score to its display text
     pub(crate) show_score: bool,
     pub(crate) show_index: bool,
+    /// When true, highlight the entire current line (not just the matched text)
+    pub(crate) highlight_line: bool,
 }
 
 impl Default for ItemList {
@@ -117,6 +119,7 @@ impl Default for ItemList {
             border: None,
             show_score: false,
             show_index: false,
+            highlight_line: false,
         }
     }
 }
@@ -424,6 +427,7 @@ impl SkimWidget for ItemList {
             border: options.border,
             show_score: feature_flag!(options, ShowScore),
             show_index: feature_flag!(options, ShowIndex),
+            highlight_line: options.highlight_line,
         }
     }
 

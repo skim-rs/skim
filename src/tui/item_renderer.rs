@@ -1,3 +1,4 @@
+use ratatui::style::Color;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{ListDirection, ListItem};
 use unicode_display_width::width as display_width;
@@ -27,6 +28,8 @@ pub(crate) struct ItemRenderer<'a> {
     /// before appending to the output. Required for BottomToTop list direction
     /// so that sub-line 0 appears visually above sub-line 1.
     pub reverse_sub_lines: bool,
+    /// When true, fill the rest of the current line with the `current` background color
+    pub highlight_line: bool,
 }
 
 impl<'a> ItemRenderer<'a> {
@@ -50,6 +53,7 @@ impl<'a> ItemRenderer<'a> {
             manual_hscroll: list.manual_hscroll,
             skip_to_pattern: list.skip_to_pattern.as_ref(),
             reverse_sub_lines: list.direction == ListDirection::BottomToTop,
+            highlight_line: list.highlight_line,
         }
     }
 
@@ -110,13 +114,26 @@ impl<'a> ItemRenderer<'a> {
 
             // Prefix: cursor icon + selection icon [+ score].
             let mut prefix: Vec<Span<'static>> = Vec::with_capacity(3);
+            // When highlight_line is active for the current item, the line-level style fills the
+            // entire row with the current background. Reset the bg on prefix spans so the
+            // selector/marker columns are not highlighted.
+            let prefix_cursor_style = if self.highlight_line && is_current {
+                self.theme.cursor.bg(self.theme.cursor.bg.unwrap_or(Color::Reset))
+            } else {
+                self.theme.cursor
+            };
+            let prefix_selected_style = if self.highlight_line && is_current {
+                self.theme.selected.bg(self.theme.selected.bg.unwrap_or(Color::Reset))
+            } else {
+                self.theme.selected
+            };
             prefix.push(Span::styled(
                 if is_first && is_current {
                     self.selector_icon.to_owned()
                 } else {
                     str::repeat(" ", self.selector_icon.chars().count())
                 },
-                self.theme.cursor,
+                prefix_cursor_style,
             ));
             prefix.push(Span::styled(
                 if is_first && self.multi_select && is_selected {
@@ -124,7 +141,7 @@ impl<'a> ItemRenderer<'a> {
                 } else {
                     str::repeat(" ", self.multi_select_icon.chars().count())
                 },
-                self.theme.selected,
+                prefix_selected_style,
             ));
             if self.show_score {
                 let score_str = format!("[{}] ", item.rank.score);
@@ -272,7 +289,13 @@ impl<'a> ItemRenderer<'a> {
                 )
                 .into()
             } else {
-                Line::from(all_spans).into()
+                let mut line = Line::from(all_spans);
+                // When highlight_line is enabled, set the line's style to the current theme
+                // so ratatui fills the entire row width with the current background color.
+                if self.highlight_line && is_current {
+                    line = line.style(self.theme.current);
+                }
+                line.into()
             };
 
             item_rows.push(list_item);
