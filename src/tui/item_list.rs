@@ -412,7 +412,10 @@ impl SkimWidget for ItemList {
             multi_select_icon: options.multi_select_icon.clone(),
             cycle: options.cycle,
             wrap: options.wrap_items,
-            multiline: options.multiline.clone(),
+            multiline: options
+                .multiline
+                .clone()
+                .map(|opt_m| opt_m.unwrap_or(String::from("\\n"))),
             border: options.border,
             print_score: options.flags.contains(&crate::options::FeatureFlag::ShowScore),
         }

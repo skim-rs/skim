@@ -551,20 +551,19 @@ pub struct SkimOptions {
     pub wrap_items: bool,
 
     /// Split item text into multiple display lines at the given separator character
+    /// defaults to `\n` if `read0` is set, and `\\n` if not (matching literal `\n` in text)
     ///
     /// Each item's text will be split on the separator and each part will be
     /// displayed as a separate line within that item's row.
-    /// Defaults to splitting on newlines (`\n`) when the flag is present with no value.
     #[cfg_attr(
         feature = "cli",
         arg(
             long = "multiline",
             help_heading = "Display",
-            default_missing_value = "\\n",
             num_args = 0..=1
         )
     )]
-    pub multiline: Option<String>,
+    pub multiline: Option<Option<String>>,
 
     //  --- History ---
     /// History file
@@ -1160,6 +1159,14 @@ impl SkimOptions {
     pub fn build(mut self) -> Self {
         if self.no_height {
             self.height = String::from("100%");
+        }
+
+        if let Some(None) = self.multiline {
+            if self.read0 {
+                self.multiline = Some(Some(String::from("\n")))
+            } else {
+                self.multiline = Some(Some(String::from("\\n")))
+            }
         }
 
         self.keymap = self.bind.iter().fold(KeyMap::default(), |mut res, part| {
