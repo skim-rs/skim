@@ -888,36 +888,36 @@ impl App {
             HalfPageDown(n) => {
                 let offset = i32::from(self.item_list.height) / 2;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 } else {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }
             HalfPageUp(n) => {
                 let offset = i32::from(self.item_list.height) / 2;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 } else {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }
             PageDown(n) => {
                 let offset = i32::from(self.item_list.height);
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 } else {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }
             PageUp(n) => {
                 let offset = i32::from(self.item_list.height);
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 } else {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }

@@ -23,7 +23,7 @@ expression: buf + & cursor_pos
 "                                                                                "
 "                                                                                "
 "                                                                                "
-"> ..aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.."
+"> ...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa..."
 "  1/1                                                                        0/0"
 "> b                                                                             "
 cursor: (24, 4)
