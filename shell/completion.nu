@@ -92,6 +92,7 @@ module completions {
     --header-lines: string    # Number of lines of the input treated as header
     --border: string@"nu-complete sk border" # Draw borders around the UI components
     --wrap                    # Wrap items in the item list
+    --multiline: string       # Split item text into multiple display lines at the given separator character
     --history: string         # History file
     --history-size: string    # Maximum number of query history entries to keep
     --cmd-history: string     # Command history file

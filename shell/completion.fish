@@ -61,6 +61,7 @@ light-quadruple-dashed\t''
 heavy-quadruple-dashed\t''
 quadrant-inside\t''
 quadrant-outside\t''"
+complete -c sk -l multiline -d 'Split item text into multiple display lines at the given separator character' -r
 complete -c sk -l history -d 'History file' -r
 complete -c sk -l history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l cmd-history -d 'Command history file' -r
