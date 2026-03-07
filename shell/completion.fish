@@ -137,6 +137,7 @@ complete -c sk -s m -l multi -d 'Enable multiple selection'
 complete -c sk -l no-multi -d 'Disable multiple selection'
 complete -c sk -l no-mouse -d 'Disable mouse'
 complete -c sk -s i -l interactive -d 'Start skim in interactive mode'
+complete -c sk -l highlight-line -d 'Highlight the entire current line, not just the text'
 complete -c sk -l no-hscroll -d 'Disable horizontal scroll'
 complete -c sk -l keep-right -d 'Keep the right end of the line visible on overflow'
 complete -c sk -l no-clear-if-empty -d 'Do not clear previous line if the command returns an empty result'
@@ -170,7 +171,6 @@ complete -c sk -l filepath-word
 complete -c sk -l no-bold
 complete -c sk -l phony
 complete -c sk -l no-color
-complete -c sk -l highlight-line
 complete -c sk -l no-multi-line
 complete -c sk -l raw
 complete -c sk -l track

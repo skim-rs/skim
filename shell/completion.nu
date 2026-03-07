@@ -63,6 +63,7 @@ module completions {
     --interactive(-i)         # Start skim in interactive mode
     -I: string                # Replace replstr with the selected item in commands
     --color: string           # Set color theme
+    --highlight-line          # Highlight the entire current line, not just the text
     --no-hscroll              # Disable horizontal scroll
     --keep-right              # Keep the right end of the line visible on overflow
     --skip-to-pattern: string # Show the matched pattern at the line start
@@ -140,7 +141,6 @@ module completions {
     --padding: string
     --border-label: string
     --border-label-pos: string
-    --highlight-line
     --wrap-sign: string
     --no-multi-line
     --raw
