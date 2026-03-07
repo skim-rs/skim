@@ -16,8 +16,8 @@ _sk() {
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
 '--min-query-length=[Minimum query length to start showing results]:MIN_QUERY_LENGTH:_default' \
-'*-t+[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
-'*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index)' \
+'*-t+[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index pathname -pathname)' \
+'*--tiebreak=[Comma-separated list of sort criteria to apply when the scores are tied.]:TIEBREAK:(score -score begin -begin end -end length -length index -index pathname -pathname)' \
 '*-n+[Fields to be matched]:NTH:_default' \
 '*--nth=[Fields to be matched]:NTH:_default' \
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
@@ -34,6 +34,9 @@ ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
 '--typos=[Enable typo-tolerant matching]::TYPOS:_default' \
 '--split-match=[Enable split matching and set delimiter]::SPLIT_MATCH:_default' \
+'--scheme=[]:SCHEME:((default\:"Default scheme, no modifications to the options"
+path\:"Path scheme\: will find the furthest match in the item and set pathname as the main tiebreak"
+history\:"History scheme\: will force index as the first tiebreak"))' \
 '*-b+[Comma separated list of bindings]::BIND:_default' \
 '*--bind=[Comma separated list of bindings]::BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
@@ -58,6 +61,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
 '--border=[Draw borders around the UI components]::BORDER:(plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside)' \
+'--multiline=[Split item text into multiple display lines at the given separator character]::MULTILINE:_default' \
 '--history=[History file]:HISTORY_FILE:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
 '--cmd-history=[Command history file]:CMD_HISTORY_FILE:_default' \
@@ -89,7 +93,6 @@ zsh\:"Zsh"))' \
 show-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"))' \
 '--hscroll-off=[]:HSCROLL_OFF:_default' \
 '--jump-labels=[]:JUMP_LABELS:_default' \
-'--scheme=[]:SCHEME:_default' \
 '--tail=[]:TAIL:_default' \
 '--style=[]:STYLE:_default' \
 '--padding=[]:PADDING:_default' \
@@ -131,6 +134,7 @@ show-score\:"Display the item'\''s match score before its value in the item list
 '--regex[Start in regex mode instead of fuzzy-match]' \
 '(--typos --typos)--no-typos[Disable typo-resistant matching]' \
 '--normalize[Normalize unicode characters]' \
+'--last-match[Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts]' \
 '-m[Enable multiple selection]' \
 '--multi[Enable multiple selection]' \
 '(-m --multi)--no-multi[Disable multiple selection]' \
