@@ -493,7 +493,7 @@ pub struct SkimOptions {
     /// The characters used to display truncated lines
     #[cfg_attr(
         feature = "cli",
-        arg(long, hide = true, allow_hyphen_values = true, default_value = "..")
+        arg(long, hide = true, allow_hyphen_values = true, default_value = "...")
     )]
     pub ellipsis: String,
 
@@ -549,6 +549,22 @@ pub struct SkimOptions {
     /// Wrap items in the item list
     #[cfg_attr(feature = "cli", arg(long = "wrap", help_heading = "Display"))]
     pub wrap_items: bool,
+
+    /// Split item text into multiple display lines at the given separator character
+    ///
+    /// Each item's text will be split on the separator and each part will be
+    /// displayed as a separate line within that item's row.
+    /// Defaults to splitting on newlines (`\n`) when the flag is present with no value.
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long = "multiline",
+            help_heading = "Display",
+            default_missing_value = "\\n",
+            num_args = 0..=1
+        )
+    )]
+    pub multiline: Option<String>,
 
     //  --- History ---
     /// History file
@@ -983,6 +999,7 @@ impl Default for SkimOptions {
             split_match: None,
             no_strip_ansi: false,
             wrap_items: false,
+            multiline: None,
             listen: None,
             remote: None,
             print_header: false,

@@ -857,36 +857,36 @@ impl App {
             HalfPageDown(n) => {
                 let offset = self.item_list.height as i32 / 2;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 } else {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 }
                 return self.on_selection_changed();
             }
             HalfPageUp(n) => {
                 let offset = self.item_list.height as i32 / 2;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 } else {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 }
                 return self.on_selection_changed();
             }
             PageDown(n) => {
                 let offset = self.item_list.height as i32;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 } else {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 }
                 return self.on_selection_changed();
             }
             PageUp(n) => {
                 let offset = self.item_list.height as i32;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 } else {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 }
                 return self.on_selection_changed();
             }
