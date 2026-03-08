@@ -11,7 +11,7 @@ use tokio::{runtime::Handle, select, task::block_in_place};
 
 use crate::reader::{Reader, ReaderControl};
 use crate::tui::{App, Event, Size, Tui, event::Action};
-use crate::{SkimItemReceiver, SkimOptions, SkimOutput};
+use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
 
 /// Main entry point for running skim
 pub struct Skim<Backend = ratatui::backend::CrosstermBackend<BufWriter<Stderr>>>
@@ -77,6 +77,28 @@ impl Skim {
         debug!("output: {output:?}");
 
         Ok(output)
+    }
+
+    /// Run skim with a Vec of items
+    pub fn run_items<I, T>(options: SkimOptions, items: I) -> Result<SkimOutput>
+    where
+        I: IntoIterator<Item = T>,
+        T: SkimItem,
+    {
+        const BATCH_SIZE: usize = 1024;
+        let (tx, rx) = crate::prelude::unbounded();
+        let mut batch: Vec<Arc<dyn SkimItem>> = Vec::with_capacity(BATCH_SIZE);
+        for (idx, raw_item) in items.into_iter().enumerate() {
+            if batch.len() == 1024 {
+                tx.send(batch)?;
+                batch = Vec::with_capacity(BATCH_SIZE);
+            }
+            let mut item = crate::prelude::Item::from(raw_item);
+            item.set_index(idx);
+            batch.push(Arc::new(item) as Arc<dyn SkimItem>);
+        }
+        tx.send(batch)?;
+        Self::run_with(options, Some(rx))
     }
 
     /// Initialize the TUI with the default crossterm backend, but do not enter it yet

@@ -97,6 +97,47 @@ impl<T: AsRef<str> + Send + Sync + 'static> SkimItem for T {
     }
 }
 
+/// A basic SkimItem implementation for basic types
+pub struct Item<T: SkimItem> {
+    inner: T,
+    index: usize,
+}
+
+impl<T: SkimItem> SkimItem for Item<T> {
+    fn text(&self) -> Cow<'_, str> {
+        self.inner.text()
+    }
+    fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
+        self.inner.display(context)
+    }
+
+    fn preview(&self, context: PreviewContext) -> ItemPreview {
+        self.inner.preview(context)
+    }
+
+    fn output(&self) -> Cow<'_, str> {
+        self.inner.output()
+    }
+
+    fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
+        self.inner.get_matching_ranges()
+    }
+
+    fn get_index(&self) -> usize {
+        self.index
+    }
+
+    fn set_index(&mut self, index: usize) {
+        self.index = index;
+    }
+}
+
+impl<T: SkimItem> From<T> for Item<T> {
+    fn from(value: T) -> Self {
+        Self { inner: value, index: 0 }
+    }
+}
+
 impl Display for dyn SkimItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.text())

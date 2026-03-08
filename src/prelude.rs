@@ -13,6 +13,7 @@ pub use crate::helper::selector::DefaultSkimSelector;
 pub use crate::options::{SkimOptions, SkimOptionsBuilder};
 pub use crate::output::SkimOutput;
 pub use crate::reader::CommandCollector;
+pub use crate::skim_item::Item;
 pub use crate::tui::{Event, PreviewCallback, event::Action};
 pub use crate::*;
 pub use kanal::{Receiver, Sender, bounded, unbounded};
