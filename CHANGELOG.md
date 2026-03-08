@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-03-08
+
+This adds a new library API: `Skim::run_items`. Using this, you don't need to send the items, the library handles it for you.
+
+Instead of writing this:
+
+```rust
+use skim::prelude::*;
+let (rx, tx) = unbounded();
+
+// We need MySkimItem to override the set_index/get_index methods
+struct MySkimItem {
+    value: String,
+    index: usize
+}
+
+impl SkimItem for MySkimItem {
+    // Implement the default members
+}
+
+tx.send(MySkimItem { value: String::from("foo"), index: 0 });
+tx.send(MySkimItem { value: String::from("bar"), index: 1 });
+
+let res = Skim::run_with(options, Some(rx));
+```
+
+You can simply write this:
+```rust
+use skim::prelude::*;
+
+let res = Skim::run_with(options, ["foo", "bar"]);
+```
+
+It will automatically convert any iterator of <impl SkimItem> by adding an `index` field and then send it, before running skim.
+
+
+
+### 🚀 Features
+
+- Add `scheme` for better filepath matching in Arinae
+- Add Skim::run_items API
+
+### 🐛 Bug Fixes
+
+- Use sum of scores in And engine
+- Correctly init rank for and engine
+
+### ⚙️ Miscellaneous Tasks
+
+- Add gungraun benchmark
+- Review snapshots
+
 ## [3.6.2] - 2026-03-04
 
 ### ⚙️ Miscellaneous Tasks

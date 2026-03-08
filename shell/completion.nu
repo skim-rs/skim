@@ -1,7 +1,7 @@
 module completions {
 
   def "nu-complete sk tiebreak" [] {
-    [ "score" "-score" "begin" "-begin" "end" "-end" "length" "-length" "index" "-index" ]
+    [ "score" "-score" "begin" "-begin" "end" "-end" "length" "-length" "index" "-index" "pathname" "-pathname" ]
   }
 
   def "nu-complete sk algorithm" [] {
@@ -10,6 +10,10 @@ module completions {
 
   def "nu-complete sk case" [] {
     [ "respect" "ignore" "smart" ]
+  }
+
+  def "nu-complete sk scheme" [] {
+    [ "default" "path" "history" ]
   }
 
   def "nu-complete sk layout" [] {
@@ -49,6 +53,8 @@ module completions {
     --no-typos                # Disable typo-resistant matching
     --normalize               # Normalize unicode characters
     --split-match: string     # Enable split matching and set delimiter
+    --last-match              # Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
+    --scheme: string@"nu-complete sk scheme"
     --bind(-b): string        # Comma separated list of bindings
     --multi(-m)               # Enable multiple selection
     --no-multi                # Disable multiple selection
@@ -127,7 +133,6 @@ module completions {
     --jump-labels: string
     --no-bold
     --phony
-    --scheme: string
     --tail: string
     --style: string
     --no-color
