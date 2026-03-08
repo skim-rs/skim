@@ -1,7 +1,7 @@
 module completions {
 
   def "nu-complete sk tiebreak" [] {
-    [ "score" "-score" "begin" "-begin" "end" "-end" "length" "-length" "index" "-index" ]
+    [ "score" "-score" "begin" "-begin" "end" "-end" "length" "-length" "index" "-index" "pathname" "-pathname" ]
   }
 
   def "nu-complete sk algorithm" [] {
@@ -10,6 +10,10 @@ module completions {
 
   def "nu-complete sk case" [] {
     [ "respect" "ignore" "smart" ]
+  }
+
+  def "nu-complete sk scheme" [] {
+    [ "default" "path" "history" ]
   }
 
   def "nu-complete sk layout" [] {
@@ -49,6 +53,8 @@ module completions {
     --no-typos                # Disable typo-resistant matching
     --normalize               # Normalize unicode characters
     --split-match: string     # Enable split matching and set delimiter
+    --last-match              # Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
+    --scheme: string@"nu-complete sk scheme"
     --bind(-b): string        # Comma separated list of bindings
     --multi(-m)               # Enable multiple selection
     --no-multi                # Disable multiple selection
@@ -57,6 +63,7 @@ module completions {
     --interactive(-i)         # Start skim in interactive mode
     -I: string                # Replace replstr with the selected item in commands
     --color: string           # Set color theme
+    --highlight-line          # Highlight the entire current line, not just the text
     --no-hscroll              # Disable horizontal scroll
     --keep-right              # Keep the right end of the line visible on overflow
     --skip-to-pattern: string # Show the matched pattern at the line start
@@ -86,6 +93,7 @@ module completions {
     --header-lines: string    # Number of lines of the input treated as header
     --border: string@"nu-complete sk border" # Draw borders around the UI components
     --wrap                    # Wrap items in the item list
+    --multiline: string       # Split item text into multiple display lines at the given separator character defaults to \n if read0 is set, and \\n if not (matching literal \n in text)
     --history: string         # History file
     --history-size: string    # Maximum number of query history entries to keep
     --cmd-history: string     # Command history file
@@ -127,14 +135,12 @@ module completions {
     --jump-labels: string
     --no-bold
     --phony
-    --scheme: string
     --tail: string
     --style: string
     --no-color
     --padding: string
     --border-label: string
     --border-label-pos: string
-    --highlight-line
     --wrap-sign: string
     --no-multi-line
     --raw

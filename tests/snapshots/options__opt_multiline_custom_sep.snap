@@ -1,5 +1,6 @@
 ---
 source: tests/options.rs
+assertion_line: 519
 expression: buf + & cursor_pos
 ---
 "                                                                                "
@@ -19,11 +20,11 @@ expression: buf + & cursor_pos
 "                                                                                "
 "                                                                                "
 "                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"                                                                                "
-"> ...c                                                                          "
-"  1/1                                                                        0/0"
+"  y                                                                             "
+"  p                                                                             "
+"  q                                                                             "
+"  r                                                                             "
+"> x                                                                             "
+"  3/3                                                                        0/0"
 ">                                                                               "
 cursor: (24, 3)
