@@ -80,6 +80,13 @@ impl Skim {
     }
 
     /// Run skim with a Vec of items
+    ///
+    /// ```no_run
+    /// use skim::prelude::*;
+    ///
+    /// let opts = SkimOptionsBuilder::default().multi(true).build().unwrap();
+    /// Skim::run_items(opts, ["foo", "bar"]);
+    /// ```
     pub fn run_items<I, T>(options: SkimOptions, items: I) -> Result<SkimOutput>
     where
         I: IntoIterator<Item = T>,
