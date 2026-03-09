@@ -23,9 +23,11 @@ fn main() {
     let options = SkimOptionsBuilder::default()
         .height("50%")
         .multi(true)
-        .preview(String::new()) // preview should be specified to enable preview window
+        .preview("") // preview should be specified to enable preview window
         .build()
         .unwrap();
+
+    env_logger::init();
 
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
     let _ = tx_item.send(vec![

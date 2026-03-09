@@ -428,6 +428,10 @@ impl App {
                 selections: &selection_str,
             };
             let preview = item.preview(ctx);
+            let preview_ready = !matches!(
+                preview,
+                ItemPreview::Global | ItemPreview::Command(_) | ItemPreview::CommandWithPos(_, _)
+            );
             match preview {
                 ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => self.preview.content(t.bytes().collect())?,
@@ -463,6 +467,9 @@ impl App {
                     .preview
                     .content_with_position(t.bytes().collect(), preview_position)?,
                 ItemPreview::Global => self.preview.spawn(tui, &self.expand_cmd(preview_opt, true))?,
+            }
+            if preview_ready {
+                let _ = tui.event_tx.try_send(Event::PreviewReady);
             }
         } else if let Some(cb) = &self.options.preview_fn {
             let selection: Vec<Arc<dyn SkimItem>>;
@@ -537,7 +544,7 @@ impl App {
                     let offset = self.calculate_preview_offset(offset_expr);
                     self.preview.set_offset(offset);
                 }
-                tui.event_tx.try_send(Event::Render)?;
+                self.needs_render();
             }
             Event::Error(msg) => {
                 tui.exit()?;
