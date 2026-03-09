@@ -594,6 +594,10 @@ impl App {
                 self.item_pool.clear();
                 self.restart_matcher(true);
             }
+            Event::AppendItems(items) => {
+                self.item_pool.append(items.to_owned());
+                self.restart_matcher(false);
+            }
             Event::Reload(_) => {
                 unreachable!("Reload is handled by the TUI event loop in lib.rs")
             }

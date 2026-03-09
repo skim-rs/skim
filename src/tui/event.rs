@@ -132,6 +132,8 @@ pub enum Event {
     InvalidInput,
     /// An action was triggered
     Action(Action),
+    /// Append items to the pool
+    AppendItems(Vec<Arc<dyn crate::SkimItem>>),
     /// Clear all items
     ClearItems,
     /// Clear the screen
