@@ -1,18 +1,57 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use crate::exhaustive_match;
 use crossterm::event::{KeyEvent, MouseEvent};
 use derive_more::{Debug, Eq, PartialEq};
 
-type ActionCallbackFn =
-    dyn Fn(&mut crate::tui::App) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> + Send;
+type BoxError = Box<dyn std::error::Error + Sync + Send>;
+type BoxFuture<'a> = Pin<Box<dyn Future<Output = Result<Vec<Event>, BoxError>> + Send + 'a>>;
+
+/// Trait object stored inside [`ActionCallback`].
+///
+/// Having an explicit trait (rather than a bare `dyn Fn` type alias) allows
+/// Rust to correctly resolve the higher-ranked lifetime in the return type.
+trait AsyncCallbackFn: Send {
+    fn call<'a>(&'a self, app: &'a mut crate::tui::App) -> BoxFuture<'a>;
+}
+
+/// Adapter that stores a concrete async closure and implements [`AsyncCallbackFn`].
+struct AsyncFnWrapper<F>(F);
+
+impl<F, Fut> AsyncCallbackFn for AsyncFnWrapper<F>
+where
+    F: for<'a> Fn(&'a mut crate::tui::App) -> Fut + Send,
+    Fut: Future<Output = Result<Vec<Event>, BoxError>> + Send + 'static,
+{
+    fn call<'a>(&'a self, app: &'a mut crate::tui::App) -> BoxFuture<'a> {
+        Box::pin((self.0)(app))
+    }
+}
+
+/// Adapter that stores a plain synchronous closure and implements [`AsyncCallbackFn`].
+struct SyncFnWrapper<F>(F);
+
+impl<F> AsyncCallbackFn for SyncFnWrapper<F>
+where
+    F: Fn(&mut crate::tui::App) -> Result<Vec<Event>, BoxError> + Send,
+{
+    fn call<'a>(&'a self, app: &'a mut crate::tui::App) -> BoxFuture<'a> {
+        Box::pin(std::future::ready((self.0)(app)))
+    }
+}
 
 /// A custom action callback that receives a mutable reference to the App.
 ///
 /// The closure will be called with a mutable reference to App and should return
 /// a vec of events that will be processed after the callback completes.
+///
+/// Both sync and async closures are supported:
+/// - Use [`ActionCallback::new`] to wrap an **async** closure or block.
+/// - Use [`ActionCallback::new_sync`] to wrap a plain synchronous closure.
 #[derive(Clone)]
-pub struct ActionCallback(Arc<Mutex<ActionCallbackFn>>);
+pub struct ActionCallback(Arc<Mutex<dyn AsyncCallbackFn>>);
 
 impl std::fmt::Debug for ActionCallback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,24 +60,50 @@ impl std::fmt::Debug for ActionCallback {
 }
 
 impl ActionCallback {
-    /// Create a new action callback from a closure.
+    /// Create a new action callback from an **async** closure or block.
     ///
-    /// The closure will be called with a mutable reference to App and should return a vec of
-    /// events that will be run after the callback is done.
-    pub fn new<F>(f: F) -> Self
+    /// ```rust,ignore
+    /// ActionCallback::new(|app| async move {
+    ///     // async work here …
+    ///     Ok(vec![])
+    /// });
+    /// ```
+    pub fn new<F, Fut>(f: F) -> Self
     where
-        F: Fn(&mut crate::tui::App) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> + Send + 'static,
+        F: for<'a> Fn(&'a mut crate::tui::App) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<Vec<Event>, BoxError>> + Send + 'static,
     {
-        Self(Arc::new(Mutex::new(f)))
+        Self(Arc::new(Mutex::new(AsyncFnWrapper(f))))
     }
 
-    /// Call the callback with an App reference.
-    pub(crate) fn call(
-        &self,
-        app: &mut crate::tui::App,
-    ) -> Result<Vec<Event>, Box<dyn std::error::Error + Sync + Send>> {
+    /// Create a new action callback from a plain **synchronous** closure.
+    ///
+    /// This is a convenience wrapper; the closure is lifted into an immediately-
+    /// resolving future so it integrates with the same async call site.
+    ///
+    /// ```rust,ignore
+    /// ActionCallback::new_sync(|app| {
+    ///     Ok(vec![Event::Action(Action::SelectAll)])
+    /// });
+    /// ```
+    pub fn new_sync<F>(f: F) -> Self
+    where
+        F: Fn(&mut crate::tui::App) -> Result<Vec<Event>, BoxError> + Send + 'static,
+    {
+        Self(Arc::new(Mutex::new(SyncFnWrapper(f))))
+    }
+
+    /// Call the callback with an App reference, driving the returned future to completion.
+    ///
+    /// Must be called from within a Tokio multi-thread runtime context.
+    pub(crate) fn call(&self, app: &mut crate::tui::App) -> Result<Vec<Event>, BoxError> {
         let callback = self.0.lock().unwrap();
-        callback(app)
+        let fut = callback.call(app);
+        // We are inside a synchronous call stack that originates from an async
+        // tokio context.  `block_in_place` moves the current thread out of the
+        // async worker pool temporarily so we can block on the future without
+        // starving the runtime.
+        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(fut))
     }
 }
 
@@ -349,7 +414,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "unreachable-if-non-matched" => Some(IfNonMatched(Default::default(), None)),
                 "unreachable-if-query-empty" => Some(IfQueryEmpty(Default::default(), None)),
                 "unreachable-if-query-not-empty" => Some(IfQueryNotEmpty(Default::default(), None)),
-                "custom-do-not-use-from-cli" => Some(Custom(ActionCallback::new(|_: &mut crate::tui::App| { Ok(Vec::new()) }))),
+                "custom-do-not-use-from-cli" => Some(Custom(ActionCallback::new_sync(|_: &mut crate::tui::App| { Ok(Vec::new()) }))),
             }
             default _ => None
         }
