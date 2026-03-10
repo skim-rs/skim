@@ -210,7 +210,7 @@ pub struct SkimOptions {
     /// Applies to both fzy and frizbee matchers.
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_value = "smart", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, overrides_with = "no_typos", help_heading = "Search")
+        arg(long, default_value = "disabled", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, overrides_with = "no_typos", help_heading = "Search")
     )]
     pub typos: Typos,
 
