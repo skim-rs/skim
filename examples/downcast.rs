@@ -7,7 +7,6 @@ use skim::prelude::*;
 #[derive(Debug, Clone)]
 struct Item {
     text: String,
-    index: usize,
 }
 
 impl SkimItem for Item {
@@ -17,14 +16,6 @@ impl SkimItem for Item {
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
         ItemPreview::Text(self.text.to_owned())
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
-    }
-
-    fn set_index(&mut self, index: usize) {
-        self.index = index
     }
 }
 
@@ -39,18 +30,9 @@ pub fn main() {
     let (tx, rx): (SkimItemSender, SkimItemReceiver) = unbounded();
 
     tx.send(vec![
-        Arc::new(Item {
-            text: "a".into(),
-            index: 0,
-        }) as Arc<dyn SkimItem>,
-        Arc::new(Item {
-            text: "b".into(),
-            index: 1,
-        }) as Arc<dyn SkimItem>,
-        Arc::new(Item {
-            text: "c".into(),
-            index: 2,
-        }) as Arc<dyn SkimItem>,
+        Arc::new(Item { text: "a".into() }) as Arc<dyn SkimItem>,
+        Arc::new(Item { text: "b".into() }) as Arc<dyn SkimItem>,
+        Arc::new(Item { text: "c".into() }) as Arc<dyn SkimItem>,
     ])
     .unwrap();
 
@@ -60,7 +42,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default()
         .iter()
-        .map(|selected_item| (**selected_item).as_any().downcast_ref::<Item>().unwrap().to_owned())
+        .map(|selected_item| selected_item.downcast_item::<Item>().unwrap().to_owned())
         .collect::<Vec<Item>>();
 
     for item in selected_items {

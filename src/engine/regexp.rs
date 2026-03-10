@@ -70,9 +70,7 @@ impl MatchEngine for RegexEngine {
         let score = (end - begin) as i32;
 
         Some(MatchResult {
-            rank: self
-                .rank_builder
-                .build_rank(score, begin, end, &item_text, item.get_index()),
+            rank: self.rank_builder.build_rank(score, begin, end, &item_text),
             matched_range: MatchRange::ByteRange(begin, end),
         })
     }

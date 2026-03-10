@@ -12,8 +12,8 @@ use crate::tui::layout::{AppLayout, LayoutTemplate};
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
-use crate::util;
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
+use crate::{Rank, util};
 
 use super::Event;
 use super::Tui;
@@ -404,6 +404,7 @@ impl App {
         {
             let selection: Vec<_> = self.item_list.selection.iter().map(|i| i.text().into_owned()).collect();
             let selection_str: Vec<_> = selection.iter().map(|s| s.as_str()).collect();
+            let selected = self.item_list.selected();
             let ctx = PreviewContext {
                 query: &self.input.value,
                 cmd_query: if self.options.interactive {
@@ -413,17 +414,13 @@ impl App {
                 },
                 width: self.preview.cols as usize,
                 height: self.preview.rows as usize,
-                current_index: self.item_list.selected().map(|i| i.get_index()).unwrap_or_default(),
-                current_selection: &self
-                    .item_list
-                    .selected()
-                    .map(|i| i.text().into_owned())
-                    .unwrap_or_default(),
+                current_index: selected.as_ref().map(|i| i.rank.index as usize).unwrap_or_default(),
+                current_selection: &selected.map(|i| i.text().into_owned()).unwrap_or_default(),
                 selected_indices: &self
                     .item_list
                     .selection
                     .iter()
-                    .map(|v| v.get_index())
+                    .map(|v| v.rank.index as usize)
                     .collect::<Vec<_>>(),
                 selections: &selection_str,
             };
@@ -476,7 +473,7 @@ impl App {
             if self.options.multi {
                 selection = self.item_list.selection.iter().map(|i| i.item.clone()).collect();
             } else if let Some(sel) = self.item_list.selected() {
-                selection = vec![sel];
+                selection = vec![sel.item];
             } else {
                 selection = Vec::new();
             }
@@ -655,10 +652,14 @@ impl App {
             AppendAndSelect => {
                 let value = self.input.value.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
+                let rank = Rank {
+                    index: self.item_pool.len() as i32,
+                    ..Default::default()
+                };
                 self.item_pool.append(vec![item.clone()]);
                 self.item_list.append(&mut vec![MatchedItem {
                     item,
-                    rank: Default::default(),
+                    rank,
                     rank_builder: self.matcher.rank_builder.clone(),
                     matched_range: None,
                 }]);
@@ -1112,18 +1113,14 @@ impl App {
     }
 
     /// Returns the selected items as results
-    pub fn results(&mut self) -> Vec<Arc<MatchedItem>> {
+    pub fn results(&mut self) -> Vec<MatchedItem> {
         if self.options.filter.is_some() {
             // In filter mode, drain items to avoid cloning
-            self.item_list.items.drain(..).map(Arc::new).collect()
+            self.item_list.items.drain(..).collect()
         } else if self.options.multi && !self.item_list.selection.is_empty() {
-            self.item_list
-                .selection
-                .iter()
-                .map(|item| Arc::new(item.clone()))
-                .collect()
-        } else if let Some(sel) = self.item_list.items.get(self.item_list.current) {
-            vec![Arc::new(sel.clone())]
+            self.item_list.selection.clone().into_iter().collect()
+        } else if let Some(sel) = self.item_list.selected() {
+            vec![sel]
         } else {
             vec![]
         }
@@ -1235,7 +1232,7 @@ impl App {
             cmd,
             &self.options.delimiter,
             &self.options.replstr,
-            self.item_list.selection.iter().map(|x| x.item.clone()),
+            self.item_list.selection.iter(),
             self.item_list.selected(),
             &self.input.value,
             &self.input.value,

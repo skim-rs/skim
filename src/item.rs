@@ -60,13 +60,14 @@ impl RankBuilder {
     ///
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
     /// applied lazily by [`Rank::sort_key`] at comparison time.
-    pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str, index: usize) -> Rank {
+    /// The `index` will be overriden later
+    pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str) -> Rank {
         Rank {
             score,
             begin: begin as i32,
             end: end as i32,
             length: item_text.len() as i32,
-            index: index as i32,
+            index: Default::default(),
             path_name_offset: Self::path_name_offset(item_text),
         }
     }
@@ -131,7 +132,7 @@ impl std::fmt::Debug for MatchedItem {
 
 impl Hash for MatchedItem {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.get_index());
+        state.write_i32(self.rank.index);
         self.text().hash(state);
     }
 }
@@ -244,11 +245,18 @@ impl MatchedItem {
     }
 }
 
+impl MatchedItem {
+    /// Downcast the MatchedItem to the corresponding SkimItem struct
+    pub fn downcast_item<T: SkimItem>(&self) -> Option<&T> {
+        (*self.item).as_any().downcast_ref::<T>()
+    }
+}
+
 use std::cmp::Ordering as CmpOrd;
 
 impl PartialEq for MatchedItem {
     fn eq(&self, other: &Self) -> bool {
-        self.text().eq(&other.text()) && self.get_index().eq(&other.get_index())
+        self.text().eq(&other.text()) && self.rank.index.eq(&other.rank.index)
     }
 }
 

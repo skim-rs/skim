@@ -193,6 +193,7 @@ impl Matcher {
         // if we took items inside the spawned closure, a subsequent restart_matcher()
         // could call kill() + reset() before the old closure runs, causing the old
         // closure to re-take items that should belong to the new matcher.
+        let start = item_pool.num_taken();
         let items = item_pool.take();
         let total = items.len();
         trace!("matcher start, total: {}", total);
@@ -212,9 +213,10 @@ impl Matcher {
             let matched_items: Vec<MatchedItem> = items
                 .into_par_iter()
                 .with_min_len(CHUNK_SIZE)
+                .enumerate()
                 .fold(
                     || (Vec::new(), 0usize, 0usize), // (local_matches, local_processed, local_matched)
-                    |(mut local_matches, mut local_processed, mut local_matched), item| {
+                    |(mut local_matches, mut local_processed, mut local_matched), (index, item)| {
                         // Check interrupt once at the start of each chunk boundary.
                         // The fold processes items sequentially within each rayon work unit,
                         // so checking every CHUNK_SIZE items amortizes the atomic load.
@@ -226,9 +228,11 @@ impl Matcher {
 
                         if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
                             local_matched += 1;
+                            let mut rank = match_result.rank;
+                            rank.index = (index + start) as i32;
                             local_matches.push(MatchedItem {
                                 item,
-                                rank: match_result.rank,
+                                rank,
                                 rank_builder: rank_builder.clone(),
                                 matched_range: Some(match_result.matched_range),
                             });

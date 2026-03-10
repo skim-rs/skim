@@ -215,9 +215,7 @@ impl MatchEngine for FuzzyEngine {
 
             let (score, begin, end) = best?;
             Some(MatchResult {
-                rank: self
-                    .rank_builder
-                    .build_rank(score as i32, begin, end, &item_text, item.get_index()),
+                rank: self.rank_builder.build_rank(score as i32, begin, end, &item_text),
                 matched_range: MatchRange::ByteRange(begin, end),
             })
         } else {
@@ -254,9 +252,7 @@ impl MatchEngine for FuzzyEngine {
             let matched_range = MatchRange::Chars(matched_indices);
 
             Some(MatchResult {
-                rank: self
-                    .rank_builder
-                    .build_rank(score as i32, begin, end, &item_text, item.get_index()),
+                rank: self.rank_builder.build_rank(score as i32, begin, end, &item_text),
                 matched_range,
             })
         }

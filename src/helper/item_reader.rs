@@ -203,7 +203,6 @@ impl SkimItemReader {
         matching_fields: Vec<FieldRange>,
     ) {
         let mut buffer = Vec::with_capacity(option.buf_size);
-        let mut line_idx = 0;
         let mut items_to_send = Vec::with_capacity(ITEMS_BUFFER_SIZE);
         let mut last_send_time = Instant::now();
         let send_timeout = Duration::from_millis(SEND_TIMEOUT_MS);
@@ -227,7 +226,7 @@ impl SkimItemReader {
                         continue;
                     };
 
-                    trace!("got item {} with index {}", line, line_idx);
+                    trace!("got item {}", line);
 
                     let raw_item = DefaultSkimItem::new(
                         line,
@@ -235,11 +234,8 @@ impl SkimItemReader {
                         &transform_fields,
                         &matching_fields,
                         &option.delimiter,
-                        line_idx,
                     );
                     items_to_send.push(Arc::new(raw_item) as Arc<dyn SkimItem>);
-
-                    line_idx += 1;
                 }
                 Err(err) => {
                     trace!("Got {err:?} when reading, skipping");
@@ -332,7 +328,6 @@ impl SkimItemReader {
                                     &[],
                                     &[],
                                     &Regex::new(DELIMITER_STR).unwrap(),
-                                    0,
                                 )) as Arc<dyn SkimItem>
                             })
                             .collect();

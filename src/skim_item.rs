@@ -75,17 +75,6 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
         None
     }
-
-    /// Get index, for matching purposes
-    ///
-    /// Implemented as no-op for retro-compatibility purposes
-    fn get_index(&self) -> usize {
-        0
-    }
-    /// Set index, for matching purposes
-    ///
-    /// Implemented as no-op for retro-compatibility purposes
-    fn set_index(&mut self, _index: usize) {}
 }
 
 //------------------------------------------------------------------------------
@@ -104,10 +93,6 @@ impl Display for dyn SkimItem {
 }
 impl Debug for dyn SkimItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "SkimItem {{ text: {}, index: {} }}",
-            self.text(),
-            self.get_index()
-        ))
+        f.write_fmt(format_args!("SkimItem {{ text: {} }}", self.text(),))
     }
 }

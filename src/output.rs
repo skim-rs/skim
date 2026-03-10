@@ -1,7 +1,5 @@
-use crate::SkimItem;
 use crate::item::MatchedItem;
 use crate::tui::Event;
-use std::sync::Arc;
 
 /// Output from running skim, containing the final selection and state
 #[derive(Debug)]
@@ -25,10 +23,10 @@ pub struct SkimOutput {
     pub cmd: String,
 
     /// The selected items.
-    pub selected_items: Vec<Arc<MatchedItem>>,
+    pub selected_items: Vec<MatchedItem>,
 
     /// The current item
-    pub current: Option<Arc<dyn SkimItem>>,
+    pub current: Option<MatchedItem>,
 
     /// The header
     pub header: String,

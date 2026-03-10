@@ -6,9 +6,10 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, Lis
 use regex::Regex;
 use unicode_display_width::width as display_width;
 
+use crate::options::feature_flag;
 use crate::tui::util::char_display_width;
 use crate::{
-    DisplayContext, MatchRange, Selector, SkimItem, SkimOptions,
+    DisplayContext, MatchRange, Selector, SkimOptions,
     item::MatchedItem,
     spinlock::SpinLock,
     theme::ColorTheme,
@@ -75,7 +76,8 @@ pub struct ItemList {
     /// Border type, if borders are enabled
     pub border: Option<BorderType>,
     /// When true, prepend each item's match score to its display text
-    print_score: bool,
+    show_score: bool,
+    show_index: bool,
 }
 
 impl Default for ItemList {
@@ -109,7 +111,8 @@ impl Default for ItemList {
             cycle: false,
             wrap: false,
             border: None,
-            print_score: false,
+            show_score: false,
+            show_index: false,
         }
     }
 }
@@ -127,8 +130,8 @@ impl ItemList {
     }
 
     /// Returns the currently selected item, if any
-    pub fn selected(&self) -> Option<Arc<dyn SkimItem>> {
-        self.items.get(self.cursor()).map(|x| x.item.clone())
+    pub fn selected(&self) -> Option<MatchedItem> {
+        self.items.get(self.cursor()).cloned()
     }
 
     /// Appends new matched items to the list
@@ -571,7 +574,8 @@ impl SkimWidget for ItemList {
             cycle: options.cycle,
             wrap: options.wrap_items,
             border: options.border,
-            print_score: options.flags.contains(&crate::options::FeatureFlag::ShowScore),
+            show_score: feature_flag!(options, ShowScore),
+            show_index: feature_flag!(options, ShowIndex),
         }
     }
 
@@ -741,11 +745,18 @@ impl SkimWidget for ItemList {
                         },
                         theme.selected,
                     ));
-                    // Optionally prepend the match score for debugging
-                    if this.print_score {
+                    // Optionally prepend debug fields
+                    if this.show_score {
                         let score = item.rank.score;
                         spans.push(Span::styled(
                             format!("[{score}] "),
+                            if is_current { theme.current } else { theme.normal },
+                        ));
+                    }
+                    if this.show_index {
+                        let index = item.rank.index;
+                        spans.push(Span::styled(
+                            format!("[{index}] "),
                             if is_current { theme.current } else { theme.normal },
                         ));
                     }
