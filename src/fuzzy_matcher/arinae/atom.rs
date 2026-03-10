@@ -85,6 +85,6 @@ impl Atom for char {
     }
     #[inline(always)]
     fn is_lowercase(self) -> bool {
-        self.is_ascii_lowercase()
+        self.is_lowercase()
     }
 }

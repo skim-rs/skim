@@ -175,16 +175,16 @@ pub struct SkimOptions {
 
     /// Fuzzy matching algorithm
     ///
-    /// skim_v2 Latest skim algorithm, should be better in almost any case
-    /// skim_v1 Legacy skim algorithm
+    /// arinae (ari) Latest algorithm
+    /// skim_v2 Legacy skim algorithm
     /// clangd  Used in clangd for keyword completion
     /// fzy     Algorithm from fzy (https://github.com/jhawthorn/fzy)
     #[cfg_attr(
         feature = "cli",
         arg(
             long = "algo",
-            default_value = "skim_v2",
             value_enum,
+            default_value = "arinae",
             help_heading = "Search",
             verbatim_doc_comment
         )

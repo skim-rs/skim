@@ -61,27 +61,24 @@ insta_test!(matcher_default, INPUT_ITEMS, &["-q", "stum"], {
 insta_test!(matcher_skim_v2, INPUT_ITEMS, &["-q", "stum", "--algo", "skim_v2"], {
     @snap;
 });
-insta_test!(matcher_skim_v1, INPUT_ITEMS, &["-q", "stum", "--algo", "skim_v1"], {
-    @snap;
-});
 insta_test!(matcher_clangd, INPUT_ITEMS, &["-q", "stum", "--algo", "clangd"], {
     @snap;
 });
 insta_test!(matcher_frizbee, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee", "--no-typos"], {
     @snap;
 });
-insta_test!(matcher_frizbee_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee"], {
+insta_test!(matcher_frizbee_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee", "--typos"], {
     @snap;
 });
 insta_test!(matcher_fzy, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy", "--no-typos"], {
     @snap;
 });
-insta_test!(matcher_fzy_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy"], {
+insta_test!(matcher_fzy_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy", "--typos"], {
     @snap;
 });
 insta_test!(matcher_arinae, INPUT_ITEMS, &["-q", "stum", "--algo", "arinae", "--no-typos"], {
     @snap;
 });
-insta_test!(matcher_arinae_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "arinae"], {
+insta_test!(matcher_arinae_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "arinae", "--typos"], {
     @snap;
 });

@@ -20,10 +20,10 @@ expression: buf + & cursor_pos
 "                                                                                "
 "                                                                                "
 "                                                                                "
-"  CAFE                                                                          "
-"  Café                                                                          "
 "  cafe                                                                          "
-"> café                                                                          "
+"  café                                                                          "
+"  CAFE                                                                          "
+"> Café                                                                          "
 "  4/4                                                                        0/0"
 "> cafe                                                                          "
 cursor: (24, 7)

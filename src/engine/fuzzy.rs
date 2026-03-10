@@ -17,10 +17,7 @@ use crate::{MatchRange, MatchResult, SkimItem};
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
-    /// Original skim fuzzy matching algorithm (v1)
-    SkimV1,
-    /// Improved skim fuzzy matching algorithm (v2, default)
-    #[default]
+    /// Improved skim fuzzy matching algorithm (v2)
     SkimV2,
     /// Clangd fuzzy matching algorithm
     Clangd,
@@ -28,8 +25,9 @@ pub enum FuzzyAlgorithm {
     Fzy,
     /// Frizbee matching algorithm, typo resistant
     Frizbee,
-    /// Arinae: typo-resistant & natural algorithm
+    /// Arinae: typo-resistant & natural algorithm, default
     #[cfg_attr(feature = "cli", clap(alias = "ari"))]
+    #[default]
     Arinae,
 }
 
@@ -107,15 +105,10 @@ impl FuzzyEngineBuilder {
 
     #[allow(deprecated)]
     pub fn build(self) -> FuzzyEngine {
-        use crate::fuzzy_matcher::skim::SkimMatcher;
         #[allow(unused_mut)]
         let mut algorithm = self.algorithm;
         let max_typos = self.effective_max_typos();
         let matcher: Box<dyn FuzzyMatcher> = match algorithm {
-            FuzzyAlgorithm::SkimV1 => {
-                debug!("Initialized SkimV1 algorithm");
-                Box::new(SkimMatcher::default())
-            }
             FuzzyAlgorithm::SkimV2 => {
                 let matcher = SkimMatcherV2::default().element_limit(BYTES_1M);
                 let matcher = match self.case {
