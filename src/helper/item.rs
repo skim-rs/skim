@@ -225,6 +225,15 @@ impl DefaultSkimItem {
     }
 }
 
+impl From<String> for DefaultSkimItem {
+    fn from(value: String) -> Self {
+        Self {
+            text: Box::from(value),
+            metadata: None,
+        }
+    }
+}
+
 impl SkimItem for DefaultSkimItem {
     #[inline]
     fn text(&self) -> Cow<'_, str> {
