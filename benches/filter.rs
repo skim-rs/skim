@@ -31,13 +31,6 @@ fn prepare(file: &str, opt_builder: &mut SkimOptionsBuilder) -> (SkimOptions, Sk
 }
 
 fn criterion_benchmark_10m(c: &mut Criterion) {
-    c.bench_function("filter_10M_default", |b| {
-        b.iter_batched(
-            || prepare("10M.txt", SkimOptionsBuilder::default().filter("test")),
-            |(opts, rx)| Skim::run_with(opts, Some(rx)),
-            criterion::BatchSize::SmallInput,
-        );
-    });
     c.bench_function("filter_10M_regex", |b| {
         b.iter_batched(
             || prepare("10M.txt", SkimOptionsBuilder::default().filter("test").regex(true)),
@@ -152,14 +145,6 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
 }
 
 fn criterion_benchmark_1m(c: &mut Criterion) {
-    c.bench_function("filter_1M_default", |b| {
-        b.iter_batched(
-            || prepare("1M.txt", SkimOptionsBuilder::default().filter("test")),
-            |(opts, rx)| Skim::run_with(opts, Some(rx)),
-            criterion::BatchSize::SmallInput,
-        );
-    });
-
     c.bench_function("filter_1M_regex", |b| {
         b.iter_batched(
             || prepare("1M.txt", SkimOptionsBuilder::default().filter("test").regex(true)),
