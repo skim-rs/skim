@@ -24,9 +24,6 @@ pub struct DefaultSkimItem {
     /// The text that will be shown on screen.
     text: Box<str>,
 
-    /// The index, for use in matching
-    index: usize,
-
     /// Metadata containing miscellaneous fields when special options are used
     metadata: Option<Box<DefaultSkimItemMetadata>>,
 }
@@ -60,7 +57,6 @@ impl DefaultSkimItem {
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
         delimiter: &Regex,
-        index: usize,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
         let contains_ansi = Self::contains_ansi_escape(orig_text);
@@ -169,7 +165,6 @@ impl DefaultSkimItem {
 
         DefaultSkimItem {
             text: temp_text,
-            index,
             metadata,
         }
     }
@@ -227,6 +222,15 @@ impl DefaultSkimItem {
     #[allow(dead_code)]
     pub fn get_display_text(&self) -> &str {
         &self.text
+    }
+}
+
+impl From<String> for DefaultSkimItem {
+    fn from(value: String) -> Self {
+        Self {
+            text: Box::from(value),
+            metadata: None,
+        }
     }
 }
 
@@ -432,14 +436,6 @@ impl SkimItem for DefaultSkimItem {
             // No ANSI mapping needed, use text as-is
             context.to_line(Cow::Borrowed(&self.text))
         }
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
-    }
-
-    fn set_index(&mut self, index: usize) {
-        self.index = index;
     }
 }
 
@@ -651,7 +647,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
 
         // text() should return stripped text for matching
@@ -693,7 +688,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
 
         // text() should return "😀text"
@@ -727,7 +721,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
         assert_eq!(
             item_ansi.text(),
@@ -742,7 +735,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
         assert_eq!(
             item_no_ansi.text(),
@@ -766,7 +758,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
 
         // Create display context with yellow background highlight for character 0 (the 'g')
@@ -805,7 +796,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
 
         // Create display context with yellow background highlight for characters 1-3 ('re')
@@ -846,7 +836,6 @@ mod test {
             &[],
             &[],
             &delimiter,
-            0,
         );
 
         // Create display context with yellow background highlight for bytes 1-3 ('re' in stripped text)
@@ -886,7 +875,6 @@ mod test {
             &[],
             &[], // no matching fields restriction
             &delimiter,
-            0,
         );
 
         // text() should return stripped text "green_text"
@@ -918,7 +906,6 @@ mod test {
             &[],                      // no transform fields
             &[FieldRange::Single(2)], // match field 2
             &delimiter,
-            0,
         );
 
         // text() should return text with null bytes stripped for display

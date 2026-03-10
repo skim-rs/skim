@@ -95,13 +95,11 @@ impl Skim {
         const BATCH_SIZE: usize = 1024;
         let (tx, rx) = crate::prelude::unbounded();
         let mut batch: Vec<Arc<dyn SkimItem>> = Vec::with_capacity(BATCH_SIZE);
-        for (idx, raw_item) in items.into_iter().enumerate() {
+        for item in items {
             if batch.len() == 1024 {
                 tx.send(batch)?;
                 batch = Vec::with_capacity(BATCH_SIZE);
             }
-            let mut item = crate::prelude::Item::from(raw_item);
-            item.set_index(idx);
             batch.push(Arc::new(item) as Arc<dyn SkimItem>);
         }
         tx.send(batch)?;

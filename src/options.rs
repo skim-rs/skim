@@ -1275,6 +1275,8 @@ pub enum FeatureFlag {
     NoPreviewPty,
     /// Display the item's match score before its value in the item list (for matcher debugging)
     ShowScore,
+    /// Display the item's index before its value in the item list
+    ShowIndex,
 }
 
 #[allow(unused_macros)]

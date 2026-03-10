@@ -284,18 +284,23 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     }
     .to_string();
 
-    let current: Option<Arc<dyn SkimItem>> = if status.success() {
+    let current: Option<MatchedItem> = if status.success() {
         let line = stdout.next().unwrap_or_default();
         if line.is_empty() {
             None
         } else {
-            Some(Arc::new(SkimTmuxOutput { line: line.to_string() }))
+            Some(MatchedItem {
+                item: Arc::new(SkimTmuxOutput { line: line.to_string() }),
+                rank: Rank::default(),
+                rank_builder: Arc::new(RankBuilder::default()),
+                matched_range: None,
+            })
         }
     } else {
         None
     };
 
-    let mut output_lines: Vec<Arc<MatchedItem>> = vec![];
+    let mut output_lines: Vec<MatchedItem> = vec![];
     while let Some(line) = stdout.next() {
         debug!("Adding output line: {line}");
         // --print-score is always enabled in the child, so every item is followed by its score.
@@ -309,7 +314,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             rank_builder: Arc::new(RankBuilder::default()),
             matched_range: None,
         };
-        output_lines.push(Arc::new(item));
+        output_lines.push(item);
     }
 
     let is_abort = !status.success();

@@ -45,7 +45,7 @@ pub(super) const TYPO_BAND_SLACK: usize = 4;
 /// (standard bonus).  Entries that are `0` are not considered separators.
 pub(super) const SEPARATOR_TABLE: [Score; 128] = {
     let mut t = [0 as Score; 128];
-    t[b' ' as usize] = 12; // space
+    t[b' ' as usize] = 16; // space
     t[b'-' as usize] = 10; // hyphen / kebab-case
     t[b'.' as usize] = 12; // dot (file extensions, domain names)
     t[b'/' as usize] = 16; // forward slash (path separator — higher bonus)

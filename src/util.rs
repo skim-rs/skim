@@ -1,12 +1,11 @@
-use crate::SkimItem;
 use crate::field::FieldRange;
 use crate::field::get_string_by_field;
 use crate::helper::item::strip_ansi;
+use crate::item::MatchedItem;
 use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
-use std::sync::Arc;
 
 #[cfg(feature = "cli")]
 /// Unescape a delimiter string to handle escape sequences like \x00, \t, \n, etc.
@@ -90,12 +89,12 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 /// - `{cq}` -> current command query
 ///
 #[allow(clippy::too_many_arguments)]
-pub fn printf(
+pub fn printf<'a>(
     pattern: &str,
     delimiter: &Regex,
     replstr: &str,
-    selected: impl Iterator<Item = Arc<dyn SkimItem>> + std::clone::Clone,
-    current: Option<Arc<dyn SkimItem>>,
+    selected: impl Iterator<Item = &'a MatchedItem> + std::clone::Clone,
+    current: Option<MatchedItem>,
     query: &str,
     command_query: &str,
     quote_args: bool,
@@ -133,14 +132,14 @@ pub fn printf(
                             "q" => replaced.push_str(&escaped_query),
                             "cq" => replaced.push_str(&escaped_cmd_query),
                             "n" if current.as_ref().is_some() => {
-                                replaced.push_str(current.as_ref().unwrap().get_index().to_string().as_str());
+                                replaced.push_str(current.as_ref().unwrap().rank.index.to_string().as_str());
                             }
                             s if s == "+n" || s.starts_with("+n:") || s == "+" || s.starts_with("+:") => {
                                 let is_n = s.starts_with("+n");
                                 let accessor = if is_n {
-                                    |i: &Arc<dyn SkimItem>| i.get_index().to_string()
+                                    |i: &MatchedItem| i.rank.index.to_string()
                                 } else {
-                                    |i: &Arc<dyn SkimItem>| strip_ansi(&i.output()).0
+                                    |i: &MatchedItem| strip_ansi(&i.output()).0
                                 };
                                 let mut quote_individually = false;
 
@@ -151,7 +150,7 @@ pub fn printf(
 
                                 let mut expanded = selected
                                     .clone()
-                                    .map(|i| escape_arg(&accessor(&i), quote_individually))
+                                    .map(|i| escape_arg(&accessor(i), quote_individually))
                                     .reduce(|a: String, b| a.to_owned() + delim + b.as_str())
                                     .unwrap_or_default();
                                 if expanded.is_empty() {
@@ -238,8 +237,19 @@ pub fn printf(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::SkimItem;
+    use crate::Rank;
+    use crate::item::{MatchedItem, RankBuilder};
     use regex::Regex;
+    use std::sync::Arc;
+
+    fn make_item(s: &'static str) -> MatchedItem {
+        MatchedItem {
+            item: Arc::new(s),
+            rank: Rank::default(),
+            rank_builder: Arc::new(RankBuilder::default()),
+            matched_range: None,
+        }
+    }
 
     #[test]
     fn test_unescape_delimiter() {
@@ -277,11 +287,11 @@ mod test {
     #[test]
     fn test_printf() {
         let pattern = "[1] {} [2] {..2} [3] {2..} [4] {+} [5] {q} [6] {cq} [7] {+:, } [8] {+n:','}";
-        let items: Vec<Arc<dyn SkimItem>> = vec![
-            Arc::new("item 1"),
-            Arc::new("item 2"),
-            Arc::new("item 3"),
-            Arc::new("item 4"),
+        let items = [
+            make_item("item 1"),
+            make_item("item 2"),
+            make_item("item 3"),
+            make_item("item 4"),
         ];
         let delimiter = Regex::new(" ").unwrap();
         assert_eq!(
@@ -289,8 +299,8 @@ mod test {
                 pattern,
                 &delimiter,
                 "{}",
-                items.iter().cloned(),
-                Some(Arc::new("item 2")),
+                items.iter(),
+                Some(make_item("item 2")),
                 "query",
                 "cmd query",
                 true
@@ -305,10 +315,8 @@ mod test {
                 "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                [Arc::new("1"), Arc::new("2")]
-                    .iter()
-                    .map(|x| x.clone() as Arc<dyn SkimItem>),
-                Some(Arc::new("1")),
+                [make_item("1"), make_item("2")].iter(),
+                Some(make_item("1")),
                 "q",
                 "cq",
                 true
@@ -320,8 +328,8 @@ mod test {
                 "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                vec![].into_iter(),
-                Some(Arc::new("1")),
+                [].iter(),
+                Some(make_item("1")),
                 "q",
                 "cq",
                 true
@@ -336,8 +344,8 @@ mod test {
                 "{}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                vec![].into_iter(),
-                Some(Arc::new("{..2}")),
+                [].iter(),
+                Some(make_item("{..2}")),
                 "q",
                 "cq",
                 true
@@ -352,10 +360,8 @@ mod test {
                 "{} ##",
                 &Regex::new(" ").unwrap(),
                 "##",
-                [Arc::new("1"), Arc::new("2")]
-                    .iter()
-                    .map(|x| x.clone() as Arc<dyn SkimItem>),
-                Some(Arc::new("1")),
+                [make_item("1"), make_item("2")].iter(),
+                Some(make_item("1")),
                 "q",
                 "cq",
                 true

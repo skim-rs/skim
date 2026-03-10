@@ -7,12 +7,13 @@ use std::io::Cursor;
 /// This example demonstrates how to bind custom action callbacks to keyboard shortcuts.
 ///
 /// It shows how to:
-/// 1. Create custom action callbacks
+/// 1. Create custom action callbacks (both sync and async)
 /// 2. Bind them to specific key combinations
 /// 3. Use them interactively in skim
 fn main() {
-    // Create a custom callback that adds a prefix to the query
-    let add_prefix_callback = ActionCallback::new(|app: &mut skim::tui::App| {
+    // Create a synchronous callback that adds a prefix to the query.
+    // Use `new_sync` for plain closures that do not need to await anything.
+    let add_prefix_callback = ActionCallback::new_sync(|app: &mut skim::tui::App| {
         // Get current query and add prefix
         let current_query = app.input.value.clone();
 
@@ -32,14 +33,17 @@ fn main() {
         Ok(events)
     });
 
-    // Create a callback that selects all and exits
+    // Create an async callback that selects all and exits.
+    // Use `new` for async closures or blocks that may await futures.
     let select_all_callback = ActionCallback::new(|app: &mut skim::tui::App| {
         let count = app.item_pool.len();
-
-        Ok(vec![
-            Event::Action(Action::SelectAll),
-            Event::Action(Action::Accept(Some(format!("Selected {count} items")))),
-        ])
+        async move {
+            // Async work could go here (e.g. HTTP requests, file I/O, …).
+            Ok(vec![
+                Event::Action(Action::SelectAll),
+                Event::Action(Action::Accept(Some(format!("Selected {count} items")))),
+            ])
+        }
     });
 
     // Build basic options

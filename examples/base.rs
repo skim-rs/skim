@@ -5,7 +5,7 @@ fn main() -> color_eyre::Result<()> {
     let res = Skim::run_items(opts, ["hello", "world"])?;
 
     for item in res.selected_items {
-        println!("Selected {} (id {})", item.output(), item.get_index());
+        println!("Selected {} (id {})", item.output(), item.rank.index);
     }
 
     Ok(())

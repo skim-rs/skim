@@ -12,7 +12,7 @@ use skim::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use skim::prelude::SkimMatcherV2;
 
 fn load_lines() -> Vec<String> {
-    let data = fs::read_to_string("benches/fixtures/1M.txt").expect("1M.txt missing");
+    let data = fs::read_to_string("benches/fixtures/100K.txt").expect("100K.txt missing");
     data.lines().map(|l| l.to_string()).collect()
 }
 

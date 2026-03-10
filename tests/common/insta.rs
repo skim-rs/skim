@@ -176,6 +176,13 @@ impl TestHarness {
         self.tick()?;
 
         self.handle_remaining_events()?;
+
+        // Force a final render so that any state changes (e.g. PreviewReady) that
+        // were processed inside handle_remaining_events are reflected in the buffer
+        // before we take the snapshot.  We bypass the frame-rate throttle by sending
+        // Render directly instead of relying on the Heartbeat path.
+        self.send(Event::Render)?;
+        self.tick()?;
         Ok(())
     }
 
@@ -261,32 +268,43 @@ impl TestHarness {
         // Process any queued events first (including RunPreview)
         self.tick()?;
 
-        // Now check if there's a pending preview task
-        // If not, there's nothing to wait for
-        if let Some(ref handle) = self.skim.app().preview.thread_handle {
-            if handle.is_finished() {
-                return Ok(());
-            }
-        } else {
+        // If there's no preview task running, nothing to wait for
+        let has_pending = match self.skim.app().preview.thread_handle {
+            Some(ref handle) => !handle.is_finished(),
+            None => false,
+        };
+
+        if !has_pending {
+            // Thread is already done (or was never started). Drain any events it may
+            // have sent (e.g. PreviewReady) that arrived after our initial tick().
+            self.tick()?;
             return Ok(());
         }
 
-        // Wait for preview to execute
-        // With multi-threaded runtime, spawned tasks run on background threads
+        // Wait for the preview thread to finish, then drain its events.
         let timeout = std::time::Duration::from_secs(2);
         let start = std::time::Instant::now();
 
         loop {
-            // Sleep to give background tasks time to execute
-            std::thread::sleep(std::time::Duration::from_millis(50));
+            // Sleep to give the background thread time to make progress
+            std::thread::sleep(std::time::Duration::from_millis(10));
 
-            // Drain events then process, so we can check for PreviewReady
-            let mut events = Vec::new();
-            while let Ok(event) = self.skim.tui_mut().event_rx.try_recv() {
-                events.push(event);
-            }
-            for event in events {
-                self.process_event(event)?;
+            // Drain and process any events (including PreviewReady)
+            self.tick()?;
+
+            // Exit as soon as the thread is done and we have processed its events
+            let finished = self
+                .skim
+                .app()
+                .preview
+                .thread_handle
+                .as_ref()
+                .map(|h| h.is_finished())
+                .unwrap_or(true);
+            if finished {
+                // One final drain to catch any events emitted right at thread exit
+                self.tick()?;
+                return Ok(());
             }
 
             if start.elapsed() > timeout {
