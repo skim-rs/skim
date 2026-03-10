@@ -62,7 +62,7 @@ _sk() {
                     return 0
                     ;;
                 --algo)
-                    COMPREPLY=($(compgen -W "skim_v1 skim_v2 clangd fzy frizbee arinae" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "skim_v2 clangd fzy frizbee arinae" -- "${cur}"))
                     return 0
                     ;;
                 --case)

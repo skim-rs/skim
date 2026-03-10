@@ -23,12 +23,11 @@ _sk() {
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
 '-d+[Delimiter between fields]:DELIMITER:_default' \
 '--delimiter=[Delimiter between fields]:DELIMITER:_default' \
-'--algo=[Fuzzy matching algorithm]:ALGORITHM:((skim_v1\:"Original skim fuzzy matching algorithm (v1)"
-skim_v2\:"Improved skim fuzzy matching algorithm (v2, default)"
+'--algo=[Fuzzy matching algorithm]:ALGORITHM:((skim_v2\:"Improved skim fuzzy matching algorithm (v2)"
 clangd\:"Clangd fuzzy matching algorithm"
 fzy\:"Fzy matching algorithm (https\://github.com/jhawthorn/fzy)"
 frizbee\:"Frizbee matching algorithm, typo resistant"
-arinae\:"Arinae\: typo-resistant & natural algorithm"))' \
+arinae\:"Arinae\: typo-resistant & natural algorithm, default"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \

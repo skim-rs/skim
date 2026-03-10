@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 3.7.0" 
+.TH sk 1  "sk 4.0.0" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -79,11 +79,11 @@ Run in exact mode
 \fB\-\-regex\fR
 Start in regex mode instead of fuzzy\-match
 .TP
-\fB\-\-algo\fR \fI<ALGORITHM>\fR [default: skim_v2]
+\fB\-\-algo\fR \fI<ALGORITHM>\fR [default: arinae]
 Fuzzy matching algorithm
 
-skim_v2 Latest skim algorithm, should be better in almost any case
-skim_v1 Legacy skim algorithm
+arinae (ari) Latest algorithm
+skim_v2 Legacy skim algorithm
 clangd  Used in clangd for keyword completion
 fzy     Algorithm from fzy (https://github.com/jhawthorn/fzy)
 .br
@@ -92,9 +92,7 @@ fzy     Algorithm from fzy (https://github.com/jhawthorn/fzy)
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-skim_v1: Original skim fuzzy matching algorithm (v1)
-.IP \(bu 2
-skim_v2: Improved skim fuzzy matching algorithm (v2, default)
+skim_v2: Improved skim fuzzy matching algorithm (v2)
 .IP \(bu 2
 clangd: Clangd fuzzy matching algorithm
 .IP \(bu 2
@@ -102,7 +100,7 @@ fzy: Fzy matching algorithm (https://github.com/jhawthorn/fzy)
 .IP \(bu 2
 frizbee: Frizbee matching algorithm, typo resistant
 .IP \(bu 2
-arinae: Arinae: typo\-resistant & natural algorithm
+arinae: Arinae: typo\-resistant & natural algorithm, default
 .RE
 .TP
 \fB\-\-case\fR \fI<CASE>\fR [default: smart]
@@ -122,7 +120,7 @@ ignore: Case\-insensitive matching
 smart: Smart case: case\-insensitive unless query contains uppercase
 .RE
 .TP
-\fB\-\-typos\fR [\fI<TYPOS>\fR] [default: smart]
+\fB\-\-typos\fR [\fI<TYPOS>\fR] [default: disabled]
 Enable typo\-tolerant matching
 
 When passed without a value (\-\-typos), uses adaptive formula (pattern_length / 4). When passed with a value (e.g. \-\-typos=2), uses that exact number as the maximum allowed typos. \-\-typos=0 explicitly disables typo tolerance. Applies to both fzy and frizbee matchers.
@@ -1062,4 +1060,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v3.7.0
+v4.0.0

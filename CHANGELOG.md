@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-03-10
+
+### Changes
+
+`sk` is now beating `fzf` in interactive matching for time, peak memory usage and CPU usage ! See the benchmarks below for details, including a brief explanation of the benchmark itself.
+
+This release brings multiple breaking changes, please read the following if you have doubts about the update.
+
+#### Default to the Arinae matcher
+
+The biggest change of them all is that the default algorithm is now `Arinae`, skim's latest and most performant algorithm, featuring typo-resistance. If you want to keep using `SkimV2`, pass `--algo skim_v2` and please take the time to open an issue explaining why if possible.
+This also makes the `--scheme` option available to the default matcher, allowing for more refined matching scenarii.
+
+#### Default to non-typo resistant
+
+Typo-resistant behavior is now disable by default, add `--typos` to your skim invocation or `SKIM_DEFAULT_OPTIONS` to get it back. Unless you were using the `frizbee`, `fzy` or `arinae` matcher, this should not impact you.
+
+#### Removal of the `skim_v1` algorithm
+
+The `SkimV1` algorithm, skim's initial algorithm, has been deprecated for years now, and it has now been removed.
+
+#### SkimItem index (library only)
+
+`SkimItem::get_index` and `SkimItem::set_index` are gone, and all index handling is now done internally.
+
+### Benchmarks
+
+This benchmarks runs the interactive interface in a tmux session, and waits for the UI to stabilize.
+It uses a 10 million path-like ASCII items input file, and the query `test`.
+
+```
+=== Results: sk v4.0.0 [baseline] ===
+Completed runs: 50 / 50
+Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782)
+Average time: 3.827s  (min: 3.576s, max: 4.090s)
+Average items/second: 2615767  (min: 2445033, max: 2796365)
+Average peak memory usage: 1589.2 MB  (min: 1518.6 MB, max: 1661.2 MB)
+Average peak CPU usage: 528.9%  (min: 457.0%, max: 740.0%)
+
+=== Results: sk v3.7.0 ===
+Completed runs: 50 / 50
+Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782) +0.0%
+Average time: 3.930s  (min: 3.565s, max: 4.226s)  +2.7%
+Average items/second: 2548674  (min: 2366263, max: 2804816)  -2.6%
+Average peak memory usage: 1618.8 MB  (min: 1539.1 MB, max: 1680.6 MB) +1.9%
+Average peak CPU usage: 696.8%  (min: 608.0%, max: 875.0%)  +31.7%
+
+=== Results: fzf 0.70.0 ===
+Completed runs: 50 / 50
+Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782) +0.0%
+Average time: 5.421s  (min: 4.814s, max: 6.111s)  +41.7%
+Average items/second: 1848269  (min: 1636444, max: 2077385)  -29.3%
+Average peak memory usage: 2015.3 MB  (min: 1860.7 MB, max: 2173.9 MB) +26.8%
+Average peak CPU usage: 1301.1%  (min: 1229.0%, max: 1431.0%)  +146.0%
+
+=== Comparison Summary (vs baseline: sk v4.0.0) ===
+Binary      Avg time     Δ time  Avg rate     Δ rate
+------------------------------------------------------------------------------
+sk v4.0.0   3.827s    baseline   2615767     baseline
+sk v3.7.0   3.930s      +2.7%    2548674      -2.6%
+fzf 0.70.0  5.421s     +41.7%    1848269     -29.3%
+```
+
+### 🚀 Features
+
+- [**breaking**] Internally compute indexes at match time (removes get/set_index) (#1001)
+- [**breaking**] Use Arinae as default algorithm
+
+### ⚙️ Miscellaneous Tasks
+
+- [**breaking**] Default to disabled typos
+- Use python for bench script for comparison
+
 ## [3.7.0] - 2026-03-08
 
 This adds a new library API: `Skim::run_items`. Using this, you don't need to send the items, the library handles it for you.
@@ -39,8 +112,6 @@ let res = Skim::run_with(options, ["foo", "bar"]);
 ```
 
 It will automatically convert any iterator of <impl SkimItem> by adding an `index` field and then send it, before running skim.
-
-
 
 ### 🚀 Features
 
