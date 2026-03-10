@@ -23,7 +23,7 @@ pub(super) trait Atom: PartialEq + Into<char> + Copy {
     ///
     /// Implementations may override this with a SIMD-backed search (e.g.
     /// `memchr` for `u8` in case-sensitive mode).
-    #[inline]
+    #[inline(always)]
     fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
         haystack.iter().position(|&c| self.eq(c, respect_case))
     }
@@ -53,10 +53,9 @@ impl Atom for u8 {
 
     /// Case-sensitive search uses SIMD-backed `memchr`; case-insensitive
     /// falls back to the generic scalar loop.
-    #[inline]
+    #[inline(always)]
     fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
         if respect_case {
-            // SAFETY: `self` is a u8 and memchr searches for it in a byte slice.
             memchr(self, haystack)
         } else {
             // Case-insensitive: compare lowercase. Also try the uppercase variant

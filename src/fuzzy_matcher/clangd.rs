@@ -20,7 +20,7 @@
 //! Algorithm modified from
 //! https://github.com/llvm-mirror/clang-tools-extra/blob/master/clangd/FuzzyMatch.cpp
 //! Also check: https://github.com/lewang/flx/issues/98
-use crate::fuzzy_matcher::util::*;
+use crate::fuzzy_matcher::util::{CharRole, CharType, char_equal, char_role, char_type_of, cheap_matches};
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType};
 use std::cell::RefCell;
 use std::cmp::max;
@@ -57,30 +57,34 @@ impl Default for ClangdMatcher {
 
 impl ClangdMatcher {
     /// Sets the matcher to ignore case when matching
+    #[must_use]
     pub fn ignore_case(mut self) -> Self {
         self.case = CaseMatching::Ignore;
         self
     }
 
     /// Sets the matcher to use smart case (case insensitive unless pattern contains uppercase)
+    #[must_use]
     pub fn smart_case(mut self) -> Self {
         self.case = CaseMatching::Smart;
         self
     }
 
     /// Sets the matcher to respect case when matching
+    #[must_use]
     pub fn respect_case(mut self) -> Self {
         self.case = CaseMatching::Respect;
         self
     }
 
     /// Enables or disables caching for improved performance
+    #[must_use]
     pub fn use_cache(mut self, use_cache: bool) -> Self {
         self.use_cache = use_cache;
         self
     }
 
-    fn contains_upper(&self, string: &str) -> bool {
+    fn contains_upper(string: &str) -> bool {
         for ch in string.chars() {
             if ch.is_uppercase() {
                 return true;
@@ -94,7 +98,7 @@ impl ClangdMatcher {
         match self.case {
             CaseMatching::Respect => true,
             CaseMatching::Ignore => false,
-            CaseMatching::Smart => self.contains_upper(pattern),
+            CaseMatching::Smart => Self::contains_upper(pattern),
         }
     }
 }
@@ -127,10 +131,10 @@ impl FuzzyMatcher for ClangdMatcher {
         let mut indices_reverse = Vec::with_capacity(num_pattern_chars);
         let cell = dp[num_pattern_chars][num_choice_chars];
 
-        let (mut last_action, score) = if cell.match_score > cell.miss_score {
-            (Action::Match, cell.match_score)
+        let (mut last_action, score) = if cell.hit > cell.missed {
+            (Action::Match, cell.hit)
         } else {
-            (Action::Miss, cell.miss_score)
+            (Action::Miss, cell.missed)
         };
 
         let mut row = num_pattern_chars;
@@ -189,7 +193,7 @@ impl FuzzyMatcher for ClangdMatcher {
         let dp = build_graph(&choice_chars, &pattern_chars, true, case_sensitive);
 
         let cell = dp[num_pattern_chars & 1][num_choice_chars];
-        let score = max(cell.match_score, cell.miss_score);
+        let score = max(cell.hit, cell.missed);
 
         if !self.use_cache {
             // drop the allocated memory
@@ -202,11 +206,13 @@ impl FuzzyMatcher for ClangdMatcher {
 }
 
 /// fuzzy match `line` with `pattern`, returning the score and indices of matches
+#[must_use]
 pub fn fuzzy_indices(line: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
     ClangdMatcher::default().ignore_case().fuzzy_indices(line, pattern)
 }
 
 /// fuzzy match `line` with `pattern`, returning the score(the larger the better) on match
+#[must_use]
 pub fn fuzzy_match(line: &str, pattern: &str) -> Option<ScoreType> {
     ClangdMatcher::default().ignore_case().fuzzy_match(line, pattern)
 }
@@ -224,14 +230,14 @@ fn build_graph(line: &[char], pattern: &[char], compressed: bool, case_sensitive
         dp.push(vec![Score::default(); num_line_chars + 1]);
     }
 
-    dp[0][0].miss_score = 0;
+    dp[0][0].missed = 0;
 
     // first line
     for (idx, &ch) in line.iter().enumerate() {
         dp[0][idx + 1] = Score {
-            miss_score: dp[0][idx].miss_score - skip_penalty(idx, ch, Action::Miss),
+            missed: dp[0][idx].missed - skip_penalty(idx, ch, Action::Miss),
             last_action_miss: Action::Miss,
-            match_score: AWFUL_SCORE,
+            hit: AWFUL_SCORE,
             last_action_match: Action::Miss,
         };
     }
@@ -252,24 +258,24 @@ fn build_graph(line: &[char], pattern: &[char], compressed: bool, case_sensitive
             // what if we skip current line character?
             // we need to calculate the cases where the pre line character is matched/missed
             let pre_miss = &dp[current_row_idx][line_idx];
-            let mut match_miss_score = pre_miss.match_score;
-            let mut miss_miss_score = pre_miss.miss_score;
+            let mut match_missed = pre_miss.hit;
+            let mut miss_missed = pre_miss.missed;
             if pat_idx < num_pattern_chars - 1 {
-                match_miss_score -= skip_penalty(line_idx, line_ch, Action::Match);
-                miss_miss_score -= skip_penalty(line_idx, line_ch, Action::Miss);
+                match_missed -= skip_penalty(line_idx, line_ch, Action::Match);
+                miss_missed -= skip_penalty(line_idx, line_ch, Action::Miss);
             }
 
-            let (miss_score, last_action_miss) = if match_miss_score > miss_miss_score {
-                (match_miss_score, Action::Match)
+            let (missed, last_action_miss) = if match_missed > miss_missed {
+                (match_missed, Action::Match)
             } else {
-                (miss_miss_score, Action::Miss)
+                (miss_missed, Action::Miss)
             };
 
             // what if we want to match current line character?
             // so we need to calculate the cases where the pre pattern character is matched/missed
             let pre_match = &dp[prev_row_idx][line_idx];
-            let match_match_score = if allow_match(pat_ch, line_ch, case_sensitive) {
-                pre_match.match_score
+            let match_hit = if allow_match(pat_ch, line_ch, case_sensitive) {
+                pre_match.hit
                     + match_bonus(
                         pat_idx,
                         pat_ch,
@@ -283,8 +289,8 @@ fn build_graph(line: &[char], pattern: &[char], compressed: bool, case_sensitive
                 AWFUL_SCORE
             };
 
-            let miss_match_score = if allow_match(pat_ch, line_ch, case_sensitive) {
-                pre_match.miss_score
+            let miss_hit = if allow_match(pat_ch, line_ch, case_sensitive) {
+                pre_match.missed
                     + match_bonus(
                         pat_idx,
                         pat_ch,
@@ -298,17 +304,17 @@ fn build_graph(line: &[char], pattern: &[char], compressed: bool, case_sensitive
                 AWFUL_SCORE
             };
 
-            let (match_score, last_action_match) = if match_match_score > miss_match_score {
-                (match_match_score, Action::Match)
+            let (hit, last_action_match) = if match_hit > miss_hit {
+                (match_hit, Action::Match)
             } else {
-                (miss_match_score, Action::Miss)
+                (miss_hit, Action::Miss)
             };
 
             dp[current_row_idx][line_idx + 1] = Score {
-                miss_score,
                 last_action_miss,
-                match_score,
                 last_action_match,
+                missed,
+                hit,
             };
 
             line_prev_ch = line_ch;
@@ -322,7 +328,13 @@ fn build_graph(line: &[char], pattern: &[char], compressed: bool, case_sensitive
 
 fn adjust_score(score: ScoreType, num_line_chars: usize) -> ScoreType {
     // line width will affect 10 scores
-    score - (((num_line_chars + 1) as f64).ln().floor() as ScoreType)
+    // Cast through u32 to avoid precision-loss lint (character counts fit in u32).
+    let width = f64::from(u32::try_from(num_line_chars + 1).unwrap_or(u32::MAX));
+    let adjustment = width.ln().floor();
+    // SAFETY: adjustment = floor(ln(usize + 1)) ≤ floor(ln(u32::MAX + 1)) ≈ 22, always fits in i64.
+    #[allow(clippy::cast_possible_truncation)]
+    let adjustment_i = adjustment as ScoreType;
+    score - adjustment_i
 }
 
 const AWFUL_SCORE: ScoreType = -(1 << 30);
@@ -337,8 +349,8 @@ enum Action {
 struct Score {
     pub last_action_miss: Action,
     pub last_action_match: Action,
-    pub miss_score: ScoreType,
-    pub match_score: ScoreType,
+    pub missed: ScoreType,
+    pub hit: ScoreType,
 }
 
 impl Default for Score {
@@ -346,8 +358,8 @@ impl Default for Score {
         Self {
             last_action_miss: Action::Miss,
             last_action_match: Action::Miss,
-            miss_score: AWFUL_SCORE,
-            match_score: AWFUL_SCORE,
+            missed: AWFUL_SCORE,
+            hit: AWFUL_SCORE,
         }
     }
 }
@@ -433,17 +445,17 @@ fn print_dp(line: &str, pattern: &str, dp: &[Vec<Score>]) {
     }
 
     for (row_num, row) in dp.iter().enumerate().take(num_pattern_chars + 1) {
-        print!("\n{}\t", row_num);
+        print!("\n{row_num}\t");
         for cell in row.iter().take(num_line_chars + 1) {
             print!(
                 "({},{})/({},{})\t",
-                cell.miss_score,
+                cell.missed,
                 if cell.last_action_miss == Action::Miss {
                     'X'
                 } else {
                     'O'
                 },
-                cell.match_score,
+                cell.hit,
                 if cell.last_action_match == Action::Miss {
                     'X'
                 } else {

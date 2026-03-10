@@ -28,7 +28,7 @@ pub fn wrap_text(input: Text, width: usize) -> Text {
     for input_line in input.iter() {
         let mut current_line = Line::default();
         let mut w = 0;
-        for span in input_line.spans.iter() {
+        for span in &input_line.spans {
             let mut curr = Span::default().style(span.style);
             let mut curr_content = String::new();
             for c in span.content.chars() {
@@ -65,9 +65,9 @@ pub fn wrap_text(input: Text, width: usize) -> Text {
 
 /// Merges styles from right to left
 /// left has higher priority
-/// contrary to ratatui's Style::patch, this will override `Reset` with the new style if set
+/// contrary to ratatui's `Style::patch`, this will override `Reset` with the new style if set
 pub(crate) fn merge_styles(left: Style, right: Style) -> Style {
-    use ratatui::style::Color::*;
+    use ratatui::style::Color::Reset;
     let mut res = Style::default();
     macro_rules! set_field {
         ($res:ident, $left:ident, $right:ident, $field:ident) => {
@@ -254,10 +254,10 @@ pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
                         break;
                     }
                 }
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {}
                 Err(e) => return Err(e),
             },
-            Err(nix::errno::Errno::EINTR) => continue,
+            Err(nix::errno::Errno::EINTR) => {}
             Err(errno) => {
                 return Err(io::Error::from_raw_os_error(errno as i32));
             }
@@ -319,8 +319,8 @@ mod tests {
         let result = wrap_text(input, 5);
 
         // Verify style is preserved across all spans
-        for line in result.lines.iter() {
-            for span in line.spans.iter() {
+        for line in &result.lines {
+            for span in &line.spans {
                 assert_eq!(span.style.fg, Some(Color::Red));
             }
         }

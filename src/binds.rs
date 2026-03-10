@@ -44,7 +44,7 @@ impl Default for KeyMap {
 }
 
 impl KeyMap {
-    /// Adds keymaps from the source, parsing them using parse_keymap
+    /// Adds keymaps from the source, parsing them using `parse_keymap`
     pub fn add_keymaps<'a, T>(&mut self, source: T)
     where
         T: Iterator<Item = &'a str>,
@@ -70,6 +70,7 @@ impl KeyMap {
 
 /// Returns the default key bindings for skim
 #[rustfmt::skip]
+#[must_use]
 pub fn get_default_key_map() -> KeyMap {
     let mut ret = HashMap::new();
 
@@ -132,7 +133,11 @@ pub fn get_default_key_map() -> KeyMap {
     KeyMap(ret)
 }
 
-/// Parses a key str into a crossterm KeyEvent
+/// Parses a key str into a crossterm `KeyEvent`
+///
+/// # Errors
+/// Returns an error if the key string is empty, contains an unknown modifier,
+/// or does not correspond to a recognised key name.
 pub fn parse_key(key: &str) -> Result<KeyEvent> {
     if key.is_empty() {
         return Err(eyre!("Cannot parse empty key"));
@@ -155,15 +160,15 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
 
     let keycode: KeyCode;
     if key.len() == 1 {
-        let char = key.chars().next().unwrap();
+        let char = key.chars().next().unwrap_or_default();
         if char.is_uppercase() {
             mods |= KeyModifiers::SHIFT;
-            keycode = KeyCode::Char(char.to_lowercase().next().unwrap());
+            keycode = KeyCode::Char(char.to_ascii_lowercase());
         } else {
             keycode = KeyCode::Char(char);
         }
-    } else if key.starts_with("f") {
-        let f_index = key.strip_prefix("f").unwrap().parse::<u8>()?;
+    } else if let Some(f) = key.strip_prefix('f') {
+        let f_index = f.parse::<u8>()?;
         keycode = KeyCode::F(f_index);
     } else {
         keycode = match key.as_str() {
@@ -191,7 +196,7 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
     Ok(KeyEvent::new(keycode, mods))
 }
 
-/// Parse an iterator of keymaps into a KeyMap
+/// Parse an iterator of keymaps into a `KeyMap`
 pub fn parse_keymaps<'a, T>(maps: T) -> KeyMap
 where
     T: Iterator<Item = &'a str>,
@@ -202,12 +207,15 @@ where
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions
+///
+/// # Errors
+/// Returns an error if the action chain is empty or contains only unknown actions.
 pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
     let mut actions: Vec<Action> = vec![];
-    let mut split = action_chain.split("+");
+    let mut split = action_chain.split('+');
 
     while let Some(mut s) = split.next().map(String::from) {
-        if (s.starts_with("if-") || s.ends_with("{"))
+        if (s.starts_with("if-") || s.ends_with('{'))
             && let Some(otherwise) = split.next()
         {
             s += &(String::from("+") + otherwise);
@@ -224,15 +232,19 @@ pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
 }
 
 /// Parse a single keymap and return the key and action(s)
+///
+/// # Errors
+/// Returns an error if the string is empty, missing a colon separator, or the
+/// action chain cannot be parsed.
 pub fn parse_keymap(key_action: &str) -> Result<(&str, Vec<Action>)> {
     if key_action.is_empty() {
         return Err(eyre!("Got an empty keybind, skipping"));
     }
-    debug!("got key_action: {:?}", key_action);
+    debug!("got key_action: {key_action:?}");
     let (key, action_chain) = key_action
         .split_once(':')
         .ok_or(eyre!("Failed to parse {} as key and action", key_action))?;
-    debug!("parsed key_action: {:?}: {:?}", key, action_chain);
+    debug!("parsed key_action: {key:?}: {action_chain:?}");
     Ok((key, parse_action_chain(action_chain)?))
 }
 

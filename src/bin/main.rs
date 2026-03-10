@@ -182,8 +182,8 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
                 output_format,
                 &bin_options.delimiter,
                 &bin_options.replstr,
-                result.selected_items.iter(),
-                result.current,
+                &result.selected_items.iter(),
+                &result.current,
                 &result.query,
                 &result.cmd,
                 true

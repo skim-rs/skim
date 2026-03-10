@@ -45,6 +45,10 @@ where
 
 impl Tui {
     /// Creates a TUI with the default backend (buffered stderr) and the specified height
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TUI backend cannot be initialized.
     pub fn new_with_height(height: Size) -> Result<Self> {
         let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
         Self::new_with_height_and_backend(backend, height)
@@ -56,6 +60,14 @@ where
     B::Error: Send + Sync + 'static,
 {
     /// Creates a new TUI with the specified backend and height
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal size cannot be determined or setup fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the terminal size cannot be read from the backend.
     pub fn new_with_height_and_backend(backend: B, height: Size) -> Result<Self> {
         let event_channel = channel(1024 * 1024);
 
@@ -103,6 +115,10 @@ where
     /// This constructor skips terminal-specific operations (cursor detection,
     /// raw mode, scrolling) that don't work with `TestBackend`. Use this when
     /// writing snapshot tests or other tests that need to render the UI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal cannot be initialized with the given backend.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn new_for_test(backend: B) -> Result<Self> {
         let event_channel = channel(1024 * 1024);
@@ -118,6 +134,10 @@ where
     }
 
     /// Enters the TUI by enabling raw mode and starting event handling
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if enabling raw mode or mouse capture fails.
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
         crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
@@ -129,6 +149,10 @@ where
     }
 
     /// Exits the TUI by stopping event handling and disabling raw mode
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if disabling raw mode or mouse capture fails.
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
         if crossterm::terminal::is_raw_mode_enabled()? {
@@ -148,11 +172,11 @@ where
             let area = self.get_frame().area();
             let orig = ratatui::layout::Position { x: area.x, y: area.y };
             self.set_cursor_position(orig)?;
-        };
+        }
         Ok(())
     }
     /// Stops the TUI event loop
-    /// Equivalent to self.cancel()
+    /// Equivalent to `self.cancel()`
     pub fn stop(&self) {
         self.cancel();
     }
@@ -175,7 +199,7 @@ where
                 let tick_delay = tick_interval.tick();
                 let crossterm_event = reader.next().fuse();
                 tokio::select! {
-                    _ = cancellation_token_clone.cancelled() => {
+                    () = cancellation_token_clone.cancelled() => {
                         break;
                     }
                     maybe_event = crossterm_event => {

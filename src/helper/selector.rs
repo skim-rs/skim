@@ -14,6 +14,7 @@ pub struct DefaultSkimSelector {
 
 impl DefaultSkimSelector {
     /// Selects the first N items
+    #[must_use]
     pub fn first_n(mut self, first_n: usize) -> Self {
         trace!("select first_n: {first_n}");
         self.first_n = first_n;
@@ -21,18 +22,20 @@ impl DefaultSkimSelector {
     }
 
     /// Selects items whose text matches any of the preset strings
+    #[must_use]
     pub fn preset(mut self, preset: impl IntoIterator<Item = String>) -> Self {
         if self.preset.is_none() {
-            self.preset = Some(HashSet::new())
+            self.preset = Some(HashSet::new());
         }
 
         if let Some(set) = self.preset.as_mut() {
-            set.extend(preset)
+            set.extend(preset);
         }
         self
     }
 
     /// Selects items whose text matches the given regex pattern
+    #[must_use]
     pub fn regex(mut self, regex: &str) -> Self {
         trace!("select regex: {regex}");
         if !regex.is_empty() {
@@ -52,13 +55,12 @@ impl Selector for DefaultSkimSelector {
             && self
                 .preset
                 .as_ref()
-                .map(|preset| preset.contains(item.text().as_ref()))
-                .unwrap_or(false)
+                .is_some_and(|preset| preset.contains(item.text().as_ref()))
         {
             return true;
         }
 
-        if self.regex.is_some() && self.regex.as_ref().map(|re| re.is_match(&item.text())).unwrap_or(false) {
+        if self.regex.is_some() && self.regex.as_ref().is_some_and(|re| re.is_match(&item.text())) {
             return true;
         }
 

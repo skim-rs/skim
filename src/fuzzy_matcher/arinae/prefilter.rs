@@ -43,9 +43,8 @@ pub(super) fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect
     // Use the SIMD-backed find_first_in (memchr for u8, scalar for char).
     // j_first is 0-indexed; the DP window is choice[j_first..].
     let first = pattern[0];
-    let j_first = match first.find_first_in(choice, respect_case) {
-        Some(pos) => pos,
-        None => return false,
+    let Some(j_first) = first.find_first_in(choice, respect_case) else {
+        return false;
     };
 
     if n == 1 {
@@ -71,7 +70,7 @@ pub(super) fn cheap_typo_prefilter<C: Atom>(pattern: &[C], choice: &[C], respect
 /// Builds a frequency table over `window` in a single O(|window|) pass,
 /// then walks the tail in O(n). Total cost: O(m + n) with a single
 /// sequential read of `window` — optimal cache behaviour.
-#[inline]
+#[inline(always)]
 fn tail_freq_check<C: Atom>(pattern: &[C], window: &[C], respect_case: bool, min_tail: usize) -> bool {
     // We need a per-character frequency table for the window.
     // Use a small stack-allocated array of (char_value, count) pairs keyed on
@@ -93,7 +92,7 @@ fn tail_freq_check<C: Atom>(pattern: &[C], window: &[C], respect_case: bool, min
     let mut table_len = 0usize;
 
     // Pass 1: populate table with distinct tail chars (count = 0).
-    for &pi in tail[..tail_len].iter() {
+    for &pi in &tail[..tail_len] {
         if !table[..table_len].iter().any(|&(c, _)| pi.eq(c, respect_case)) {
             table[table_len] = (pi, 0);
             table_len += 1;
@@ -112,7 +111,7 @@ fn tail_freq_check<C: Atom>(pattern: &[C], window: &[C], respect_case: bool, min
 
     // Pass 3: walk the tail, consume from table, count matches.
     let mut matched = 0usize;
-    for &pi in tail[..tail_len].iter() {
+    for &pi in &tail[..tail_len] {
         if let Some(entry) = table[..table_len]
             .iter_mut()
             .find(|(tc, _)| Atom::eq(pi, *tc, respect_case))

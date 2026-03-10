@@ -13,7 +13,7 @@ pub struct SkimOutput {
     pub is_abort: bool,
 
     /// The final key that makes skim accept/quit.
-    /// Note that it might be Key::Null if it is triggered by skim.
+    /// Note that it might be `Key::Null` if it is triggered by skim.
     pub final_key: crossterm::event::KeyEvent,
 
     /// The query

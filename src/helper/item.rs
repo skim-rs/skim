@@ -1,5 +1,5 @@
 //! Skim item helpers
-//! Including the DefaultSkimItem
+//! Including the `DefaultSkimItem`
 use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::tui::util::merge_styles;
 use crate::{DisplayContext, SkimItem};
@@ -28,7 +28,7 @@ pub struct DefaultSkimItem {
     metadata: Option<Box<DefaultSkimItemMetadata>>,
 }
 
-/// Additional metadata for a SkimItem
+/// Additional metadata for a `SkimItem`
 #[derive(Debug)]
 pub struct DefaultSkimItemMetadata {
     /// The text that will be output when user press `enter`
@@ -41,7 +41,7 @@ pub struct DefaultSkimItemMetadata {
     stripped_text: Option<Box<str>>,
 
     /// A mapping of positions from stripped text to original text.
-    /// Each element is (byte_position, char_position) in the original raw text.
+    /// Each element is (`byte_position`, `char_position`) in the original raw text.
     /// Will be empty if ansi is disabled.
     ansi_info: Option<Vec<(usize, usize)>>,
 
@@ -50,7 +50,8 @@ pub struct DefaultSkimItemMetadata {
 }
 
 impl DefaultSkimItem {
-    /// Create a new DefaultSkimItem from text
+    /// Create a new `DefaultSkimItem` from text
+    #[must_use]
     pub fn new(
         orig_text: &str,
         ansi_enabled: bool,
@@ -80,9 +81,8 @@ impl DefaultSkimItem {
                 let transformed = parse_transform_fields(delimiter, &escape_ansi(orig_text), trans_fields);
                 (Some(orig_text.into()), Box::from(transformed))
             }
-            (false, true) => (None, Box::from(orig_text)),
             (false, false) if contains_ansi => (None, escape_ansi(orig_text).into()),
-            (false, false) => (None, Box::from(orig_text)),
+            (false, true | false) => (None, Box::from(orig_text)),
         };
 
         // Keep track of whether we have null bytes for special handling
@@ -109,7 +109,9 @@ impl DefaultSkimItem {
 
         // Calculate matching ranges on text WITHOUT null bytes (after stripping)
         // This ensures the byte positions match the actual text used for matching
-        let matching_ranges = if !matching_fields.is_empty() {
+        let matching_ranges = if matching_fields.is_empty() {
+            None
+        } else {
             // Use stripped text for matching ranges when ANSI is enabled
             let text_for_matching = if let Some(stripped) = stripped_text.as_ref() {
                 stripped
@@ -119,8 +121,9 @@ impl DefaultSkimItem {
 
             // Parse the original text with null bytes to determine field boundaries
             // Then extract those fields, strip null bytes, and recalculate positions
+            // When has_null_bytes is true, orig_text was set to Some above, so unwrap is safe.
             let orig_text_for_fields = if has_null_bytes {
-                orig_text.as_deref().unwrap()
+                orig_text.as_deref().unwrap_or(text_for_matching)
             } else {
                 text_for_matching
             };
@@ -147,15 +150,13 @@ impl DefaultSkimItem {
             } else {
                 Some(parse_matching_fields(delimiter, text_for_matching, matching_fields))
             }
-        } else {
-            None
         };
 
         let metadata =
             if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
                 Some(Box::new(DefaultSkimItemMetadata {
-                    orig_text: orig_text.map(|inner| inner.into_boxed_str()),
-                    stripped_text: stripped_text.map(|inner| inner.into_boxed_str()),
+                    orig_text: orig_text.map(std::string::String::into_boxed_str),
+                    stripped_text: stripped_text.map(std::string::String::into_boxed_str),
                     ansi_info,
                     matching_ranges,
                 }))
@@ -173,7 +174,8 @@ impl DefaultSkimItem {
         s.contains('\x1b')
     }
 
-    /// Getter for stripped_text stored in the metadata
+    /// Getter for `stripped_text` stored in the metadata
+    #[must_use]
     pub fn stripped_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
             && let Some(stripped_text) = &meta.stripped_text
@@ -184,7 +186,8 @@ impl DefaultSkimItem {
         }
     }
 
-    /// Getter for orig_text stored in metadata
+    /// Getter for `orig_text` stored in metadata
+    #[must_use]
     pub fn orig_text(&self) -> Option<&str> {
         if let Some(meta) = &self.metadata
             && let Some(orig) = &meta.orig_text
@@ -195,7 +198,8 @@ impl DefaultSkimItem {
         }
     }
 
-    /// Getter for ansi_info stored in metadata
+    /// Getter for `ansi_info` stored in metadata
+    #[must_use]
     pub fn ansi_info(&self) -> Option<&Vec<(usize, usize)>> {
         if let Some(meta) = &self.metadata
             && let Some(info) = &meta.ansi_info
@@ -206,7 +210,8 @@ impl DefaultSkimItem {
         }
     }
 
-    /// Getter for matching_ranges stored in metadata
+    /// Getter for `matching_ranges` stored in metadata
+    #[must_use]
     pub fn matching_ranges(&self) -> Option<&[(usize, usize)]> {
         if let Some(meta) = &self.metadata {
             meta.matching_ranges.as_ref().map(|v| v.as_ref() as &[(usize, usize)])
@@ -220,6 +225,7 @@ impl DefaultSkimItem {
     /// Get the display text (with ANSI codes if present) for rendering purposes
     #[inline]
     #[allow(dead_code)]
+    #[must_use]
     pub fn get_display_text(&self) -> &str {
         &self.text
     }
@@ -258,17 +264,17 @@ impl SkimItem for DefaultSkimItem {
         self.matching_ranges()
     }
 
-    fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
+    // The display function handles ANSI stripping, field highlighting, and match
+    // rendering in a single pass; splitting it would require duplicating context handling.
+    #[allow(clippy::too_many_lines)]
+    fn display(&self, context: DisplayContext) -> Line<'_> {
         // If we have ANSI info, we need to handle ANSI codes properly and map matches
         if self.ansi_info().is_some() {
             // Parse the ANSI text using ansi-to-tui to get proper styled spans
             let text_bytes = self.text.as_bytes().to_vec();
-            let parsed_text = match text_bytes.into_text() {
-                Ok(text) => text,
-                Err(_) => {
-                    // Fallback to plain text if parsing fails
-                    return context.to_line(Cow::Borrowed(&self.text));
-                }
+            let Ok(parsed_text) = text_bytes.into_text() else {
+                // Fallback to plain text if parsing fails
+                return context.to_line(Cow::Borrowed(&self.text));
             };
 
             // Extract all spans from the parsed text (should be a single line)
@@ -384,11 +390,10 @@ impl SkimItem for DefaultSkimItem {
                 crate::Matches::ByteRange(start, end) => {
                     // Convert byte positions to char positions in stripped text
                     let stripped = self.stripped_text().unwrap();
-                    let char_start = stripped.get(0..start).map(|s| s.chars().count()).unwrap_or(0);
+                    let char_start = stripped.get(0..start).map_or(0, |s| s.chars().count());
                     let char_end = stripped
                         .get(0..end)
-                        .map(|s| s.chars().count())
-                        .unwrap_or(stripped.chars().count());
+                        .map_or(stripped.chars().count(), |s| s.chars().count());
 
                     // Apply highlighting to the range
                     let mut new_spans = Vec::new();
@@ -458,6 +463,7 @@ impl SkimItem for DefaultSkimItem {
 /// - `\x1b[01;32m` (bold green)
 /// - `\x1b[0m` (reset)
 /// - `\x1b]0;title\x07` (OSC sequences)
+#[must_use]
 pub fn strip_ansi(text: &str) -> (String, Vec<(usize, usize)>) {
     let mut result = String::with_capacity(text.len());
     let mut index_mapping = Vec::new();

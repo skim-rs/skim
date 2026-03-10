@@ -16,6 +16,7 @@
           cargo-insta
           cargo-llvm-cov
           cargo-edit
+          cargo-public-api
           git-cliff
           libclang
           binutils

@@ -298,6 +298,12 @@ pub enum Action {
 }
 
 /// Parses an action string into an Action enum
+///
+/// # Panics
+///
+/// Panics if an `if-*` action is specified without its required argument.
+#[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn parse_action(raw_action: &str) -> Option<Action> {
     let parts = raw_action.split_once([':', '(', ')']);
     let action;
@@ -307,7 +313,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
         Some((act, "")) => action = act,
         Some((act, a)) => {
             action = act;
-            arg = Some(a.trim_end_matches(")").to_string())
+            arg = Some(a.trim_end_matches(')').to_string());
         }
     }
     debug!("parse_action: action={action}, arg={arg:?}");
@@ -318,8 +324,8 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
         let mut otherwise_arg = None;
 
         let if_arg = arg.unwrap_or_else(|| panic!("no arg specified for event {action}"));
-        if if_arg.contains("+") {
-            let split = if_arg.split_once("+");
+        if if_arg.contains('+') {
+            let split = if_arg.split_once('+');
             match split {
                 Some((a, "")) => {
                     then_arg = a.to_string();
@@ -331,7 +337,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 None => unreachable!(),
             }
         } else {
-            then_arg = if_arg.to_string();
+            then_arg = if_arg.clone();
         }
         match action {
             "if-non-matched" => Some(Action::IfNonMatched(then_arg, otherwise_arg)),

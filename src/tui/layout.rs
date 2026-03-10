@@ -72,6 +72,7 @@ impl LayoutTemplate {
     /// [`Header::height()`](super::header::Header::height), which returns a
     /// value fixed at construction time from `options.header_lines` and the
     /// line-count of `options.header`.
+    #[must_use]
     pub fn from_options(options: &SkimOptions, header_height: u16) -> Self {
         let has_border = options.border.is_some();
 
@@ -79,7 +80,7 @@ impl LayoutTemplate {
         let input_rows: u16 = if has_border {
             3 // 1 content + 2 border rows
         } else {
-            1 + if options.info == InfoDisplay::Default { 1 } else { 0 }
+            1 + u16::from(options.info == InfoDisplay::Default)
         };
 
         // Rows consumed by the header widget.
@@ -151,14 +152,15 @@ impl LayoutTemplate {
         Self {
             show_header,
             preview_placement,
-            preview_layout,
             work_layout_reversed,
+            preview_layout,
             work_layout,
         }
     }
 
     /// Apply this template to a concrete terminal `area`, producing the
     /// absolute [`AppLayout`] for one render frame.
+    #[must_use]
     pub fn apply(&self, area: Rect) -> AppLayout {
         // ── Step 1: carve out the preview from the full area ─────────────────
         let (work_area, preview_area): (Rect, Option<Rect>) = match &self.preview_layout {
@@ -225,6 +227,7 @@ impl AppLayout {
     /// Prefer storing the [`LayoutTemplate`] and calling
     /// [`LayoutTemplate::apply`] directly when the template can be reused
     /// across frames.
+    #[must_use]
     pub fn compute(area: Rect, options: &SkimOptions, header_height: u16) -> Self {
         LayoutTemplate::from_options(options, header_height).apply(area)
     }

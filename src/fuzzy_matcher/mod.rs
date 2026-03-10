@@ -29,7 +29,7 @@ pub trait FuzzyMatcher: Send + Sync {
         self.fuzzy_indices(choice, pattern).map(|(score, _)| score)
     }
 
-    /// Fuzzy match and return (score, begin_char_index, end_char_index) without
+    /// Fuzzy match and return (score, `begin_char_index`, `end_char_index`) without
     /// computing per-character match indices. This avoids the Vec allocation and
     /// traceback that `fuzzy_indices` requires, making it much faster for ranking.
     ///

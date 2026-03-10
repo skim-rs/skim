@@ -6,6 +6,7 @@
 use std::{
     borrow::Cow,
     env,
+    fmt::Write as FmtWrite,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::{Command, Stdio},
     sync::{
@@ -38,14 +39,13 @@ enum TmuxWindowDir {
 
 impl From<&str> for TmuxWindowDir {
     fn from(value: &str) -> Self {
-        use TmuxWindowDir::*;
+        use TmuxWindowDir::{Bottom, Center, Left, Right, Top};
         match value {
-            "center" => Center,
             "top" => Top,
             "bottom" => Bottom,
             "left" => Left,
             "right" => Right,
-            _ => Center,
+            _ => Center, // includes "center" and all unknown values
         }
     }
 }
@@ -70,9 +70,9 @@ impl SkimItem for SkimTmuxOutput {
 
 impl<'a> From<&'a String> for TmuxOptions<'a> {
     fn from(value: &'a String) -> Self {
-        let (raw_dir, size) = value.split_once(",").unwrap_or((value, "50%"));
+        let (raw_dir, size) = value.split_once(',').unwrap_or((value, "50%"));
         let dir = TmuxWindowDir::from(raw_dir);
-        let (height, width) = if let Some((lhs, rhs)) = size.split_once(",") {
+        let (height, width) = if let Some((lhs, rhs)) = size.split_once(',') {
             match dir {
                 TmuxWindowDir::Center | TmuxWindowDir::Left | TmuxWindowDir::Right => (rhs, lhs),
                 TmuxWindowDir::Top | TmuxWindowDir::Bottom => (lhs, rhs),
@@ -93,7 +93,7 @@ impl<'a> From<&'a String> for TmuxOptions<'a> {
             TmuxWindowDir::Right => ("100%", "C"),
         };
 
-        Self { height, width, x, y }
+        Self { width, height, x, y }
     }
 }
 
@@ -101,6 +101,11 @@ impl<'a> From<&'a String> for TmuxOptions<'a> {
 ///
 /// This will extract the tmux options, then build a new sk command
 /// without them and send it to tmux in a popup.
+///
+/// # Panics
+///
+/// Panics if the temporary directory for IPC cannot be created.
+#[allow(clippy::too_many_lines)]
 pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Create temp dir for downstream output
     let temp_dir_name = format!(
@@ -157,7 +162,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                         debug!("Read {n} bytes from stdin");
                         stdin_writer.write_all(&buf).unwrap();
                     }
-                    Err(e) => panic!("Failed to read from stdin: {}", e),
+                    Err(e) => panic!("Failed to read from stdin: {e}"),
                 }
             }
             // Ensure all buffered data is written to the file
@@ -176,7 +181,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         debug!("Got arg {arg}");
         if prev_is_tmux_flag {
             prev_is_tmux_flag = false;
-            if !arg.starts_with("-") {
+            if !arg.starts_with('-') {
                 continue;
             }
         } else if prev_is_output_format_flag {
@@ -210,14 +215,14 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         "--print-current",
         "--print-score",
     ] {
-        tmux_shell_cmd.push_str(&format!(" {flag}"));
+        let _ = write!(tmux_shell_cmd, " {flag}");
     }
     tmux_shell_cmd = tmux_shell_cmd.replace("--output-format", "");
 
     if has_piped_input {
-        tmux_shell_cmd.push_str(&format!(" <{}", tmp_stdin.display()));
+        let _ = write!(tmux_shell_cmd, " <{}", tmp_stdin.display());
     }
-    tmux_shell_cmd.push_str(&format!(" >{}", tmp_stdout.display()));
+    let _ = write!(tmux_shell_cmd, " >{}", tmp_stdout.display());
 
     debug!("build cmd {}", &tmux_shell_cmd);
 
@@ -318,10 +323,10 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     }
 
     let is_abort = !status.success();
-    let final_event = match is_abort {
-        true => Event::Action(Action::Abort),
-        false => Event::Action(Action::Accept(None)), // if --bind accept(key) is used,
-                                                      // the key is technically returned in the selected_items
+    let final_event = if is_abort {
+        Event::Action(Action::Abort)
+    } else {
+        Event::Action(Action::Accept(None))
     };
 
     let skim_output = SkimOutput {
@@ -350,10 +355,11 @@ fn push_quoted_arg(args_str: &mut String, arg: &str) {
         "fish" => Fish::quote(arg),
         _ => Sh::quote(arg),
     };
-    args_str.push_str(&format!(
+    let _ = write!(
+        args_str,
         " {}",
         String::from_utf8(quoted_arg).expect("Failed to parse quoted arg as utf8, this should not happen")
-    ));
+    );
 }
 
 fn sanitize_value(value: String) -> String {
@@ -373,8 +379,8 @@ mod tests {
     fn check(input: &str, height: &str, width: &str, x: &str, y: &str) {
         assert_eq!(
             TmuxOptions::from(&String::from(input)),
-            TmuxOptions { height, width, x, y }
-        )
+            TmuxOptions { width, height, x, y }
+        );
     }
 
     #[test]

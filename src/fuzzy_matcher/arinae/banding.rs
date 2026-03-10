@@ -3,7 +3,7 @@
 //! computation to avoid computing every cell
 
 use super::atom::Atom;
-use super::constants::*;
+use super::constants::{MAX_PAT_LEN, TYPO_BAND_SLACK};
 use super::helpers::{compute_last_match_cols, compute_row_col_bounds, find_first_char};
 
 /// Precomputed banding information shared by both score-only and full DP.
@@ -30,14 +30,14 @@ pub(super) fn compute_banding<const ALLOW_TYPOS: bool, C: Atom>(
     let row_bounds;
     let j_first;
 
-    if !ALLOW_TYPOS {
+    if ALLOW_TYPOS {
+        j_first = find_first_char(pat, cho, respect_case)?;
+        row_bounds = None;
+    } else {
         let fm = compute_first_match_cols(pat, cho, respect_case)?;
         let lm = compute_last_match_cols(pat, cho, respect_case)?;
         j_first = fm[0];
         row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
-    } else {
-        j_first = find_first_char(pat, cho, respect_case)?;
-        row_bounds = None;
     }
 
     let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
@@ -53,7 +53,7 @@ pub(super) fn compute_banding<const ALLOW_TYPOS: bool, C: Atom>(
 
 /// Row-major V-shaped band: compute column bounds at row `i`.
 ///
-/// The result is an upper triangle starting at the diagonal (j ~ i + j_first - 1)
+/// The result is an upper triangle starting at the diagonal (j ~ i + `j_first` - 1)
 #[inline(always)]
 pub(super) fn typo_vband_row(i: usize, m: usize, bandwidth: usize, j_first: usize) -> (usize, usize) {
     let j = i + j_first - 1;

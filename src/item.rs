@@ -36,6 +36,7 @@ impl Default for RankBuilder {
 
 impl RankBuilder {
     /// Creates a new rank builder with the given criteria
+    #[must_use]
     pub fn new(mut criterion: Vec<RankCriteria>) -> Self {
         if !criterion.contains(&RankCriteria::Score) && !criterion.contains(&RankCriteria::NegScore) {
             criterion.insert(0, RankCriteria::Score);
@@ -46,6 +47,7 @@ impl RankBuilder {
     }
 
     /// Returns the tiebreak criteria slice.
+    #[must_use]
     pub fn criteria(&self) -> &[RankCriteria] {
         &self.criterion
     }
@@ -53,7 +55,8 @@ impl RankBuilder {
     /// Computes the byte offset of the first character after the last path separator
     /// (`/` or `\`) in `text`.  Returns `0` when no separator is present.
     fn path_name_offset(text: &str) -> i32 {
-        text.rfind(['/', '\\']).map(|pos| pos as i32 + 1).unwrap_or(0)
+        text.rfind(['/', '\\'])
+            .map_or(0, |pos| i32::try_from(pos).unwrap_or(i32::MAX).saturating_add(1))
     }
 
     /// Builds a `Rank` from raw match measurements.
@@ -61,12 +64,13 @@ impl RankBuilder {
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
     /// applied lazily by [`Rank::sort_key`] at comparison time.
     /// The `index` will be overriden later
+    #[must_use]
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str) -> Rank {
         Rank {
             score,
-            begin: begin as i32,
-            end: end as i32,
-            length: item_text.len() as i32,
+            begin: i32::try_from(begin).unwrap_or(i32::MAX),
+            end: i32::try_from(end).unwrap_or(i32::MAX),
+            length: i32::try_from(item_text.len()).unwrap_or(i32::MAX),
             index: Default::default(),
             path_name_offset: Self::path_name_offset(item_text),
         }
@@ -79,6 +83,7 @@ impl Rank {
     /// Each criterion maps to one slot in the returned `[i32; 5]` array. Values are
     /// sign-flipped where necessary so that the array compares lexicographically with
     /// the "best" match sorting first (ascending order).
+    #[must_use]
     pub fn sort_key(&self, criteria: &[RankCriteria]) -> [i32; 5] {
         let mut key = [0i32; 5];
         for (priority, criterion) in criteria.iter().take(5).enumerate() {
@@ -150,6 +155,7 @@ impl MatchedItem {
     ///
     /// Both input lists must already be sorted by the same tiebreak criteria (ascending).
     /// The merge is O(n+m).
+    #[must_use]
     pub fn sorted_merge(existing: Vec<MatchedItem>, incoming: Vec<MatchedItem>) -> Vec<MatchedItem> {
         if existing.is_empty() {
             return incoming;
@@ -159,6 +165,7 @@ impl MatchedItem {
         }
 
         // Fast path: if all existing <= all incoming, we can append without merging.
+        #[allow(clippy::missing_panics_doc)]
         if existing.last().unwrap() <= incoming.first().unwrap() {
             let mut out = existing;
             out.extend(incoming);
@@ -166,6 +173,7 @@ impl MatchedItem {
         }
 
         // Fast path: if all incoming <= all existing, prepend without complex merge.
+        #[allow(clippy::missing_panics_doc)]
         if incoming.last().unwrap() <= existing.first().unwrap() {
             let mut out = incoming;
             out.extend(existing);
@@ -180,6 +188,7 @@ impl MatchedItem {
         let mut b_next = b.next();
 
         loop {
+            #[allow(clippy::missing_panics_doc)]
             match (&a_next, &b_next) {
                 (Some(av), Some(bv)) => {
                     if av <= bv {
@@ -219,14 +228,14 @@ impl MatchedItem {
     /// `existing` must be sorted according to the same ordering used by
     /// `MatchedItem::cmp`.
     pub fn merge_into_sorted(existing: &mut Vec<MatchedItem>, incoming: Vec<MatchedItem>) {
-        if incoming.is_empty() {
-            return;
-        }
-
         // Heuristic threshold: for small incoming batches, prefer binary-insert.
         // This avoids allocating a new vector and copying the entire existing
         // list when we only need to insert a few new items.
         const SMALL_INSERT_THRESHOLD: usize = 256;
+
+        if incoming.is_empty() {
+            return;
+        }
 
         if incoming.len() <= SMALL_INSERT_THRESHOLD {
             // Insert each incoming item into the existing sorted vector.
@@ -246,7 +255,8 @@ impl MatchedItem {
 }
 
 impl MatchedItem {
-    /// Downcast the MatchedItem to the corresponding SkimItem struct
+    /// Downcast the `MatchedItem` to the corresponding `SkimItem` struct
+    #[must_use]
     pub fn downcast_item<T: SkimItem>(&self) -> Option<&T> {
         (*self.item).as_any().downcast_ref::<T>()
     }
@@ -318,11 +328,13 @@ impl Default for ItemPool {
 
 impl ItemPool {
     /// Creates a new empty item pool
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Creates a new item pool from skim options
+    #[must_use]
     pub fn from_options(options: &crate::SkimOptions) -> Self {
         Self {
             length: AtomicUsize::new(0),
@@ -373,7 +385,7 @@ impl ItemPool {
         self.taken.store(0, Ordering::SeqCst);
     }
 
-    /// append the items and return the new_size of the pool
+    /// append the items and return the `new_size` of the pool
     pub fn append(&self, mut items: Vec<Arc<dyn SkimItem>>) -> usize {
         let len = items.len();
         trace!("item pool, append {len} items");
@@ -391,7 +403,7 @@ impl ItemPool {
 
             if self.tac {
                 // For --tac, prepend non-header items (newest items go to front)
-                for item in remaining.into_iter() {
+                for item in remaining {
                     pool.insert(0, item);
                 }
             } else {
@@ -399,7 +411,7 @@ impl ItemPool {
             }
         } else if self.tac {
             // For --tac, prepend items (newest items go to front)
-            for item in items.into_iter() {
+            for item in items {
                 pool.insert(0, item);
             }
         } else {
@@ -482,7 +494,9 @@ pub enum RankCriteria {
 #[cfg(feature = "cli")]
 impl ValueEnum for RankCriteria {
     fn value_variants<'a>() -> &'a [Self] {
-        use RankCriteria::*;
+        use RankCriteria::{
+            Begin, End, Index, Length, NegBegin, NegEnd, NegIndex, NegLength, NegPathName, NegScore, PathName, Score,
+        };
         &[
             Score,
             NegScore,
@@ -500,7 +514,9 @@ impl ValueEnum for RankCriteria {
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
-        use RankCriteria::*;
+        use RankCriteria::{
+            Begin, End, Index, Length, NegBegin, NegEnd, NegIndex, NegLength, NegPathName, NegScore, PathName, Score,
+        };
         Some(match self {
             Score => PossibleValue::new("score"),
             Begin => PossibleValue::new("begin"),

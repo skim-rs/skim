@@ -1,14 +1,14 @@
 //! &[dyn Atom] manipulation helpers
 
 use super::Atom;
-use super::constants::*;
+use super::constants::MAX_PAT_LEN;
 
 /// Find the 1-indexed column of the first occurrence of `pat[0]` in `cho`.
 ///
 /// Returns `None` if `pat[0]` is not found anywhere (caller should return
 /// `None`). The position defines the start of the V-shaped banding envelope.
 /// Uses SIMD-backed `find_first_in` for `u8` slices.
-#[inline]
+#[inline(always)]
 pub(super) fn find_first_char<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -> Option<usize> {
     pat[0].find_first_in(cho, respect_case).map(|idx| idx + 1) // 1-indexed
 }

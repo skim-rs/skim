@@ -2,6 +2,7 @@ use ansi_to_tui::IntoText;
 use color_eyre::eyre::{Result, eyre};
 use portable_pty::{PtyPair, PtySize, native_pty_system};
 use ratatui::{
+    layout::Alignment,
     prelude::Backend,
     style::Stylize,
     text::{Line, Text},
@@ -26,7 +27,7 @@ use crate::{SkimItem, SkimOptions};
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
 const PREVIEW_MAX_BYTES: usize = 1024 * 1024;
-const VT_SCROLLBACK: usize = 100000;
+const VT_SCROLLBACK: usize = 100_000;
 
 /// Preview content can be either parsed text or a terminal screen
 pub(crate) enum PreviewContent {
@@ -114,7 +115,8 @@ impl Preview {
             super::Size::Fixed(n) => n,
             super::Size::Percent(p) => {
                 let dimension = if is_vertical { self.rows } else { self.cols };
-                (dimension as u32 * p as u32 / 100) as u16
+                // Result is at most dimension (a u16), so truncation cannot occur.
+                u16::try_from(u32::from(dimension) * u32::from(p) / 100).unwrap_or(u16::MAX)
             }
         }
     }
@@ -175,7 +177,7 @@ impl Preview {
         result
     }
 
-    pub fn content(&mut self, content: Vec<u8>) -> Result<()> {
+    pub fn content(&mut self, content: &[u8]) -> Result<()> {
         let text = content.to_owned().into_text()?;
         let Ok(mut content) = self.content.write() else {
             return Err(color_eyre::eyre::eyre!("Failed to acquire content for writing"));
@@ -187,8 +189,8 @@ impl Preview {
         Ok(())
     }
 
-    pub fn content_with_position(&mut self, content: Vec<u8>, position: crate::PreviewPosition) -> Result<()> {
-        self.content(content).map(|_| {
+    pub fn content_with_position(&mut self, content: &[u8], position: crate::PreviewPosition) -> Result<()> {
+        self.content(content).map(|()| {
             // Apply position offsets
             let v_scroll = self.size_to_offset(position.v_scroll, true);
             let v_offset = self.size_to_offset(position.v_offset, true);
@@ -216,7 +218,7 @@ impl Preview {
                 .min(self.total_lines.saturating_sub(self.rows.saturating_sub(1)));
         } else {
             // We might not have the actual total_lines value
-            self.scroll_y = self.scroll_y.saturating_add(lines)
+            self.scroll_y = self.scroll_y.saturating_add(lines);
         }
     }
 
@@ -267,6 +269,7 @@ impl Preview {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn spawn<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
@@ -356,7 +359,7 @@ impl Preview {
                             break;
                         }
                         Ok(size) => {
-                            trace!("read {} bytes", size);
+                            trace!("read {size} bytes");
                             unprocessed_buf.extend_from_slice(&buf[..size]);
 
                             // Filter out terminal query sequences and respond to them
@@ -378,7 +381,7 @@ impl Preview {
                             }
                         }
                         Err(e) => {
-                            trace!("read error {:?}", e);
+                            trace!("read error {e:?}");
                             break;
                         }
                     }
@@ -410,9 +413,9 @@ impl Preview {
 
                 let try_out = shell_cmd.output();
                 if try_out.is_err() {
-                    println!("Shell cmd in error: {:?}", try_out);
+                    println!("Shell cmd in error: {try_out:?}");
                     return;
-                };
+                }
 
                 let mut out = try_out.unwrap();
 
@@ -425,7 +428,7 @@ impl Preview {
                         out.stdout.resize(PREVIEW_MAX_BYTES.min(out.stdout.len()), 0);
                         *c = PreviewContent::Text(out.stdout.into_text().unwrap_or_default());
                     } else {
-                        *c = PreviewContent::Text(out.stderr.to_owned().into_text().unwrap_or_default());
+                        *c = PreviewContent::Text(out.stderr.clone().into_text().unwrap_or_default());
                     }
                 }
 
@@ -502,7 +505,7 @@ impl SkimWidget for Preview {
                 Direction::Down => block = block.borders(Borders::TOP),
                 Direction::Left => block = block.borders(Borders::RIGHT),
                 Direction::Right => block = block.borders(Borders::LEFT),
-            };
+            }
         }
 
         Clear.render(area, buf);
@@ -524,7 +527,6 @@ impl SkimWidget for Preview {
                 if self.scroll_y > 0 && self.total_lines > 0 {
                     let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
                     let title = format!("{}/{}", current_line, self.total_lines);
-                    use ratatui::layout::Alignment;
 
                     block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
                 }
@@ -548,7 +550,7 @@ impl SkimWidget for Preview {
                         // Reduce scrollback by scroll_y to show earlier content
                         parser_guard
                             .screen_mut()
-                            .set_scrollback(scrollback_len.saturating_sub(self.scroll_y.into()))
+                            .set_scrollback(scrollback_len.saturating_sub(self.scroll_y.into()));
                     }
                 }
 
@@ -559,7 +561,6 @@ impl SkimWidget for Preview {
                     // Add scroll position indicator if scrolled
                     if self.scroll_y > 0 && self.total_lines > 0 {
                         let title = format!("{}/{}", self.scroll_y + 1, self.total_lines);
-                        use ratatui::layout::Alignment;
                         block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
                     }
 

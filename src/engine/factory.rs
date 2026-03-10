@@ -25,6 +25,7 @@ pub struct ExactOrFuzzyEngineFactory {
 
 impl ExactOrFuzzyEngineFactory {
     /// Creates a new builder with default settings
+    #[must_use]
     pub fn builder() -> Self {
         Self {
             exact_mode: false,
@@ -37,18 +38,21 @@ impl ExactOrFuzzyEngineFactory {
     }
 
     /// Sets whether to use exact matching mode
+    #[must_use]
     pub fn exact_mode(mut self, exact_mode: bool) -> Self {
         self.exact_mode = exact_mode;
         self
     }
 
     /// Sets the fuzzy matching algorithm to use
+    #[must_use]
     pub fn fuzzy_algorithm(mut self, fuzzy_algorithm: FuzzyAlgorithm) -> Self {
         self.fuzzy_algorithm = fuzzy_algorithm;
         self
     }
 
     /// Sets the rank builder for scoring matches
+    #[must_use]
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
         self
@@ -57,26 +61,30 @@ impl ExactOrFuzzyEngineFactory {
     /// Sets the typo tolerance configuration
     ///
     /// - `Typos::Disabled`: no typo tolerance
-    /// - `Typos::Smart`: adaptive typo tolerance (pattern_length / 4)
+    /// - `Typos::Smart`: adaptive typo tolerance (`pattern_length` / 4)
     /// - `Typos::Fixed(n)`: exactly n typos allowed
+    #[must_use]
     pub fn typos(mut self, typos: Typos) -> Self {
         self.typos = typos;
         self
     }
 
     /// Sets filter mode (skips per-character match indices for faster matching)
+    #[must_use]
     pub fn filter_mode(mut self, filter_mode: bool) -> Self {
         self.filter_mode = filter_mode;
         self
     }
 
     /// When true, prefer the last (rightmost) occurrence on tied scores
+    #[must_use]
     pub fn last_match(mut self, last_match: bool) -> Self {
         self.last_match = last_match;
         self
     }
 
     /// Builds the factory (currently a no-op, returns self)
+    #[must_use]
     pub fn build(self) -> Self {
         self
     }
@@ -170,7 +178,7 @@ impl AndOrEngineFactory {
             return self.inner.create_engine_with_case(query, case);
         }
         let and_engines = RE_OR_WITH_SPACES
-            .replace_all(&self.mask_escape_space(query), "|")
+            .replace_all(&Self::mask_escape_space(query), "|")
             .split(' ')
             .filter_map(|and_term| {
                 if and_term.is_empty() {
@@ -185,7 +193,7 @@ impl AndOrEngineFactory {
                         debug!("Creating Or engine for {term}");
                         Some(
                             self.inner
-                                .create_engine_with_case(&self.unmask_escape_space(term), case),
+                                .create_engine_with_case(&Self::unmask_escape_space(term), case),
                         )
                     })
                     .collect::<Vec<_>>();
@@ -200,11 +208,11 @@ impl AndOrEngineFactory {
         Box::new(AndEngine::builder().engines(and_engines).build())
     }
 
-    fn mask_escape_space(&self, string: &str) -> String {
+    fn mask_escape_space(string: &str) -> String {
         string.replace("\\ ", "\0")
     }
 
-    fn unmask_escape_space(&self, string: &str) -> String {
+    fn unmask_escape_space(string: &str) -> String {
         string.replace('\0', " ")
     }
 }
@@ -223,6 +231,7 @@ pub struct RegexEngineFactory {
 
 impl RegexEngineFactory {
     /// Creates a new builder with default settings
+    #[must_use]
     pub fn builder() -> Self {
         Self {
             rank_builder: Default::default(),
@@ -230,12 +239,14 @@ impl RegexEngineFactory {
     }
 
     /// Sets the rank builder for scoring matches
+    #[must_use]
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
         self
     }
 
     /// Builds the factory (currently a no-op, returns self)
+    #[must_use]
     pub fn build(self) -> Self {
         self
     }

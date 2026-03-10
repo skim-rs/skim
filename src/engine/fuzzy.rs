@@ -21,7 +21,7 @@ pub enum FuzzyAlgorithm {
     SkimV2,
     /// Clangd fuzzy matching algorithm
     Clangd,
-    /// Fzy matching algorithm (https://github.com/jhawthorn/fzy)
+    /// Fzy matching algorithm (<https://github.com/jhawthorn/fzy>)
     Fzy,
     /// Frizbee matching algorithm, typo resistant
     Frizbee,
@@ -43,7 +43,7 @@ pub struct FuzzyEngineBuilder {
     rank_builder: Arc<RankBuilder>,
     /// Typo tolerance configuration:
     /// - `Typos::Disabled`: no typo tolerance
-    /// - `Typos::Smart`: adaptive (pattern_length / 4)
+    /// - `Typos::Smart`: adaptive (`pattern_length` / 4)
     /// - `Typos::Fixed(n)`: exactly n typos allowed
     typos: Typos,
     /// When true, use `fuzzy_match_range` instead of `fuzzy_indices` to avoid
@@ -90,7 +90,7 @@ impl FuzzyEngineBuilder {
         self
     }
 
-    /// Compute the effective max_typos for the given query.
+    /// Compute the effective `max_typos` for the given query.
     ///
     /// - `Typos::Disabled` → `None` (no typo tolerance)
     /// - `Typos::Smart` → adaptive: `Some(query.chars().count() / 4)`
@@ -137,7 +137,7 @@ impl FuzzyEngineBuilder {
                     CaseMatching::Ignore => matcher.ignore_case(),
                     CaseMatching::Smart => matcher.smart_case(),
                 };
-                debug!("Initialized Fzy algorithm (max_typos: {:?})", max_typos);
+                debug!("Initialized Fzy algorithm (max_typos: {max_typos:?})");
                 Box::new(matcher)
             }
             FuzzyAlgorithm::Arinae => {
@@ -166,6 +166,7 @@ pub struct FuzzyEngine {
 
 impl FuzzyEngine {
     /// Returns a default builder for chaining
+    #[must_use]
     pub fn builder() -> FuzzyEngineBuilder {
         FuzzyEngineBuilder::default()
     }
@@ -208,7 +209,9 @@ impl MatchEngine for FuzzyEngine {
 
             let (score, begin, end) = best?;
             Some(MatchResult {
-                rank: self.rank_builder.build_rank(score as i32, begin, end, &item_text),
+                rank: self
+                    .rank_builder
+                    .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end, &item_text),
                 matched_range: MatchRange::ByteRange(begin, end),
             })
         } else {
@@ -245,7 +248,9 @@ impl MatchEngine for FuzzyEngine {
             let matched_range = MatchRange::Chars(matched_indices);
 
             Some(MatchResult {
-                rank: self.rank_builder.build_rank(score as i32, begin, end, &item_text),
+                rank: self
+                    .rank_builder
+                    .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end, &item_text),
                 matched_range,
             })
         }

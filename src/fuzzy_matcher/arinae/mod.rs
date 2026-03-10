@@ -21,6 +21,8 @@
 //!   or row (full DP), if all cells are zero for several consecutive
 //!   iterations, the alignment is dead and we terminate early.
 
+#![allow(clippy::inline_always)]
+
 mod algo;
 mod atom;
 mod banding;
@@ -37,7 +39,7 @@ use thread_local::ThreadLocal;
 
 use self::algo::{full_dp, range_dp};
 use self::atom::Atom;
-use self::constants::*;
+use self::constants::{CAMEL_CASE_BONUS, START_OF_STRING_BONUS};
 use self::prefilter::cheap_typo_prefilter;
 
 use self::matrix::{CELL_ZERO, Cell, Dir, SWMatrix};
@@ -60,7 +62,7 @@ fn precompute_bonuses<C: Atom>(cho: &[C], buf: &mut Vec<Score>) {
     let bonus_iter = std::iter::once(START_OF_STRING_BONUS).chain(cho.windows(2).map(|w| {
         let prev = w[0];
         let cur = w[1];
-        prev.separator_bonus() + CAMEL_CASE_BONUS * ((prev.is_lowercase() && !cur.is_lowercase()) as Score)
+        prev.separator_bonus() + CAMEL_CASE_BONUS * Score::from(prev.is_lowercase() && !cur.is_lowercase())
     }));
     buf.extend(bonus_iter);
 }
@@ -82,6 +84,7 @@ pub struct ArinaeMatcher {
 
 impl ArinaeMatcher {
     /// Create a new `ArinaeMatcher` with the given settings.
+    #[must_use]
     pub fn new(case: CaseMatching, allow_typos: bool, use_last_match: bool) -> Self {
         Self {
             case,
@@ -91,7 +94,7 @@ impl ArinaeMatcher {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     fn respect_case<C: Atom>(&self, pattern: &[C]) -> bool {
         self.case == CaseMatching::Respect
             || (self.case == CaseMatching::Smart && !pattern.iter().all(|b| b.is_lowercase()))
@@ -114,7 +117,7 @@ impl ArinaeMatcher {
             (false, true)  => full_dp::<false, true , _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf, self.use_last_match),
             (false, false) => full_dp::<false, false, _>(cho, pat, bonuses, respect_case, &self.full_buf, &self.indices_buf, self.use_last_match),
         };
-        res.map(|(s, idx)| (s as ScoreType, idx))
+        res.map(|(s, idx)| (ScoreType::from(s), idx))
     }
 
     /// Generic helper: run full DP over slices of Atom.
@@ -249,7 +252,7 @@ impl ArinaeMatcher {
                 )
             }
         };
-        range.map(|(s, b, e)| (s as ScoreType, b, e))
+        range.map(|(s, b, e)| (ScoreType::from(s), b, e))
     }
 }
 

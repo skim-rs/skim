@@ -46,6 +46,10 @@ impl Skim {
     /// - None: on internal errors.
     /// - `SkimOutput`: the collected key, event, query, selected items, etc.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if skim initialization or the TUI loop fails.
+    ///
     /// # Panics
     ///
     /// Panics if the tui fails to initilize
@@ -81,6 +85,10 @@ impl Skim {
 
     /// Run skim with a Vec of items
     ///
+    /// # Errors
+    ///
+    /// Returns an error if sending items to the channel or running skim fails.
+    ///
     /// ```no_run
     /// use skim::prelude::*;
     ///
@@ -107,6 +115,10 @@ impl Skim {
     }
 
     /// Initialize the TUI with the default crossterm backend, but do not enter it yet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TUI backend cannot be initialized.
     pub fn init_tui(&mut self) -> Result<()> {
         self.tui = Some(Tui::new_with_height(self.height)?);
         Ok(())
@@ -118,14 +130,18 @@ where
     Backend::Error: Send + Sync + 'static,
 {
     /// Initialize skim, without starting anything yet
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if parsing the height or other options fails.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
+        const SKIM_DEFAULT_COMMAND: &str = "find .";
         let height = Size::try_from(options.height.as_str())?;
 
         // application state
         // Initialize theme from options
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
         let reader = Reader::from_options(&options).source(source);
-        const SKIM_DEFAULT_COMMAND: &str = "find .";
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
             Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
             Ok(v) => v,
@@ -139,11 +155,7 @@ where
         // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
         let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
             let expanded = app.expand_cmd(&cmd, true);
-            log::debug!(
-                "Interactive mode: initial_cmd = {:?} (from template {:?})",
-                expanded,
-                cmd
-            );
+            log::debug!("Interactive mode: initial_cmd = {expanded:?} (from template {cmd:?})");
             expanded
         } else {
             cmd.clone()
@@ -178,7 +190,7 @@ where
         debug!("reloading with cmd {new_cmd}");
         // Kill the current reader
         if let Some(rc) = self.reader_control.as_mut() {
-            rc.kill()
+            rc.kill();
         }
         // Clear items
         self.app.item_pool.clear();
@@ -199,7 +211,12 @@ where
     ///
     /// Returns `true` if the reader has completed.
     pub fn check_reader(&mut self) -> bool {
-        if self.reader_control.as_ref().is_some_and(|rc| rc.is_done()) && !self.reader_done {
+        if self
+            .reader_control
+            .as_ref()
+            .is_some_and(super::reader::ReaderControl::is_done)
+            && !self.reader_done
+        {
             self.reader_done = true;
             self.app.restart_matcher(false);
             true
@@ -210,7 +227,11 @@ where
 
     /// Returns `true` if the reader is done (has finished producing items).
     pub fn reader_done(&self) -> bool {
-        self.reader_done && self.reader_control.as_ref().is_none_or(|rc| rc.is_done())
+        self.reader_done
+            && self
+                .reader_control
+                .as_ref()
+                .is_none_or(super::reader::ReaderControl::is_done)
     }
 
     /// Returns `true` if the matcher is stopped
@@ -282,6 +303,10 @@ where
     /// is cheap to clone and can be moved into async blocks or other tasks.
     ///
     /// Must be called after [`init_tui()`](Skim::init_tui).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `init_tui` has not been called before this method.
     pub fn event_sender(&self) -> tokio::sync::mpsc::Sender<Event> {
         self.tui
             .as_ref()
@@ -291,9 +316,23 @@ where
     }
 
     /// Enter the TUI
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TUI cannot be entered or the input listener fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `init_tui` has not been called before this method.
+    ///
+    /// # Async
+    ///
+    /// This will call `init_listener`, which requires a tokio runtime
+    /// Though it is not technically async code, this is a good hint.
+    #[allow(clippy::unused_async)]
     pub async fn enter(&mut self) -> Result<()> {
         debug!("Entering TUI");
-        self.init_listener().await?;
+        self.init_listener()?;
         self.tui
             .as_mut()
             .expect("TUI needs to be initialized using Skim::init_tui before entering")
@@ -301,6 +340,10 @@ where
     }
 
     /// Checks read-0 select-1, filter, and sync to wait and returns whether or not we should enter
+    ///
+    /// # Panics
+    ///
+    /// Panics if `start` has not been called before this method.
     pub fn should_enter(&mut self) -> bool {
         let reader_control = self
             .reader_control
@@ -369,14 +412,14 @@ where
                 app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
                 debug!("early exit, result: {:?}", app.results());
                 return false;
-            };
+            }
         }
         true
     }
 
     /// Initialize the IPC socket listener
     /// This needs to be called from an async context despite being sync
-    async fn init_listener(&mut self) -> Result<()> {
+    fn init_listener(&mut self) -> Result<()> {
         if let Some(socket_name) = &self.app.options.listen {
             self.listener = Some(
                 interprocess::local_socket::ListenerOptions::new()
@@ -384,16 +427,20 @@ where
                         interprocess::local_socket::GenericNamespaced,
                     >(socket_name.to_owned())?)
                     .create_tokio()?,
-            )
+            );
         }
         Ok(())
     }
 
     /// Capture `self` and extract the output
     /// This will perform cleanup
+    ///
+    /// # Panics
+    ///
+    /// Panics if the selected items or current item cannot be retrieved.
     pub fn output(mut self) -> SkimOutput {
         if let Some(mut rc) = self.reader_control.take() {
-            rc.kill()
+            rc.kill();
         }
 
         // Extract final_key and is_abort from final_event
@@ -417,11 +464,11 @@ where
         drop(self);
 
         SkimOutput {
-            cmd,
             final_event,
+            is_abort,
             final_key,
             query,
-            is_abort,
+            cmd,
             selected_items,
             current,
             header,
@@ -441,6 +488,14 @@ where
     ///
     /// Returns `Ok(true)` if skim should quit, `Ok(false)` to continue.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if the TUI cannot produce the next event or if event handling fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `init_tui` has not been called before this method.
+    ///
     /// # Example
     ///
     /// ```ignore
@@ -456,9 +511,9 @@ where
                 let evt = event.ok_or_eyre("Could not acquire next event")?;
 
                 if let Event::Key(k) = &evt {
-                  self.final_key = k.to_owned();
+                  self.final_key.clone_from(k);
                 } else {
-                  self.final_event = evt.to_owned();
+                  self.final_event = evt.clone();
                 }
 
 
@@ -472,7 +527,7 @@ where
                 // Check reader status and update
                 self.check_reader();
             }
-            _ = async {
+            () = async {
                 match matcher_interval {
                     Some(interval) => { interval.tick().await; },
                     None => std::future::pending::<()>().await,
@@ -482,7 +537,7 @@ where
             }
             // Wake immediately when new items arrive in the pool so the matcher
             // can pick them up without waiting for the next periodic interval.
-            _ = items_available.notified() => {
+            () = items_available.notified() => {
                 self.app.restart_matcher(false);
             }
             Ok(stream) = async {
@@ -516,6 +571,10 @@ where
     /// This is a convenience wrapper around [`tick()`](Self::tick) that loops
     /// until the user accepts or aborts. Use `tick()` directly if you need
     /// to interleave your own logic between iterations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any tick in the event loop fails.
     pub async fn run(&mut self) -> Result<()> {
         self.matcher_interval = Some(tokio::time::interval(Duration::from_millis(10)));
         trace!("Starting event loop");
@@ -535,6 +594,10 @@ where
     ///
     /// Use this when you need to send items or do other work concurrently
     /// while the TUI is running.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event loop or the task join fails.
     ///
     /// # Example
     ///

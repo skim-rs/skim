@@ -124,12 +124,14 @@ impl ItemList {
 
     /// Returns the count of items for status display.
     ///
-    /// This may differ from items.len() when no_clear_if_empty is active and showing stale items
+    /// This may differ from `items.len()` when `no_clear_if_empty` is active and showing stale items
+    #[must_use]
     pub fn count(&self) -> usize {
         if self.showing_stale_items { 0 } else { self.items.len() }
     }
 
     /// Returns the currently selected item, if any
+    #[must_use]
     pub fn selected(&self) -> Option<MatchedItem> {
         self.items.get(self.cursor()).cloned()
     }
@@ -140,8 +142,8 @@ impl ItemList {
         self.showing_stale_items = false;
     }
 
-    /// Calculate the width to skip when using skip_to_pattern
-    /// Returns the actual skip width (not accounting for the ellipsis - that's handled in apply_hscroll)
+    /// Calculate the width to skip when using `skip_to_pattern`
+    /// Returns the actual skip width (not accounting for the ellipsis - that's handled in `apply_hscroll`)
     fn calc_skip_width(&self, text: &str) -> usize {
         if let Some(ref regex) = self.skip_to_pattern
             && let Some(mat) = regex.find(text)
@@ -152,7 +154,7 @@ impl ItemList {
     }
 
     /// Calculate horizontal scroll offset for displaying a line with matches
-    /// Returns (shift, full_width, has_left_overflow, has_right_overflow)
+    /// Returns (shift, `full_width`, `has_left_overflow`, `has_right_overflow`)
     fn calc_hscroll(
         &self,
         text: &str,
@@ -242,7 +244,9 @@ impl ItemList {
         // Apply manual horizontal scroll offset
         // manual_hscroll can be positive (scroll right) or negative (scroll left)
         // final_shift = base_shift + manual_hscroll
-        let proposed_shift = (base_shift as i32 + self.manual_hscroll).max(0) as usize;
+        let proposed_shift = (i32::try_from(base_shift).unwrap_or(i32::MAX) + self.manual_hscroll)
+            .max(0)
+            .unsigned_abs() as usize;
 
         // Only clamp if the text is actually wider than the container
         // This allows skip_to_pattern to work even for short text
@@ -381,7 +385,7 @@ impl ItemList {
                 current_width += tab_width;
             } else {
                 result.push(ch);
-                current_width += char_display_width(ch)
+                current_width += char_display_width(ch);
             }
         }
 
@@ -415,7 +419,7 @@ impl ItemList {
     /// Add row at cursor to selection
     pub fn select(&mut self) {
         debug!("{}", self.cursor());
-        self.select_row(self.cursor())
+        self.select_row(self.cursor());
     }
 
     /// Add row to selection
@@ -446,16 +450,18 @@ impl ItemList {
         if self.reserved >= self.items.len() {
             return;
         }
-        let reserved = self.reserved as i32;
-        let total = self.items.len() as i32;
-        let mut new = self.current as i32 + offset;
+        let reserved = i32::try_from(self.reserved).unwrap_or(i32::MAX);
+        let total = i32::try_from(self.items.len()).unwrap_or(i32::MAX);
+        let mut new = i32::try_from(self.current).unwrap_or(i32::MAX) + offset;
         if self.cycle {
             let n = total - reserved;
             new = reserved + (new + n - reserved) % n;
         } else {
-            new = new.min(self.items.len() as i32 - 1).max(self.reserved as i32);
+            new = new
+                .min(i32::try_from(self.items.len()).unwrap_or(i32::MAX) - 1)
+                .max(i32::try_from(self.reserved).unwrap_or(i32::MAX));
         }
-        self.current = new.max(0) as usize;
+        self.current = new.max(0).unsigned_abs() as usize;
         debug!("Scrolled to {}", self.current);
         debug!("Selection: {:?}", self.selection);
     }
@@ -498,40 +504,37 @@ impl SkimWidget for ItemList {
             || options.pre_select_file.is_some()
             || options.selector.is_some()
         {
-            match options.selector.clone() {
-                Some(s) => {
-                    // For custom selectors, use a very large target (pre-select all matching)
-                    (Some(s), usize::MAX)
+            if let Some(s) = options.selector.clone() {
+                // For custom selectors, use a very large target (pre-select all matching)
+                (Some(s), usize::MAX)
+            } else {
+                let mut preset_items: Vec<String> = options
+                    .pre_select_items
+                    .split('\n')
+                    .filter(|s| !s.is_empty())
+                    .map(std::string::ToString::to_string)
+                    .collect();
+
+                if let Some(ref pre_select_file) = options.pre_select_file
+                    && let Ok(file_items) = read_file_lines(pre_select_file)
+                {
+                    preset_items.extend(file_items);
                 }
-                None => {
-                    let mut preset_items: Vec<String> = options
-                        .pre_select_items
-                        .split('\n')
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.to_string())
-                        .collect();
 
-                    if let Some(ref pre_select_file) = options.pre_select_file
-                        && let Ok(file_items) = read_file_lines(pre_select_file)
-                    {
-                        preset_items.extend(file_items);
-                    }
+                let selector = DefaultSkimSelector::default()
+                    .first_n(options.pre_select_n)
+                    .regex(&options.pre_select_pat)
+                    .preset(preset_items.clone());
 
-                    let selector = DefaultSkimSelector::default()
-                        .first_n(options.pre_select_n)
-                        .regex(&options.pre_select_pat)
-                        .preset(preset_items.clone());
+                // Only use a target for --pre-select-n
+                // For pattern/items, the selector always returns the same matches regardless of timing
+                let target = if options.pre_select_n > 0 {
+                    options.pre_select_n
+                } else {
+                    usize::MAX // No target - keep selecting matching items
+                };
 
-                    // Only use a target for --pre-select-n
-                    // For pattern/items, the selector always returns the same matches regardless of timing
-                    let target = if options.pre_select_n > 0 {
-                        options.pre_select_n
-                    } else {
-                        usize::MAX // No target - keep selecting matching items
-                    };
-
-                    (Some(Rc::new(selector) as Rc<dyn Selector>), target)
-                }
+                (Some(Rc::new(selector) as Rc<dyn Selector>), target)
             }
         } else {
             (None, 0)
@@ -579,6 +582,9 @@ impl SkimWidget for ItemList {
         }
     }
 
+    // The render function handles the full item list rendering pipeline; splitting
+    // it into smaller helpers would require passing many parameters between them.
+    #[allow(clippy::too_many_lines)]
     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) -> SkimRender {
         let this = &mut *self;
 
@@ -687,10 +693,10 @@ impl SkimWidget for ItemList {
                     // Calculate match positions for hscroll
                     let (match_start_char, match_end_char) = match &item.matched_range {
                         Some(MatchRange::Chars(matched_indices)) => {
-                            if !matched_indices.is_empty() {
-                                (matched_indices[0], matched_indices[matched_indices.len() - 1] + 1)
-                            } else {
+                            if matched_indices.is_empty() {
                                 (0, 0)
+                            } else {
+                                (matched_indices[0], matched_indices[matched_indices.len() - 1] + 1)
                             }
                         }
                         Some(MatchRange::ByteRange(match_start, match_end)) => {

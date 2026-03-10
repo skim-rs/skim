@@ -51,7 +51,7 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     fn text(&self) -> Cow<'_, str>;
 
     /// The content to be displayed on the item list, could contain ANSI properties
-    fn display<'a>(&'a self, context: DisplayContext) -> Line<'a> {
+    fn display(&self, context: DisplayContext) -> Line<'_> {
         context.to_line(self.text())
     }
 

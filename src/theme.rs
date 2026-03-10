@@ -52,6 +52,7 @@ impl Default for ColorTheme {
 #[allow(dead_code)]
 impl ColorTheme {
     /// Setup the theme from the skim options
+    #[must_use]
     pub fn init_from_options(options: &SkimOptions) -> ColorTheme {
         // register
         if let Some(color) = options.color.clone() {
@@ -277,7 +278,7 @@ impl ColorTheme {
         let mut modifier = Modifier::empty();
         for part in spec_parts.iter().skip(1) {
             if matches!(*part, "x" | "regular") {
-                modifier = Modifier::empty()
+                modifier = Modifier::empty();
             } else {
                 modifier |= match *part {
                     "b" | "bold" => Modifier::BOLD,
@@ -311,8 +312,7 @@ impl ColorTheme {
         let target_style = match component_name {
             "" | "normal" => &mut self.normal,
             "matched" | "hl" => &mut self.matched,
-            "current" | "fg+" => &mut self.current,
-            "bg+" => &mut self.current,
+            "current" | "fg+" | "bg+" => &mut self.current,
             "current_match" | "hl+" => &mut self.current_match,
             "query" => &mut self.query,
             "spinner" => &mut self.spinner,

@@ -1,4 +1,4 @@
-//! Base structs for the matching algorithm: Cell & SWMatrix
+//! Base structs for the matching algorithm: Cell & `SWMatrix`
 
 use super::Score;
 
@@ -42,17 +42,22 @@ impl Cell {
     #[inline(always)]
     pub(super) const fn new(score: Score, dir: Dir) -> Cell {
         // Store score as u16 bits in low 16 bits, dir in bits 16-17.
-        Cell((score as u16 as u32) | ((dir as u32) << 16))
+        Cell((score.cast_unsigned() as u32) | ((dir as u32) << 16))
     }
     #[inline(always)]
     pub(super) fn score(self) -> Score {
-        self.0 as u16 as i16
+        // Truncation is intentional: low 16 bits store the score as a bitcast i16.
+        #[allow(clippy::cast_possible_truncation)]
+        let low16 = self.0 as u16;
+        low16.cast_signed()
     }
     #[inline(always)]
     pub(super) fn dir(self) -> Dir {
         // SAFETY: Dir has repr(u8) with values 0..=3 and we only ever store
-        // valid Dir values in bits 16-17.
-        unsafe { std::mem::transmute((self.0 >> 16) as u8 & 0x3) }
+        // valid Dir values in bits 16-17. Truncation from u32 to u8 is intentional.
+        #[allow(clippy::cast_possible_truncation)]
+        let tag = (self.0 >> 16) as u8 & 0x3;
+        unsafe { std::mem::transmute(tag) }
     }
     /// Branchless check: true when dir == Diag (tag 1).
     #[inline(always)]

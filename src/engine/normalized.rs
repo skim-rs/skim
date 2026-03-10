@@ -56,7 +56,7 @@ impl Display for NormalizedEngine {
     }
 }
 
-/// Simple string wrapper implementing SkimItem for normalized matching
+/// Simple string wrapper implementing `SkimItem` for normalized matching
 struct NormalizedItem(String);
 
 impl SkimItem for NormalizedItem {

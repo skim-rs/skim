@@ -306,13 +306,11 @@ fn all_subsequences_must_match() {
     for choice in &cases {
         assert!(
             m.fuzzy_match(choice, "test").is_some(),
-            "fuzzy_match should match subsequence 'test' in {:?}",
-            choice
+            "fuzzy_match should match subsequence 'test' in {choice:?}",
         );
         assert!(
             m.fuzzy_indices(choice, "test").is_some(),
-            "fuzzy_indices should match subsequence 'test' in {:?}",
-            choice
+            "fuzzy_indices should match subsequence 'test' in {choice:?}",
         );
     }
 }
@@ -324,7 +322,7 @@ fn score_and_full_dp_same() {
         assert_eq!(
             m.fuzzy_indices(choice, pat).map(|(s, _)| s),
             m.fuzzy_match_range(choice, pat).map(|(s, _, _)| s)
-        )
+        );
     }
 }
 
@@ -370,10 +368,10 @@ fn range_consistent_with_indices() {
 /// Extending a typo-tolerant match with an additional character must not cause
 /// the candidate to be incorrectly rejected.
 ///
-/// "fobara" matches "src/fuzzy_matcher/arinae/algo.rs" via the typo-tolerant
+/// "fobara" matches `src/fuzzy_matcher/arinae/algo.rs` via the typo-tolerant
 /// DP (score 91). Typing one more character to form "fobaral" should continue
 /// to match — the `a`, `r`, `a` subsequence exists in the choice string and
-/// satisfies the prefilter threshold (min_tail = 3).
+/// satisfies the prefilter threshold (`min_tail` = 3).
 ///
 /// The old prefilter used a greedy ordered scan that consumed `o` at position 28,
 /// locking the cursor past all four `a` occurrences (at positions 11, 18, 22, 25),

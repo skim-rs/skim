@@ -82,7 +82,7 @@ impl TryFrom<&str> for Size {
     type Error = SizeParseError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if value.ends_with("%") {
+        if value.ends_with('%') {
             let percent = value
                 .strip_suffix("%")
                 .unwrap_or_default()
@@ -110,7 +110,7 @@ impl Default for Size {
 
 /// This mirrors Ratatui's border type
 ///
-/// We need it so that we can properly use ValueEnum
+/// We need it so that we can properly use `ValueEnum`
 #[derive(Default, Clone, Copy)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[allow(missing_docs)]

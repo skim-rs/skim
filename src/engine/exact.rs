@@ -87,10 +87,10 @@ impl MatchEngine for ExactEngine {
             }
 
             matched_result =
-                regex_match(&item_text[start..end], &self.query_regex).map(|(s, e)| (s + start, e + start));
+                regex_match(&item_text[start..end], self.query_regex.as_ref()).map(|(s, e)| (s + start, e + start));
 
             if self.inverse {
-                matched_result = matched_result.xor(Some((0, 0)))
+                matched_result = matched_result.xor(Some((0, 0)));
             }
 
             if matched_result.is_some() {
@@ -99,7 +99,7 @@ impl MatchEngine for ExactEngine {
         }
 
         let (begin, end) = matched_result?;
-        let score = (end - begin) as i32;
+        let score = i32::try_from(end - begin).unwrap_or(i32::MAX);
         Some(MatchResult {
             rank: self.rank_builder.build_rank(score, begin, end, &item_text),
             matched_range: MatchRange::ByteRange(begin, end),
@@ -113,7 +113,7 @@ impl Display for ExactEngine {
             f,
             "(Exact|{}{})",
             if self.inverse { "!" } else { "" },
-            self.query_regex.as_ref().map(|x| x.as_str()).unwrap_or("")
+            self.query_regex.as_ref().map_or("", regex::Regex::as_str)
         )
     }
 }

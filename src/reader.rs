@@ -49,6 +49,7 @@ impl ReaderControl {
     }
 
     /// Takes all items collected so far
+    #[must_use]
     pub fn take(&self) -> Vec<Arc<dyn SkimItem>> {
         let mut items = self.items.lock();
         let mut ret = Vec::with_capacity(items.len());
@@ -57,6 +58,7 @@ impl ReaderControl {
     }
 
     /// Returns true if the reader has finished and no items remain
+    #[must_use]
     pub fn is_done(&self) -> bool {
         let items = self.items.lock();
         self.components_to_stop.load(Ordering::SeqCst) == 0 && items.is_empty()
@@ -77,6 +79,7 @@ pub struct Reader {
 
 impl Reader {
     /// Creates a new reader from skim options
+    #[must_use]
     pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             cmd_collector: options.cmd_collector.clone(),
@@ -85,6 +88,7 @@ impl Reader {
     }
 
     /// Sets the item source (if None, will use command collector)
+    #[must_use]
     pub fn source(mut self, rx_item: Option<SkimItemReceiver>) -> Self {
         self.rx_item = rx_item;
         self
@@ -95,11 +99,14 @@ impl Reader {
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));
 
-        let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
-            let components_to_stop_clone = components_to_stop.clone();
-            let (rx_item, tx_interrupt_cmd) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
-            (rx_item, Some(tx_interrupt_cmd))
-        });
+        let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map_or_else(
+            || {
+                let components_to_stop_clone = components_to_stop.clone();
+                let (rx_item, tx_interrupt_cmd) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
+                (rx_item, Some(tx_interrupt_cmd))
+            },
+            |rx| (rx, None),
+        );
 
         let components_to_stop_clone = components_to_stop.clone();
         let tx_interrupt = collect_items(components_to_stop_clone, rx_item, move |items| _ = app_tx.send(items));
@@ -118,11 +125,14 @@ impl Reader {
         let components_to_stop: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
         let items = Arc::new(SpinLock::new(Vec::new()));
 
-        let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map(|rx| (rx, None)).unwrap_or_else(|| {
-            let components_to_stop_clone = components_to_stop.clone();
-            let (rx_item, tx_interrupt_cmd) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
-            (rx_item, Some(tx_interrupt_cmd))
-        });
+        let (rx_item, tx_interrupt_cmd) = self.rx_item.take().map_or_else(
+            || {
+                let components_to_stop_clone = components_to_stop.clone();
+                let (rx_item, tx_interrupt_cmd) = self.cmd_collector.borrow_mut().invoke(cmd, components_to_stop_clone);
+                (rx_item, Some(tx_interrupt_cmd))
+            },
+            |rx| (rx, None),
+        );
 
         let components_to_stop_clone = components_to_stop.clone();
         let tx_interrupt = collect_items(components_to_stop_clone, rx_item, move |items| {

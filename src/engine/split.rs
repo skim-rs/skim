@@ -82,7 +82,7 @@ impl MatchEngine for SplitMatchEngine {
         };
 
         combined_indices.extend(after_indices);
-        combined_indices.sort();
+        combined_indices.sort_unstable();
         combined_indices.dedup();
 
         Some(MatchResult {
@@ -102,7 +102,7 @@ impl Display for SplitMatchEngine {
     }
 }
 
-/// Simple string wrapper implementing SkimItem for split matching
+/// Simple string wrapper implementing `SkimItem` for split matching
 struct StringItem(String);
 
 impl SkimItem for StringItem {

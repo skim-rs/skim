@@ -4,8 +4,8 @@ Benchmark script to measure ingestion + matching rate in skim interactive mode.
 This measures how fast skim can ingest items and display matched results.
 
 Usage: bench.py [BINARY_PATH ...] [-n|--num-items NUM] [-q|--query QUERY]
-                [-r|--runs RUNS] [-f|--file FILE] [-g|--generate-file FILE]
-                [-j|--json] [-- EXTRA_ARGS...]
+                [-r|--runs RUNS] [-w|--warmup N] [-f|--file FILE]
+                [-g|--generate-file FILE] [-j|--json] [-- EXTRA_ARGS...]
 
 Arguments:
   BINARY_PATH ...          One or more paths to binaries (default: ./target/release/sk)
@@ -14,6 +14,7 @@ Arguments:
   -n, --num-items NUM      Number of items to generate (default: 1000000)
   -q, --query QUERY        Query string to search (default: "test")
   -r, --runs RUNS          Number of benchmark runs per binary (default: 1)
+  -w, --warmup N           Number of warmup runs per binary (default: 1)
   -f, --file FILE          Use existing file as input instead of generating
   -g, --generate-file FILE Generate test data to file and exit
   -j, --json               Output results as JSON
@@ -44,6 +45,7 @@ DEFAULT_BINARY = "./target/release/sk"
 DEFAULT_NUM_ITEMS = 1_000_000
 DEFAULT_QUERY = "test"
 DEFAULT_RUNS = 1
+DEFAULT_WARMUP = 1
 
 # Stability / timeout tuning (mirrors bench.sh values)
 REQUIRED_STABLE_S = 5.0  # seconds the matched count must be unchanged
@@ -129,6 +131,7 @@ def parse_args(argv):
     parser.add_argument("-n", "--num-items", type=int, default=DEFAULT_NUM_ITEMS)
     parser.add_argument("-q", "--query", default=DEFAULT_QUERY)
     parser.add_argument("-r", "--runs", type=int, default=DEFAULT_RUNS)
+    parser.add_argument("-w", "--warmup", type=int, default=DEFAULT_WARMUP)
     parser.add_argument("-f", "--file", default="")
     parser.add_argument("-g", "--generate-file", default="")
     parser.add_argument("-j", "--json", action="store_true")
@@ -423,12 +426,13 @@ def _max(values):
 
 
 def aggregate(results: list) -> dict:
-    times = [r["elapsed_s"] for r in results]
-    rates = [r["rate"] for r in results]
-    matched = [r["matched"] for r in results]
-    mems = [r["peak_mem_kb"] for r in results]
-    cpus = [r["peak_cpu"] for r in results]
-    completed = sum(1 for r in results if r["completed"])
+    completed_results = [r for r in results if r["completed"]]
+    times = [r["elapsed_s"] for r in completed_results]
+    rates = [r["rate"] for r in completed_results]
+    matched = [r["matched"] for r in completed_results]
+    mems = [r["peak_mem_kb"] for r in completed_results]
+    cpus = [r["peak_cpu"] for r in completed_results]
+    completed = len(completed_results)
 
     return {
         "completed": completed,
@@ -611,6 +615,7 @@ def main():
     num_items = opts.num_items
     query = opts.query
     runs = opts.runs
+    warmup = opts.warmup
     input_file = opts.file
     generate_file = opts.generate_file
     as_json = opts.json
@@ -645,13 +650,32 @@ def main():
         print(f"=== Skim Ingestion + Matching Benchmark ===", file=sys.stderr)
         print(
             f"Binaries: {binary_list} | Items: {num_items} | "
-            f"Query: '{query}' | Runs: {runs} (per binary)",
+            f"Query: '{query}' | Warmup: {warmup} | Runs: {runs} (per binary)",
             file=sys.stderr,
         )
         if input_file:
             print(f"Input file: {input_file}", file=sys.stderr)
         if extra_args:
             print(f"Extra args: {' '.join(extra_args)}", file=sys.stderr)
+
+        # ---- warmup (results discarded) -------------------------------------
+        if warmup > 0:
+            print(f"\n=== Warmup ({warmup} run(s) per binary) ===", file=sys.stderr)
+            for bi, binary in enumerate(binaries):
+                for wu in range(1, warmup + 1):
+                    print(
+                        f"  Warmup {wu}/{warmup} — {binary} ...",
+                        file=sys.stderr,
+                    )
+                    run_once(
+                        binary_path=binary,
+                        query=query,
+                        tmp_file=tmp_file,
+                        num_items=num_items,
+                        extra_args=extra_args,
+                        run_index=wu,
+                        session_suffix=f"warmup_b{bi}",
+                    )
 
         # ---- run benchmark in round-robin -----------------------------------
         # all_results[i] = list of per-run dicts for binaries[i]

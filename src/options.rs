@@ -26,13 +26,13 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector, Typos};
 /// Custom value parser for delimiter that handles escape sequences
 fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
     let unescaped = crate::util::unescape_delimiter(s);
-    Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {}", e))
+    Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {e}"))
 }
 
 #[cfg(feature = "cli")]
 /// Custom value parser for typo tolerance
 ///
-/// - `"smart"` → `Typos::Smart` (adaptive: pattern_length / 4)
+/// - `"smart"` → `Typos::Smart` (adaptive: `pattern_length` / 4)
 /// - `"disabled"` → `Typos::Disabled`
 /// - `"N"` (N >= 0) → `Typos::Fixed(N)`
 fn parse_typos(s: &str) -> Result<Typos, String> {
@@ -41,12 +41,9 @@ fn parse_typos(s: &str) -> Result<Typos, String> {
     } else if s.eq_ignore_ascii_case("disabled") {
         Ok(Typos::Disabled)
     } else {
-        s.parse::<usize>().map(Typos::from).map_err(|_| {
-            format!(
-                "Invalid typos value '{}': expected 'smart', 'disabled' or a non-negative integer",
-                s
-            )
-        })
+        s.parse::<usize>()
+            .map(Typos::from)
+            .map_err(|_| format!("Invalid typos value '{s}': expected 'smart', 'disabled' or a non-negative integer"))
     }
 }
 
@@ -176,9 +173,9 @@ pub struct SkimOptions {
     /// Fuzzy matching algorithm
     ///
     /// arinae (ari) Latest algorithm
-    /// skim_v2 Legacy skim algorithm
+    /// `skim_v2` Legacy skim algorithm
     /// clangd  Used in clangd for keyword completion
-    /// fzy     Algorithm from fzy (https://github.com/jhawthorn/fzy)
+    /// fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -204,7 +201,7 @@ pub struct SkimOptions {
 
     /// Enable typo-tolerant matching
     ///
-    /// When passed without a value (`--typos`), uses adaptive formula (pattern_length / 4).
+    /// When passed without a value (`--typos`), uses adaptive formula (`pattern_length` / 4).
     /// When passed with a value (e.g. `--typos=2`), uses that exact number as the
     /// maximum allowed typos. `--typos=0` explicitly disables typo tolerance.
     /// Applies to both fzy and frizbee matchers.
@@ -471,7 +468,7 @@ pub struct SkimOptions {
     /// Parse ANSI color codes in input strings
     ///
     /// When using skim as a library, this has no effect and ansi parsing should
-    /// be enabled by manually injecting a cmd_collector like so:
+    /// be enabled by manually injecting a `cmd_collector` like so:
     /// ```rust
     /// use skim::prelude::*;
     ///
@@ -708,7 +705,7 @@ pub struct SkimOptions {
     /// Pre-select the matched items in multi-selection mode
     ///
     /// Check the doc for the detailed syntax:
-    /// https://docs.rs/regex/1.4.1/regex/
+    /// <https://docs.rs/regex/1.4.1/regex>/
     #[cfg_attr(feature = "cli", arg(long, default_value = "", help_heading = "Scripting"))]
     pub pre_select_pat: String,
 
@@ -735,7 +732,7 @@ pub struct SkimOptions {
     ///
     /// Supported shells: bash, zsh, fish, powershell, elvish
     ///
-    /// Note: While PowerShell completions are supported, Windows is not supported for now.
+    /// Note: While `PowerShell` completions are supported, Windows is not supported for now.
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",
@@ -942,7 +939,7 @@ pub struct SkimOptions {
     #[builder(setter(skip))]
     with_shell: Option<String>,
 
-    /// Deprecated, kept for compatibility purposes. See accept() bind instead.
+    /// Deprecated, kept for compatibility purposes. See `accept()` bind instead.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
     expect: String,
 
@@ -978,6 +975,7 @@ pub struct SkimOptions {
 }
 
 impl Default for SkimOptions {
+    #[allow(clippy::too_many_lines)]
     fn default() -> Self {
         Self {
             split_match: None,
@@ -1132,14 +1130,19 @@ impl Default for SkimOptions {
 }
 
 impl SkimOptionsBuilder {
-    /// Builds the SkimOptions from the builder
+    /// Builds the `SkimOptions` from the builder
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any required fields are missing.
     pub fn build(&mut self) -> Result<SkimOptions, SkimOptionsBuilderError> {
-        self.final_build().map(|opts| opts.build())
+        self.final_build().map(SkimOptions::build)
     }
 }
 
 impl SkimOptions {
     /// Finalizes the options by applying defaults and initializing components
+    #[must_use]
     pub fn build(mut self) -> Self {
         if self.no_height {
             self.height = String::from("100%");
@@ -1151,7 +1154,7 @@ impl SkimOptions {
         });
 
         if self.reverse {
-            self.layout = TuiLayout::Reverse
+            self.layout = TuiLayout::Reverse;
         }
         if self.history_file.is_some() || self.cmd_history_file.is_some() {
             self.init_histories();
@@ -1181,8 +1184,7 @@ impl SkimOptions {
         }
 
         match self.scheme {
-            None => (),
-            Some(MatchScheme::Default) => (),
+            None | Some(MatchScheme::Default) => (),
             Some(MatchScheme::Path) => {
                 self.last_match = true;
                 self.tiebreak.insert(0, RankCriteria::PathName);
@@ -1205,7 +1207,15 @@ impl SkimOptions {
         }
     }
     #[cfg(feature = "cli")]
-    /// Merges SKIM_DEFAULT_OPTIONS with the app's args
+    /// Merges `SKIM_DEFAULT_OPTIONS` with the app's args
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if argument parsing fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the process was invoked with no arguments (which should never happen in practice).
     pub fn from_env() -> Result<Self, clap::Error> {
         use clap::Parser;
         use std::env;

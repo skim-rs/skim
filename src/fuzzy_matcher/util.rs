@@ -87,10 +87,10 @@ pub enum CharRole {
 // Prev=Upper 0x00, 0x55, 0x59, 0xff, // Ditto, but U(U)U->Tail
 // Prev=Separ 0x00, 0xaa, 0xaa, 0xff, // After separator, like at start
 pub fn char_role(prev: char, cur: char) -> CharRole {
-    use self::CharRole::*;
-    use self::CharType::*;
+    use self::CharRole::{Head, Tail};
+    use self::CharType::{Lower, NonWord, Upper};
     match (char_type_of(prev), char_type_of(cur)) {
-        (Lower, Upper) | (NonWord, Lower) | (NonWord, Upper) => Head,
+        (Lower | NonWord, Upper) | (NonWord, Lower) => Head,
         _ => Tail,
     }
 }
@@ -101,12 +101,12 @@ pub fn assert_order(matcher: &dyn FuzzyMatcher, pattern: &str, choices: &[&'stat
 
     if result != choices {
         // debug print
-        println!("pattern: {}", pattern);
-        for &choice in choices.iter() {
+        println!("pattern: {pattern}");
+        for &choice in choices {
             if let Some((score, indices)) = matcher.fuzzy_indices(choice, pattern) {
                 println!("{}: {:?}", score, wrap_matches(choice, &indices));
             } else {
-                println!("NO MATCH for {}", choice);
+                println!("NO MATCH for {choice}");
             }
         }
     }
@@ -131,7 +131,7 @@ pub fn wrap_matches(line: &str, indices: &[IndexType]) -> String {
     for (idx, ch) in line.chars().enumerate() {
         let next_id = **peekable.peek().unwrap_or(&&(line.len() as IndexType));
         if next_id == (idx as IndexType) {
-            ret.push_str(format!("[{}]", ch).as_str());
+            ret.push_str(format!("[{ch}]").as_str());
             peekable.next();
         } else {
             ret.push(ch);

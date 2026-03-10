@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::options::SkimOptions;
 use crate::theme::ColorTheme;
 
-/// Result of rendering a SkimWidget
+/// Result of rendering a `SkimWidget`
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SkimRender {
     /// Whether the items in the list have been updated

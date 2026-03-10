@@ -1,4 +1,4 @@
-//! SpinLock implemented using AtomicBool
+//! `SpinLock` implemented using `AtomicBool`
 //! Just like Mutex except:
 //!
 //! 1. It uses CAS for locking, more efficient in low contention
@@ -103,14 +103,13 @@ mod tests {
         const J: u32 = 1000;
         const K: u32 = 3;
 
-        let m = Arc::new(SpinLock::new(0));
-
         fn inc(m: &SpinLock<u32>) {
             for _ in 0..J {
                 *m.lock() += 1;
             }
         }
 
+        let m = Arc::new(SpinLock::new(0));
         let (tx, rx) = channel();
         for _ in 0..K {
             let tx2 = tx.clone();

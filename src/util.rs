@@ -3,6 +3,7 @@ use crate::field::get_string_by_field;
 use crate::helper::item::strip_ansi;
 use crate::item::MatchedItem;
 use regex::Regex;
+use std::fmt::Write as _;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::prelude::v1::*;
@@ -58,13 +59,12 @@ pub fn unescape_delimiter(s: &str) -> String {
                 Some('t') => result.push('\t'),
                 Some('n') => result.push('\n'),
                 Some('r') => result.push('\r'),
-                Some('\\') => result.push('\\'),
+                Some('\\') | None => result.push('\\'),
                 Some(other) => {
                     // Unknown escape, keep both backslash and character
                     result.push('\\');
                     result.push(other);
                 }
-                None => result.push('\\'),
             }
         } else {
             result.push(c);
@@ -87,22 +87,22 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 /// - `{+}` -> all selected items (multi-select)
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
-///
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 pub fn printf<'a>(
     pattern: &str,
     delimiter: &Regex,
     replstr: &str,
-    selected: impl Iterator<Item = &'a MatchedItem> + std::clone::Clone,
-    current: Option<MatchedItem>,
+    selected: &(impl Iterator<Item = &'a MatchedItem> + std::clone::Clone),
+    current: &Option<MatchedItem>,
     query: &str,
     command_query: &str,
     quote_args: bool,
 ) -> String {
     let escape_arg = |s: &str, quote: bool| {
-        let mut res = s.replace('\0', "\\0").to_string();
+        let mut res = s.replace('\0', "\\0").clone();
         if quote && quote_args {
-            res = format!("'{}'", res.replace("'", "'\\''"));
+            res = format!("'{}'", res.replace('\'', "'\\''"));
         }
         res
     };
@@ -132,7 +132,14 @@ pub fn printf<'a>(
                             "q" => replaced.push_str(&escaped_query),
                             "cq" => replaced.push_str(&escaped_cmd_query),
                             "n" if current.as_ref().is_some() => {
-                                replaced.push_str(current.as_ref().unwrap().rank.index.to_string().as_str());
+                                replaced.push_str(
+                                    current
+                                        .as_ref()
+                                        .map(|i| i.rank.index)
+                                        .unwrap_or_default()
+                                        .to_string()
+                                        .as_str(),
+                                );
                             }
                             s if s == "+n" || s.starts_with("+n:") || s == "+" || s.starts_with("+:") => {
                                 let is_n = s.starts_with("+n");
@@ -143,25 +150,28 @@ pub fn printf<'a>(
                                 };
                                 let mut quote_individually = false;
 
-                                let delim = s.rsplit_once(':').map(|x| x.1).unwrap_or_else(|| {
-                                    quote_individually = quote_args;
-                                    " "
-                                });
+                                let delim = s.rsplit_once(':').map_or_else(
+                                    || {
+                                        quote_individually = quote_args;
+                                        " "
+                                    },
+                                    |x| x.1,
+                                );
 
                                 let mut expanded = selected
                                     .clone()
                                     .map(|i| escape_arg(&accessor(i), quote_individually))
-                                    .reduce(|a: String, b| a.to_owned() + delim + b.as_str())
+                                    .reduce(|a: String, b| a.clone() + delim + b.as_str())
                                     .unwrap_or_default();
                                 if expanded.is_empty() {
                                     expanded = current
                                         .as_ref()
                                         .map(|i| escape_arg(&accessor(i), quote_args))
-                                        .unwrap_or_default()
+                                        .unwrap_or_default();
                                 }
 
                                 if quote_args && !quote_individually {
-                                    replaced.push_str(&format!("'{}'", expanded));
+                                    let _ = write!(replaced, "'{expanded}'");
                                 } else {
                                     replaced.push_str(&expanded);
                                 }
@@ -188,17 +198,17 @@ pub fn printf<'a>(
                                                     quote_individually,
                                                 )
                                             })
-                                            .reduce(|a: String, b| a.to_owned() + delim + b.as_str())
+                                            .reduce(|a: String, b| a.clone() + delim + b.as_str())
                                             .unwrap_or_default();
 
                                         if quote_args && !quote_individually {
-                                            replaced.push_str(&format!("'{}'", expanded));
+                                            let _ = write!(replaced, "'{expanded}'");
                                         } else {
                                             replaced.push_str(&expanded);
                                         }
                                     } else {
                                         log::warn!("Failed to build multi-item field range from {content}");
-                                        replaced.push_str(&format!("{{{s}}}"));
+                                        let _ = write!(replaced, "{{{s}}}");
                                     }
                                 } else if let Some(range) = FieldRange::from_str(stripped) {
                                     let replacement =
@@ -206,7 +216,7 @@ pub fn printf<'a>(
                                     replaced.push_str(&escape_arg(replacement, true));
                                 } else {
                                     log::warn!("Failed to build field range from {content}");
-                                    replaced.push_str(&format!("{{{s}}}"));
+                                    let _ = write!(replaced, "{{{s}}}");
                                 }
                             }
                         }
@@ -299,8 +309,8 @@ mod test {
                 pattern,
                 &delimiter,
                 "{}",
-                items.iter(),
-                Some(make_item("item 2")),
+                &items.iter(),
+                &Some(make_item("item 2")),
                 "query",
                 "cmd query",
                 true
@@ -315,8 +325,8 @@ mod test {
                 "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                [make_item("1"), make_item("2")].iter(),
-                Some(make_item("1")),
+                &[make_item("1"), make_item("2")].iter(),
+                &Some(make_item("1")),
                 "q",
                 "cq",
                 true
@@ -328,8 +338,8 @@ mod test {
                 "{+}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                [].iter(),
-                Some(make_item("1")),
+                &[].iter(),
+                &Some(make_item("1")),
                 "q",
                 "cq",
                 true
@@ -344,8 +354,8 @@ mod test {
                 "{}",
                 &Regex::new(" ").unwrap(),
                 "{}",
-                [].iter(),
-                Some(make_item("{..2}")),
+                &[].iter(),
+                &Some(make_item("{..2}")),
                 "q",
                 "cq",
                 true
@@ -360,8 +370,8 @@ mod test {
                 "{} ##",
                 &Regex::new(" ").unwrap(),
                 "##",
-                [make_item("1"), make_item("2")].iter(),
-                Some(make_item("1")),
+                &[make_item("1"), make_item("2")].iter(),
+                &Some(make_item("1")),
                 "q",
                 "cq",
                 true

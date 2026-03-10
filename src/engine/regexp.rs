@@ -22,9 +22,8 @@ impl RegexEngine {
         let mut query_builder = String::new();
 
         match case {
-            CaseMatching::Respect => {}
             CaseMatching::Ignore => query_builder.push_str("(?i)"),
-            CaseMatching::Smart => {}
+            CaseMatching::Respect | CaseMatching::Smart => {}
         }
 
         query_builder.push_str(query);
@@ -59,7 +58,7 @@ impl MatchEngine for RegexEngine {
             }
 
             matched_result =
-                regex_match(&item_text[start..end], &self.query_regex).map(|(s, e)| (s + start, e + start));
+                regex_match(&item_text[start..end], self.query_regex.as_ref()).map(|(s, e)| (s + start, e + start));
 
             if matched_result.is_some() {
                 break;
@@ -67,7 +66,7 @@ impl MatchEngine for RegexEngine {
         }
 
         let (begin, end) = matched_result?;
-        let score = (end - begin) as i32;
+        let score = i32::try_from(end - begin).unwrap_or(i32::MAX);
 
         Some(MatchResult {
             rank: self.rank_builder.build_rank(score, begin, end, &item_text),
@@ -83,7 +82,7 @@ impl Display for RegexEngine {
             "(Regex: {})",
             self.query_regex
                 .as_ref()
-                .map_or("".to_string(), |re| re.as_str().to_string())
+                .map_or(String::new(), |re| re.as_str().to_string())
         )
     }
 }

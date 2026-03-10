@@ -7,7 +7,9 @@ use thread_local::ThreadLocal;
 use crate::fuzzy_matcher::{IndexType, MatchIndices};
 
 use super::banding::{compute_banding, typo_vband_row};
-use super::constants::*;
+use super::constants::{
+    CONSECUTIVE_BONUS, GAP_EXTEND, GAP_OPEN, MATCH_BONUS, MAX_PAT_LEN, MISMATCH_PENALTY, TYPO_PENALTY,
+};
 use super::{Atom, CELL_ZERO, Cell, Dir, SWMatrix, Score};
 
 /// Core cell scoring kernel shared by both score-only and full DP.
@@ -24,6 +26,7 @@ use super::{Atom, CELL_ZERO, Cell, Dir, SWMatrix, Score};
 /// final direction is selected via a branchless cascade of conditional moves.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::fn_params_excessive_bools)]
 fn compute_cell<const ALLOW_TYPOS: bool>(
     is_match: bool,
     is_first: bool,
@@ -37,14 +40,14 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     // --- Bonus (branchless) ---
     // consecutive bonus added when diag_was_diag, first-char multiplier doubles the bonus.
     // `bool as Score` is 0 or 1 — no branch.
-    let bonus = (bonus_j + CONSECUTIVE_BONUS * (diag_was_diag as Score)) * (1 + is_first as Score);
+    let bonus = (bonus_j + CONSECUTIVE_BONUS * Score::from(diag_was_diag)) * (1 + Score::from(is_first));
 
     // --- DIAGONAL (branchless) ---
     // Match path: diag_score + MATCH_BONUS + bonus, masked by is_match.
     // Mismatch path (typos only): diag_score - MISMATCH_PENALTY, masked by !is_match.
-    let match_val = (diag_score + MATCH_BONUS + bonus) * (is_match as Score);
+    let match_val = (diag_score + MATCH_BONUS + bonus) * Score::from(is_match);
     let mismatch_val = if ALLOW_TYPOS {
-        (diag_score - MISMATCH_PENALTY) * (!is_match as Score)
+        (diag_score - MISMATCH_PENALTY) * Score::from(!is_match)
     } else {
         0
     };
@@ -56,7 +59,7 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     // --- LEFT (skip choice char, branchless gap penalty) ---
     // GAP_OPEN when left_was_diag, GAP_EXTEND otherwise.
     // pen = GAP_EXTEND + (GAP_OPEN - GAP_EXTEND) * left_was_diag
-    let left_val = left_score - (GAP_EXTEND + (GAP_OPEN - GAP_EXTEND) * (left_was_diag as Score));
+    let left_val = left_score - (GAP_EXTEND + (GAP_OPEN - GAP_EXTEND) * Score::from(left_was_diag));
 
     // --- Best score (branchless max chain) ---
     let best = diag_val.max(up_val).max(left_val);
@@ -78,11 +81,11 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
     // Branchless cascade: select dir as integer.
     // Dir encoding: None=0, Diag=1, Up=2, Left=3.
     // Base is Left(3); subtract 1 if Up wins, subtract 2 if Diag wins.
-    let dir_bits: u8 = Dir::Left as u8 - (up_wins as u8) - (diag_wins as u8) * 2;
+    let dir_bits: u8 = Dir::Left as u8 - u8::from(up_wins) - u8::from(diag_wins) * 2;
     // If best <= 0, force Dir::None (0) — achieved by ANDing with all-zeros.
     let positive = best > 0;
     // When positive: dir_bits; when not: 0 (Dir::None).
-    let dir_val = dir_bits & (positive as u8).wrapping_neg();
+    let dir_val = dir_bits & u8::from(positive).wrapping_neg();
 
     // SAFETY: dir_val is in 0..=3 because of the construction above.
     let dir: Dir = unsafe { std::mem::transmute(dir_val) };
@@ -107,6 +110,7 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
 ///    column produced a non-zero score, all active alignments for this
 ///    and subsequent rows are dead (since UP/LEFT can only propagate
 ///    existing scores). We track this and allow early termination.
+#[allow(clippy::too_many_lines)]
 pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
@@ -153,11 +157,11 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
 
     // Pre-extract row bounds once (avoids repeated unwrap inside the loop).
     // For exact mode we copy the arrays out; for typo mode these are unused.
-    let (row_lo_arr, row_hi_arr) = if !ALLOW_TYPOS {
+    let (row_lo_arr, row_hi_arr) = if ALLOW_TYPOS {
+        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
+    } else {
         let (lo, hi) = banding.row_bounds.as_ref().unwrap();
         (*lo, *hi)
-    } else {
-        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
     };
 
     // Hoist invariant pointers outside the row loop.
@@ -183,11 +187,11 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
                 };
                 let nj_lo = nj_lo.max(j_start);
                 if nj_lo <= nj_hi && nj_lo <= m {
-                    let njm_lo = nj_lo - col_off;
-                    let njm_hi = (nj_hi - col_off).min(mcols - 1);
-                    // Diag reads jm-1, Up reads jm → need [njm_lo-1 .. njm_hi].
-                    let zero_lo = njm_lo.saturating_sub(1);
-                    let zero_hi = njm_hi.min(mcols - 1);
+                    let next_mat_lo = nj_lo - col_off;
+                    let next_mat_hi = (nj_hi - col_off).min(mcols - 1);
+                    // Diag reads jm-1, Up reads jm → need [next_mat_lo-1 .. next_mat_hi].
+                    let zero_lo = next_mat_lo.saturating_sub(1);
+                    let zero_hi = next_mat_hi.min(mcols - 1);
                     // SAFETY: row i is within the allocated matrix.
                     unsafe {
                         let row_ptr = base_ptr.add(i * cols);
@@ -201,21 +205,21 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
         }
 
         // Convert to matrix-local column indices (safe: j_lo >= j_start here).
-        let jm_lo = j_lo - col_off;
-        let jm_hi = j_hi - col_off;
+        let mat_col_lo = j_lo - col_off;
+        let mat_col_hi = j_hi - col_off;
         let jm_max = mcols - 1; // last valid matrix column
 
         // Zero only the boundary cells that Diag/Left/Up moves will read:
-        // - Cell at jm_lo-1: read by Left at jm_lo and Diag from next row.
-        // - Cell at jm_hi+1: read by Up from next row at jm_hi+1 (if in next band).
+        // - Cell at mat_col_lo-1: read by Left at mat_col_lo and Diag from next row.
+        // - Cell at mat_col_hi+1: read by Up from next row at mat_col_hi+1 (if in next band).
         // SAFETY: indices are within the row's allocation.
         unsafe {
             let row_ptr = base_ptr.add(i * cols);
-            if jm_lo > 1 {
-                *row_ptr.add(jm_lo - 1) = CELL_ZERO;
+            if mat_col_lo > 1 {
+                *row_ptr.add(mat_col_lo - 1) = CELL_ZERO;
             }
-            if jm_hi < jm_max {
-                *row_ptr.add(jm_hi + 1) = CELL_ZERO;
+            if mat_col_hi < jm_max {
+                *row_ptr.add(mat_col_hi + 1) = CELL_ZERO;
             }
         }
 
@@ -319,8 +323,8 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
         while i > 0 && j >= j_start {
             let jm = j - col_off;
             // SAFETY: jm and i are within the matrix bounds established above.
-            let c = unsafe { *base_ptr.add(i * cols).add(jm) };
-            match c.dir() {
+            let cell_val = unsafe { *base_ptr.add(i * cols).add(jm) };
+            match cell_val.dir() {
                 Dir::Diag => {
                     if pat[i - 1].eq(cho[j - 1], respect_case) {
                         indices_ref.push((j - 1) as IndexType);
@@ -365,6 +369,7 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
 /// last matched positions (not every index). Used by `fuzzy_match_range` to
 /// avoid allocating and populating the full index vec when only the span is
 /// needed.
+#[allow(clippy::too_many_lines)]
 pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
@@ -399,11 +404,11 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
         }
     }
 
-    let (row_lo_arr, row_hi_arr) = if !ALLOW_TYPOS {
+    let (row_lo_arr, row_hi_arr) = if ALLOW_TYPOS {
+        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
+    } else {
         let (lo, hi) = banding.row_bounds.as_ref().unwrap();
         (*lo, *hi)
-    } else {
-        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
     };
 
     let cho_ptr = cho.as_ptr();
@@ -430,10 +435,10 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
                 };
                 let nj_lo = nj_lo.max(j_start);
                 if nj_lo <= nj_hi && nj_lo <= m {
-                    let njm_lo = nj_lo - col_off;
-                    let njm_hi = (nj_hi - col_off).min(mcols - 1);
-                    let zero_lo = njm_lo.saturating_sub(1);
-                    let zero_hi = njm_hi.min(mcols - 1);
+                    let next_mat_lo = nj_lo - col_off;
+                    let next_mat_hi = (nj_hi - col_off).min(mcols - 1);
+                    let zero_lo = next_mat_lo.saturating_sub(1);
+                    let zero_hi = next_mat_hi.min(mcols - 1);
                     unsafe {
                         let row_ptr = base_ptr.add(i * cols);
                         for k in zero_lo..=zero_hi {
@@ -449,17 +454,17 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
             continue;
         }
 
-        let jm_lo = j_lo - col_off;
-        let jm_hi = j_hi - col_off;
+        let mat_col_lo = j_lo - col_off;
+        let mat_col_hi = j_hi - col_off;
         let jm_max = mcols - 1;
 
         unsafe {
             let row_ptr = base_ptr.add(i * cols);
-            if jm_lo > 1 {
-                *row_ptr.add(jm_lo - 1) = CELL_ZERO;
+            if mat_col_lo > 1 {
+                *row_ptr.add(mat_col_lo - 1) = CELL_ZERO;
             }
-            if jm_hi < jm_max {
-                *row_ptr.add(jm_hi + 1) = CELL_ZERO;
+            if mat_col_hi < jm_max {
+                *row_ptr.add(mat_col_hi + 1) = CELL_ZERO;
             }
         }
 
@@ -556,8 +561,8 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
 
     while i > 0 && j >= j_start {
         let jm = j - col_off;
-        let c = unsafe { *base_ptr.add(i * cols).add(jm) };
-        match c.dir() {
+        let cell_val = unsafe { *base_ptr.add(i * cols).add(jm) };
+        match cell_val.dir() {
             Dir::Diag => {
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
                     true_matches += 1;

@@ -214,6 +214,13 @@ fn subsection(c: &mut Roff, name: &str, content: &str) {
 }
 
 /// Generate skim's manpage and write it to the writer
+///
+/// # Errors
+///
+/// Returns an error if writing to the output fails.
+// The manpage generator writes many sections sequentially; splitting it would add
+// indirection without meaningful simplification.
+#[allow(clippy::too_many_lines)]
 pub fn generate<W>(w: &mut W) -> Result<()>
 where
     W: Write,

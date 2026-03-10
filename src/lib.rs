@@ -22,6 +22,8 @@
 //! let output = Skim::run_with(options, Some(items)).unwrap();
 //! ```
 #![warn(missing_docs)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::default_trait_access, clippy::struct_excessive_bools)]
 
 #[macro_use]
 extern crate log;
@@ -125,6 +127,11 @@ pub struct DisplayContext {
 
 impl DisplayContext {
     /// Converts the context and text into a styled `Line` with highlighted matches
+    ///
+    /// # Panics
+    ///
+    /// Panics if the byte ranges in `Matches::ByteRange` do not align with valid UTF-8 boundaries.
+    #[must_use]
     pub fn to_line(self, cow: Cow<str>) -> Line {
         let text: String = cow.into_owned();
 

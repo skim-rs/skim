@@ -36,11 +36,13 @@ impl Default for MatcherControl {
 
 impl MatcherControl {
     /// Returns the number of items that have been processed so far.
+    #[must_use]
     pub fn get_num_processed(&self) -> usize {
         self.processed.load(Ordering::Relaxed)
     }
 
     /// Returns the number of items that have matched so far.
+    #[must_use]
     pub fn get_num_matched(&self) -> usize {
         self.matched.load(Ordering::Relaxed)
     }
@@ -51,6 +53,7 @@ impl MatcherControl {
     }
 
     /// Returns true if the matcher has stopped (either completed or killed).
+    #[must_use]
     pub fn stopped(&self) -> bool {
         self.stopped.load(Ordering::Relaxed)
     }
@@ -82,34 +85,39 @@ impl Matcher {
     }
 
     /// Sets the case matching mode (smart, ignore, or respect).
+    #[must_use]
     pub fn case(mut self, case_matching: CaseMatching) -> Self {
         self.case_matching = case_matching;
         self
     }
 
     /// Sets the rank builder (carries tiebreak criteria).
+    #[must_use]
     pub fn rank_builder(mut self, rank_builder: Arc<RankBuilder>) -> Self {
         self.rank_builder = rank_builder;
         self
     }
 
     /// Finalizes the builder and returns the configured Matcher.
+    #[must_use]
     pub fn build(self) -> Self {
         self
     }
 
-    /// Creates a MatchEngineFactory from the given options.
+    /// Creates a `MatchEngineFactory` from the given options.
     ///
     /// This is useful when you need the factory directly (e.g., for filter mode)
     /// without creating a full Matcher instance.
+    #[must_use]
     pub fn create_engine_factory(options: &SkimOptions) -> Rc<dyn MatchEngineFactory> {
         Self::create_engine_factory_with_builder(options).0
     }
 
-    /// Creates a MatchEngineFactory and the associated RankBuilder from the given options.
+    /// Creates a `MatchEngineFactory` and the associated `RankBuilder` from the given options.
     ///
     /// Returns both so callers can attach the builder to `MatchedItem`s for lazy sort-key
     /// computation.
+    #[must_use]
     pub fn create_engine_factory_with_builder(options: &SkimOptions) -> (Rc<dyn MatchEngineFactory>, Arc<RankBuilder>) {
         if options.regex {
             let regex_factory = RegexEngineFactory::builder();
@@ -150,7 +158,8 @@ impl Matcher {
         }
     }
 
-    /// Creates a Matcher configured from the given SkimOptions.
+    /// Creates a Matcher configured from the given `SkimOptions`.
+    #[must_use]
     pub fn from_options(options: &SkimOptions) -> Self {
         let (engine_factory, rank_builder) = Self::create_engine_factory_with_builder(options);
         Matcher::builder(engine_factory)
@@ -160,11 +169,13 @@ impl Matcher {
     }
 
     /// Returns the case matching setting for this matcher.
+    #[must_use]
     pub fn case_matching(&self) -> CaseMatching {
         self.case_matching
     }
 
     /// Returns a reference to the engine factory.
+    #[must_use]
     pub fn engine_factory(&self) -> &Rc<dyn MatchEngineFactory> {
         &self.engine_factory
     }
@@ -172,8 +183,14 @@ impl Matcher {
     /// Runs the matcher on items from the pool in a background thread.
     ///
     /// The callback is invoked when matching is complete with the matched items.
-    /// Returns a MatcherControl that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(&self, query: &str, item_pool: Arc<ItemPool>, thread_pool: &ThreadPool, callback: C) -> MatcherControl
+    /// Returns a `MatcherControl` that can be used to monitor progress or stop the matcher.
+    pub fn run<C>(
+        &self,
+        query: &str,
+        item_pool: &Arc<ItemPool>,
+        thread_pool: &ThreadPool,
+        callback: C,
+    ) -> MatcherControl
     where
         C: Fn(Vec<MatchedItem>) + Send + 'static,
     {
@@ -196,7 +213,7 @@ impl Matcher {
         let start = item_pool.num_taken();
         let items = item_pool.take();
         let total = items.len();
-        trace!("matcher start, total: {}", total);
+        trace!("matcher start, total: {total}");
 
         thread_pool.spawn(move || {
             // Process items in parallel using chunk-based accounting to minimize
@@ -229,7 +246,7 @@ impl Matcher {
                         if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
                             local_matched += 1;
                             let mut rank = match_result.rank;
-                            rank.index = (index + start) as i32;
+                            rank.index = i32::try_from(index + start).unwrap_or(i32::MAX);
                             local_matches.push(MatchedItem {
                                 item,
                                 rank,

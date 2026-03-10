@@ -18,12 +18,12 @@ pub enum InfoDisplay {
 #[cfg(feature = "cli")]
 impl ValueEnum for InfoDisplay {
     fn value_variants<'a>() -> &'a [Self] {
-        use InfoDisplay::*;
+        use InfoDisplay::{Default, Hidden, Inline};
         &[Default, Inline, Hidden]
     }
 
     fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
-        use InfoDisplay::*;
+        use InfoDisplay::{Default, Hidden, Inline};
         match self {
             Default => Some(PossibleValue::new("default")),
             Inline => Some(PossibleValue::new("inline")),

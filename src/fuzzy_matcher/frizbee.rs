@@ -1,4 +1,4 @@
-//! Matcher using https://crates.io/crates/frizbee
+//! Matcher using <https://crates.io/crates/frizbee>
 use frizbee::{Scoring, smith_waterman::SmithWatermanMatcher};
 
 use crate::{
@@ -19,11 +19,13 @@ pub struct FrizbeeMatcher {
 
 impl FrizbeeMatcher {
     /// Set the max typos to use
+    #[must_use]
     pub fn max_typos(mut self, typos: Option<usize>) -> Self {
-        self.max_typos = Some(typos.map(|x| x.try_into().unwrap()).unwrap_or(0));
+        self.max_typos = Some(typos.map_or(0, |x| u16::try_from(x).unwrap_or(u16::MAX)));
         self
     }
-    /// Set the case, will be converted to a matching_case_bonus
+    /// Set the case, will be converted to a `matching_case_bonus`
+    #[must_use]
     pub fn case(mut self, case: CaseMatching) -> Self {
         self.case = case;
         self
@@ -37,7 +39,7 @@ impl FuzzyMatcher for FrizbeeMatcher {
                 CaseMatching::Respect => RESPECT_CASE_BONUS,
                 CaseMatching::Ignore => 0,
                 CaseMatching::Smart => {
-                    if pattern.chars().any(|c| c.is_uppercase()) {
+                    if pattern.chars().any(char::is_uppercase) {
                         RESPECT_CASE_BONUS
                     } else {
                         0
@@ -72,7 +74,7 @@ impl FuzzyMatcher for FrizbeeMatcher {
                 CaseMatching::Respect => RESPECT_CASE_BONUS,
                 CaseMatching::Ignore => 0,
                 CaseMatching::Smart => {
-                    if pattern.chars().any(|c| c.is_uppercase()) {
+                    if pattern.chars().any(char::is_uppercase) {
                         RESPECT_CASE_BONUS
                     } else {
                         0
@@ -84,6 +86,6 @@ impl FuzzyMatcher for FrizbeeMatcher {
         let mut matcher = SmithWatermanMatcher::new(pattern.as_bytes(), &scoring);
         matcher
             .match_haystack(choice.as_bytes(), self.max_typos)
-            .map(|x| x as ScoreType)
+            .map(ScoreType::from)
     }
 }

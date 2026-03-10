@@ -29,7 +29,7 @@ impl FieldRange {
     /// Parses a field range from a string (e.g., "1", "1..", "..10", "1..10")
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(range: &str) -> Option<FieldRange> {
-        use self::FieldRange::*;
+        use self::FieldRange::{Both, LeftInf, RightInf, Single};
 
         // "1", "1..", "..10", "1..10", etc.
         let opt_caps = FIELD_RANGE.captures(range);
@@ -63,8 +63,9 @@ impl FieldRange {
     ///
     /// For example, 1..3 => (0, 4). Note that field range is inclusive while
     /// the output index will exclude the right end.
+    #[must_use]
     pub fn to_index_pair(&self, length: usize) -> Option<(usize, usize)> {
-        use self::FieldRange::*;
+        use self::FieldRange::{Both, LeftInf, RightInf, Single};
         match *self {
             Single(num) => {
                 let num = FieldRange::translate_neg(num, length);
@@ -105,9 +106,9 @@ impl FieldRange {
     }
 
     fn translate_neg(idx: i32, length: usize) -> usize {
-        let len = length as i32;
+        let len = i32::try_from(length).unwrap_or(i32::MAX);
         let idx = if idx < 0 { idx + len + 1 } else { idx };
-        max(0, idx) as usize
+        max(0, idx).unsigned_abs() as usize
     }
 }
 
@@ -126,8 +127,9 @@ fn get_ranges_by_delimiter(delimiter: &Regex, text: &str) -> Vec<(usize, usize)>
 
 /// Extracts a substring from text based on a field range and delimiter.
 ///
-/// For example, with delimiter = Regex::new(",").unwrap(), text "a,b,c", and field Single(2),
+/// For example, with delimiter = `Regex::new(",").unwrap()`, text "a,b,c", and field Single(2),
 /// this returns "b". Note that this is different from `to_index_pair`, it uses delimiters.
+#[must_use]
 pub fn get_string_by_field<'a>(delimiter: &Regex, text: &'a str, field: &FieldRange) -> Option<&'a str> {
     let ranges = get_ranges_by_delimiter(delimiter, text);
 
@@ -141,6 +143,7 @@ pub fn get_string_by_field<'a>(delimiter: &Regex, text: &'a str, field: &FieldRa
 }
 
 /// Extracts a substring from text by parsing a range string and using a delimiter
+#[must_use]
 pub fn get_string_by_range<'a>(delimiter: &Regex, text: &'a str, range: &str) -> Option<&'a str> {
     FieldRange::from_str(range).and_then(|field| get_string_by_field(delimiter, text, &field))
 }
@@ -149,6 +152,7 @@ pub fn get_string_by_range<'a>(delimiter: &Regex, text: &'a str, range: &str) ->
 ///
 /// Given delimiter `,`, text: "a,b,c", and fields &[Single(2), LeftInf(2)],
 /// this returns [(2, 4), (0, 4)].
+#[must_use]
 pub fn parse_matching_fields(delimiter: &Regex, text: &str, fields: &[FieldRange]) -> Vec<(usize, usize)> {
     let ranges = get_ranges_by_delimiter(delimiter, text);
 
@@ -164,6 +168,7 @@ pub fn parse_matching_fields(delimiter: &Regex, text: &str, fields: &[FieldRange
 }
 
 /// Extracts the specified fields from text using the delimiter
+#[must_use]
 pub fn parse_transform_fields(delimiter: &Regex, text: &str, fields: &[FieldRange]) -> String {
     let ranges = get_ranges_by_delimiter(delimiter, text);
 

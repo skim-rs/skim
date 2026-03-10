@@ -4,7 +4,7 @@ use unicode_normalization::UnicodeNormalization;
 
 /// Normalize a string and return a mapping from normalized char indices to original char indices.
 ///
-/// Returns (normalized_string, mapping) where mapping[i] gives the original char index
+/// Returns (`normalized_string`, mapping) where mapping[i] gives the original char index
 /// for the i-th character in the normalized string.
 pub fn normalize_with_char_mapping(s: &str) -> (String, Vec<usize>) {
     let mut normalized = String::new();
@@ -25,7 +25,7 @@ pub fn normalize_with_char_mapping(s: &str) -> (String, Vec<usize>) {
 
 /// Map character indices from normalized string back to original string.
 ///
-/// Given indices into a normalized string and the char mapping from normalize_with_char_mapping,
+/// Given indices into a normalized string and the char mapping from `normalize_with_char_mapping`,
 /// returns the corresponding indices in the original string.
 pub fn map_char_indices_to_original(normalized_indices: &[usize], char_mapping: &[usize]) -> MatchIndices {
     normalized_indices
@@ -36,7 +36,7 @@ pub fn map_char_indices_to_original(normalized_indices: &[usize], char_mapping: 
 
 /// Normalize a string and return a mapping from normalized byte positions to original byte positions.
 ///
-/// Returns (normalized_string, byte_mapping) where byte_mapping[i] gives the original byte position
+/// Returns (`normalized_string`, `byte_mapping`) where `byte_mapping`[i] gives the original byte position
 /// for the i-th byte in the normalized string.
 pub fn normalize_with_byte_mapping(s: &str) -> (String, Vec<usize>) {
     let mut normalized = String::new();
@@ -83,8 +83,7 @@ pub fn map_byte_range_to_original(
         original_str[last_byte_orig_pos..]
             .chars()
             .next()
-            .map(|c| last_byte_orig_pos + c.len_utf8())
-            .unwrap_or(original_str.len())
+            .map_or(original_str.len(), |c| last_byte_orig_pos + c.len_utf8())
     } else if normalized_end >= byte_mapping.len() {
         original_str.len()
     } else {
@@ -94,14 +93,10 @@ pub fn map_byte_range_to_original(
     (orig_start, orig_end)
 }
 
-pub fn regex_match(choice: &str, pattern: &Option<Regex>) -> Option<(usize, usize)> {
-    match *pattern {
-        Some(ref pat) => {
-            let mat = pat.find(choice)?;
-            Some((mat.start(), mat.end()))
-        }
-        None => None,
-    }
+pub fn regex_match(choice: &str, pattern: Option<&Regex>) -> Option<(usize, usize)> {
+    let pat = pattern?;
+    let mat = pat.find(choice)?;
+    Some((mat.start(), mat.end()))
 }
 
 pub fn contains_upper(string: &str) -> bool {

@@ -70,7 +70,7 @@ impl AndEngine {
         self
     }
 
-    fn merge_matched_items(&self, items: Vec<MatchResult>, text: &str) -> MatchResult {
+    fn merge_matched_items(items: Vec<MatchResult>, text: &str) -> MatchResult {
         let mut ranges = MatchIndices::new();
         let mut rank = crate::Rank {
             score: 0,
@@ -92,7 +92,7 @@ impl AndEngine {
             rank.end = rank.end.max(item.rank.end);
         }
 
-        ranges.sort();
+        ranges.sort_unstable();
         ranges.dedup();
         MatchResult {
             rank,
@@ -113,7 +113,7 @@ impl MatchEngine for AndEngine {
         if results.is_empty() {
             None
         } else {
-            Some(self.merge_matched_items(results, &item.text()))
+            Some(Self::merge_matched_items(results, &item.text()))
         }
     }
 }

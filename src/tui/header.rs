@@ -22,6 +22,9 @@ use std::cmp::max;
 use std::sync::Arc;
 
 /// Header widget for displaying static text above the item list
+// The field named `header` in `Header` is intentional — it holds the static
+// header string that this widget displays. Renaming it would reduce clarity.
+#[allow(clippy::struct_field_names)]
 #[derive(Clone, Default)]
 pub struct Header {
     /// The static header string (from --header option), with expanded tabstop
@@ -37,7 +40,7 @@ pub struct Header {
     theme: Arc<ColorTheme>,
     /// Border type, if borders are enabled
     pub border: Option<BorderType>,
-    /// Whether to reverse the order of header_lines (for default/bottom-to-top layout)
+    /// Whether to reverse the order of `header_lines` (for default/bottom-to-top layout)
     reverse_lines: bool,
     /// Reverse layout
     reverse: bool,
@@ -45,6 +48,7 @@ pub struct Header {
 
 impl Header {
     /// Sets the color theme for the header
+    #[must_use]
     pub fn theme(mut self, theme: Arc<ColorTheme>) -> Self {
         self.theme = theme;
         self
@@ -54,11 +58,12 @@ impl Header {
     /// This value is stable at construction time: it is derived purely from
     /// `options.header` (static text) and `options.header_lines` (reserved-item
     /// count), so the layout does not shift as items arrive at runtime.
+    #[must_use]
     pub fn height(&self) -> u16 {
         let static_lines = if self.header.is_empty() {
             0
         } else {
-            self.header.lines().count() as u16
+            u16::try_from(self.header.lines().count()).unwrap_or(u16::MAX)
         };
         static_lines + self.header_lines_count
     }
@@ -164,7 +169,7 @@ impl SkimWidget for Header {
             ..Default::default()
         };
 
-        for item in self.header_lines.iter() {
+        for item in &self.header_lines {
             let mut line = item.display(display_context.clone());
             style_line(&mut line, self.theme.header);
             combined_header.push_line(line);

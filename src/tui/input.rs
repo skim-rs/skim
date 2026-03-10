@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
@@ -53,7 +54,8 @@ impl StatusInfo {
             && let Some(start) = self.start
         {
             let spinner_elapsed_ms = start.elapsed().as_millis();
-            let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (SPINNERS_UNICODE.len() as u128)) as usize;
+            let index =
+                ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
             parts.push(SPINNERS_UNICODE[index]);
             parts.push(' ');
         } else {
@@ -61,22 +63,22 @@ impl StatusInfo {
         }
 
         // Matched/total
-        parts.push_str(&format!("{}/{}", self.matched, self.total));
+        let _ = write!(parts, "{}/{}", self.matched, self.total);
 
         // Matcher mode
         if !self.matcher_mode.is_empty() {
-            parts.push_str(&format!("/{}", &self.matcher_mode));
+            let _ = write!(parts, "/{}", &self.matcher_mode);
         }
 
         // Progress percentage
         if self.show_spinner && self.total > 0 && self.processed != self.total {
             let pct = self.processed.saturating_mul(100) / self.total;
-            parts.push_str(&format!(" ({}%)", pct));
+            let _ = write!(parts, " ({pct}%)");
         }
 
         // Selection count
         if self.multi_selection && self.selected > 0 {
-            parts.push_str(&format!(" [{}]", self.selected));
+            let _ = write!(parts, " [{}]", self.selected);
         }
 
         parts
@@ -89,7 +91,8 @@ impl StatusInfo {
             && let Some(start) = self.start
         {
             let spinner_elapsed_ms = start.elapsed().as_millis();
-            let index = ((spinner_elapsed_ms / (SPINNER_DURATION as u128)) % (SPINNERS_UNICODE.len() as u128)) as usize;
+            let index =
+                ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
             SPINNERS_UNICODE[index]
         } else {
             '<'
@@ -102,22 +105,22 @@ impl StatusInfo {
         let mut parts = String::new();
 
         // Matched/total
-        parts.push_str(&format!("{}/{}", self.matched, self.total));
+        let _ = write!(parts, "{}/{}", self.matched, self.total);
 
         // Matcher mode
         if !self.matcher_mode.is_empty() {
-            parts.push_str(&format!("/{}", &self.matcher_mode));
+            let _ = write!(parts, "/{}", &self.matcher_mode);
         }
 
         // Progress percentage
         if self.show_spinner && self.total > 0 {
             let pct = self.processed.saturating_mul(100) / self.total;
-            parts.push_str(&format!(" ({}%)", pct));
+            let _ = write!(parts, " ({pct}%)");
         }
 
         // Selection count
         if self.multi_selection && self.selected > 0 {
-            parts.push_str(&format!(" [{}]", self.selected));
+            let _ = write!(parts, " [{}]", self.selected);
         }
 
         parts
@@ -131,7 +134,7 @@ impl StatusInfo {
 
 pub struct Input {
     pub prompt: String,
-    /// see alternate_value
+    /// see `alternate_value`
     alternate_prompt: String,
     pub value: String,
     /// cmd query when in normal mode, query when in interactive mode
@@ -189,11 +192,11 @@ impl Input {
         if self.value.is_empty() {
             return None;
         }
-        let new_pos = self.cursor_pos as i32 + offset;
-        if new_pos < 0 || new_pos as usize >= self.value.len() {
+        let new_pos = i32::from(self.cursor_pos) + offset;
+        if new_pos < 0 || usize::try_from(new_pos).map_or(true, |p| p >= self.value.len()) {
             return None;
         }
-        let pos = self.value.floor_char_boundary(new_pos as usize);
+        let pos = self.value.floor_char_boundary(new_pos.unsigned_abs() as usize);
         let ch = self.value.remove(pos);
         // Only move cursor if deleting backwards
         if offset < 0 {
@@ -206,20 +209,16 @@ impl Input {
             return;
         }
         if offset < 0 {
-            self.move_cursor_to(
-                self.value
-                    .floor_char_boundary((self.cursor_pos as i32 + offset) as usize) as u16,
-            );
+            let new_pos = (i32::from(self.cursor_pos) + offset).max(0).unsigned_abs() as usize;
+            self.move_cursor_to(u16::try_from(self.value.floor_char_boundary(new_pos)).unwrap_or(u16::MAX));
         } else {
-            self.move_cursor_to(
-                self.value
-                    .ceil_char_boundary((self.cursor_pos as i32 + offset) as usize) as u16,
-            );
+            let new_pos = (i32::from(self.cursor_pos) + offset).unsigned_abs() as usize;
+            self.move_cursor_to(u16::try_from(self.value.ceil_char_boundary(new_pos)).unwrap_or(u16::MAX));
         }
     }
     pub fn move_cursor_to(&mut self, pos: u16) {
         if self.value.is_char_boundary(pos as usize) {
-            self.cursor_pos = u16::clamp(pos, 0, self.value.len() as u16);
+            self.cursor_pos = u16::clamp(pos, 0, u16::try_from(self.value.len()).unwrap_or(u16::MAX));
         } else {
             warn!("Invalid cursor pos");
         }
@@ -230,7 +229,7 @@ impl Input {
                 .len()
                 .try_into()
                 .expect("Failed to fit input len into an u16"),
-        )
+        );
     }
 
     /// Check if a character is a word character (alphanumeric only)
@@ -353,7 +352,7 @@ impl Input {
             &self.value[..start_pos],
             &self.value[self.cursor_pos as usize..]
         );
-        self.cursor_pos = start_pos as u16;
+        self.cursor_pos = u16::try_from(start_pos).unwrap_or(u16::MAX);
         deleted
     }
 
@@ -376,7 +375,7 @@ impl Input {
 
         let deleted = self.value[pos..self.cursor_pos as usize].to_string();
         self.value = format!("{}{}", &self.value[..pos], &self.value[self.cursor_pos as usize..]);
-        self.cursor_pos = pos as u16;
+        self.cursor_pos = u16::try_from(pos).unwrap_or(u16::MAX);
         deleted
     }
 
@@ -391,12 +390,12 @@ impl Input {
     }
     pub fn move_cursor_forward_word(&mut self) {
         let new_pos = self.find_compound_word_end(self.cursor_pos as usize);
-        self.cursor_pos = new_pos as u16;
+        self.cursor_pos = u16::try_from(new_pos).unwrap_or(u16::MAX);
     }
 
     pub fn move_cursor_backward_word(&mut self) {
         let new_pos = self.find_prev_word_start(self.cursor_pos as usize);
-        self.cursor_pos = new_pos as u16;
+        self.cursor_pos = u16::try_from(new_pos).unwrap_or(u16::MAX);
     }
     pub fn delete_to_beginning(&mut self) -> String {
         let deleted = self.value[..self.cursor_pos as usize].to_string();
@@ -426,18 +425,18 @@ impl SkimWidget for Input {
             ..Default::default()
         };
         if options.interactive {
-            res.prompt = options.cmd_prompt.clone();
-            res.alternate_prompt = options.prompt.clone();
+            res.prompt.clone_from(&options.cmd_prompt);
+            res.alternate_prompt.clone_from(&options.prompt);
             res.value = options.cmd_query.clone().unwrap_or_default();
             res.alternate_value = options.query.clone().unwrap_or_default();
         } else {
-            res.prompt = options.prompt.clone();
-            res.alternate_prompt = options.cmd_prompt.clone();
+            res.prompt.clone_from(&options.prompt);
+            res.alternate_prompt.clone_from(&options.cmd_prompt);
             res.value = options.query.clone().unwrap_or_default();
             res.alternate_value = options.cmd_query.clone().unwrap_or_default();
         }
-        res.cursor_pos = res.value.len() as u16;
-        res.alternate_cursor_pos = res.alternate_value.len() as u16;
+        res.cursor_pos = u16::try_from(res.value.len()).unwrap_or(u16::MAX);
+        res.alternate_cursor_pos = u16::try_from(res.alternate_value.len()).unwrap_or(u16::MAX);
         res
     }
 
@@ -447,11 +446,10 @@ impl SkimWidget for Input {
         use ratatui::widgets::Paragraph;
         use ratatui::widgets::{Block, Borders};
 
-        let mut line = self
-            .prompt
-            .into_text()
-            .map(|t| t.lines.into_iter().next().unwrap_or_default())
-            .unwrap_or_else(|_| Line::from(self.prompt.as_str()));
+        let mut line = self.prompt.into_text().map_or_else(
+            |_| Line::from(self.prompt.as_str()),
+            |t| t.lines.into_iter().next().unwrap_or_default(),
+        );
         style_line(&mut line, self.theme.prompt);
         line.push_span(Span::styled(&self.value, self.theme.query));
 
@@ -486,10 +484,10 @@ impl SkimWidget for Input {
 
                     let used_width =
                         prompt_width + value_width + separator_width + inline_status_width + right_status_width;
-                    let available_width = area.width as u64;
+                    let available_width = u64::from(area.width);
                     let padding_width = available_width.saturating_sub(used_width);
 
-                    line.push_span(Span::styled(format!("  {} ", separator), self.theme.info));
+                    line.push_span(Span::styled(format!("  {separator} "), self.theme.info));
                     line.push_span(Span::styled(inline_status, self.theme.info));
                     line.push_span(Span::raw(" ".repeat(padding_width.try_into().unwrap())));
                     line.push_span(Span::styled(right_status, self.theme.info));

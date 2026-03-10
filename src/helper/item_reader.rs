@@ -53,6 +53,7 @@ impl Default for SkimItemReaderOption {
 
 impl SkimItemReaderOption {
     /// Creates reader options from skim options
+    #[must_use]
     pub fn from_options(options: &SkimOptions) -> Self {
         Self {
             buf_size: READ_BUFFER_SIZE,
@@ -61,12 +62,12 @@ impl SkimItemReaderOption {
             transform_fields: options
                 .with_nth
                 .iter()
-                .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
+                .filter_map(|f| if f.is_empty() { None } else { FieldRange::from_str(f) })
                 .collect(),
             matching_fields: options
                 .nth
                 .iter()
-                .filter_map(|f| if !f.is_empty() { FieldRange::from_str(f) } else { None })
+                .filter_map(|f| if f.is_empty() { None } else { FieldRange::from_str(f) })
                 .collect(),
             delimiter: options.delimiter.clone(),
             show_error: options.show_cmd_error,
@@ -74,30 +75,35 @@ impl SkimItemReaderOption {
     }
 
     /// Sets the buffer size for reading
+    #[must_use]
     pub fn buf_size(mut self, buf_size: usize) -> Self {
         self.buf_size = buf_size;
         self
     }
 
     /// Sets the line ending character (default: '\n')
+    #[must_use]
     pub fn line_ending(mut self, line_ending: u8) -> Self {
         self.line_ending = line_ending;
         self
     }
 
     /// Enables or disables ANSI color code parsing
+    #[must_use]
     pub fn ansi(mut self, enable: bool) -> Self {
         self.use_ansi_color = enable;
         self
     }
 
     /// Sets the field delimiter regex
+    #[must_use]
     pub fn delimiter(mut self, delimiter: Regex) -> Self {
         self.delimiter = delimiter;
         self
     }
 
     /// Sets the fields to display (transform) from the input
+    #[must_use]
     pub fn with_nth<'a, T>(mut self, with_nth: T) -> Self
     where
         T: Iterator<Item = &'a str>,
@@ -107,12 +113,14 @@ impl SkimItemReaderOption {
     }
 
     /// Sets the transform fields directly
+    #[must_use]
     pub fn transform_fields(mut self, transform_fields: Vec<FieldRange>) -> Self {
         self.transform_fields = transform_fields;
         self
     }
 
     /// Sets the fields to use for matching
+    #[must_use]
     pub fn nth<'a, T>(mut self, nth: T) -> Self
     where
         T: Iterator<Item = &'a str>,
@@ -122,12 +130,14 @@ impl SkimItemReaderOption {
     }
 
     /// Sets the matching fields directly
+    #[must_use]
     pub fn matching_fields(mut self, matching_fields: Vec<FieldRange>) -> Self {
         self.matching_fields = matching_fields;
         self
     }
 
     /// Enables reading null-terminated lines instead of newline-terminated
+    #[must_use]
     pub fn read0(mut self, enable: bool) -> Self {
         if enable {
             self.line_ending = b'\0';
@@ -138,17 +148,20 @@ impl SkimItemReaderOption {
     }
 
     /// Sets whether to show command errors
+    #[must_use]
     pub fn show_error(mut self, show_error: bool) -> Self {
         self.show_error = show_error;
         self
     }
 
     /// Builds the options (currently a no-op, returns self)
+    #[must_use]
     pub fn build(self) -> Self {
         self
     }
 
     /// Returns true if no field transformations or ANSI parsing is needed
+    #[must_use]
     pub fn is_simple(&self) -> bool {
         !self.use_ansi_color && self.matching_fields.is_empty() && self.transform_fields.is_empty()
     }
@@ -169,6 +182,7 @@ impl Default for SkimItemReader {
 
 impl SkimItemReader {
     /// Creates a new item reader with the given options
+    #[must_use]
     pub fn new(option: SkimItemReaderOption) -> Self {
         Self {
             option: Arc::new(option),
@@ -176,6 +190,7 @@ impl SkimItemReader {
     }
 
     /// Sets the reader options
+    #[must_use]
     pub fn option(mut self, option: SkimItemReaderOption) -> Self {
         self.option = Arc::new(option);
         self
@@ -183,7 +198,7 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
-    /// Converts a BufRead source into a stream of skim items
+    /// Converts a `BufRead` source into a stream of skim items
     pub fn of_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
         if self.option.is_simple() {
             self.raw_bufread(source)
@@ -193,14 +208,14 @@ impl SkimItemReader {
         }
     }
 
-    /// Helper function that contains the common logic for reading lines from a BufRead source
-    /// and converting them into SkimItems.
+    /// Helper function that contains the common logic for reading lines from a `BufRead` source
+    /// and converting them into `SkimItems`.
     fn read_lines_into_items(
         mut source: impl BufRead + Send + 'static,
-        tx_item: SkimItemSender,
-        option: Arc<SkimItemReaderOption>,
-        transform_fields: Vec<FieldRange>,
-        matching_fields: Vec<FieldRange>,
+        tx_item: &SkimItemSender,
+        option: &Arc<SkimItemReaderOption>,
+        transform_fields: &[FieldRange],
+        matching_fields: &[FieldRange],
     ) {
         let mut buffer = Vec::with_capacity(option.buf_size);
         let mut items_to_send = Vec::with_capacity(ITEMS_BUFFER_SIZE);
@@ -226,13 +241,13 @@ impl SkimItemReader {
                         continue;
                     };
 
-                    trace!("got item {}", line);
+                    trace!("got item {line}");
 
                     let raw_item = DefaultSkimItem::new(
                         line,
                         option.use_ansi_color,
-                        &transform_fields,
-                        &matching_fields,
+                        transform_fields,
+                        matching_fields,
                         &option.delimiter,
                     );
                     items_to_send.push(Arc::new(raw_item) as Arc<dyn SkimItem>);
@@ -249,7 +264,7 @@ impl SkimItemReader {
             if should_send {
                 let batch = std::mem::replace(&mut items_to_send, Vec::with_capacity(ITEMS_BUFFER_SIZE));
                 match tx_item.send(batch) {
-                    Ok(_) => {
+                    Ok(()) => {
                         last_send_time = Instant::now();
                     }
                     Err(e) => {
@@ -266,20 +281,20 @@ impl SkimItemReader {
         }
     }
 
-    /// helper: convert bufread into SkimItemReceiver
+    /// helper: convert bufread into `SkimItemReceiver`
     fn raw_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = kanal::bounded(1024 * 1024);
         let option = self.option.clone();
 
         thread::spawn(move || {
-            Self::read_lines_into_items(source, tx_item, option, vec![], vec![]);
+            Self::read_lines_into_items(source, &tx_item, &option, &[], &[]);
         });
 
         rx_item
     }
 
-    /// components_to_stop == 0 => all the threads have been stopped
-    /// return (channel_for_receive_item, channel_to_stop_command)
+    /// `components_to_stop` == 0 => all the threads have been stopped
+    /// return (`channel_for_receive_item`, `channel_to_stop_command`)
     fn read_and_collect_from_command(
         &self,
         components_to_stop: Arc<AtomicUsize>,
@@ -313,7 +328,7 @@ impl SkimItemReader {
                 if send_error {
                     let has_error = child
                         .try_wait()
-                        .map(|os| os.map(|s| !s.success()).unwrap_or(true))
+                        .map(|os| os.is_none_or(|s| !s.success()))
                         .unwrap_or(false);
                     if has_error {
                         trace!("collector: sending error");
@@ -356,7 +371,7 @@ impl SkimItemReader {
             components_to_stop.fetch_add(1, Ordering::SeqCst);
             started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
-            Self::read_lines_into_items(source, tx_item, option, transform_fields, matching_fields);
+            Self::read_lines_into_items(source, &tx_item, &option, &transform_fields, &matching_fields);
 
             let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
             components_to_stop.fetch_sub(1, Ordering::SeqCst);
