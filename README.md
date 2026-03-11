@@ -62,6 +62,7 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
       + [How does it work?](#how-does-it-work-1)
    * [Fields support](#fields-support)
    * [Use as a library](#use-as-a-library)
+   * [Benchmarks](#benchmarks)
 - [FAQ](#faq)
    * [How to ignore files?](#how-to-ignore-files)
    * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
@@ -595,6 +596,46 @@ Plus, `SkimItemReader` is a helper to convert a `BufRead` into
 so that you could deal with strings or files easily.
 
 Check out more examples under the [examples/](https://github.com/skim-rs/skim/tree/master/skim/examples) directory.
+
+## Benchmarks
+
+This benchmarks runs the interactive interface in a tmux session, and waits for the UI to stabilize.
+It uses a 10 million path-like ASCII items input file, and the query test.
+
+```
+=== Results: sk v4.0.0 [baseline] ===
+Completed runs: 50 / 50
+Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782)
+Average time: 3.827s  (min: 3.576s, max: 4.090s)
+Average items/second: 2615767  (min: 2445033, max: 2796365)
+Average peak memory usage: 1589.2 MB  (min: 1518.6 MB, max: 1661.2 MB)
+Average peak CPU usage: 528.9%  (min: 457.0%, max: 740.0%)
+
+=== Results: sk v3.7.0 ===
+Completed runs: 50 / 50
+Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782) +0.0%
+Average time: 3.930s  (min: 3.565s, max: 4.226s)  +2.7%
+Average items/second: 2548674  (min: 2366263, max: 2804816)  -2.6%
+Average peak memory usage: 1618.8 MB  (min: 1539.1 MB, max: 1680.6 MB) +1.9%
+Average peak CPU usage: 696.8%  (min: 608.0%, max: 875.0%)  +31.7%
+
+=== Results: fzf 0.70.0 ===
+Completed runs: 50 / 50
+Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782) +0.0%
+Average time: 5.421s  (min: 4.814s, max: 6.111s)  +41.7%
+Average items/second: 1848269  (min: 1636444, max: 2077385)  -29.3%
+Average peak memory usage: 2015.3 MB  (min: 1860.7 MB, max: 2173.9 MB) +26.8%
+Average peak CPU usage: 1301.1%  (min: 1229.0%, max: 1431.0%)  +146.0%
+
+=== Comparison Summary (vs baseline: sk v4.0.0) ===
+Binary      Avg time     Δ time  Avg rate     Δ rate
+------------------------------------------------------------------------------
+sk v4.0.0   3.827s    baseline   2615767     baseline
+sk v3.7.0   3.930s      +2.7%    2548674      -2.6%
+fzf 0.70.0  5.421s     +41.7%    1848269     -29.3%
+```
+
+TL;DR: sk v4.0.0 is ~30% faster than fzf 0.70.0 with a third of the CPU usage and less memory usage
 
 # FAQ
 
