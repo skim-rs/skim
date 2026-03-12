@@ -52,7 +52,7 @@ impl Skim {
     ///
     /// # Panics
     ///
-    /// Panics if the tui fails to initilize
+    /// Panics if the tui fails to initialize
     pub fn run_with(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<SkimOutput> {
         trace!("running skim");
         let mut skim = Self::init(options, source)?;
@@ -348,7 +348,7 @@ where
         let reader_control = self
             .reader_control
             .as_ref()
-            .expect("reader_control needs to be initilized using Skim::start");
+            .expect("reader_control needs to be initialized using Skim::start");
         let app = &mut self.app;
 
         // Filter mode: wait for all items to be read and matched, then return without entering TUI

@@ -122,7 +122,7 @@ pub struct DisplayContext {
     /// The base style to apply to non-matched portions
     pub base_style: Style,
     /// The style to apply to matched portions
-    pub matched_syle: Style,
+    pub matched_style: Style,
 }
 
 impl DisplayContext {
@@ -147,7 +147,10 @@ impl DisplayContext {
                     res.push_span(Span::styled(span_content.collect::<String>(), self.base_style));
                     let highlighted_char = chars.next().unwrap_or_default().to_string();
 
-                    res.push_span(Span::styled(highlighted_char, self.base_style.patch(self.matched_syle)));
+                    res.push_span(Span::styled(
+                        highlighted_char,
+                        self.base_style.patch(self.matched_style),
+                    ));
                     prev_index = index + 1;
                 }
                 res.push_span(Span::styled(chars.collect::<String>(), self.base_style));
@@ -164,7 +167,10 @@ impl DisplayContext {
                 ));
                 let highlighted_text = chars.by_ref().take(*end - *start).collect::<String>();
 
-                res.push_span(Span::styled(highlighted_text, self.base_style.patch(self.matched_syle)));
+                res.push_span(Span::styled(
+                    highlighted_text,
+                    self.base_style.patch(self.matched_style),
+                ));
                 res.push_span(Span::styled(chars.collect::<String>(), self.base_style));
                 res
             }
@@ -178,7 +184,10 @@ impl DisplayContext {
                 let highlighted_bytes = bytes.by_ref().take(*end - *start).collect();
                 let highlighted_text = String::from_utf8(highlighted_bytes).unwrap();
 
-                res.push_span(Span::styled(highlighted_text, self.base_style.patch(self.matched_syle)));
+                res.push_span(Span::styled(
+                    highlighted_text,
+                    self.base_style.patch(self.matched_style),
+                ));
                 res.push_span(Span::styled(
                     String::from_utf8(bytes.collect()).unwrap(),
                     self.base_style,
