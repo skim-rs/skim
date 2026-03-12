@@ -315,7 +315,7 @@ impl SkimItem for DefaultSkimItem {
                                     // Combine styles: use highlight bg, preserve ANSI fg and modifiers
                                     new_spans.push(Span::styled(
                                         highlighted_content.clone(),
-                                        merge_styles(base_style, context.matched_syle),
+                                        merge_styles(base_style, context.matched_style),
                                     ));
                                     highlighted_content.clear();
                                 }
@@ -336,7 +336,7 @@ impl SkimItem for DefaultSkimItem {
                             // Combine styles: use highlight bg, preserve ANSI fg and modifiers
                             new_spans.push(Span::styled(
                                 highlighted_content,
-                                merge_styles(base_style, context.matched_syle),
+                                merge_styles(base_style, context.matched_style),
                             ));
                         }
                     }
@@ -373,10 +373,10 @@ impl SkimItem for DefaultSkimItem {
                             new_spans.push(Span::styled(before, merge_styles(context.base_style, base_style)));
                         }
                         if !highlighted.is_empty() {
-                            // Combine ANSI style with context matched_syle
+                            // Combine ANSI style with context matched_style
                             new_spans.push(Span::styled(
                                 highlighted,
-                                merge_styles(base_style, context.matched_syle),
+                                merge_styles(base_style, context.matched_style),
                             ));
                         }
                         if !after.is_empty() {
@@ -421,10 +421,10 @@ impl SkimItem for DefaultSkimItem {
                             new_spans.push(Span::styled(before, merge_styles(context.base_style, base_style)));
                         }
                         if !highlighted.is_empty() {
-                            // Combine ANSI style with context matched_syle
+                            // Combine ANSI style with context matched_style
                             new_spans.push(Span::styled(
                                 highlighted,
-                                merge_styles(base_style, context.matched_syle),
+                                merge_styles(base_style, context.matched_style),
                             ));
                         }
                         if !after.is_empty() {
@@ -667,7 +667,7 @@ mod test {
             matches: Matches::CharRange(6, 10),
             container_width: 80,
             base_style: Style::default(),
-            matched_syle: Style::default().fg(Color::Yellow),
+            matched_style: Style::default().fg(Color::Yellow),
         };
 
         // display() should map the match positions back to the original ANSI text
@@ -705,7 +705,7 @@ mod test {
             matches: Matches::CharIndices(vec![1, 2]),
             container_width: 80,
             base_style: Style::default(),
-            matched_syle: Style::default().fg(Color::Yellow),
+            matched_style: Style::default().fg(Color::Yellow),
         };
 
         // display() should map these to positions 6,7 in original text
@@ -772,7 +772,7 @@ mod test {
             matches: Matches::CharIndices(vec![0]),
             container_width: 80,
             base_style: Style::default(),
-            matched_syle: Style::default().bg(Color::Yellow),
+            matched_style: Style::default().bg(Color::Yellow),
         };
 
         let line = item.display(context);
@@ -810,7 +810,7 @@ mod test {
             matches: Matches::CharRange(1, 3),
             container_width: 80,
             base_style: Style::default(),
-            matched_syle: Style::default().bg(Color::Yellow),
+            matched_style: Style::default().bg(Color::Yellow),
         };
 
         let line = item.display(context);
@@ -850,7 +850,7 @@ mod test {
             matches: Matches::ByteRange(1, 3),
             container_width: 80,
             base_style: Style::default(),
-            matched_syle: Style::default().bg(Color::Yellow),
+            matched_style: Style::default().bg(Color::Yellow),
         };
 
         let line = item.display(context);

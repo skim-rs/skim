@@ -303,7 +303,7 @@ impl Preview {
                 self.rows, self.cols
             );
             self.init_pty();
-            trace!("initalized pty");
+            trace!("initialized pty");
             let mut shell_cmd = portable_pty::CommandBuilder::new("/bin/sh");
             shell_cmd.env("ROWS", self.rows.to_string());
             shell_cmd.env("COLUMNS", self.cols.to_string());

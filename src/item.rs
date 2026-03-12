@@ -63,7 +63,7 @@ impl RankBuilder {
     ///
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
     /// applied lazily by [`Rank::sort_key`] at comparison time.
-    /// The `index` will be overriden later
+    /// The `index` will be overridden later
     #[must_use]
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str) -> Rank {
         Rank {
