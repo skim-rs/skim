@@ -7,7 +7,6 @@
 //!
 //! ```no_run
 //! use skim::prelude::*;
-//! use std::io::Cursor;
 //!
 //! let options = SkimOptionsBuilder::default()
 //!     .height("50%")
@@ -15,12 +14,12 @@
 //!     .build()
 //!     .unwrap();
 //!
-//! let input = "awk\nbash\ncsh\ndash\nfish\nksh\nzsh";
-//! let item_reader = SkimItemReader::default();
-//! let items = item_reader.of_bufread(Cursor::new(input));
-//!
-//! let output = Skim::run_with(options, Some(items)).unwrap();
+//! let output = Skim::run_items(
+//!         options,
+//!         ["awk", "bash", "csh", "dash", "fish", "ksh", "zsh"]
+//!     ).unwrap();
 //! ```
+
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::default_trait_access, clippy::struct_excessive_bools)]
