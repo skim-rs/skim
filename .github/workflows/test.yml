@@ -45,7 +45,7 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
       - run: rustup toolchain install
@@ -80,11 +80,12 @@ jobs:
           files: target/nextest/default/junit.xml
           fail_ci_if_error: false
         continue-on-error: true
+
   clippy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - run: rustup toolchain install
@@ -97,11 +98,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
       - run: rustup toolchain install
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
+
+  sonarqube:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   build-no-default-features:
     runs-on: ubuntu-latest
