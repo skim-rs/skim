@@ -59,7 +59,7 @@ ansi-to-tui = "=8.0.1"
 futures = "=0.3.32"
 tokio-util = "=0.7.18"
 thiserror = "=2.0.18"
-tempfile = "=3.26.0"
+tempfile = "=3.27.0"
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
 thread_local = "=1.1.9"
 memchr = "=2.8.0"
