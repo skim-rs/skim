@@ -29,6 +29,9 @@ jobs:
         - build: macos
           os: macos-latest
           target: x86_64-apple-darwin
+        - build: windows
+          os: windows-latest
+          target: x86_64-pc-windows-gnu
     steps:
       - name: "[linux] Install dependencies"
         run: |
