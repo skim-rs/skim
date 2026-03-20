@@ -80,7 +80,7 @@ pub mod shell;
 #[cfg(unix)]
 const SKIM_DEFAULT_COMMAND: &str = "find .";
 #[cfg(windows)]
-const SKIM_DEFAULT_COMMAND: &str = "dir /s /b";
+const SKIM_DEFAULT_COMMAND: &str = "dir /s /b /A:-D";
 
 #[cfg(unix)]
 fn shell_cmd(cmd: &str) -> Command {

@@ -53,7 +53,7 @@ Vagrant.configure("2") do |config|
   # cwRsync (the Windows rsync from Chocolatey) uses Cygwin paths, so the
   # guest path must use /cygdrive/c/... rather than a bare /vagrant.
   config.vm.synced_folder ".", "/cygdrive/c/vagrant", type: "rsync",
-    rsync__exclude: [".git/", "target/"],
+    rsync__exclude: [".git/", "target/", ".jj/"],
     rsync__args: ["--verbose", "--archive", "--delete", "--copy-links", "--no-owner", "--no-group"]
 
   # ---------------------------------------------------------------------------
