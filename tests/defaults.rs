@@ -18,17 +18,7 @@ insta_test!(
     &[]
 );
 
-#[cfg(unix)]
 insta_test!(interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo 'foo {q}'"], {
-    @snap;
-    @type "bar";
-    @snap;
-    @type "baz";
-    @snap;
-});
-
-#[cfg(windows)]
-insta_test!(interactive_mode_command_execution, @interactive, &["-i", "--cmd", "echo foo {q}"], {
     @snap;
     @type "bar";
     @snap;

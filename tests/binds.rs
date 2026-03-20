@@ -98,16 +98,6 @@ insta_test!(bind_toggle_interactive_queries, @interactive, &["--bind", "ctrl-a:t
     @snap;
 });
 
-#[cfg(unix)]
-insta_test!(bind_set_preview_cmd, ["a", "b", "c"], &["--preview", "echo initial {}", "--bind", "ctrl-a:set-preview-cmd(echo new {})"], {
-    @snap;
-    @ctrl 'a';
-    @snap;
-    @key Up;
-    @snap;
-});
-
-#[cfg(windows)]
 insta_test!(bind_set_preview_cmd, ["a", "b", "c"], &["--preview", "echo initial {}", "--bind", "ctrl-a:set-preview-cmd(echo new {})"], {
     @snap;
     @ctrl 'a';

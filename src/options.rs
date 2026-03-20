@@ -731,8 +731,6 @@ pub struct SkimOptions {
     ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
     ///
     /// Supported shells: bash, zsh, fish, powershell, elvish
-    ///
-    /// Note: While `PowerShell` completions are supported, Windows is not supported for now.
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",

@@ -5,12 +5,6 @@ use std::process::Command;
 #[macro_use]
 mod common;
 
-#[cfg(unix)]
-insta_test!(opt_with_nth_preview, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2..", "--preview", "echo X{1}Y"], {
-    @snap;
-});
-
-#[cfg(windows)]
 insta_test!(opt_with_nth_preview, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2..", "--preview", "echo X{1}Y"], {
     @snap;
 });
@@ -357,14 +351,6 @@ insta_test!(opt_tac_with_header_lines, ["a", "b", "c", "d", "e"], &["--tac", "--
     @snap;
 });
 
-#[cfg(unix)]
-insta_test!(opt_replstr, ["a", "b", "c"], &["-I", "..", "--preview", "echo foo {} .."], {
-    @snap;
-    @char 'a';
-    @snap;
-});
-
-#[cfg(windows)]
 insta_test!(opt_replstr, ["a", "b", "c"], &["-I", "..", "--preview", "echo foo {} .."], {
     @snap;
     @char 'a';
@@ -585,12 +571,6 @@ insta_test!(opt_exit_0_enter, ["1", "2", "3"], &["-q", "1", "--exit-0"], {
     @snap;
 });
 
-#[cfg(unix)]
-insta_test!(opt_ellipsis, ["aabbccddeeffggghiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz"], &["--preview", "echo a", "--preview-window", "right:80%", "-q", "ij", "--ellipsis", "%%%"], {
-    @snap;
-});
-
-#[cfg(windows)]
 insta_test!(opt_ellipsis, ["aabbccddeeffggghiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz"], &["--preview", "echo a", "--preview-window", "right:80%", "-q", "ij", "--ellipsis", "%%%"], {
     @snap;
 });

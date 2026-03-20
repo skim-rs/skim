@@ -200,8 +200,6 @@ To enable these features, source the `key-bindings.{shell}` file and set up comp
 
 You can generate shell completions for your preferred shell using the `--shell` flag with one of the supported shells: `bash`, `zsh`, `fish`, `powershell`, or `elvish`:
 
-> **Note:** While PowerShell completions are supported, Windows is not supported for now.
-
 #### Option 1: Source directly in your current shell session
 
 ```sh
