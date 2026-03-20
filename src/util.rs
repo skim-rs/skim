@@ -99,6 +99,8 @@ pub fn printf<'a>(
     command_query: &str,
     mut quote_args: bool,
 ) -> String {
+    // Windows uses different shell quoting conventions (double quotes, caret escaping)
+    // that are incompatible with the Unix-style single-quote escaping implemented here.
     if cfg!(windows) {
         quote_args = false;
     }
