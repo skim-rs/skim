@@ -12,6 +12,12 @@ license = "MIT"
 edition = "2024"
 rust-version = "1.91"
 
+[package.metadata.wix]
+upgrade-guid = "6DDAED06-EBE2-41C4-94F5-CB03F2A4B92E"
+path-guid = "05D1A327-19E0-4C82-B5EC-6B28E40C691B"
+license = false
+eula = false
+
 [profile.release]
 lto = true
 codegen-units = 1
