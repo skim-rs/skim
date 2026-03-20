@@ -235,7 +235,7 @@ Disable mouse
 \fB\-c\fR, \fB\-\-cmd\fR \fI<CMD>\fR
 Command to invoke dynamically in interactive mode
 
-Will be invoked using sh \-c
+Will be invoked using sh \-c on unix\-like systems and cmd /c on windows
 .TP
 \fB\-i\fR, \fB\-\-interactive\fR
 Start skim in interactive mode
@@ -951,7 +951,11 @@ It will expand to the corresponding fields, separated by the `\-\-delimiter|\-d`
 .SH "ENVIRONMENT VARIABLES"
 
 .SS SKIM_DEFAULT_COMMAND
-If set, skim will collect items with this command if no input is piped in (defaults to `find .` if not set)
+
+.br
+If set, skim will collect items with this command if no input is piped in.
+.br
+If not set, defaults to `find .` on unix\-like systems and `dir /s /b /A:\-D` on windows
 .br
 
 .SS SKIM_DEFAULT_OPTIONS
