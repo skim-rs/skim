@@ -80,7 +80,7 @@ jobs:
         with:
           report_type: test_results
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/nextest/default/junit.xml
+          files: target/nextest/ci/junit.xml
           fail_ci_if_error: false
         continue-on-error: true
 
