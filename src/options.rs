@@ -312,7 +312,7 @@ pub struct SkimOptions {
 
     /// Command to invoke dynamically in interactive mode
     ///
-    /// Will be invoked using `sh -c`
+    /// Will be invoked using `sh -c` on unix-like systems and `cmd /c` on windows
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub cmd: Option<String>,
 
