@@ -97,8 +97,11 @@ pub fn printf<'a>(
     current: &Option<MatchedItem>,
     query: &str,
     command_query: &str,
-    quote_args: bool,
+    mut quote_args: bool,
 ) -> String {
+    if cfg!(windows) {
+        quote_args = false;
+    }
     let escape_arg = |s: &str, quote: bool| {
         let mut res = s.replace('\0', "\\0").clone();
         if quote && quote_args {
@@ -315,7 +318,11 @@ mod test {
                 "cmd query",
                 true
             ),
-            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query' [7] 'item 1, item 2, item 3, item 4' [8] '0','0','0','0'"
+            if cfg!(unix) {
+                "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query' [7] 'item 1, item 2, item 3, item 4' [8] '0','0','0','0'"
+            } else {
+                "[1] item 2 [2] item 2 [3] 2 [4] item 1 item 2 item 3 item 4 [5] query [6] cmd query [7] item 1, item 2, item 3, item 4 [8] 0','0','0','0"
+            }
         );
     }
     #[test]
@@ -331,7 +338,7 @@ mod test {
                 "cq",
                 true
             ),
-            "'1' '2'"
+            if cfg!(unix) { "'1' '2'" } else { "1 2" }
         );
         assert_eq!(
             printf(
@@ -344,7 +351,7 @@ mod test {
                 "cq",
                 true
             ),
-            "'1'"
+            if cfg!(unix) { "'1'" } else { "1" }
         );
     }
     #[test]
@@ -360,7 +367,7 @@ mod test {
                 "cq",
                 true
             ),
-            "'{..2}'"
+            if cfg!(unix) { "'{..2}'" } else { "{..2}" }
         );
     }
     #[test]
@@ -376,7 +383,7 @@ mod test {
                 "cq",
                 true
             ),
-            "{} '1'"
+            if cfg!(unix) { "{} '1'" } else { "{} 1" }
         );
     }
 }
