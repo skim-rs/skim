@@ -11,11 +11,11 @@ use ratatui::{
 use tui_term::vt100;
 use tui_term::widget::PseudoTerminal;
 
-use std::io::Read;
 use std::process::Command;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use std::{env, io::Read};
 
 use super::util::{find_csi_end, find_osc_end, handle_csi_query, handle_osc_query};
 use super::widget::{SkimRender, SkimWidget};
@@ -309,7 +309,7 @@ impl Preview {
             shell_cmd.env("COLUMNS", self.cols.to_string());
             shell_cmd.env("PAGER", "");
             shell_cmd.arg("-c");
-            if let Ok(cwd) = nix::unistd::getcwd() {
+            if let Ok(cwd) = env::current_dir() {
                 shell_cmd.cwd(cwd);
             }
             shell_cmd.arg(cmd);
@@ -399,7 +399,7 @@ impl Preview {
                 .env("PAGER", "")
                 .arg("-c")
                 .arg(cmd);
-            if let Ok(cwd) = nix::unistd::getcwd() {
+            if let Ok(cwd) = env::current_dir() {
                 shell_cmd.current_dir(cwd);
             }
 
@@ -452,7 +452,7 @@ impl Drop for Preview {
 
 impl SkimWidget for Preview {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self {
-        #[cfg_attr(target_os = "macos", allow(unused_mut))]
+        #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
         let mut res = Self {
             theme,
             border: options.border,

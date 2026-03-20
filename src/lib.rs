@@ -28,12 +28,14 @@
 #[macro_use]
 extern crate log;
 
+#[cfg(unix)]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Display;
+use std::process::Command;
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::MatchIndices;
@@ -66,6 +68,7 @@ mod skim;
 mod skim_item;
 pub mod spinlock;
 pub mod theme;
+#[cfg(unix)]
 pub mod tmux;
 pub mod tui;
 mod util;
@@ -74,6 +77,24 @@ mod util;
 pub mod manpage;
 #[cfg(feature = "cli")]
 pub mod shell;
+
+#[cfg(unix)]
+const SKIM_DEFAULT_COMMAND: &str = "find .";
+#[cfg(windows)]
+const SKIM_DEFAULT_COMMAND: &str = "dir /s /b";
+
+#[cfg(unix)]
+fn shell_cmd(cmd: &str) -> Command {
+    let mut c = Command::new("sh");
+    c.arg("-c").arg(cmd);
+    c
+}
+#[cfg(windows)]
+fn shell_cmd(cmd: &str) -> Command {
+    let mut c = Command::new("cmd");
+    c.arg("/c").arg(cmd);
+    c
+}
 
 //------------------------------------------------------------------------------
 /// Trait for downcasting to concrete types from trait objects

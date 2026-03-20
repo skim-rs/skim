@@ -154,7 +154,10 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (if opts.tmux.is_some() && env::var("TMUX").is_ok() {
+    let Some(result) = (if opts.tmux.is_some() && env::var("TMUX").is_ok() && cfg!(unix) {
+        #[cfg(not(unix))]
+        unreachable!("tmux is ignored on windows");
+        #[cfg(unix)]
         crate::tmux::run_with(&opts)
     } else {
         // read from pipe or command

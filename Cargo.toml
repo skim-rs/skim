@@ -76,8 +76,10 @@ derive_more = { version = "=2.1.1", features = ["debug", "eq"] }
 portable-pty = "=0.9.0"
 tui-term = "=0.3.2"
 kanal = "=0.1.1"
-mimalloc = { version = "0.1.48", features = ["v3"] }
 gungraun = { version = "0.17.2", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+mimalloc = { version = "0.1.48", features = ["v3"] }
 
 [features]
 default = ["cli"]
