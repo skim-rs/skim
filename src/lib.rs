@@ -28,7 +28,6 @@
 #[macro_use]
 extern crate log;
 
-#[cfg(unix)]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 

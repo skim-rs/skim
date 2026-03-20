@@ -28,5 +28,5 @@ auto-release:
 
 test target="":
     cargo test --doc
-    -cargo nextest run --features test-utils {{ target }}
+    -cargo nextest run {{ target }}
     tmux kill-session -t skim_e2e

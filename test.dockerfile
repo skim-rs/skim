@@ -7,4 +7,4 @@ RUN cargo install cargo-nextest
 
 COPY . .
 
-CMD ["cargo", "nextest", "run", "--release", "--features", "test-utils"]
+CMD ["cargo", "nextest", "run", "--release"]
