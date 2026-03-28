@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-03-28
+
+### 🐛 Bug Fixes
+
+- *(keybindings)* Make sure we use the correct filtering fields
+
+### 📚 Documentation
+
+- Add benchmarks to README.md [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- Clippy pedantic
+- Correct typos in code, comments and documentation (#1002)
+- Add sonar analysis (#1009)
+- *(ci)* Add sonar directly to test workflow
+- Set rust msrv (closes #1017)
+- Remove sonar
+
+### New Contributors
+* @dwgrth made their first contribution in [#1016](https://github.com/skim-rs/skim/pull/1016)
+* @dexzh made their first contribution in [#1002](https://github.com/skim-rs/skim/pull/1002)
+
 ## [4.0.0] - 2026-03-10
 
 ### Changes
