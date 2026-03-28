@@ -139,21 +139,22 @@ impl Matcher {
                 .rank_builder(rank_builder.clone())
                 .build();
 
+            let mut factory: Box<dyn MatchEngineFactory> = Box::new(fuzzy_engine_factory);
+
             // If split_match is enabled, wrap the fuzzy factory with SplitMatchEngineFactory
-            // Then wrap with AndOrEngineFactory so that queries like "foo:bar baz:qux" work
-            let andor_factory = if let Some(delimiter) = options.split_match {
-                let split_factory = SplitMatchEngineFactory::new(fuzzy_engine_factory, delimiter);
-                AndOrEngineFactory::new(split_factory)
-            } else {
-                AndOrEngineFactory::new(fuzzy_engine_factory)
-            };
+            if let Some(delimiter) = options.split_match {
+                factory = Box::new(SplitMatchEngineFactory::new(factory, delimiter));
+            }
+
+            // Wrap with AndOrEngineFactory so that queries like "foo:bar baz:qux" work
+            factory = Box::new(AndOrEngineFactory::new(factory));
 
             // Wrap with NormalizedEngineFactory if normalization is requested
-            let factory: Rc<dyn MatchEngineFactory> = if options.normalize {
-                Rc::new(NormalizedEngineFactory::new(andor_factory))
-            } else {
-                Rc::new(andor_factory)
-            };
+            if options.normalize {
+                factory = Box::new(NormalizedEngineFactory::new(factory));
+            }
+
+            let factory: Rc<dyn MatchEngineFactory> = Rc::new(factory);
             (factory, rank_builder)
         }
     }

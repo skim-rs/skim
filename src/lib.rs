@@ -367,6 +367,12 @@ pub trait MatchEngineFactory {
     }
 }
 
+impl MatchEngineFactory for Box<dyn MatchEngineFactory> {
+    fn create_engine_with_case(&self, query: &str, case: CaseMatching) -> Box<dyn MatchEngine> {
+        (**self).create_engine_with_case(query, case)
+    }
+}
+
 //------------------------------------------------------------------------------
 // Preselection
 
