@@ -22,6 +22,7 @@
 
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
+#![warn(clippy::incompatible_msrv)]
 #![allow(clippy::default_trait_access, clippy::struct_excessive_bools)]
 
 #[macro_use]
