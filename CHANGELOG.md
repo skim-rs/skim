@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-03-29
+
+This release brings initial windows support !
+
+Please open an issue or even a PR with any bug or potential improvements you may spot.
+
+### 🚀 Features
+
+- Windows support (#1010)
+
+### 🐛 Bug Fixes
+
+- Broken pipe in bash alt-c (closes #1018)
+- Trim whitespace in zsh hist widget (closes #1019)
+
+### ⚙️ Miscellaneous Tasks
+
+- Refactor engine building
+- Minor perf
+
 ## [4.0.1] - 2026-03-28
 
 ### 🐛 Bug Fixes
