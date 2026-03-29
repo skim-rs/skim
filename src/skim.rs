@@ -135,7 +135,6 @@ where
     ///
     /// Returns an error if parsing the height or other options fails.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
-        const SKIM_DEFAULT_COMMAND: &str = "find .";
         let height = Size::try_from(options.height.as_str())?;
 
         // application state
@@ -143,7 +142,7 @@ where
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
         let reader = Reader::from_options(&options).source(source);
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
-            Err(_) | Ok("") => SKIM_DEFAULT_COMMAND,
+            Err(_) | Ok("") => crate::SKIM_DEFAULT_COMMAND,
             Ok(v) => v,
         });
         let cmd = options.cmd.clone().unwrap_or(default_command);

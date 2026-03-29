@@ -312,7 +312,7 @@ pub struct SkimOptions {
 
     /// Command to invoke dynamically in interactive mode
     ///
-    /// Will be invoked using `sh -c`
+    /// Will be invoked using `sh -c` on unix-like systems and `cmd /c` on Windows
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub cmd: Option<String>,
 
@@ -731,8 +731,6 @@ pub struct SkimOptions {
     ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
     ///
     /// Supported shells: bash, zsh, fish, powershell, elvish
-    ///
-    /// Note: While `PowerShell` completions are supported, Windows is not supported for now.
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",
@@ -775,6 +773,7 @@ pub struct SkimOptions {
     /// Depending on the direction, the order and behavior of the sizes varies:
     ///
     /// Default: center,50%
+    /// Ignored on Windows
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
     pub tmux: Option<String>,
 

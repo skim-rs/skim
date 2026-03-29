@@ -12,6 +12,12 @@ license = "MIT"
 edition = "2024"
 rust-version = "1.91"
 
+[package.metadata.wix]
+upgrade-guid = "6DDAED06-EBE2-41C4-94F5-CB03F2A4B92E"
+path-guid = "05D1A327-19E0-4C82-B5EC-6B28E40C691B"
+license = false
+eula = false
+
 [profile.release]
 lto = true
 codegen-units = 1
@@ -76,15 +82,13 @@ derive_more = { version = "=2.1.1", features = ["debug", "eq"] }
 portable-pty = "=0.9.0"
 tui-term = "=0.3.2"
 kanal = "=0.1.1"
-mimalloc = { version = "0.1.48", features = ["v3"] }
 gungraun = { version = "0.17.2", optional = true }
+mimalloc = { version = "0.1.48", features = ["v3"] }
 
 [features]
 default = ["cli"]
 # Everyting needed to use skim as a cli (argument parsing, shell integrations...)
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
-# Enable test utilities (e.g., Tui::new_for_test)
-test-utils = []
 # Enable gungraun (Valgrind-based) benchmarks
 gungraun = ["dep:gungraun"]
 
@@ -93,7 +97,7 @@ criterion = { version = "0.8.2", features = ["async_tokio"] }
 insta = "1.46"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("test-utils", "gungraun"))', 'cfg(coverage, coverage_nightly)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage, coverage_nightly)'] }
 
 [[bench]]
 name = "read_and_match"

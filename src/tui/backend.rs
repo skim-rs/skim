@@ -110,29 +110,6 @@ where
         })
     }
 
-    /// Creates a new TUI for testing with a fullscreen viewport.
-    ///
-    /// This constructor skips terminal-specific operations (cursor detection,
-    /// raw mode, scrolling) that don't work with `TestBackend`. Use this when
-    /// writing snapshot tests or other tests that need to render the UI.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the terminal cannot be initialized with the given backend.
-    #[cfg(any(test, feature = "test-utils"))]
-    pub fn new_for_test(backend: B) -> Result<Self> {
-        let event_channel = channel(1024 * 1024);
-        Ok(Self {
-            terminal: ratatui::Terminal::new(backend)?,
-            task: None,
-            event_rx: event_channel.1,
-            event_tx: event_channel.0,
-            tick_rate: TICK_RATE,
-            cancellation_token: CancellationToken::default(),
-            is_fullscreen: true,
-        })
-    }
-
     /// Enters the TUI by enabling raw mode and starting event handling
     ///
     /// # Errors
@@ -140,6 +117,10 @@ where
     /// Returns an error if enabling raw mode or mouse capture fails.
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
+        // On Windows, install a console ctrl handler so that CTRL_C_EVENT
+        // performs terminal cleanup instead of killing the process abruptly.
+        #[cfg(windows)]
+        super::windows::install_ctrl_c_handler()?;
         crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
@@ -155,16 +136,10 @@ where
     /// Returns an error if disabling raw mode or mouse capture fails.
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
-        if crossterm::terminal::is_raw_mode_enabled()? {
-            crossterm::execute!(
-                std::io::stderr(),
-                DisableMouseCapture,
-                DisableBracketedPaste,
-                LeaveAlternateScreen,
-                cursor::Show
-            )?;
-            crossterm::terminal::disable_raw_mode()?;
-        }
+        cleanup_terminal()?;
+        // Remove our console ctrl handler now that raw mode is off.
+        #[cfg(windows)]
+        super::windows::uninstall_ctrl_c_handler();
         // When using the inline layout, we want to remove all previous output
         //  -> reset cursor at the top of the drawing area
         if !self.is_fullscreen {
@@ -275,8 +250,28 @@ fn set_panic_hook() {
     PANIC_HOOK_SET.call_once(|| {
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            ratatui::restore(); // ignore any errors as we are already failing
+            let _ = cleanup_terminal();
+            #[cfg(windows)]
+            super::windows::uninstall_ctrl_c_handler();
             hook(panic_info);
         }));
     });
+}
+
+/// Perform terminal cleanup: disable mouse capture, bracketed paste,
+/// leave alternate screen, show cursor, and disable raw mode.
+///
+/// This is safe to call from any thread since:
+/// - Escape sequences are written atomically to stderr
+/// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
+pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
+    crossterm::execute!(
+        std::io::stderr(),
+        DisableMouseCapture,
+        DisableBracketedPaste,
+        LeaveAlternateScreen,
+        cursor::Show
+    )?;
+    crossterm::terminal::disable_raw_mode()?;
+    Ok(())
 }

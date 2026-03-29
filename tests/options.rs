@@ -19,7 +19,17 @@ insta_test!(opt_min_query_length, ["line1", "line2", "line3"], &["--min-query-le
 });
 
 // Use info=hidden to hide the spinner
+#[cfg(unix)]
 insta_test!(opt_min_query_length_interactive, @interactive, &["-i", "--min-query-length", "3", "--cmd", "printf 'line1\\nline2\\nline3'", "--info", "hidden"], {
+    @snap;
+    @type "li";
+    @snap;
+    @char 'n';
+    @snap;
+});
+
+#[cfg(windows)]
+insta_test!(opt_min_query_length_interactive, @interactive, &["-i", "--min-query-length", "3", "--cmd", "echo line1 & echo line2 & echo line3", "--info", "hidden"], {
     @snap;
     @type "li";
     @snap;
@@ -319,7 +329,15 @@ insta_test!(opt_pre_select_pat, ["a", "b", "c"], &["-m", "--pre-select-pat", "[b
     @snap;
 });
 
+#[cfg(unix)]
 insta_test!(opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", "printf {q}", "--cmd-query", "xxxx"], {
+    @snap;
+    @ctrl 'w';
+    @snap;
+});
+
+#[cfg(windows)]
+insta_test!(opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", "if not [{q}]==[] echo.{q}", "--cmd-query", "xxxx"], {
     @snap;
     @ctrl 'w';
     @snap;
@@ -386,15 +404,33 @@ insta_test!(opt_multiple_flags_prompt, [""], &["--prompt", "a", "--prompt", "b",
     @snap;
 });
 
+#[cfg(unix)]
 insta_test!(opt_multiple_flags_cmd_prompt, @interactive, &["-i", "--cmd-prompt", "a", "--cmd-prompt", "c", "--cmd", "echo"], {
     @snap;
 });
 
+#[cfg(windows)]
+insta_test!(opt_multiple_flags_cmd_prompt, @interactive, &["-i", "--cmd-prompt", "a", "--cmd-prompt", "c", "--cmd", "echo."], {
+    @snap;
+});
+
+#[cfg(unix)]
 insta_test!(opt_multiple_flags_cmd_query, @interactive, &["-i", "--cmd-query", "a", "--cmd-query", "b", "--cmd", "echo"], {
     @snap;
 });
 
+#[cfg(windows)]
+insta_test!(opt_multiple_flags_cmd_query, @interactive, &["-i", "--cmd-query", "a", "--cmd-query", "b", "--cmd", "echo."], {
+    @snap;
+});
+
+#[cfg(unix)]
 insta_test!(opt_multiple_flags_interactive, @interactive, &["-i", "--interactive", "--interactive", "--cmd", "echo"], {
+    @snap;
+});
+
+#[cfg(windows)]
+insta_test!(opt_multiple_flags_interactive, @interactive, &["-i", "--interactive", "--interactive", "--cmd", "echo."], {
     @snap;
 });
 
@@ -468,6 +504,7 @@ insta_test!(opt_border_quadrant_outside, ["a", "b", "c", "ac"], &["-q", "a", "--
     @snap;
 });
 
+#[cfg(unix)]
 #[test]
 fn opt_select_1() -> std::io::Result<()> {
     let res = Command::new("/bin/sh")
@@ -481,12 +518,45 @@ fn opt_select_1() -> std::io::Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
+#[test]
+fn opt_select_1_windows() -> std::io::Result<()> {
+    let res = Command::new("cmd")
+        .arg("/C")
+        .arg(format!(r"(echo 1 & echo 2 & echo 3) | {SK} --select-1 -q 3"))
+        .env("SKIM_DEFAULT_OPTIONS", "")
+        .env("SKIM_DEFAULT_COMMAND", "")
+        .env("SKIM_OPTIONS_FILE", "")
+        .stdin(std::process::Stdio::null())
+        .output()?;
+    assert_eq!(res.status.code(), Some(0));
+    assert!(res.stdout.starts_with(b"3"));
+    Ok(())
+}
+
+#[cfg(unix)]
 #[test]
 fn opt_exit_0() -> std::io::Result<()> {
     let res = Command::new("/bin/sh")
         .arg("-c")
         .env_clear()
         .arg(format!("printf '1\n2\n3' | {SK} --exit-0 -q 4"))
+        .stdin(std::process::Stdio::null())
+        .output()?;
+    assert_eq!(res.status.code(), Some(1));
+    assert_eq!(res.stdout, &[]);
+    Ok(())
+}
+
+#[cfg(windows)]
+#[test]
+fn opt_exit_0_windows() -> std::io::Result<()> {
+    let res = Command::new("cmd")
+        .arg("/C")
+        .arg(format!(r"(echo 1 & echo 2 & echo 3) | {SK} --exit-0 -q 4"))
+        .env("SKIM_DEFAULT_OPTIONS", "")
+        .env("SKIM_DEFAULT_COMMAND", "")
+        .env("SKIM_OPTIONS_FILE", "")
         .stdin(std::process::Stdio::null())
         .output()?;
     assert_eq!(res.status.code(), Some(1));

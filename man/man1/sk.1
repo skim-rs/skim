@@ -235,7 +235,7 @@ Disable mouse
 \fB\-c\fR, \fB\-\-cmd\fR \fI<CMD>\fR
 Command to invoke dynamically in interactive mode
 
-Will be invoked using sh \-c
+Will be invoked using sh \-c on unix\-like systems and cmd /c on Windows
 .TP
 \fB\-i\fR, \fB\-\-interactive\fR
 Start skim in interactive mode
@@ -450,6 +450,7 @@ Format: `sk \-\-tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
 Depending on the direction, the order and behavior of the sizes varies:
 
 Default: center,50%
+Ignored on Windows
 .SH HISTORY
 .TP
 \fB\-\-history\fR \fI<HISTORY_FILE>\fR
@@ -587,8 +588,6 @@ Generate shell completion script
 Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use)
 
 Supported shells: bash, zsh, fish, powershell, elvish
-
-Note: While PowerShell completions are supported, Windows is not supported for now.
 .br
 
 .br
@@ -952,7 +951,11 @@ It will expand to the corresponding fields, separated by the `\-\-delimiter|\-d`
 .SH "ENVIRONMENT VARIABLES"
 
 .SS SKIM_DEFAULT_COMMAND
-If set, skim will collect items with this command if no input is piped in (defaults to `find .` if not set)
+
+.br
+If set, skim will collect items with this command if no input is piped in.
+.br
+If not set, defaults to `find .` on unix\-like systems and `dir /s /b /A:\-D` on Windows.
 .br
 
 .SS SKIM_DEFAULT_OPTIONS

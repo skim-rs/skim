@@ -7,7 +7,7 @@ use ratatui::backend::TestBackend;
 use skim::{
     Skim, SkimItemReceiver,
     prelude::*,
-    tui::{Event, Tui, event::Action},
+    tui::{Event, Size, Tui, event::Action},
 };
 
 /// A test harness for running skim TUI tests with insta snapshots.
@@ -359,7 +359,7 @@ fn enter_sized_with_source(
     source: Option<SkimItemReceiver>,
 ) -> Result<TestHarness> {
     let backend = TestBackend::new(width, height);
-    let tui = Tui::new_for_test(backend)?;
+    let tui = Tui::new_with_height_and_backend(backend, Size::Percent(100))?;
     let mut skim = Skim::<TestBackend>::init(options, source)?;
     skim.init_tui_with(tui);
 

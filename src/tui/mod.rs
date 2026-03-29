@@ -14,6 +14,8 @@ pub use widget::{SkimRender, SkimWidget};
 mod app;
 mod backend;
 pub(crate) mod util;
+#[cfg(windows)]
+mod windows;
 pub use backend::Tui;
 /// Event handling and action definitions
 pub mod event;

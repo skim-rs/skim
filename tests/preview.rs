@@ -2,12 +2,17 @@
 #[macro_use]
 mod common;
 
+#[cfg(unix)]
 const PREVIEW: &str = "printf \"=%.0s\\n\" $(seq 1 1000)";
+#[cfg(windows)]
+const PREVIEW: &str = "for /l %i in (1,1,1000) do @echo =";
 
+#[cfg(unix)]
 insta_test!(preview_preserve_quotes, ["'\"ABC\"'"], &["--preview", "echo X{}X"], {
     @snap;
 });
 
+#[cfg(unix)]
 insta_test!(preview_nul_char, ["a\0b"], &["--preview", "printf \"{}\" | hexdump -C"], {
     @snap;
 });

@@ -68,6 +68,7 @@ Skim provides a single executable called `sk`. Think of it as a smarter alternat
    * [Some files are not shown in Vim plugin](#some-files-are-not-shown-in-vim-plugin)
 - [Differences from fzf](#differences-from-fzf)
 - [How to contribute](#how-to-contribute)
+   * [Windows compatibility testing](#windows-compatibility-testing)
 - [Troubleshooting](#troubleshooting)
    * [No line feed issues with nix, FreeBSD, termux](#no-line-feed-issues-with-nix-freebsd-termux)
 
@@ -198,8 +199,6 @@ To enable these features, source the `key-bindings.{shell}` file and set up comp
 ### Shell Completions
 
 You can generate shell completions for your preferred shell using the `--shell` flag with one of the supported shells: `bash`, `zsh`, `fish`, `powershell`, or `elvish`:
-
-> **Note:** While PowerShell completions are supported, Windows is not supported for now.
 
 #### Option 1: Source directly in your current shell session
 
@@ -687,6 +686,34 @@ The goal is to keep `skim` as feature-full as `fzf` is, but the command flags mi
 
 [Create new issues](https://github.com/skim-rs/skim/issues/new) if you encounter any bugs
 or have any ideas. Pull requests are warmly welcomed.
+
+## Windows compatibility testing
+
+A `Vagrantfile` is included to spin up a headless Windows Server 2022 Core VM for testing
+Windows compatibility without needing a GUI. It requires [VirtualBox](https://www.virtualbox.org/)
+and [Vagrant](https://www.vagrantup.com/) on your host (`vagrant` is included in the Nix dev
+shell via `flake.nix`).
+
+```sh
+vagrant up          # First boot: downloads the box and provisions (~15–20 min)
+ssh -p 2222 vagrant@localhost   # Password: vagrant
+```
+
+Inside the VM, the project root is mounted at `C:\vagrant`:
+
+```powershell
+cd C:\vagrant
+cargo build
+cargo test
+```
+
+Subsequent boots are fast — provisioning only runs once:
+
+```sh
+vagrant halt        # Stop the VM
+vagrant up          # Resume
+vagrant destroy     # Delete the VM entirely
+```
 
 # Troubleshooting
 

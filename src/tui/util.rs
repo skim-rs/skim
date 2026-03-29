@@ -3,10 +3,14 @@ use ratatui::{
     style::Style,
     text::{Line, Span, Text},
 };
-use std::fs::OpenOptions;
-use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, AsRawFd};
-use std::os::unix::fs::OpenOptionsExt;
+use std::io::{self, Write};
+#[cfg(unix)]
+use std::{
+    fs::OpenOptions,
+    io::Read,
+    os::fd::{AsFd, AsRawFd},
+    os::unix::fs::OpenOptionsExt as _,
+};
 use unicode_display_width::is_double_width;
 
 // Directly taken from https://docs.rs/unicode-display-width/0.3.0/src/unicode_display_width/lib.rs.html#77-81
@@ -219,6 +223,7 @@ impl Drop for RawMode {
     }
 }
 
+#[cfg(unix)]
 pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
     let _guard = RawMode::new()?;
     let mut tty = OpenOptions::new()
@@ -272,6 +277,12 @@ pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
     let cy = nums.next().unwrap().parse::<u16>().unwrap();
     let cx = nums.next().unwrap().parse::<u16>().unwrap();
     Ok((cx, cy))
+}
+
+#[cfg(windows)]
+pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
+    let _guard = RawMode::new()?;
+    crossterm::cursor::position()
 }
 
 #[cfg(test)]

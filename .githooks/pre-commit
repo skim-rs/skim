@@ -1,5 +1,5 @@
 set -xeuo pipefail
 
 cargo fmt --check --all
-cargo clippy --all-targets --features test-utils -- -Dwarnings
+cargo clippy --all-targets -- -Dwarnings
 cargo check --no-default-features

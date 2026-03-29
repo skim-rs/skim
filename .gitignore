@@ -32,3 +32,6 @@ cachegrind.out.*
 
 /scripts/data/
 __pycache__/
+
+# Vagrant
+.vagrant/

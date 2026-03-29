@@ -18,15 +18,18 @@ command = [
 
 [profile.default]
 fail-fast = false
-retries = 9
+retries = 2
 [[profile.default.scripts]]
 platform = "cfg(unix)"
 setup = ["stop-tmux", "start-tmux"]
 [profile.default.junit]
 path = "junit.xml"
 
+[profile.ci]
+retries = 9
+
 # Valgrind profile for memory leak detection
-# Usage: cargo nextest run --profile valgrind --features test-utils
+# Usage: cargo nextest run --profile valgrind
 #
 # Note: Valgrind can detect memory leaks but does NOT detect dangling threads.
 # For thread leak detection, use ThreadSanitizer instead (see below).
@@ -42,9 +45,9 @@ run-wrapper = "valgrind"
 # ThreadSanitizer profile for detecting data races and thread issues
 # Usage:
 #   1. First build with sanitizer (rebuilds stdlib and all deps):
-#      RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests --features test-utils -Zbuild-std --target x86_64-unknown-linux-gnu
+#      RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests -Zbuild-std --target x86_64-unknown-linux-gnu
 #   2. Then run tests:
-#      TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --features test-utils --target x86_64-unknown-linux-gnu
+#      TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --target x86_64-unknown-linux-gnu
 #
 # Note: ThreadSanitizer can detect:
 #   - Data races (concurrent unsynchronized access to memory)
