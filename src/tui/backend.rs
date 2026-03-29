@@ -117,6 +117,10 @@ where
     /// Returns an error if enabling raw mode or mouse capture fails.
     pub fn enter(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
+        // On Windows, install a console ctrl handler so that CTRL_C_EVENT
+        // performs terminal cleanup instead of killing the process abruptly.
+        #[cfg(windows)]
+        super::windows::install_ctrl_c_handler();
         crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
@@ -132,14 +136,10 @@ where
     /// Returns an error if disabling raw mode or mouse capture fails.
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
-        crossterm::execute!(
-            std::io::stderr(),
-            DisableMouseCapture,
-            DisableBracketedPaste,
-            LeaveAlternateScreen,
-            cursor::Show
-        )?;
-        crossterm::terminal::disable_raw_mode()?;
+        cleanup_terminal()?;
+        // Remove our console ctrl handler now that raw mode is off.
+        #[cfg(windows)]
+        super::windows::uninstall_ctrl_c_handler();
         // When using the inline layout, we want to remove all previous output
         //  -> reset cursor at the top of the drawing area
         if !self.is_fullscreen {
@@ -250,8 +250,27 @@ fn set_panic_hook() {
     PANIC_HOOK_SET.call_once(|| {
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            ratatui::restore(); // ignore any errors as we are already failing
+            let _ = cleanup_terminal();
+            #[cfg(windows)]
+            super::windows::uninstall_ctrl_c_handler();
             hook(panic_info);
         }));
     });
+}
+
+/// Perform terminal cleanup: disable mouse capture, bracketed paste,
+/// leave alternate screen, show cursor, and disable raw mode.
+///
+/// This is safe to call from any thread since it only writes escape
+/// sequences to stderr and updates the console mode.
+pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
+    crossterm::execute!(
+        std::io::stderr(),
+        DisableMouseCapture,
+        DisableBracketedPaste,
+        LeaveAlternateScreen,
+        cursor::Show
+    )?;
+    crossterm::terminal::disable_raw_mode()?;
+    Ok(())
 }
