@@ -40,12 +40,15 @@ unsafe extern "system" fn ctrl_c_handler(ctrl_type: u32) -> i32 {
 
 /// Install our console ctrl handler so that `CTRL_C_EVENT` triggers terminal
 /// cleanup instead of an abrupt process termination.
-pub(crate) fn install_ctrl_c_handler() {
+pub(crate) fn install_ctrl_c_handler() -> std::io::Result<()> {
     // SAFETY: `SetConsoleCtrlHandler` with a valid handler and `TRUE` is a
     // well-defined Windows API call.
     unsafe {
-        SetConsoleCtrlHandler(Some(ctrl_c_handler), 1);
+        if SetConsoleCtrlHandler(Some(ctrl_c_handler), 1) == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
     }
+    Ok(())
 }
 
 /// Remove our console ctrl handler, restoring default behaviour.

@@ -773,7 +773,7 @@ pub struct SkimOptions {
     /// Depending on the direction, the order and behavior of the sizes varies:
     ///
     /// Default: center,50%
-    /// Ignored on windows
+    /// Ignored on Windows
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
     pub tmux: Option<String>,
 

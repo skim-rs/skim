@@ -261,8 +261,9 @@ fn set_panic_hook() {
 /// Perform terminal cleanup: disable mouse capture, bracketed paste,
 /// leave alternate screen, show cursor, and disable raw mode.
 ///
-/// This is safe to call from any thread since it only writes escape
-/// sequences to stderr and updates the console mode.
+/// This is safe to call from any thread since:
+/// - Escape sequences are written atomically to stderr
+/// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
 pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     crossterm::execute!(
         std::io::stderr(),

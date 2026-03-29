@@ -323,7 +323,7 @@ It will expand to the corresponding fields, separated by the `--delimiter|-d` op
         "SKIM_DEFAULT_COMMAND",
         "
 If set, skim will collect items with this command if no input is piped in.
-If not set, defaults to `find .` on unix-like systems and `dir /s /b /A:-D` on windows",
+If not set, defaults to `find .` on unix-like systems and `dir /s /b /A:-D` on Windows.",
     );
     subsection(
         &mut custom,
