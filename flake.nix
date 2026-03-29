@@ -18,7 +18,7 @@
       # --- package groups -------------------------------------------------------
       base         = with pkgs; [ rustup just ];
       tests        = with pkgs; [ cargo-nextest cargo-insta cargo-llvm-cov tmux ];
-      utils        = with pkgs; [ hyperfine cargo-edit cargo-public-api git-cliff ];
+      utils        = with pkgs; [ hyperfine cargo-edit cargo-public-api git-cliff cargo-dist ];
       gungraun = with pkgs; [ valgrind libclang binutils ];
       bench        = with pkgs; [ uv python313Packages.matplotlib python313Packages.requests ];
       vagrantDeps  = with pkgs; [ vagrant rsync ];
