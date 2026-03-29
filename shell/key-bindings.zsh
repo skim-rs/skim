@@ -136,13 +136,14 @@ skim-history-widget() {
     c_reset='\033[0m'
     ansi_opt='--ansi'
   fi
-  local awk_filter='{ cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) { idx=$1; sub(idx, c_idx idx c_reset); print } }'
-  local n=3 fc_opts=''
+  local awk_filter='{ $1=$1; cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) { idx=$1; sub(idx, c_idx idx c_reset); print } }'
+  local n=2 fc_opts=''
   if [[ -o extended_history ]]; then
     local today=$(date +%Y-%m-%d)
     # For today's commands, replace date ($2) with "today", otherwise remove time ($3).
     # And filter out duplicates.
     awk_filter='{
+      $1=$1;
       cmd = $0; sub(/^[ \t]*[0-9]+\**[ \t]+[^ \t]+[ \t]+[^ \t]+[ \t]+/, "", cmd)
       if (!seen[cmd]++) {
         time = $3; date = $2; idx = $1
@@ -153,7 +154,7 @@ skim-history-widget() {
       }
     }'
     fc_opts='-i'
-    n=4
+    n=3
   fi
   selected=( $(fc -rl $fc_opts 1 | awk -v c_idx="$c_idx" -v c_date="$c_date" -v c_reset="$c_reset" -v today="$today" "$awk_filter" |
     SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n$n.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi $ansi_opt --tabstop=20" $(__skimcmd)) )
