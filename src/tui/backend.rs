@@ -120,7 +120,7 @@ where
         // On Windows, install a console ctrl handler so that CTRL_C_EVENT
         // performs terminal cleanup instead of killing the process abruptly.
         #[cfg(windows)]
-        super::windows::install_ctrl_c_handler();
+        super::windows::install_ctrl_c_handler()?;
         crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
