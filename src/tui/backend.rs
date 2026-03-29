@@ -132,16 +132,14 @@ where
     /// Returns an error if disabling raw mode or mouse capture fails.
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
-        if crossterm::terminal::is_raw_mode_enabled()? {
-            crossterm::execute!(
-                std::io::stderr(),
-                DisableMouseCapture,
-                DisableBracketedPaste,
-                LeaveAlternateScreen,
-                cursor::Show
-            )?;
-            crossterm::terminal::disable_raw_mode()?;
-        }
+        crossterm::execute!(
+            std::io::stderr(),
+            DisableMouseCapture,
+            DisableBracketedPaste,
+            LeaveAlternateScreen,
+            cursor::Show
+        )?;
+        crossterm::terminal::disable_raw_mode()?;
         // When using the inline layout, we want to remove all previous output
         //  -> reset cursor at the top of the drawing area
         if !self.is_fullscreen {
