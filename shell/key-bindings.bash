@@ -39,9 +39,11 @@ if [[ $- =~ i ]]; then
 	__skim_cd__() {
 		local cmd dir
 		cmd="${SKIM_ALT_C_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
-    -o -type d -print 2> /dev/null | cut -b3-"}"
+    -o -type d -printf '%P\\n' 2>/dev/null"}"
 		dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" $(__skimcmd) --no-multi)
-		printf 'cd %q' "$dir"
+		if [ -n "$dir" ]; then
+		  printf 'cd %q' "$dir"
+		fi
 	}
 
 	__skim_history__() {
