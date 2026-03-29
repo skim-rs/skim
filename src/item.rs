@@ -180,37 +180,29 @@ impl MatchedItem {
             return out;
         }
 
-        // Merge using direct next values to avoid Peekable overhead.
         let mut merged = Vec::with_capacity(existing.len() + incoming.len());
-        let mut a = existing.into_iter();
-        let mut b = incoming.into_iter();
-        let mut a_next = a.next();
-        let mut b_next = b.next();
+        let mut a = existing.into_iter().peekable();
+        let mut b = incoming.into_iter().peekable();
 
         loop {
-            #[allow(clippy::missing_panics_doc)]
-            match (&a_next, &b_next) {
+            match (a.peek(), b.peek()) {
                 (Some(av), Some(bv)) => {
                     if av <= bv {
-                        // take a_next
-                        merged.push(a_next.take().unwrap());
-                        a_next = a.next();
+                        #[allow(clippy::missing_panics_doc)]
+                        merged.push(a.next().unwrap());
                     } else {
-                        merged.push(b_next.take().unwrap());
-                        b_next = b.next();
+                        #[allow(clippy::missing_panics_doc)]
+                        merged.push(b.next().unwrap());
                     }
                 }
                 (Some(_), None) => {
-                    merged.push(a_next.take().unwrap());
                     merged.extend(a);
                     break;
                 }
-                (None, Some(_)) => {
-                    merged.push(b_next.take().unwrap());
+                (None, _) => {
                     merged.extend(b);
                     break;
                 }
-                (None, None) => break,
             }
         }
 

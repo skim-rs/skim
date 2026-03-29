@@ -5,7 +5,8 @@ This measures how fast skim can ingest items and display matched results.
 
 Usage: bench.py [BINARY_PATH ...] [-n|--num-items NUM] [-q|--query QUERY]
                 [-r|--runs RUNS] [-w|--warmup N] [-f|--file FILE]
-                [-g|--generate-file FILE] [-j|--json] [-- EXTRA_ARGS...]
+                [-g|--generate-file FILE] [-j|--json] [-p|--perf [FILE]]
+                [-- EXTRA_ARGS...]
 
 Arguments:
   BINARY_PATH ...          One or more paths to binaries (default: ./target/release/sk)
@@ -27,6 +28,8 @@ Examples:
   ./bench.py -r 5                                    # Run 5 times and show average
   ./bench.py -f input.txt -q search                 # Use existing file
   ./bench.py -g testdata.txt -n 2000000             # Generate file and exit
+  ./bench.py -p                                      # Record perf data (auto-named file)
+  ./bench.py -p perf.data                            # Record perf data to perf.data
 """
 
 import json
@@ -135,6 +138,16 @@ def parse_args(argv):
     parser.add_argument("-f", "--file", default="")
     parser.add_argument("-g", "--generate-file", default="")
     parser.add_argument("-j", "--json", action="store_true")
+    parser.add_argument(
+        "-p",
+        "--perf",
+        nargs="?",
+        const="",  # flag present but no value → auto-name
+        default=None,  # flag absent
+        metavar="FILE",
+        help="Record perf data for the final benchmark run. "
+        "Optionally specify output file path (default: auto-named perf-<binary>-<ts>.data).",
+    )
 
     opts = parser.parse_args(argv)
 
@@ -221,11 +234,14 @@ def run_once(
     extra_args: list,
     run_index: int,
     session_suffix: str,
+    perf_output: str | None = None,
 ) -> dict:
     """
     Execute one benchmark run against *binary_path*.
     Returns a dict with keys: elapsed_s, rate, matched, peak_mem_kb, peak_cpu,
-    completed.
+    completed, perf_file (path or None).
+    If *perf_output* is a non-empty string, ``perf record`` is attached to the
+    sk process and data written to that path.
     """
     session_name = f"skim_bench_{os.getpid()}_{session_suffix}_{run_index}"
     status_fd, status_file = tempfile.mkstemp(prefix="skim_bench_status_")
@@ -261,7 +277,8 @@ def run_once(
 
         # Build the command string
         extra_str = " ".join(extra_args)
-        cmd_str = f"cat {tmp_file} | {binary_path} --query '{query}' {extra_str}"
+        perf_prefix = f"perf record -o {perf_output} -- " if perf_output else ""
+        cmd_str = f"cat {tmp_file} | {perf_prefix}{binary_path} --query '{query}' {extra_str}"
         subprocess.run(
             ["tmux", "send-keys", "-t", session_name, cmd_str, "Enter"],
             check=True,
@@ -375,6 +392,27 @@ def run_once(
         )
         time.sleep(0.1)
 
+        # If perf is recording, wait for it to exit and flush data before we
+        # kill the tmux session.  perf record is the parent of sk in the shell
+        # pipeline, so it exits on its own once sk does – we just need to give
+        # it enough time to finish writing.
+        if perf_output and pane_pid:
+            perf_wait_start = time.monotonic()
+            while time.monotonic() - perf_wait_start < 15.0:
+                result = subprocess.run(
+                    ["pgrep", "-P", str(pane_pid), "-f", "perf record"],
+                    capture_output=True,
+                )
+                if result.returncode != 0:
+                    # perf has exited
+                    break
+                time.sleep(0.1)
+            else:
+                print(
+                    "Warning: perf record did not exit within 15 s; perf data may be incomplete.",
+                    file=sys.stderr,
+                )
+
         # Wait for monitor
         if monitor is not None:
             monitor.join(timeout=2.0)
@@ -385,6 +423,8 @@ def run_once(
         peak_mem_kb = monitor.peak_mem_kb if monitor and monitor.peak_mem_kb else 0
         peak_cpu = monitor.peak_cpu if monitor and monitor.peak_cpu else 0.0
 
+        recorded_perf = perf_output if perf_output else None
+
         return {
             "elapsed_s": elapsed_s,
             "rate": rate,
@@ -392,6 +432,7 @@ def run_once(
             "peak_mem_kb": peak_mem_kb if peak_mem_kb else None,
             "peak_cpu": peak_cpu if peak_cpu else None,
             "completed": completed,
+            "perf_file": recorded_perf,
         }
 
     finally:
@@ -607,6 +648,20 @@ def print_json_multi(binaries: list, aggregates: list, num_items: int, runs: int
 # ---------------------------------------------------------------------------
 
 
+def _perf_path_for(binary: str, explicit: str) -> str:
+    """Return the perf output file path.
+
+    If *explicit* is a non-empty string use it directly; otherwise build an
+    auto-named path of the form ``perf-<basename>-<timestamp>.data`` in the
+    current working directory.
+    """
+    if explicit:
+        return explicit
+    ts = int(time.time())
+    base = os.path.basename(binary).replace(" ", "_") or "sk"
+    return f"perf-{base}-{ts}.data"
+
+
 def main():
     import re  # ensure import at top of main scope for run_once
 
@@ -619,6 +674,8 @@ def main():
     input_file = opts.file
     generate_file = opts.generate_file
     as_json = opts.json
+    record_perf = opts.perf is not None  # True when -p/--perf was supplied
+    perf_explicit = opts.perf or ""  # "" means auto-name
 
     # ---- generate-file mode ------------------------------------------------
     if generate_file:
@@ -657,6 +714,8 @@ def main():
             print(f"Input file: {input_file}", file=sys.stderr)
         if extra_args:
             print(f"Extra args: {' '.join(extra_args)}", file=sys.stderr)
+        if record_perf:
+            print("Perf recording: enabled (final measured run only)", file=sys.stderr)
 
         # ---- warmup (results discarded) -------------------------------------
         if warmup > 0:
@@ -675,11 +734,20 @@ def main():
                         extra_args=extra_args,
                         run_index=wu,
                         session_suffix=f"warmup_b{bi}",
+                        perf_output=None,  # never record during warmup
                     )
 
         # ---- run benchmark in round-robin -----------------------------------
         # all_results[i] = list of per-run dicts for binaries[i]
         all_results = [[] for _ in binaries]
+
+        # Determine which (run_num, bi) pairs get perf recording.
+        # We record only on the very last run for each binary to avoid
+        # overwriting data and to minimise measurement overhead.
+        perf_files: dict[int, str] = {}  # bi -> path
+        if record_perf:
+            for bi, binary in enumerate(binaries):
+                perf_files[bi] = _perf_path_for(binary, perf_explicit if len(binaries) == 1 else "")
 
         for run_num in range(1, runs + 1):
             for bi, binary in enumerate(binaries):
@@ -690,6 +758,9 @@ def main():
                         file=sys.stderr,
                     )
 
+                # Attach perf only on the final run for this binary
+                this_perf = perf_files.get(bi) if run_num == runs else None
+
                 result = run_once(
                     binary_path=binary,
                     query=query,
@@ -698,6 +769,7 @@ def main():
                     extra_args=extra_args,
                     run_index=run_num,
                     session_suffix=f"b{bi}",
+                    perf_output=this_perf,
                 )
                 all_results[bi].append(result)
 
@@ -718,6 +790,11 @@ def main():
                     if result["peak_cpu"]:
                         print(
                             f"Peak CPU usage: {result['peak_cpu']:.1f}%",
+                            file=sys.stderr,
+                        )
+                    if result.get("perf_file"):
+                        print(
+                            f"Perf data: {result['perf_file']}",
                             file=sys.stderr,
                         )
 
@@ -741,7 +818,12 @@ def main():
             # Summary comparison table when multiple binaries
             if len(binaries) > 1:
                 print(f"\n=== Comparison Summary (vs baseline: {binaries[0]}) ===")
-                header = f"{'Binary':<40} {'Avg time':>12} {'Δ time':>10} {'Avg rate':>14} {'Δ rate':>10}"
+                header = (
+                    f"{'Binary':<40} {'Avg time':>12} {'Δ time':>10}"
+                    f" {'Avg rate':>14} {'Δ rate':>10}"
+                    f" {'Avg mem (MB)':>14} {'Δ mem':>10}"
+                    f" {'Avg CPU (%)':>12} {'Δ CPU':>10}"
+                )
                 print(header)
                 print("-" * len(header))
                 for i, (binary, agg) in enumerate(zip(binaries, aggregates)):
@@ -755,14 +837,46 @@ def main():
                         if agg["avg_rate"] is not None
                         else "N/A"
                     )
+                    m = (
+                        f"{agg['avg_mem'] / 1024:.1f}"
+                        if agg["avg_mem"] is not None
+                        else "N/A"
+                    )
+                    c = (
+                        f"{agg['avg_cpu']:.1f}"
+                        if agg["avg_cpu"] is not None
+                        else "N/A"
+                    )
                     if i == 0:
                         dt = "baseline"
                         dr = "baseline"
+                        dm = "baseline"
+                        dc = "baseline"
                     else:
                         dt = _pct(baseline_agg["avg_time"], agg["avg_time"])
                         dr = _pct(baseline_agg["avg_rate"], agg["avg_rate"])
+                        dm = _pct(baseline_agg["avg_mem"], agg["avg_mem"])
+                        dc = _pct(baseline_agg["avg_cpu"], agg["avg_cpu"])
                     name = os.path.basename(binary) if len(binary) > 40 else binary
-                    print(f"{name:<40} {t:>12} {dt:>10} {r:>14} {dr:>10}")
+                    print(
+                        f"{name:<40} {t:>12} {dt:>10}"
+                        f" {r:>14} {dr:>10}"
+                        f" {m:>14} {dm:>10}"
+                        f" {c:>12} {dc:>10}"
+                    )
+
+        # ---- perf summary ---------------------------------------------------
+        if record_perf:
+            print("\n=== Perf recording output ===", file=sys.stderr)
+            for bi, binary in enumerate(binaries):
+                path = perf_files.get(bi, "")
+                if path and os.path.isfile(path):
+                    print(f"  [{binary}] perf data: {path}", file=sys.stderr)
+                else:
+                    print(
+                        f"  [{binary}] perf data not found (perf may have failed)",
+                        file=sys.stderr,
+                    )
 
     finally:
         if cleanup_input:

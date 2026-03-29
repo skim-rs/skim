@@ -25,9 +25,10 @@ benches/fixtures/*.txt
 
 # Profiling
 profile.json.gz
-perf.data.old
-perf.data
+*.data
+*.data.old
 flamegraph.svg
 cachegrind.out.*
 
 /scripts/data/
+__pycache__/
