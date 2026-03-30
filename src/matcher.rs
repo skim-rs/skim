@@ -332,12 +332,12 @@ impl Matcher {
                             let mut rank = match_result.rank;
                             let index = chunk_start + i + start;
                             rank.index = i32::try_from(index).unwrap_or(i32::MAX);
-                            local_matches.push(MatchedItem {
-                                item: Arc::clone(item),
+                            local_matches.push(MatchedItem::new(
+                                Arc::clone(item),
                                 rank,
-                                rank_builder: rank_builder_for_work.clone(),
-                                matched_range: Some(match_result.matched_range),
-                            });
+                                Some(match_result.matched_range),
+                                &rank_builder_for_work,
+                            ));
                         }
                     }
 
@@ -363,9 +363,14 @@ impl Matcher {
                 // thread** so that sorting runs in parallel across all workers.
                 // A single O((m/k)·log(m/k)) sort per worker is far cheaper
                 // than sorting during reduce.
+                // sort_unstable is used here because the worker's accumulator
+                // has no pre-existing sorted runs (items were appended in
+                // chunk order), so driftsort's run-detection overhead is pure
+                // cost.  The final merge uses sort() so that driftsort can
+                // exploit the k sorted runs produced by the workers.
                 move |acc: &mut Vec<MatchedItem>| {
                     if !no_sort {
-                        acc.sort();
+                        acc.sort_unstable();
                     }
                 },
                 // merge – concat pre-sorted worker results and sort().

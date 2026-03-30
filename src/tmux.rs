@@ -294,12 +294,12 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         if line.is_empty() {
             None
         } else {
-            Some(MatchedItem {
-                item: Arc::new(SkimTmuxOutput { line: line.to_string() }),
-                rank: Rank::default(),
-                rank_builder: Arc::new(RankBuilder::default()),
-                matched_range: None,
-            })
+            Some(MatchedItem::new(
+                Arc::new(SkimTmuxOutput { line: line.to_string() }),
+                Rank::default(),
+                None,
+                &RankBuilder::default(),
+            ))
         }
     } else {
         None
@@ -310,15 +310,16 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         debug!("Adding output line: {line}");
         // --print-score is always enabled in the child, so every item is followed by its score.
         let score: i32 = stdout.next().unwrap_or_default().parse().unwrap_or_default();
-        let item = MatchedItem {
-            item: Arc::new(SkimTmuxOutput { line: line.to_string() }),
-            rank: Rank {
-                score,
-                ..Default::default()
-            },
-            rank_builder: Arc::new(RankBuilder::default()),
-            matched_range: None,
+        let rank = Rank {
+            score,
+            ..Default::default()
         };
+        let item = MatchedItem::new(
+            Arc::new(SkimTmuxOutput { line: line.to_string() }),
+            rank,
+            None,
+            &RankBuilder::default(),
+        );
         output_lines.push(item);
     }
 

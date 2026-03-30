@@ -684,12 +684,12 @@ impl App {
                     ..Default::default()
                 };
                 self.item_pool.append(vec![item.clone()]);
-                self.item_list.append(&mut vec![MatchedItem {
+                self.item_list.append(&mut vec![MatchedItem::new(
                     item,
                     rank,
-                    rank_builder: self.matcher.rank_builder.clone(),
-                    matched_range: None,
-                }]);
+                    None,
+                    &self.matcher.rank_builder,
+                )]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher_debounced();
                 return Ok(Self::on_selection_changed());

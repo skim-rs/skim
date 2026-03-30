@@ -365,6 +365,14 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
                 // this slot, and the coordinator reads only after the barrier.
                 unsafe { *w_slots[worker_id].value.get() = Some(local_acc) };
 
+                // Drop the slots Arc *before* signalling completion.
+                // The coordinator calls Arc::into_inner(slots) after wait_for_zero
+                // returns; that requires the strong count to be exactly 1.  Without
+                // this explicit drop, w_slots would still be alive in the closure
+                // frame when dec_and_notify wakes the coordinator, causing
+                // Arc::into_inner to spuriously return None and silently lose results.
+                drop(w_slots);
+
                 // Signal completion.
                 w_remaining.dec_and_notify();
             });
@@ -378,8 +386,8 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
     remaining.wait_for_zero();
 
     // Collect per-worker results and hand them to `merge` in one call.
-    // Workers have dropped their Arc clones (scoped block) and signalled
-    // completion, so we are the sole owner.
+    // Workers dropped their `w_slots` Arc clone explicitly before signalling
+    // completion, so we are the sole owner here.
     if let Some(slots) = Arc::into_inner(slots) {
         let results: Vec<R> = slots.into_iter().filter_map(|slot| slot.value.into_inner()).collect();
 

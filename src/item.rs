@@ -118,10 +118,11 @@ pub struct MatchedItem {
     pub item: Arc<dyn SkimItem>,
     /// Raw match measurements
     pub rank: Rank,
-    /// The tiebreak criteria used to derive sort order from `rank`
-    pub rank_builder: Arc<RankBuilder>,
     /// Range of characters that matched the pattern
     pub matched_range: Option<MatchRange>,
+    /// Sort key precomputed at construction time from `rank` and the tiebreak
+    /// criteria.  Caching avoids recomputing it on every comparison during sort.
+    sort_key: [i32; 5],
 }
 
 impl std::fmt::Debug for MatchedItem {
@@ -129,9 +130,8 @@ impl std::fmt::Debug for MatchedItem {
         f.debug_struct("MatchedItem")
             .field("item", &self.item.text())
             .field("rank", &self.rank)
-            .field("sort_key", &self.rank.sort_key(self.rank_builder.criteria()))
             .field("matched_range", &self.matched_range)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -151,6 +151,20 @@ impl Deref for MatchedItem {
 }
 
 impl MatchedItem {
+    /// Create a new `MatchedItem`, building the `sort_key` from the Rank and `RankBuilder`
+    pub fn new(
+        item: Arc<dyn SkimItem>,
+        rank: Rank,
+        matched_range: Option<MatchRange>,
+        rank_builder: &RankBuilder,
+    ) -> Self {
+        Self {
+            item,
+            rank,
+            matched_range,
+            sort_key: rank.sort_key(rank_builder.criteria()),
+        }
+    }
     /// Merge two sorted `Vec<MatchedItem>` lists into one, preserving sort order by rank.
     ///
     /// Both input lists must already be sorted by the same tiebreak criteria (ascending).
@@ -345,8 +359,7 @@ impl PartialOrd for MatchedItem {
 
 impl Ord for MatchedItem {
     fn cmp(&self, other: &Self) -> CmpOrd {
-        let criteria = self.rank_builder.criteria();
-        self.rank.sort_key(criteria).cmp(&other.rank.sort_key(criteria))
+        self.sort_key.cmp(&other.sort_key)
     }
 }
 
