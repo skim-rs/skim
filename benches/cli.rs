@@ -704,7 +704,11 @@ fn perf_path_for(binary: &str, explicit: &str) -> String {
 // ---------------------------------------------------------------------------
 
 fn main() {
-    let mut args = Args::parse();
+    // `cargo bench` injects `--bench` into argv for harness=false benches;
+    // strip it before clap sees it so it doesn't land in `extra_args` or
+    // cause an "unexpected argument" error.
+    let raw: Vec<String> = std::env::args().filter(|a| a != "--bench").collect();
+    let mut args = Args::parse_from(raw);
 
     if args.binaries.is_empty() {
         args.binaries.push(DEFAULT_BINARY.to_owned());
