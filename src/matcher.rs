@@ -1,16 +1,14 @@
 //! This module contains the matching coordinator
-use rayon::ThreadPool;
+use crate::thread_pool::{self, ThreadPool};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
-use rayon::prelude::*;
 
 use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
-use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
+use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -189,7 +187,7 @@ impl Matcher {
         &self,
         query: &str,
         item_pool: &Arc<ItemPool>,
-        thread_pool: &ThreadPool,
+        thread_pool: &Arc<ThreadPool>,
         callback: C,
     ) -> MatcherControl
     where
@@ -216,80 +214,86 @@ impl Matcher {
         let total = items.len();
         trace!("matcher start, total: {total}");
 
-        thread_pool.spawn(move || {
-            // Process items in parallel using chunk-based accounting to minimize
-            // atomic contention. Each rayon work unit processes a chunk of items,
-            // updating the shared `processed` and `matched` counters only once per
-            // chunk instead of once per item. The interrupt flag is also checked
-            // only once per chunk to amortize the atomic load.
+        // Number of workers to use for the parallel matching phase.
+        // We use pool size minus 1 because the coordinator job itself occupies
+        // one pool thread; the remaining threads do the actual matching work.
+        // When the pool has only 1 thread we fall back to processing inline.
+        let num_workers = thread_pool.num_threads().saturating_sub(1).max(1);
+        let spawn_handle = Arc::clone(thread_pool);
+        let pool_for_work = Arc::clone(thread_pool);
+
+        spawn_handle.spawn(move || {
+            // Process items in parallel using a shared work queue.  Each worker
+            // thread atomically grabs the next available chunk, processes it,
+            // and immediately merges its partial results.  This means threads
+            // that finish early automatically pick up more work, providing
+            // natural load balancing.
             //
-            // `with_min_len` ensures rayon doesn't split work into chunks smaller
-            // than CHUNK_SIZE, keeping the overhead of the parallel iterator low
-            // relative to the actual matching work.
+            // The chunk size controls the granularity of work distribution and
+            // the frequency of atomic counter updates / interrupt checks.
             const CHUNK_SIZE: usize = 512;
 
-            let matched_items: Vec<MatchedItem> = items
-                .into_par_iter()
-                .with_min_len(CHUNK_SIZE)
-                .enumerate()
-                .fold(
-                    || (Vec::new(), 0usize, 0usize), // (local_matches, local_processed, local_matched)
-                    |(mut local_matches, mut local_processed, mut local_matched), (index, item)| {
-                        // Check interrupt once at the start of each chunk boundary.
-                        // The fold processes items sequentially within each rayon work unit,
-                        // so checking every CHUNK_SIZE items amortizes the atomic load.
-                        if local_processed % CHUNK_SIZE == 0 && interrupt.load(Ordering::Relaxed) {
-                            return (local_matches, local_processed, local_matched);
-                        }
+            // Convert items into an Arc slice so all workers can share them.
+            let shared_items: Arc<[Arc<dyn SkimItem>]> = items.into();
 
-                        local_processed += 1;
+            // Clones for the process_chunk closure.
+            let matcher_engine: Arc<dyn crate::MatchEngine> = Arc::from(matcher_engine);
+            let interrupt_for_work = Arc::clone(&interrupt);
+            let processed_for_work = Arc::clone(&processed);
+            let matched_for_work = Arc::clone(&matched);
+            let rank_builder_for_work = Arc::clone(&rank_builder);
 
+            let matched_items: Vec<MatchedItem> = thread_pool::parallel_work_queue(
+                &pool_for_work,
+                num_workers,
+                &shared_items,
+                CHUNK_SIZE,
+                // identity – seed value for each worker's local accumulator
+                Vec::<MatchedItem>::new,
+                // process_chunk – called for each chunk; returns a Vec of matches
+                move |chunk_start, chunk: &[Arc<dyn crate::SkimItem>]| {
+                    // Check interrupt before processing this chunk.
+                    if interrupt_for_work.load(Ordering::Relaxed) {
+                        return Vec::new();
+                    }
+
+                    let mut local_matches = Vec::new();
+                    let mut chunk_matched: usize = 0;
+
+                    for (i, item) in chunk.iter().enumerate() {
                         if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
-                            local_matched += 1;
+                            chunk_matched += 1;
                             let mut rank = match_result.rank;
-                            rank.index = i32::try_from(index + start).unwrap_or(i32::MAX);
+                            let index = chunk_start + i + start;
+                            rank.index = i32::try_from(index).unwrap_or(i32::MAX);
                             local_matches.push(MatchedItem {
-                                item,
+                                item: Arc::clone(item),
                                 rank,
-                                rank_builder: rank_builder.clone(),
+                                rank_builder: rank_builder_for_work.clone(),
                                 matched_range: Some(match_result.matched_range),
                             });
                         }
-
-                        // Flush counters periodically so the UI sees progress updates.
-                        if local_processed % CHUNK_SIZE == 0 {
-                            processed.fetch_add(CHUNK_SIZE, Ordering::Relaxed);
-                            if local_matched > 0 {
-                                matched.fetch_add(local_matched, Ordering::Relaxed);
-                                local_matched = 0;
-                            }
-                        }
-
-                        (local_matches, local_processed, local_matched)
-                    },
-                )
-                .map(|(local_matches, local_processed, local_matched)| {
-                    // Flush any remaining counts that didn't hit a chunk boundary.
-                    let remainder = local_processed % CHUNK_SIZE;
-                    if remainder > 0 {
-                        processed.fetch_add(remainder, Ordering::Relaxed);
                     }
-                    if local_matched > 0 {
-                        matched.fetch_add(local_matched, Ordering::Relaxed);
+
+                    // Flush counters for this chunk so the UI sees progress.
+                    processed_for_work.fetch_add(chunk.len(), Ordering::Relaxed);
+                    if chunk_matched > 0 {
+                        matched_for_work.fetch_add(chunk_matched, Ordering::Relaxed);
                     }
+
                     local_matches
-                })
-                .reduce(Vec::new, |mut a, mut b| {
-                    // Merge per-thread result vectors. Always extend the larger one
-                    // to avoid unnecessary reallocations.
-                    if a.len() >= b.len() {
-                        a.extend(b);
-                        a
+                },
+                // reduce – merge a chunk's matches into the worker-local accumulator
+                |acc: &mut Vec<MatchedItem>, mut partial: Vec<MatchedItem>| {
+                    // Always extend the larger vec to avoid unnecessary reallocs.
+                    if acc.len() >= partial.len() {
+                        acc.extend(partial);
                     } else {
-                        b.extend(a);
-                        b
+                        partial.append(acc);
+                        *acc = partial;
                     }
-                });
+                },
+            );
 
             if !interrupt.load(Ordering::SeqCst) {
                 trace!("matcher stop, total matched: {}", matched_items.len());

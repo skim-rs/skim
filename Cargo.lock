@@ -2292,7 +2292,6 @@ dependencies = [
  "portable-pty",
  "rand 0.10.0",
  "ratatui",
- "rayon",
  "regex",
  "roff",
  "ron",

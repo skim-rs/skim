@@ -21,6 +21,7 @@ use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::{input, preview};
+use crate::thread_pool::ThreadPool;
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use input::Input;
@@ -30,7 +31,6 @@ use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::widgets::Widget;
-use rayon::ThreadPool;
 use std::sync::LazyLock;
 
 static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
@@ -200,12 +200,7 @@ impl Default for App {
             preview: Preview::from_options(&opts, theme.clone()),
             header,
             item_list: ItemList::from_options(&opts, theme.clone()),
-            thread_pool: Arc::new(
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(*NUM_THREADS)
-                    .build()
-                    .unwrap(),
-            ),
+            thread_pool: Arc::new(ThreadPool::new(*NUM_THREADS)),
             item_pool: Arc::default(),
             theme,
             should_quit: false,
@@ -250,7 +245,7 @@ impl App {
     ///
     /// # Panics
     ///
-    /// Panics if the Rayon thread pool cannot be built (system resource exhaustion).
+    /// Panics if the thread pool cannot be built (system resource exhaustion).
     #[must_use]
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let header = Header::from_options(&options, theme.clone());
@@ -261,12 +256,7 @@ impl App {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header,
-            thread_pool: Arc::new(
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(*NUM_THREADS)
-                    .build()
-                    .unwrap(),
-            ),
+            thread_pool: Arc::new(ThreadPool::new(*NUM_THREADS)),
             item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
