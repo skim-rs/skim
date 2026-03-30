@@ -2297,6 +2297,7 @@ dependencies = [
  "roff",
  "ron",
  "serde",
+ "serde_json",
  "shell-quote",
  "shlex",
  "tempfile",

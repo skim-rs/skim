@@ -43,6 +43,11 @@ name = "sk"
 path = "src/bin/main.rs"
 required-features = ["cli"]
 
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+required-features = ["bench"]
+
 [dependencies]
 assert_enum_variants = "=0.1.2"
 clap = { version = "=4.6.0" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
@@ -73,6 +78,7 @@ memchr = "=2.8.0"
 clap_complete_nushell = "=4.6.0"
 interprocess = { version = "=2.4.0", features = ["tokio"] }
 serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.149", optional = true }
 ron = "=0.12.0"
 frizbee = { version = "=0.8.3" }
 roff = "=1.1.0"
@@ -91,6 +97,8 @@ default = ["cli"]
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
 # Enable gungraun (Valgrind-based) benchmarks
 gungraun = ["dep:gungraun"]
+# Interactive benchmark binary (tmux-based ingestion + matching rate measurement)
+bench = ["cli", "dep:serde_json"]
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["async_tokio"] }
