@@ -1,6 +1,6 @@
 ---
 source: tests/multiline.rs
-description: "input: cmd \"printf 'x\\\\0one\\\\ntwo\\\\nthree\\\\0y\\\\0'\"\noptions: --read0 --multiline"
+description: "input: bytes b\"x\\x00one\\ntwo\\nthree\\x00y\\x00\"\noptions: --read0 --multiline"
 ---
 "                                                                                "
 "                                                                                "

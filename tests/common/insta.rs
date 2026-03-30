@@ -425,6 +425,18 @@ where
     enter_sized_with_source(options, 80, 24, Some(rx))
 }
 
+/// Initialize a test harness with raw bytes as input.
+///
+/// Feeds bytes directly through the `SkimItemReader` pipeline without spawning
+/// a subprocess. Useful for inputs containing NUL bytes (e.g. `--read0` tests)
+/// where the byte sequence cannot be expressed as a simple string.
+pub fn enter_bytes(bytes: &'static [u8], options: SkimOptions) -> Result<TestHarness> {
+    let reader_opts = SkimItemReaderOption::from_options(&options);
+    let item_reader = SkimItemReader::new(reader_opts);
+    let rx = item_reader.of_bufread(Cursor::new(bytes));
+    enter_sized_with_source(options, 80, 24, Some(rx))
+}
+
 /// Initialize a test harness with command output as items.
 ///
 /// The command is executed through the production `Reader` + `SkimItemReader`
@@ -596,6 +608,22 @@ macro_rules! insta_test {
         }
     };
 
+    // Simple variant with @bytes - just snapshot
+    ($name:ident, @bytes $bytes:expr, $options:expr) => {
+        #[test]
+        fn $name() -> color_eyre::Result<()> {
+            let options = $crate::common::insta::parse_options($options);
+            let mut h = $crate::common::insta::enter_bytes($bytes, options)?;
+            let __desc = format!(
+                "input: bytes {}\noptions: {}",
+                stringify!($bytes),
+                $crate::common::insta::fmt_opts($options),
+            );
+            $crate::snap!(h, &__desc);
+            Ok(())
+        }
+    };
+
     // Simple variant with @interactive - just snapshot
     ($name:ident, @interactive, $options:expr) => {
         #[test]
@@ -639,6 +667,25 @@ macro_rules! insta_test {
             let __base_desc = format!(
                 "input: cmd {}\noptions: {}",
                 stringify!($cmd),
+                $crate::common::insta::fmt_opts($options),
+            );
+            let mut __cmds: Vec<&'static str> = Vec::new();
+            let mut __snap_count: u32 = 0;
+            insta_test!(@expand h, __base_desc, __cmds, __snap_count; $($content)*);
+
+            Ok(())
+        }
+    };
+
+    // DSL variant with @bytes
+    ($name:ident, @bytes $bytes:expr, $options:expr, { $($content:tt)* }) => {
+        #[test]
+        fn $name() -> color_eyre::Result<()> {
+            let options = $crate::common::insta::parse_options($options);
+            let mut h = $crate::common::insta::enter_bytes($bytes, options)?;
+            let __base_desc = format!(
+                "input: bytes {}\noptions: {}",
+                stringify!($bytes),
                 $crate::common::insta::fmt_opts($options),
             );
             let mut __cmds: Vec<&'static str> = Vec::new();

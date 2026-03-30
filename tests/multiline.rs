@@ -223,29 +223,27 @@ insta_test!(multiline_cycle, ["a", "b1\\nb2", "c"], &["--multiline", "--cycle"],
 });
 
 // ============================================================================
-// Section 12: read0 — null-byte-delimited input (Unix only)
+// Section 11: read0 — null-byte-delimited input
 // ============================================================================
 
 // With --read0 the items are NUL-delimited, so the multiline separator becomes
 // an actual newline (not a literal "\n").
 // Input bytes:  a NUL  b1 LF b2  NUL  c NUL  →  items: ["a", "b1\nb2", "c"]
-#[cfg(unix)]
-insta_test!(multiline_read0, @cmd "printf 'a\\0b1\\nb2\\0c\\0'", &["--read0", "--multiline"], {
+insta_test!(multiline_read0, @bytes b"a\x00b1\nb2\x00c\x00", &["--read0", "--multiline"], {
     @snap;
     @key Up;
     @snap;
 });
 
 // read0 with a multiline item that contains three actual newlines.
-#[cfg(unix)]
-insta_test!(multiline_read0_three_lines, @cmd "printf 'x\\0one\\ntwo\\nthree\\0y\\0'", &["--read0", "--multiline"], {
+insta_test!(multiline_read0_three_lines, @bytes b"x\x00one\ntwo\nthree\x00y\x00", &["--read0", "--multiline"], {
     @snap;
     @key Up;
     @snap;
 });
 
 // ============================================================================
-// Section 13: with-nth / field display
+// Section 12: with-nth / field display
 // ============================================================================
 
 // --with-nth hides the leading field; the remaining display text still contains

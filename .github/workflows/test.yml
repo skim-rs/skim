@@ -72,14 +72,16 @@ jobs:
       - name: Show snapshot diffs on failure
         if: failure()
         run: |
-          find . -name "*.snap.new" | while read -r new_snap; do
+          find tests/snapshots/ -name "*.snap.new" | while read -r new_snap; do
             base="${new_snap%.new}"
             echo "=== Snapshot diff: $base ==="
+            echo "new: $new_snap"
+            cat "$new_snap"
             if [ -f "$base" ]; then
-              diff "$base" "$new_snap" || true
+              echo "old: $base"
+              cat "$base"
+              diff "$base" "$new_snap"
             else
-              echo "(new snapshot)"
-              cat "$new_snap"
             fi
           done
         shell: bash
