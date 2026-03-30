@@ -3,7 +3,7 @@
 ## Build/Test/Lint Commands
 - Build: `cargo build [--release]`
 - Run: `cargo run [--release]`
-- Test (all): `cargo nextest`
+- Test (all): `cargo nextest run`
 - Test (single): `cargo nextest test_name`
 - Integration/E2E tests: `cargo nextest --tests` (will need tmux under the hood)
 - Memory leak detection: `cargo nextest run --profile valgrind`
@@ -24,10 +24,16 @@
 - Follow the existing structure for new modules (see src/engine/ or src/model/)
 - Implement relevant traits (SkimItem, etc.) for new types when needed
 
-## Project Structure
-- Core functionality in `skim/src/`
-- Common utilities in `skim-common/`
-- Task automation in `xtask/`
+## Architecture Documentation
+- `ARCHITECTURE.md` documents the full architecture: data flow, operating modes, subsystems, threading model, and public API.
+- **Update `ARCHITECTURE.md` whenever you make structural changes**, including:
+  - Adding, removing, or renaming modules, structs, or traits
+  - Changing the data flow between subsystems (reader → pool → matcher → TUI)
+  - Adding new operating modes or modifying existing ones
+  - Changing the threading model or synchronization primitives
+  - Adding or removing public API surface (`SkimItem`, `SkimOptions`, `SkimOutput`, etc.)
+  - Changing the event/action system or key binding infrastructure
+- Keep call-site line numbers in the cross-reference table up to date when the referenced functions move.
 
 
 ## Testing
