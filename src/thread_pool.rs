@@ -3,6 +3,7 @@
 //! Worker threads pick up the next available job as soon as they finish their
 //! current one, giving natural load balancing without work-stealing.
 
+use std::cell::UnsafeCell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -170,6 +171,82 @@ fn worker_loop(shared: &SharedState) {
 // ---------------------------------------------------------------------------
 // Parallel work-queue helpers used by the matcher
 // ---------------------------------------------------------------------------
+// Cache-line–aligned result slot
+// ---------------------------------------------------------------------------
+
+/// A single worker's result slot, padded to a full cache line so that
+/// concurrent writes to adjacent slots by different cores don't cause
+/// false sharing.
+///
+/// Alignment is platform-dependant, this is taken from <https://docs.rs/crossbeam-utils/0.8.21/src/crossbeam_utils/cache_padded.rs.html>
+///
+// Starting from Intel's Sandy Bridge, spatial prefetcher is now pulling pairs of 64-byte cache
+// lines at a time, so we have to align to 128 bytes rather than 64.
+#[cfg_attr(
+    any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        target_arch = "arm64ec",
+        target_arch = "powerpc64",
+    ),
+    repr(align(128))
+)]
+// arm, mips, mips64, sparc, and hexagon have 32-byte cache line size.
+#[cfg_attr(
+    any(
+        target_arch = "arm",
+        target_arch = "mips",
+        target_arch = "mips32r6",
+        target_arch = "mips64",
+        target_arch = "mips64r6",
+        target_arch = "sparc",
+        target_arch = "hexagon",
+    ),
+    repr(align(32))
+)]
+// m68k has 16-byte cache line size.
+#[cfg_attr(target_arch = "m68k", repr(align(16)))]
+// s390x has 256-byte cache line size.
+#[cfg_attr(target_arch = "s390x", repr(align(256)))]
+// x86, wasm, riscv, and sparc64 have 64-byte cache line size.
+// All others are assumed to have 64-byte cache line size.
+#[cfg_attr(
+    not(any(
+        target_arch = "x86_64",
+        target_arch = "aarch64",
+        target_arch = "arm64ec",
+        target_arch = "powerpc64",
+        target_arch = "arm",
+        target_arch = "mips",
+        target_arch = "mips32r6",
+        target_arch = "mips64",
+        target_arch = "mips64r6",
+        target_arch = "sparc",
+        target_arch = "hexagon",
+        target_arch = "m68k",
+        target_arch = "s390x",
+    )),
+    repr(align(64))
+)]
+struct Slot<R> {
+    value: UnsafeCell<Option<R>>,
+}
+
+// SAFETY: each slot is written by exactly one worker (unique `worker_id`)
+// and read by the coordinator only after the barrier guarantees all writes
+// are visible.  No two threads ever access the same slot concurrently.
+unsafe impl<R: Send> Send for Slot<R> {}
+unsafe impl<R: Send> Sync for Slot<R> {}
+
+impl<R> Slot<R> {
+    fn new() -> Self {
+        Self {
+            value: UnsafeCell::new(None),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 
 /// Processes `items` in parallel across `num_workers` threads from the given
 /// pool, then hands the per-worker results to `merge`.
@@ -229,9 +306,10 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
     // Shared atomic counter – workers fetch-add to grab the next chunk index.
     let next_chunk = Arc::new(AtomicUsize::new(0));
 
-    // Per-worker result slots – each worker writes only to its own slot,
-    // eliminating all inter-worker contention at merge time.
-    let slots: Arc<Vec<Mutex<Option<R>>>> = Arc::new((0..num_workers).map(|_| Mutex::new(None)).collect());
+    // Contiguous, cache-line-aligned per-worker result slots.  Each worker
+    // writes only to its own slot (lock-free via UnsafeCell); the
+    // coordinator reads after the AtomicCounter barrier.
+    let slots: Arc<Vec<Slot<R>>> = Arc::new((0..num_workers).map(|_| Slot::new()).collect());
 
     // Barrier: we wait until all workers have finished.
     let remaining = Arc::new(AtomicCounter::new(num_workers));
@@ -247,7 +325,7 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
         .map(|worker_id| {
             let w_items = Arc::clone(items);
             let w_next_chunk = Arc::clone(&next_chunk);
-            let w_slots = Arc::clone(&slots);
+            let w_slots: Arc<Vec<Slot<R>>> = Arc::clone(&slots);
             let w_remaining = Arc::clone(&remaining);
             let w_process_chunk = Arc::clone(&process_chunk);
             let w_reduce = Arc::clone(&reduce);
@@ -282,12 +360,10 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
                     local_acc
                 };
 
-                // Write into our own slot – no contention with other workers.
-                if let Ok(mut slot) = w_slots[worker_id].lock() {
-                    *slot = Some(local_acc);
-                } else {
-                    log::error!("More than one ref to the worker slot when writing results. This SHOULD NOT happen.");
-                }
+                // Write into our own slot – lock-free, no contention.
+                // SAFETY: each worker_id is unique; no other thread writes to
+                // this slot, and the coordinator reads only after the barrier.
+                unsafe { *w_slots[worker_id].value.get() = Some(local_acc) };
 
                 // Signal completion.
                 w_remaining.dec_and_notify();
@@ -302,15 +378,10 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
     remaining.wait_for_zero();
 
     // Collect per-worker results and hand them to `merge` in one call.
-    // No intermediate accumulator — the caller decides how to combine them.
+    // Workers have dropped their Arc clones (scoped block) and signalled
+    // completion, so we are the sole owner.
     if let Some(slots) = Arc::into_inner(slots) {
-        let results: Vec<R> = slots
-            .into_iter()
-            .filter_map(|slot| {
-                #[allow(clippy::missing_panics_doc, reason = "Only one ref to the slot possible")]
-                slot.into_inner().unwrap()
-            })
-            .collect();
+        let results: Vec<R> = slots.into_iter().filter_map(|slot| slot.value.into_inner()).collect();
 
         merge(results);
     } else {

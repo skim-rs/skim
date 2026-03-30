@@ -12,6 +12,65 @@ use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineF
 use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
 
+/// Merges per-worker match results and writes them into `processed_items`.
+///
+/// When `no_sort` is false, concatenates the pre-sorted worker results into a
+/// single contiguous `Vec` and calls `sort()`.  Rust's stable sort (driftsort
+/// since 1.81, a `TimSort` variant before that) detects the k pre-sorted runs
+/// and merges them in O(n log k) on contiguous memory — benchmarking shows
+/// this consistently outperforms tree-based or fold-based merge strategies
+/// due to driftsort's cache-friendly single-buffer merge passes.
+///
+/// When `no_sort` is true, the worker results are simply flattened.
+///
+/// Signals `needs_render` after writing so the UI picks up the new data.
+fn merge_worker_results(
+    worker_results: Vec<Vec<MatchedItem>>,
+    no_sort: bool,
+    processed_items: &SpinLock<Option<ProcessedItems>>,
+    merge_strategy: MergeStrategy,
+    needs_render: &AtomicBool,
+) {
+    let total_len: usize = worker_results.iter().map(Vec::len).sum();
+    let mut items = Vec::with_capacity(total_len);
+    for chunk in worker_results {
+        items.extend(chunk);
+    }
+
+    // Each worker's sub-list is already sorted by `prepare`, so the
+    // concatenated Vec consists of k sorted runs.  Rust's stable sort
+    // (driftsort since 1.81, a TimSort variant before that) detects
+    // pre-existing runs and merges them in O(n log k) for k workers,
+    // all on contiguous memory with a single auxiliary buffer.
+    if !no_sort {
+        items.sort();
+    }
+
+    trace!("matcher stop, total matched: {}", items.len());
+
+    // Single lock, single write into processed_items.
+    let mut guard = processed_items.lock();
+    match &mut *guard {
+        Some(existing) => {
+            if no_sort {
+                existing.items.extend(items);
+            } else {
+                // Both sides are fully sorted — one O(n+m) merge.
+                MatchedItem::merge_into_sorted(&mut existing.items, items);
+            }
+        }
+        None => {
+            *guard = Some(ProcessedItems {
+                items,
+                merge: merge_strategy,
+            });
+        }
+    }
+    // Guard is dropped here, releasing the lock before we signal the render flag.
+
+    needs_render.store(true, Ordering::Relaxed);
+}
+
 //==============================================================================
 /// Control handle for a running matcher operation.
 ///
@@ -189,7 +248,7 @@ impl Matcher {
     ///
     /// Returns a `MatcherControl` that can be used to monitor progress or
     /// stop the matcher.
-    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn run(
         &self,
         query: &str,
@@ -309,53 +368,15 @@ impl Matcher {
                         acc.sort();
                     }
                 },
-                // merge – flatten pre-sorted worker results into a single Vec.
-                // Each worker's sub-list is already sorted by `prepare`, so
-                // the concatenated Vec consists of k sorted runs.  Timsort
-                // detects these runs and merges them in O(n), giving us a
-                // fully-sorted result without an O(n·log n) sort.
+                // merge – concat pre-sorted worker results and sort().
+                // Rust's stable sort detects the k sorted runs and merges
+                // them in O(n log k), then writes into processed_items.
                 |worker_results: Vec<Vec<MatchedItem>>| {
                     if interrupt.load(Ordering::SeqCst) {
                         return;
                     }
 
-                    // Concatenate all worker results into one Vec.
-                    let total_len: usize = worker_results.iter().map(std::vec::Vec::len).sum();
-                    let mut items = Vec::with_capacity(total_len);
-                    for worker_matches in worker_results {
-                        items.extend(worker_matches);
-                    }
-
-                    // Each worker's sub-list is pre-sorted by `prepare`, so
-                    // the concatenated Vec consists of k sorted runs.  Timsort
-                    // detects these runs and merges them in O(n).
-                    if !no_sort {
-                        items.sort();
-                    }
-
-                    trace!("matcher stop, total matched: {}", items.len());
-
-                    // Single lock, single write into processed_items.
-                    let mut guard = processed_items.lock();
-                    match &mut *guard {
-                        Some(existing) => {
-                            if no_sort {
-                                existing.items.extend(items);
-                            } else {
-                                // Both sides are fully sorted — one O(n+m) merge.
-                                MatchedItem::merge_into_sorted(&mut existing.items, items);
-                            }
-                        }
-                        None => {
-                            *guard = Some(ProcessedItems {
-                                items,
-                                merge: merge_strategy,
-                            });
-                        }
-                    }
-                    drop(guard);
-
-                    needs_render.store(true, Ordering::Relaxed);
+                    merge_worker_results(worker_results, no_sort, &processed_items, merge_strategy, &needs_render);
                 },
             );
             stopped.store(true, Ordering::Relaxed);
