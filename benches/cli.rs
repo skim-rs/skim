@@ -91,7 +91,8 @@ const WORDS: &[&str] = &[
     name = "bench",
     about = "Benchmark skim ingestion + matching rate in interactive mode",
     long_about = "Measures how fast skim can ingest items and display matched results \
-                  by running sk inside a tmux session and polling the status line."
+                  by running sk inside a tmux session and polling the status line.",
+    ignore_errors(true)
 )]
 struct Args {
     /// One or more paths to binaries (default: ./target/release/sk).

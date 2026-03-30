@@ -1,2 +1,0 @@
-[alias]
-bench-cli = "run --bin bench --features bench --"

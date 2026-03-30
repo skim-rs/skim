@@ -750,16 +750,16 @@ The `bench` binary benchmarks skim (or any compatible binary) against other vers
 Build and run it via the `bench-cli` cargo alias (requires the `bench` feature):
 
 ```sh
-cargo bench-cli                                      # defaults: sk, 1 M items, query "test"
-cargo bench-cli -- sk -n 500000 -q foo              # bare name resolved via $PATH
-cargo bench-cli -- ./old/sk ./new/sk -r 5           # compare two binaries, 5 runs each
-cargo bench-cli -- sk -r 5                          # 5 runs, show average
-cargo bench-cli -- sk -f input.txt -q search        # use an existing file
-cargo bench-cli -- -g testdata.txt -n 2000000       # generate input file and exit
-cargo bench-cli -- sk -p                            # record perf data (auto-named file)
-cargo bench-cli -- sk -p perf.data                 # record perf data to perf.data
-cargo bench-cli -- sk -j                            # JSON output
-cargo bench-cli -- sk -r 3 -- --tiebreak=index     # pass extra flags to sk
+cargo bench --bench cli                                      # defaults: sk, 1 M items, query "test"
+cargo bench --bench cli -- sk -n 500000 -q foo              # bare name resolved via $PATH
+cargo bench --bench cli -- ./old/sk ./new/sk -r 5           # compare two binaries, 5 runs each
+cargo bench --bench cli -- sk -r 5                          # 5 runs, show average
+cargo bench --bench cli -- sk -f input.txt -q search        # use an existing file
+cargo bench --bench cli -- -g testdata.txt -n 2000000       # generate input file and exit
+cargo bench --bench cli -- sk -p                            # record perf data (auto-named file)
+cargo bench --bench cli -- sk -p perf.data                 # record perf data to perf.data
+cargo bench --bench cli -- sk -j                            # JSON output
+cargo bench --bench cli -- sk -r 3 -- --tiebreak=index     # pass extra flags to sk
 ```
 
 Binary names are resolved to absolute paths via `which` before use, so bare names like `sk` or `fzf` work as long as they are on `$PATH`.
@@ -767,6 +767,6 @@ Binary names are resolved to absolute paths via `which` before use, so bare name
 ### Criterion benchmarks
 
 Criterion benchmarks are available to measure skim's performance more precisely.
-To run them, you need to generate input data using `cargo bench-cli -- -g benches/fixtures/10M.txt -n 10000000 && cargo bench-cli -- -g benches/fixtures/1M.txt -n 1000000`, then run `cargo bench -j 1`.
+To run them, you need to generate input data using `cargo bench --bench cli -- -g benches/fixtures/10M.txt -n 10000000 && cargo bench --bench cli -- -g benches/fixtures/1M.txt -n 1000000`, then run `cargo bench -j 1`.
 
 These will run for several minutes.

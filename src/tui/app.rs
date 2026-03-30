@@ -1152,7 +1152,7 @@ impl App {
     /// If `force` is false, the matcher will only be restarted if there are new items
     /// to process or if the previous matcher has completed.
     pub fn restart_matcher(&mut self, force: bool) {
-        use crate::tui::item_list::{MergeStrategy, ProcessedItems};
+        use crate::tui::item_list::MergeStrategy;
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.options.min_query_length
             && !self.options.disabled
@@ -1189,53 +1189,29 @@ impl App {
             };
             let item_pool = self.item_pool.clone();
             let thread_pool = &self.thread_pool;
-            let processed_items = self.item_list.processed_items.clone();
             let no_sort = self.options.no_sort;
 
             if force {
                 self.item_pool.reset();
             }
 
-            let needs_render = self.needs_render.clone();
+            let merge_strategy = if force {
+                MergeStrategy::Replace
+            } else if no_sort {
+                MergeStrategy::Append
+            } else {
+                MergeStrategy::SortedMerge
+            };
 
-            self.matcher_control = self.matcher.run(query, &item_pool, thread_pool, move |mut matches| {
-                debug!("Got {} results from matcher, sending to item list...", matches.len());
-
-                if !no_sort {
-                    matches.sort();
-                }
-
-                if force {
-                    // Full re-match: replace all results
-                    *processed_items.lock() = Some(ProcessedItems {
-                        items: matches,
-                        merge: MergeStrategy::Replace,
-                    });
-                } else {
-                    // Incremental: merge new matches into any unconsumed processed items,
-                    // and mark with merge strategy so the render loop merges with item_list.items
-                    let merge_strategy = if no_sort {
-                        MergeStrategy::Append
-                    } else {
-                        MergeStrategy::SortedMerge
-                    };
-                    let mut guard = processed_items.lock();
-                    if let Some(ref mut existing) = *guard {
-                        if no_sort {
-                            existing.items.extend(matches);
-                        } else {
-                            // Merge incoming matches into existing sorted list in-place.
-                            MatchedItem::merge_into_sorted(&mut existing.items, matches);
-                        }
-                    } else {
-                        *guard = Some(ProcessedItems {
-                            items: matches,
-                            merge: merge_strategy,
-                        });
-                    }
-                }
-                needs_render.store(true, Ordering::Relaxed);
-            });
+            self.matcher_control = self.matcher.run(
+                query,
+                &item_pool,
+                thread_pool,
+                self.item_list.processed_items.clone(),
+                merge_strategy,
+                no_sort,
+                self.needs_render.clone(),
+            );
         }
     }
 

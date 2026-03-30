@@ -87,6 +87,9 @@ impl ThreadPool {
 
     /// Submits a closure to be executed by the next available worker.
     ///
+    /// The lock is dropped *before* notifying the condvar so that the woken
+    /// worker can acquire it immediately instead of blocking on the notifier.
+    ///
     /// # Panics
     ///
     /// Panics if the internal job-queue mutex is poisoned.
@@ -94,10 +97,31 @@ impl ThreadPool {
     where
         F: FnOnce() + Send + 'static,
     {
-        let mut queue = self.shared.queue.lock().unwrap();
-        queue.jobs.push_back(Box::new(f));
-        // Wake one waiting worker.
+        {
+            let mut queue = self.shared.queue.lock().unwrap();
+            queue.jobs.push_back(Box::new(f));
+        } // lock dropped before notify
         self.shared.job_available.notify_one();
+    }
+
+    /// Submits multiple closures in a single lock acquisition, then wakes all
+    /// workers.  This is more efficient than calling [`spawn`](Self::spawn) in
+    /// a loop when you have several jobs ready at once.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal job-queue mutex is poisoned.
+    pub fn spawn_batch<I>(&self, jobs: I)
+    where
+        I: IntoIterator<Item = Box<dyn FnOnce() + Send + 'static>>,
+    {
+        {
+            let mut queue = self.shared.queue.lock().unwrap();
+            for job in jobs {
+                queue.jobs.push_back(job);
+            }
+        } // lock dropped before notify
+        self.shared.job_available.notify_all();
     }
 }
 
@@ -148,17 +172,20 @@ fn worker_loop(shared: &SharedState) {
 // ---------------------------------------------------------------------------
 
 /// Processes `items` in parallel across `num_workers` threads from the given
-/// pool, then returns the combined result.
+/// pool, then hands the per-worker results to `merge`.
 ///
 /// The work is split into chunks of `chunk_size`.  Each worker thread
 /// repeatedly grabs the next available chunk (via an atomic counter), runs
-/// `process_chunk` on it, and immediately merges the partial result into a
-/// shared accumulator using `reduce`.  Once all chunks are processed the
-/// accumulator is returned.
+/// `process_chunk` on it, and folds the partial result into a *local*
+/// accumulator using `reduce`.  When all chunks are consumed, each worker
+/// calls `prepare` on its local accumulator (e.g. to sort it) — this step
+/// runs **in parallel** across all workers — and then writes the prepared
+/// result into its slot.  The coordinator collects every worker's result and
+/// passes them all to `merge` in a single call.
 ///
 /// Because each worker picks up the *next* chunk as soon as it finishes the
-/// previous one (including the reduce step), faster threads naturally do more
-/// work without any explicit work-stealing.
+/// previous one, faster threads naturally do more work without any explicit
+/// work-stealing.
 ///
 /// # Parameters
 ///
@@ -166,14 +193,13 @@ fn worker_loop(shared: &SharedState) {
 /// * `num_workers`    – how many workers to dispatch (capped to pool size internally by caller).
 /// * `items`          – the data to process; shared read-only across workers via `Arc`.
 /// * `chunk_size`     – number of items per chunk.
-/// * `identity`       – the identity/seed value for the accumulator (called once per worker and once for init).
+/// * `identity`       – the identity/seed value for per-worker local accumulators (called once per worker).
 /// * `process_chunk`  – `(chunk_start_index, &[T]) -> R` – processes one chunk.
-/// * `reduce`         – merges a per-chunk result into the accumulator (`&mut acc, partial`).
-///
-/// # Panics
-///
-/// Panics if the internal accumulator mutex is poisoned.
-pub fn parallel_work_queue<T, R, P, M, I>(
+/// * `reduce`         – folds a per-chunk result into a worker-local accumulator (`&mut acc, partial`).
+/// * `prepare`        – called on each worker's finished accumulator **on the worker thread** (runs in parallel).  Use this for expensive per-worker work like sorting.
+/// * `merge`          – called once on the coordinator with all per-worker results.
+#[allow(clippy::too_many_arguments)]
+pub fn parallel_work_queue<T, R, P, M, I, W, G>(
     pool: &ThreadPool,
     num_workers: usize,
     items: &Arc<[T]>,
@@ -181,17 +207,21 @@ pub fn parallel_work_queue<T, R, P, M, I>(
     identity: I,
     process_chunk: P,
     reduce: M,
-) -> R
-where
+    prepare: W,
+    merge: G,
+) where
     T: Send + Sync + 'static,
     R: Send + 'static,
     P: Fn(usize, &[T]) -> R + Send + Sync + 'static,
     M: Fn(&mut R, R) + Send + Sync + 'static,
     I: Fn() -> R + Send + Sync + 'static,
+    W: Fn(&mut R) + Send + Sync + 'static,
+    G: FnOnce(Vec<R>),
 {
     let total = items.len();
     if total == 0 {
-        return identity();
+        merge(Vec::new());
+        return;
     }
 
     let num_chunks = total.div_ceil(chunk_size);
@@ -199,71 +229,93 @@ where
     // Shared atomic counter – workers fetch-add to grab the next chunk index.
     let next_chunk = Arc::new(AtomicUsize::new(0));
 
-    // Shared accumulator protected by a mutex.
-    let accumulator: Arc<Mutex<R>> = Arc::new(Mutex::new(identity()));
+    // Per-worker result slots – each worker writes only to its own slot,
+    // eliminating all inter-worker contention at merge time.
+    let slots: Arc<Vec<Mutex<Option<R>>>> = Arc::new((0..num_workers).map(|_| Mutex::new(None)).collect());
 
     // Barrier: we wait until all workers have finished.
     let remaining = Arc::new(AtomicCounter::new(num_workers));
 
     let process_chunk = Arc::new(process_chunk);
     let reduce = Arc::new(reduce);
+    let prepare = Arc::new(prepare);
     let identity = Arc::new(identity);
 
-    for _ in 0..num_workers {
-        let w_items = Arc::clone(items);
-        let w_next_chunk = Arc::clone(&next_chunk);
-        let w_accumulator = Arc::clone(&accumulator);
-        let w_remaining = Arc::clone(&remaining);
-        let w_process_chunk = Arc::clone(&process_chunk);
-        let w_reduce = Arc::clone(&reduce);
-        let w_identity = Arc::clone(&identity);
+    // Build all jobs up-front and submit them in a single batch to minimise
+    // lock acquisitions on the work queue.
+    let jobs: Vec<Box<dyn FnOnce() + Send + 'static>> = (0..num_workers)
+        .map(|worker_id| {
+            let w_items = Arc::clone(items);
+            let w_next_chunk = Arc::clone(&next_chunk);
+            let w_slots = Arc::clone(&slots);
+            let w_remaining = Arc::clone(&remaining);
+            let w_process_chunk = Arc::clone(&process_chunk);
+            let w_reduce = Arc::clone(&reduce);
+            let w_prepare = Arc::clone(&prepare);
+            let w_identity = Arc::clone(&identity);
 
-        pool.spawn(move || {
-            // Each worker keeps a local accumulator to batch up results and
-            // reduce lock contention on the shared accumulator.
-            let mut local_acc = w_identity();
+            let job: Box<dyn FnOnce() + Send + 'static> = Box::new(move || {
+                // Scope all Arc-holding work so clones are dropped before we
+                // signal completion.  This lets the coordinator safely unwrap
+                // the outer Arcs.
+                let local_acc = {
+                    let mut local_acc = w_identity();
 
-            loop {
-                let chunk_idx = w_next_chunk.fetch_add(1, Ordering::Relaxed);
-                if chunk_idx >= num_chunks {
-                    break;
+                    loop {
+                        let chunk_idx = w_next_chunk.fetch_add(1, Ordering::Relaxed);
+                        if chunk_idx >= num_chunks {
+                            break;
+                        }
+
+                        let start = chunk_idx * chunk_size;
+                        let end = total.min(start + chunk_size);
+                        let partial = w_process_chunk(start, &w_items[start..end]);
+                        w_reduce(&mut local_acc, partial);
+                    }
+
+                    // Run prepare (e.g. sort) while still on the worker thread
+                    // so that this work happens in parallel across workers.
+                    w_prepare(&mut local_acc);
+
+                    // w_items, w_next_chunk, w_process_chunk, w_reduce,
+                    // w_prepare, w_identity are dropped when this block ends.
+                    local_acc
+                };
+
+                // Write into our own slot – no contention with other workers.
+                if let Ok(mut slot) = w_slots[worker_id].lock() {
+                    *slot = Some(local_acc);
+                } else {
+                    log::error!("More than one ref to the worker slot when writing results. This SHOULD NOT happen.");
                 }
 
-                let start = chunk_idx * chunk_size;
-                let end = total.min(start + chunk_size);
-                let partial = w_process_chunk(start, &w_items[start..end]);
-                w_reduce(&mut local_acc, partial);
-            }
+                // Signal completion.
+                w_remaining.dec_and_notify();
+            });
+            job
+        })
+        .collect();
 
-            // Merge local accumulator into the shared one.
-            {
-                let mut shared_acc = w_accumulator.lock().unwrap();
-                w_reduce(&mut *shared_acc, local_acc);
-            }
-
-            // Drop all Arc clones *before* signaling completion so the
-            // coordinator can safely `Arc::try_unwrap` the accumulator.
-            drop(w_accumulator);
-            drop(w_items);
-            drop(w_next_chunk);
-            drop(w_process_chunk);
-            drop(w_reduce);
-            drop(w_identity);
-
-            // Signal completion.
-            w_remaining.dec_and_notify();
-        });
-    }
+    pool.spawn_batch(jobs);
 
     // Block until all workers are done.
     remaining.wait_for_zero();
 
-    // Extract the final accumulator value.
-    Arc::try_unwrap(accumulator)
-        .ok()
-        .expect("all workers finished; Arc should be unique")
-        .into_inner()
-        .unwrap()
+    // Collect per-worker results and hand them to `merge` in one call.
+    // No intermediate accumulator — the caller decides how to combine them.
+    if let Some(slots) = Arc::into_inner(slots) {
+        let results: Vec<R> = slots
+            .into_iter()
+            .filter_map(|slot| {
+                #[allow(clippy::missing_panics_doc, reason = "Only one ref to the slot possible")]
+                slot.into_inner().unwrap()
+            })
+            .collect();
+
+        merge(results);
+    } else {
+        log::error!("More than one ref to the slots remaining after workers exit. This SHOULD NOT happen.");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -284,9 +336,18 @@ impl AtomicCounter {
     }
 
     /// Decrements the counter by one and notifies waiters if it reaches zero.
+    ///
+    /// # Panics (debug only)
+    ///
+    /// Debug-asserts that the counter has not already reached zero, which
+    /// would indicate a double-decrement bug.
     fn dec_and_notify(&self) {
         let mut count = self.state.lock().unwrap();
-        *count = count.saturating_sub(1);
+        debug_assert!(
+            *count > 0,
+            "AtomicCounter decremented below zero — double-decrement bug?"
+        );
+        *count -= 1;
         if *count == 0 {
             self.done.notify_all();
         }
@@ -319,10 +380,29 @@ mod tests {
     }
 
     #[test]
+    fn spawn_batch_runs_all() {
+        let pool = ThreadPool::new(4);
+        let counter = Arc::new(AtomicUsize::new(0));
+        let jobs: Vec<Box<dyn FnOnce() + Send + 'static>> = (0..10)
+            .map(|_| {
+                let c = Arc::clone(&counter);
+                let job: Box<dyn FnOnce() + Send + 'static> = Box::new(move || {
+                    c.fetch_add(1, Ordering::SeqCst);
+                });
+                job
+            })
+            .collect();
+        pool.spawn_batch(jobs);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert_eq!(counter.load(Ordering::SeqCst), 10);
+    }
+
+    #[test]
     fn parallel_work_queue_sums() {
         let pool = ThreadPool::new(4);
         let items: Arc<[u64]> = (1..=1000u64).collect::<Vec<_>>().into();
-        let result = parallel_work_queue(
+        let mut result = 0u64;
+        parallel_work_queue(
             &pool,
             4,
             &items,
@@ -330,6 +410,12 @@ mod tests {
             || 0u64,
             |_start, chunk| chunk.iter().sum::<u64>(),
             |acc, partial| *acc += partial,
+            |_| {},
+            |worker_results| {
+                for partial in worker_results {
+                    result += partial;
+                }
+            },
         );
         assert_eq!(result, 500_500);
     }
@@ -338,7 +424,8 @@ mod tests {
     fn parallel_work_queue_empty() {
         let pool = ThreadPool::new(2);
         let items: Arc<[u64]> = Arc::from(Vec::<u64>::new().into_boxed_slice());
-        let result = parallel_work_queue(
+        let mut result = Vec::<u64>::new();
+        parallel_work_queue(
             &pool,
             2,
             &items,
@@ -346,6 +433,12 @@ mod tests {
             Vec::<u64>::new,
             |_start, chunk| chunk.to_vec(),
             |acc, mut partial| acc.append(&mut partial),
+            |_| {},
+            |worker_results| {
+                for partial in worker_results {
+                    result.extend(partial);
+                }
+            },
         );
         assert!(result.is_empty());
     }
@@ -354,7 +447,8 @@ mod tests {
     fn parallel_work_queue_single_thread() {
         let pool = ThreadPool::new(1);
         let items: Arc<[i32]> = (0..100i32).collect::<Vec<_>>().into();
-        let result = parallel_work_queue(
+        let mut result = 0i32;
+        parallel_work_queue(
             &pool,
             1,
             &items,
@@ -362,6 +456,12 @@ mod tests {
             || 0i32,
             |_start, chunk| chunk.iter().sum::<i32>(),
             |acc, partial| *acc += partial,
+            |_| {},
+            |worker_results| {
+                for partial in worker_results {
+                    result += partial;
+                }
+            },
         );
         assert_eq!(result, (0..100).sum::<i32>());
     }
@@ -378,5 +478,29 @@ mod tests {
             });
         } // pool dropped here – should join
         assert_eq!(flag.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn parallel_work_queue_many_workers_few_chunks() {
+        // More workers than chunks — extra workers should gracefully no-op.
+        let pool = ThreadPool::new(8);
+        let items: Arc<[u64]> = (1..=10u64).collect::<Vec<_>>().into();
+        let mut result = 0u64;
+        parallel_work_queue(
+            &pool,
+            8,
+            &items,
+            5,
+            || 0u64,
+            |_start, chunk| chunk.iter().sum::<u64>(),
+            |acc, partial| *acc += partial,
+            |_| {},
+            |worker_results| {
+                for partial in worker_results {
+                    result += partial;
+                }
+            },
+        );
+        assert_eq!(result, 55);
     }
 }

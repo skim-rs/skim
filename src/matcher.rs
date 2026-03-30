@@ -1,5 +1,6 @@
 //! This module contains the matching coordinator
 use crate::thread_pool::{self, ThreadPool};
+use crate::tui::item_list::{MergeStrategy, ProcessedItems};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -8,6 +9,7 @@ use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
+use crate::spinlock::SpinLock;
 use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
 
 //==============================================================================
@@ -181,18 +183,23 @@ impl Matcher {
 
     /// Runs the matcher on items from the pool in a background thread.
     ///
-    /// The callback is invoked when matching is complete with the matched items.
-    /// Returns a `MatcherControl` that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(
+    /// When matching completes, the coordinator merges results directly into
+    /// `processed_items` according to `merge_strategy`, then signals
+    /// `needs_render` so the UI picks up the new data on its next tick.
+    ///
+    /// Returns a `MatcherControl` that can be used to monitor progress or
+    /// stop the matcher.
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    pub(crate) fn run(
         &self,
         query: &str,
         item_pool: &Arc<ItemPool>,
         thread_pool: &Arc<ThreadPool>,
-        callback: C,
-    ) -> MatcherControl
-    where
-        C: Fn(Vec<MatchedItem>) + Send + 'static,
-    {
+        processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
+        merge_strategy: MergeStrategy,
+        no_sort: bool,
+        needs_render: Arc<AtomicBool>,
+    ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {matcher_engine}");
         let stopped = Arc::new(AtomicBool::new(false));
@@ -243,7 +250,7 @@ impl Matcher {
             let matched_for_work = Arc::clone(&matched);
             let rank_builder_for_work = Arc::clone(&rank_builder);
 
-            let matched_items: Vec<MatchedItem> = thread_pool::parallel_work_queue(
+            thread_pool::parallel_work_queue(
                 &pool_for_work,
                 num_workers,
                 &shared_items,
@@ -283,9 +290,9 @@ impl Matcher {
 
                     local_matches
                 },
-                // reduce – merge a chunk's matches into the worker-local accumulator
+                // reduce – accumulate chunk matches into the worker-local Vec.
+                // No sorting here — that would be O(m²/chunk_size) per worker.
                 |acc: &mut Vec<MatchedItem>, mut partial: Vec<MatchedItem>| {
-                    // Always extend the larger vec to avoid unnecessary reallocs.
                     if acc.len() >= partial.len() {
                         acc.extend(partial);
                     } else {
@@ -293,12 +300,64 @@ impl Matcher {
                         *acc = partial;
                     }
                 },
-            );
+                // prepare – sort each worker's accumulator **on the worker
+                // thread** so that sorting runs in parallel across all workers.
+                // A single O((m/k)·log(m/k)) sort per worker is far cheaper
+                // than sorting during reduce.
+                move |acc: &mut Vec<MatchedItem>| {
+                    if !no_sort {
+                        acc.sort();
+                    }
+                },
+                // merge – flatten pre-sorted worker results into a single Vec.
+                // Each worker's sub-list is already sorted by `prepare`, so
+                // the concatenated Vec consists of k sorted runs.  Timsort
+                // detects these runs and merges them in O(n), giving us a
+                // fully-sorted result without an O(n·log n) sort.
+                |worker_results: Vec<Vec<MatchedItem>>| {
+                    if interrupt.load(Ordering::SeqCst) {
+                        return;
+                    }
 
-            if !interrupt.load(Ordering::SeqCst) {
-                trace!("matcher stop, total matched: {}", matched_items.len());
-                callback(matched_items);
-            }
+                    // Concatenate all worker results into one Vec.
+                    let total_len: usize = worker_results.iter().map(std::vec::Vec::len).sum();
+                    let mut items = Vec::with_capacity(total_len);
+                    for worker_matches in worker_results {
+                        items.extend(worker_matches);
+                    }
+
+                    // Each worker's sub-list is pre-sorted by `prepare`, so
+                    // the concatenated Vec consists of k sorted runs.  Timsort
+                    // detects these runs and merges them in O(n).
+                    if !no_sort {
+                        items.sort();
+                    }
+
+                    trace!("matcher stop, total matched: {}", items.len());
+
+                    // Single lock, single write into processed_items.
+                    let mut guard = processed_items.lock();
+                    match &mut *guard {
+                        Some(existing) => {
+                            if no_sort {
+                                existing.items.extend(items);
+                            } else {
+                                // Both sides are fully sorted — one O(n+m) merge.
+                                MatchedItem::merge_into_sorted(&mut existing.items, items);
+                            }
+                        }
+                        None => {
+                            *guard = Some(ProcessedItems {
+                                items,
+                                merge: merge_strategy,
+                            });
+                        }
+                    }
+                    drop(guard);
+
+                    needs_render.store(true, Ordering::Relaxed);
+                },
+            );
             stopped.store(true, Ordering::Relaxed);
         });
 
