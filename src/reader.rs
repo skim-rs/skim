@@ -182,7 +182,7 @@ where
                     callback(items);
                 }
                 Ok(None) => {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    std::thread::sleep(std::time::Duration::from_millis(1));
                 }
                 Err(_) => {
                     break;

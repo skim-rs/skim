@@ -1,5 +1,6 @@
 //! Helper utilities for converting input sources into skim item streams.
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Stdio};
@@ -7,6 +8,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+
+/// Size of the read buffer used by the parallel I/O reader thread.
+const PARALLEL_READ_BUF_SIZE: usize = 256 * 1024;
 
 use regex::Regex;
 
@@ -281,16 +285,185 @@ impl SkimItemReader {
         }
     }
 
-    /// helper: convert bufread into `SkimItemReceiver`
+    /// Parallel reader for the simple (no ANSI, no field transforms) case.
+    ///
+    /// Uses a three-stage pipeline to distribute work across cores:
+    ///
+    /// 1. **I/O thread** — reads large byte chunks (~256 KB) from the source,
+    ///    splitting on line boundaries. Assigns monotonic sequence numbers.
+    /// 2. **Worker threads** — pull chunks from a shared MPMC channel, split
+    ///    into lines, validate UTF-8, and create `DefaultSkimItem` + `Arc`
+    ///    per line.  This parallelises the allocation-heavy per-line work.
+    /// 3. **Reorder thread** — collects `(seq, items)` from workers and emits
+    ///    them through the output channel in sequence order so downstream
+    ///    index assignment and `--tac` behaviour are correct.
     fn raw_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = kanal::bounded(1024 * 1024);
         let option = self.option.clone();
 
-        thread::spawn(move || {
-            Self::read_lines_into_items(source, &tx_item, &option, &[], &[]);
-        });
+        // Scale workers to available cores — at least 2, capped at 8.
+        // Half the cores is enough to keep up with the matcher while leaving
+        // room for matcher threads to run concurrently.
+        let num_workers = std::thread::available_parallelism()
+            .ok()
+            .map_or(2, |n| n.get().clamp(2, 8));
+
+        // I/O thread → workers: raw byte chunks tagged with sequence numbers.
+        let (tx_chunks, rx_chunks) = kanal::bounded::<(usize, Vec<u8>)>(num_workers * 4);
+
+        // Workers → reorder thread: item batches tagged with sequence numbers.
+        let (tx_results, rx_results) = kanal::bounded::<(usize, Vec<Arc<dyn SkimItem>>)>(num_workers * 4);
+
+        let line_ending = option.line_ending;
+
+        // ---- Stage 1: I/O thread ----
+        Self::spawn_io_reader(source, tx_chunks, line_ending);
+
+        // ---- Stage 2: Worker threads ----
+        for _ in 0..num_workers {
+            Self::spawn_chunk_worker(rx_chunks.clone(), tx_results.clone(), option.clone());
+        }
+        // Drop our clones so channels close when all producers finish.
+        drop(rx_chunks);
+        drop(tx_results);
+
+        // ---- Stage 3: Reorder thread ----
+        Self::spawn_reorder_thread(rx_results, tx_item);
 
         rx_item
+    }
+
+    /// Stage 1 of the parallel reader: reads large byte chunks from `source`,
+    /// splitting on line boundaries, and sends them to workers.
+    fn spawn_io_reader(
+        source: impl BufRead + Send + 'static,
+        tx_chunks: kanal::Sender<(usize, Vec<u8>)>,
+        line_ending: u8,
+    ) {
+        thread::spawn(move || {
+            debug!("parallel reader: I/O thread start");
+
+            let mut source = source;
+            let mut leftover: Vec<u8> = Vec::new();
+            let mut seq = 0usize;
+            let mut read_buf = vec![0u8; PARALLEL_READ_BUF_SIZE];
+
+            loop {
+                let n = match std::io::Read::read(&mut source, &mut read_buf) {
+                    Ok(0) => {
+                        // EOF — flush any remaining leftover as the final chunk.
+                        if !leftover.is_empty() {
+                            let _ = tx_chunks.send((seq, std::mem::take(&mut leftover)));
+                        }
+                        break;
+                    }
+                    Ok(n) => n,
+                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => break,
+                };
+
+                // Combine leftover from previous iteration with fresh data.
+                let data = if leftover.is_empty() {
+                    read_buf[..n].to_vec()
+                } else {
+                    let mut combined = std::mem::take(&mut leftover);
+                    combined.extend_from_slice(&read_buf[..n]);
+                    combined
+                };
+
+                // Split at the last newline: everything up to it forms a
+                // complete-line chunk; the remainder carries over.
+                if let Some(last_nl) = memchr::memrchr(line_ending, &data) {
+                    leftover = data[last_nl + 1..].to_vec();
+                    let mut chunk = data;
+                    chunk.truncate(last_nl + 1);
+                    if tx_chunks.send((seq, chunk)).is_err() {
+                        break;
+                    }
+                    seq += 1;
+                } else {
+                    // No newline at all — accumulate for the next read.
+                    leftover = data;
+                }
+            }
+
+            debug!("parallel reader: I/O thread stop (sent {seq} chunks)");
+        });
+    }
+
+    /// Stage 2 worker: pulls byte chunks, splits into lines, creates items.
+    fn spawn_chunk_worker(
+        rx: kanal::Receiver<(usize, Vec<u8>)>,
+        tx: kanal::Sender<(usize, Vec<Arc<dyn SkimItem>>)>,
+        opt: Arc<SkimItemReaderOption>,
+    ) {
+        thread::spawn(move || {
+            while let Ok((seq, chunk)) = rx.recv() {
+                let mut items = Vec::new();
+                let line_ending = opt.line_ending;
+
+                // Chunks produced by the I/O thread end with the
+                // line-ending delimiter (except possibly the final
+                // leftover at EOF).  `split()` would produce a
+                // spurious trailing empty segment in that case, so
+                // we trim the trailing delimiter first.  After
+                // trimming, every segment — including empty ones —
+                // maps 1:1 to an input line.
+                let chunk_trimmed: &[u8] = if chunk.last() == Some(&line_ending) {
+                    &chunk[..chunk.len() - 1]
+                } else {
+                    &chunk[..]
+                };
+
+                for line_bytes in chunk_trimmed.split(|&b: &u8| b == line_ending) {
+                    // Strip optional \r for \r\n endings.
+                    let line_bytes: &[u8] = line_bytes.strip_suffix(b"\r").unwrap_or(line_bytes);
+                    let Ok(line) = std::str::from_utf8(line_bytes) else {
+                        continue;
+                    };
+                    // Use DefaultSkimItem::new to preserve ANSI-escape
+                    // stripping behaviour even when --ansi is not set.
+                    items.push(Arc::new(DefaultSkimItem::new(
+                        line,
+                        opt.use_ansi_color,
+                        &opt.transform_fields,
+                        &opt.matching_fields,
+                        &opt.delimiter,
+                    )) as Arc<dyn SkimItem>);
+                }
+                if tx.send((seq, items)).is_err() {
+                    break;
+                }
+            }
+        });
+    }
+
+    /// Stage 3: receives item batches from workers and emits them through the
+    /// downstream channel in the original sequence order.
+    fn spawn_reorder_thread(rx_results: kanal::Receiver<(usize, Vec<Arc<dyn SkimItem>>)>, tx_item: SkimItemSender) {
+        thread::spawn(move || {
+            debug!("parallel reader: reorder thread start");
+            let mut expected = 0usize;
+            let mut pending: BTreeMap<usize, Vec<Arc<dyn SkimItem>>> = BTreeMap::new();
+
+            while let Ok((seq, items)) = rx_results.recv() {
+                pending.insert(seq, items);
+                // Flush consecutive batches starting from the expected seq.
+                while let Some(batch) = pending.remove(&expected) {
+                    if tx_item.send(batch).is_err() {
+                        return;
+                    }
+                    expected += 1;
+                }
+            }
+            // Drain anything left (shouldn't normally happen).
+            while let Some((&seq, _)) = pending.first_key_value() {
+                if pending.remove(&seq).is_some_and(|batch| tx_item.send(batch).is_err()) {
+                    return;
+                }
+            }
+            debug!("parallel reader: reorder thread stop");
+        });
     }
 
     /// `components_to_stop` == 0 => all the threads have been stopped
