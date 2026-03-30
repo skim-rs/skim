@@ -4,7 +4,7 @@ use ratatui::widgets::{ListDirection, ListItem};
 use unicode_display_width::width as display_width;
 
 use crate::tui::item_list::ItemList;
-use crate::tui::util::{char_display_width, wrap_text};
+use crate::tui::util::{char_display_width, clip_line_to_chars, wrap_text};
 use crate::{DisplayContext, MatchRange, item::MatchedItem, theme::ColorTheme};
 
 /// Rendering parameters that are constant across all items in one render pass.
@@ -202,22 +202,7 @@ impl<'a> ItemRenderer<'a> {
                 });
 
                 // Clip to first sub-line's chars only.
-                let mut clipped: Vec<Span<'static>> = Vec::new();
-                let mut chars_seen = 0usize;
-                for span in dl.spans {
-                    if chars_seen >= first_sub_char_len {
-                        break;
-                    }
-                    let span_chars: Vec<char> = span.content.chars().collect();
-                    let take = (first_sub_char_len - chars_seen).min(span_chars.len());
-                    let text: String = span_chars[..take].iter().collect();
-                    if !text.is_empty() {
-                        clipped.push(Span::styled(text, span.style));
-                    }
-                    chars_seen += span_chars.len();
-                }
-
-                let mut line = Line::from(clipped);
+                let mut line = clip_line_to_chars(dl, first_sub_char_len);
                 if !self.wrap {
                     line = self.apply_hscroll(line, shift, full_width);
                 }

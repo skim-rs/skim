@@ -8,6 +8,7 @@ use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
 use crate::tui::util::char_display_width;
+use crate::tui::util::clip_line_to_chars;
 use crate::tui::util::style_line;
 use crate::tui::util::style_text;
 use crate::tui::widget::{SkimRender, SkimWidget};
@@ -15,7 +16,7 @@ use crate::tui::widget::{SkimRender, SkimWidget};
 use ansi_to_tui::IntoText;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::Text;
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Widget;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use std::cmp::max;
@@ -32,9 +33,12 @@ pub struct Header {
     /// Dynamic header lines from input (from --header-lines option)
     pub header_lines: Vec<Arc<dyn SkimItem>>,
     /// Fixed number of rows reserved for dynamic header lines (`--header-lines`).
-    /// This is set once from the option and never changes, so that the layout
-    /// height is stable before the items actually arrive.
+    /// Used as the row estimate before items arrive; once items are available
+    /// `height()` counts the actual sub-lines produced by multiline splitting.
     header_lines_count: u16,
+    /// When `--multiline` is active, the separator string used to split each
+    /// header-line item into multiple display rows.
+    multiline: Option<String>,
     /// The number of spaces to show before the header
     indent_size: u16,
     theme: Arc<ColorTheme>,
@@ -65,7 +69,20 @@ impl Header {
         } else {
             u16::try_from(self.header.lines().count()).unwrap_or(u16::MAX)
         };
-        static_lines + self.header_lines_count
+        // Once items have arrived, count actual terminal rows (accounting for
+        // multiline splitting).  Before items arrive fall back to the
+        // compile-time estimate so the layout is stable on the first frame.
+        let dynamic_lines = if self.header_lines.is_empty() {
+            self.header_lines_count
+        } else if let Some(sep) = self.multiline.as_deref() {
+            self.header_lines
+                .iter()
+                .map(|item| u16::try_from(item.text().split(sep).count().max(1)).unwrap_or(1))
+                .sum()
+        } else {
+            u16::try_from(self.header_lines.len()).unwrap_or(u16::MAX)
+        };
+        static_lines + dynamic_lines
     }
 
     /// Sets the dynamic header lines from input (--header-lines)
@@ -76,7 +93,7 @@ impl Header {
         }
     }
     fn header_text<'a>(&self) -> Text<'a> {
-        let mut res = self.header.into_text().unwrap(); //.unwrap_or(Text::from(self.header.clone()));
+        let mut res = self.header.into_text().unwrap();
         style_text(&mut res, self.theme.header);
         res
     }
@@ -120,6 +137,7 @@ impl SkimWidget for Header {
                 .header_lines
                 .try_into()
                 .expect("header_lines count overflows u16"),
+            multiline: options.multiline.as_ref().and_then(std::clone::Clone::clone),
             indent_size: (options.selector_icon.chars().count() + options.multi_select_icon.chars().count())
                 .try_into()
                 .expect("Failed to fit selector lens into an u16"),
@@ -145,7 +163,14 @@ impl SkimWidget for Header {
             0
         } else {
             self.header_text().lines.len()
-        } + self.header_lines.len();
+        } + if let Some(sep) = self.multiline.as_deref() {
+            self.header_lines
+                .iter()
+                .map(|item| item.text().split(sep).count().max(1))
+                .sum()
+        } else {
+            self.header_lines.len()
+        };
 
         let container_height = if self.border.is_some() {
             area.height - 2
@@ -170,9 +195,29 @@ impl SkimWidget for Header {
         };
 
         for item in &self.header_lines {
-            let mut line = item.display(display_context.clone());
-            style_line(&mut line, self.theme.header);
-            combined_header.push_line(line);
+            if let Some(sep) = self.multiline.as_deref() {
+                let item_text = item.text();
+                let sub_lines: Vec<&str> = item_text.split(sep).collect();
+
+                // First sub-line: call display() so that ANSI styling is applied,
+                // then clip the result to the character count of that sub-part.
+                let first_char_len = sub_lines.first().map_or(0, |s| s.chars().count());
+                let full_display = item.display(display_context.clone());
+                let mut first_line = clip_line_to_chars(full_display, first_char_len);
+                style_line(&mut first_line, self.theme.header);
+                combined_header.push_line(first_line);
+
+                // Remaining sub-lines: plain styled text (no ANSI re-processing needed).
+                for sub_text in sub_lines.iter().skip(1) {
+                    let mut line = Line::from(vec![Span::styled(sub_text.to_string(), display_context.base_style)]);
+                    style_line(&mut line, self.theme.header);
+                    combined_header.push_line(line);
+                }
+            } else {
+                let mut line = item.display(display_context.clone());
+                style_line(&mut line, self.theme.header);
+                combined_header.push_line(line);
+            }
         }
 
         // Add static header (from --header)
