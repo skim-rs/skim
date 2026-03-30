@@ -574,3 +574,57 @@ insta_test!(opt_exit_0_enter, ["1", "2", "3"], &["-q", "1", "--exit-0"], {
 insta_test!(opt_ellipsis, ["aabbccddeeffggghiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz"], &["--preview", "echo a", "--preview-window", "right:80%", "-q", "ij", "--ellipsis", "%%%"], {
     @snap;
 });
+
+insta_test!(opt_multiline, ["a", "b1\\nb2", "c"], &["--multiline"], {
+    @snap;
+    @key Up;
+    @snap;
+    @key Up;
+    @snap;
+});
+
+insta_test!(opt_multiline_custom_sep, ["x", "p|q|r", "y"], &["--multiline", "|"], {
+    @snap;
+});
+
+// Scrolling with multiline items: the screen is 24 rows (22 usable).  Each
+// multiline item occupies 2 rows, so 11 such items already fill the screen.
+// We feed 15 items and navigate to the top to force the offset to advance.
+insta_test!(opt_multiline_scroll, [
+    "a1\\na2", "b1\\nb2", "c1\\nc2", "d1\\nd2", "e1\\ne2",
+    "f1\\nf2", "g1\\ng2", "h1\\nh2", "i1\\ni2", "j1\\nj2",
+    "k1\\nk2", "l1\\nl2", "m1\\nm2", "n1\\nn2", "o1\\no2"
+], &["--multiline"], {
+    @snap;
+    @action Last;
+    @snap;
+});
+
+insta_test!(opt_multiline_scroll_incr, [
+    "a1\\na2", "b1\\nb2", "c1\\nc2", "d1\\nd2", "e1\\ne2",
+    "f1\\nf2", "g1\\ng2", "h1\\nh2", "i1\\ni2", "j1\\nj2",
+    "k1\\nk2", "l1\\nl2", "m1\\nm2", "n1\\nn2", "o1\\no2"
+], &["--multiline"], {
+    @snap;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @snap;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @key Up;
+    @snap;
+});

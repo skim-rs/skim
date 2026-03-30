@@ -61,6 +61,7 @@ light-quadruple-dashed\t''
 heavy-quadruple-dashed\t''
 quadrant-inside\t''
 quadrant-outside\t''"
+complete -c sk -l multiline -d 'Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)' -r
 complete -c sk -l history -d 'History file' -r
 complete -c sk -l history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l cmd-history -d 'Command history file' -r
@@ -136,6 +137,7 @@ complete -c sk -s m -l multi -d 'Enable multiple selection'
 complete -c sk -l no-multi -d 'Disable multiple selection'
 complete -c sk -l no-mouse -d 'Disable mouse'
 complete -c sk -s i -l interactive -d 'Start skim in interactive mode'
+complete -c sk -l highlight-line -d 'Highlight the entire current line, not just the text'
 complete -c sk -l no-hscroll -d 'Disable horizontal scroll'
 complete -c sk -l keep-right -d 'Keep the right end of the line visible on overflow'
 complete -c sk -l no-clear-if-empty -d 'Do not clear previous line if the command returns an empty result'
@@ -169,7 +171,6 @@ complete -c sk -l filepath-word
 complete -c sk -l no-bold
 complete -c sk -l phony
 complete -c sk -l no-color
-complete -c sk -l highlight-line
 complete -c sk -l no-multi-line
 complete -c sk -l raw
 complete -c sk -l track

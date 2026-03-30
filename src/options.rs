@@ -334,6 +334,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub color: Option<String>,
 
+    /// Highlight the entire current line, not just the text
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
+    pub highlight_line: bool,
+
     /// Disable horizontal scroll
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_hscroll: bool,
@@ -490,7 +494,7 @@ pub struct SkimOptions {
     /// The characters used to display truncated lines
     #[cfg_attr(
         feature = "cli",
-        arg(long, hide = true, allow_hyphen_values = true, default_value = "..")
+        arg(long, hide = true, allow_hyphen_values = true, default_value = "...")
     )]
     pub ellipsis: String,
 
@@ -546,6 +550,21 @@ pub struct SkimOptions {
     /// Wrap items in the item list
     #[cfg_attr(feature = "cli", arg(long = "wrap", help_heading = "Display"))]
     pub wrap_items: bool,
+
+    /// Split item text into multiple display lines at the given separator character
+    /// defaults to `\n` if `read0` is set, and `\\n` if not (matching literal `\n` in text)
+    ///
+    /// Each item's text will be split on the separator and each part will be
+    /// displayed as a separate line within that item's row.
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long = "multiline",
+            help_heading = "Display",
+            num_args = 0..=1
+        )
+    )]
+    pub multiline: Option<Option<String>>,
 
     //  --- History ---
     /// History file
@@ -831,9 +850,6 @@ pub struct SkimOptions {
     border_label_pos: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
-    highlight_line: bool,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
     wrap_sign: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
@@ -980,6 +996,7 @@ impl Default for SkimOptions {
             split_match: None,
             no_strip_ansi: false,
             wrap_items: false,
+            multiline: None,
             listen: None,
             remote: None,
             print_header: false,
@@ -1145,6 +1162,14 @@ impl SkimOptions {
     pub fn build(mut self) -> Self {
         if self.no_height {
             self.height = String::from("100%");
+        }
+
+        if let Some(None) = self.multiline {
+            if self.read0 {
+                self.multiline = Some(Some(String::from("\n")));
+            } else {
+                self.multiline = Some(Some(String::from("\\n")));
+            }
         }
 
         self.keymap = self.bind.iter().fold(KeyMap::default(), |mut res, part| {

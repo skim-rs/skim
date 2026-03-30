@@ -68,6 +68,23 @@ jobs:
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
+          INSTA_UPDATE: new
+      - name: Show snapshot diffs on failure
+        if: failure()
+        run: |
+          find tests/snapshots/ -name "*.snap.new" | while read -r new_snap; do
+            base="${new_snap%.new}"
+            echo "=== Snapshot diff: $base ==="
+            echo "new: $new_snap"
+            cat "$new_snap"
+            if [ -f "$base" ]; then
+              echo "old: $base"
+              cat "$base"
+              diff "$base" "$new_snap"
+            else
+            fi
+          done
+        shell: bash
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:

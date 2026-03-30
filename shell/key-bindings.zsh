@@ -156,8 +156,8 @@ skim-history-widget() {
     fc_opts='-i'
     n=3
   fi
-  selected=( $(fc -rl $fc_opts 1 | awk -v c_idx="$c_idx" -v c_date="$c_date" -v c_reset="$c_reset" -v today="$today" "$awk_filter" |
-    SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n$n.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi $ansi_opt --tabstop=20" $(__skimcmd)) )
+  selected=( $(fc -rl $fc_opts 1 | awk -v c_idx="$c_idx" -v c_date="$c_date" -v c_reset="$c_reset" -v today="$today" "$awk_filter" | sed 's/\\n/\\n\t/g' |
+    SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n$n..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --query=${(qqq)LBUFFER} --no-multi $ansi_opt --tabstop=20 --multiline" $(__skimcmd)) )
   local ret=$?
   if [ -n "$selected" ]; then
     num=$selected[1]

@@ -60,6 +60,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
 '--border=[Draw borders around the UI components]::BORDER:(plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside)' \
+'--multiline=[Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)]::MULTILINE:_default' \
 '--history=[History file]:HISTORY_FILE:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
 '--cmd-history=[Command history file]:CMD_HISTORY_FILE:_default' \
@@ -140,6 +141,7 @@ show-index\:"Display the item'\''s index before its value in the item list"))' \
 '--no-mouse[Disable mouse]' \
 '-i[Start skim in interactive mode]' \
 '--interactive[Start skim in interactive mode]' \
+'--highlight-line[Highlight the entire current line, not just the text]' \
 '--no-hscroll[Disable horizontal scroll]' \
 '--keep-right[Keep the right end of the line visible on overflow]' \
 '--no-clear-if-empty[Do not clear previous line if the command returns an empty result]' \
@@ -176,7 +178,6 @@ show-index\:"Display the item'\''s index before its value in the item list"))' \
 '--no-bold[]' \
 '--phony[]' \
 '--no-color[]' \
-'--highlight-line[]' \
 '--no-multi-line[]' \
 '--raw[]' \
 '--track[]' \

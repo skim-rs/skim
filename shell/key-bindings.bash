@@ -65,7 +65,7 @@ if [[ $- =~ i ]]; then
         { cmd = cmd "\n" $0 }
         END { if (cmd != "" && !seen[cmd]++) printf "%s%d%s\t%s%c", c_idx, HISTCMD - idx, c_reset, cmd, 0 }
       ' |
-				SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n2.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0 $ansi_opt" $(__skimcmd) --query "$READLINE_LINE"
+				SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n2..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0 --multiline $ansi_opt" $(__skimcmd) --query "$READLINE_LINE"
 		) || return
 		echo -e "\033[0m"
 		READLINE_LINE=${output#*$'\t'}

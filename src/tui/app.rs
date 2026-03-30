@@ -110,6 +110,10 @@ pub struct App {
     pub cmd: String,
     /// Pre-computed layout template built from options; rebuilt when options change.
     pub layout_template: LayoutTemplate,
+    /// The header height used when `layout_template` was last built.
+    /// Used to detect when multiline header items arrive and the template needs
+    /// to be rebuilt to allocate the correct number of rows.
+    last_header_height: u16,
     /// Concrete widget areas for the last rendered frame; updated in `render()`.
     pub layout: AppLayout,
     /// Last time preview was spawned (for debouncing)
@@ -125,11 +129,17 @@ impl Widget for &mut App {
         let mut res = SkimRender::default();
         let has_border = self.options.border.is_some();
 
-        // Update header with reserved items (from --header-lines), then apply
-        // the pre-built template to the current terminal area.  The template
-        // encodes all option-derived constraints so this is a cheap set of
-        // rect splits with no option inspection.
+        // Update header with reserved items (from --header-lines).  When
+        // --multiline is active a header-line item may occupy more rows than
+        // the initial estimate (which was based purely on item count).  Detect
+        // that change and rebuild the layout template so the header area gets
+        // the right height before the frame is drawn.
         self.header.set_header_lines(self.item_pool.reserved());
+        let current_header_height = self.header.height();
+        if current_header_height != self.last_header_height {
+            self.last_header_height = current_header_height;
+            self.layout_template = LayoutTemplate::from_options(&self.options, current_header_height);
+        }
         self.layout = self.layout_template.apply(area);
 
         if let Some(header_area) = self.layout.header_area {
@@ -182,7 +192,8 @@ impl Default for App {
         let theme = Arc::new(crate::theme::ColorTheme::default());
         let opts = SkimOptions::default();
         let header = Header::from_options(&opts, theme.clone());
-        let layout_template = LayoutTemplate::from_options(&opts, header.height());
+        let initial_header_height = header.height();
+        let layout_template = LayoutTemplate::from_options(&opts, initial_header_height);
         let layout = layout_template.apply(Rect::default());
         Self {
             input: Input::from_options(&opts, theme.clone()),
@@ -223,6 +234,7 @@ impl Default for App {
             saved_cmd_input: String::new(),
             options: opts,
             cmd: String::new(),
+            last_header_height: initial_header_height,
             layout_template,
             layout,
             last_preview_spawn: std::time::Instant::now(),
@@ -242,7 +254,8 @@ impl App {
     #[must_use]
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let header = Header::from_options(&options, theme.clone());
-        let layout_template = LayoutTemplate::from_options(&options, header.height());
+        let initial_header_height = header.height();
+        let layout_template = LayoutTemplate::from_options(&options, initial_header_height);
         let layout = layout_template.apply(Rect::default());
         Self {
             input: Input::from_options(&options, theme.clone()),
@@ -283,6 +296,7 @@ impl App {
             saved_cmd_input: String::new(),
             options,
             cmd,
+            last_header_height: initial_header_height,
             layout_template,
             layout,
             last_preview_spawn: std::time::Instant::now()
@@ -888,36 +902,36 @@ impl App {
             HalfPageDown(n) => {
                 let offset = i32::from(self.item_list.height) / 2;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 } else {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }
             HalfPageUp(n) => {
                 let offset = i32::from(self.item_list.height) / 2;
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 } else {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }
             PageDown(n) => {
                 let offset = i32::from(self.item_list.height);
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 } else {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }
             PageUp(n) => {
                 let offset = i32::from(self.item_list.height);
                 if self.options.layout == TuiLayout::Default {
-                    self.item_list.scroll_by(offset * n);
+                    self.item_list.scroll_by_rows(offset * n);
                 } else {
-                    self.item_list.scroll_by(-offset * n);
+                    self.item_list.scroll_by_rows(-offset * n);
                 }
                 return Ok(Self::on_selection_changed());
             }

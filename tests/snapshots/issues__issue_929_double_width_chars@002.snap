@@ -1,0 +1,29 @@
+---
+source: tests/issues.rs
+description: "input: items [\"\"]\noptions: -q 中文测试\nafter:\n  @char '|'"
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  0/1                                                                        0/0"
+"> 中文测试|                                                                     " Hidden by multi-width symbols: [(3, " "), (5, " "), (7, " "), (9, " ")]
+cursor: (24, 12)

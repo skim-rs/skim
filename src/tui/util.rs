@@ -13,6 +13,36 @@ use std::{
 };
 use unicode_display_width::is_double_width;
 
+/// Clips a [`Line`] to at most `max_chars` characters, preserving per-span styles.
+///
+/// Iterates over the spans in `line` and collects characters until `max_chars`
+/// is reached, splitting a span at the boundary if necessary.  The returned
+/// line owns all its string data (`Line<'static>`), so it can be stored or
+/// passed across lifetimes freely.
+///
+/// This is the shared primitive used whenever a fully-displayed item line
+/// (potentially with ANSI colours or match highlights) must be clipped to the
+/// character count of a single multiline sub-segment — for example, when
+/// rendering the first sub-line of a `--multiline` item in both the item list
+/// and the header-lines area.
+pub(crate) fn clip_line_to_chars(line: Line<'_>, max_chars: usize) -> Line<'static> {
+    let mut chars_seen = 0usize;
+    let mut clipped: Vec<Span<'static>> = Vec::new();
+    for span in line.spans {
+        if chars_seen >= max_chars {
+            break;
+        }
+        let span_chars: Vec<char> = span.content.chars().collect();
+        let take = (max_chars - chars_seen).min(span_chars.len());
+        let text: String = span_chars[..take].iter().collect();
+        if !text.is_empty() {
+            clipped.push(Span::styled(text, span.style));
+        }
+        chars_seen += span_chars.len();
+    }
+    Line::from(clipped)
+}
+
 // Directly taken from https://docs.rs/unicode-display-width/0.3.0/src/unicode_display_width/lib.rs.html#77-81
 #[inline]
 pub fn char_display_width(c: char) -> usize {
@@ -439,6 +469,87 @@ mod tests {
         assert!(styles.contains(&Some(Color::Red)));
         assert!(styles.contains(&Some(Color::Blue)));
         assert!(styles.contains(&Some(Color::Green)));
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_basic() {
+        let line = Line::from("hello world");
+        let clipped = clip_line_to_chars(line, 5);
+        let content: String = clipped.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(content, "hello");
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_exact_length() {
+        let line = Line::from("hello");
+        let clipped = clip_line_to_chars(line, 5);
+        let content: String = clipped.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(content, "hello");
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_longer_than_input() {
+        let line = Line::from("hi");
+        let clipped = clip_line_to_chars(line, 100);
+        let content: String = clipped.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(content, "hi");
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_zero() {
+        let line = Line::from("hello");
+        let clipped = clip_line_to_chars(line, 0);
+        let content: String = clipped.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(content, "");
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_preserves_styles() {
+        use ratatui::style::Color;
+        let red = Style::default().fg(Color::Red);
+        let blue = Style::default().fg(Color::Blue);
+        let line = Line::from(vec![Span::styled("abc", red), Span::styled("def", blue)]);
+        // Clip at the span boundary.
+        let clipped = clip_line_to_chars(line, 3);
+        assert_eq!(clipped.spans.len(), 1);
+        assert_eq!(clipped.spans[0].content.as_ref(), "abc");
+        assert_eq!(clipped.spans[0].style.fg, Some(Color::Red));
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_splits_span() {
+        use ratatui::style::Color;
+        let red = Style::default().fg(Color::Red);
+        let blue = Style::default().fg(Color::Blue);
+        let line = Line::from(vec![Span::styled("abcde", red), Span::styled("fghij", blue)]);
+        // Clip inside the first span.
+        let clipped = clip_line_to_chars(line, 3);
+        assert_eq!(clipped.spans.len(), 1);
+        assert_eq!(clipped.spans[0].content.as_ref(), "abc");
+        assert_eq!(clipped.spans[0].style.fg, Some(Color::Red));
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_splits_across_spans() {
+        use ratatui::style::Color;
+        let red = Style::default().fg(Color::Red);
+        let blue = Style::default().fg(Color::Blue);
+        let line = Line::from(vec![Span::styled("abc", red), Span::styled("def", blue)]);
+        // Clip into the second span.
+        let clipped = clip_line_to_chars(line, 5);
+        assert_eq!(clipped.spans.len(), 2);
+        assert_eq!(clipped.spans[0].content.as_ref(), "abc");
+        assert_eq!(clipped.spans[1].content.as_ref(), "de");
+        assert_eq!(clipped.spans[1].style.fg, Some(Color::Blue));
+    }
+
+    #[test]
+    fn test_clip_line_to_chars_unicode() {
+        // Each kanji is one char.
+        let line = Line::from("日本語テスト");
+        let clipped = clip_line_to_chars(line, 3);
+        let content: String = clipped.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(content, "日本語");
     }
 
     #[test]

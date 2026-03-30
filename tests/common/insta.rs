@@ -425,6 +425,18 @@ where
     enter_sized_with_source(options, 80, 24, Some(rx))
 }
 
+/// Initialize a test harness with raw bytes as input.
+///
+/// Feeds bytes directly through the `SkimItemReader` pipeline without spawning
+/// a subprocess. Useful for inputs containing NUL bytes (e.g. `--read0` tests)
+/// where the byte sequence cannot be expressed as a simple string.
+pub fn enter_bytes(bytes: &'static [u8], options: SkimOptions) -> Result<TestHarness> {
+    let reader_opts = SkimItemReaderOption::from_options(&options);
+    let item_reader = SkimItemReader::new(reader_opts);
+    let rx = item_reader.of_bufread(Cursor::new(bytes));
+    enter_sized_with_source(options, 80, 24, Some(rx))
+}
+
 /// Initialize a test harness with command output as items.
 ///
 /// The command is executed through the production `Reader` + `SkimItemReader`
@@ -458,6 +470,15 @@ pub fn enter_interactive(options: SkimOptions) -> Result<TestHarness> {
     enter(options)
 }
 
+/// Format a slice of CLI-style option strings as a single space-separated string.
+///
+/// Used by `insta_test!` to build snapshot descriptions.  Accepting `&[&str]`
+/// explicitly avoids the type-inference failure that occurs when the macro
+/// passes an un-typed empty slice literal (`&[]`) to `.join()`.
+pub fn fmt_opts(opts: &[&str]) -> String {
+    opts.join(" ")
+}
+
 /// Parse SkimOptions from CLI-style arguments.
 pub fn parse_options(args: &[&str]) -> SkimOptions {
     let mut full_args = vec!["sk"];
@@ -473,15 +494,42 @@ pub fn parse_options(args: &[&str]) -> SkimOptions {
 
 #[macro_export]
 macro_rules! snap {
-    ($harness:ident) => {
+    // With description and a 1-based counter — uses `snapshot_suffix` so that
+    // insta names the file `test_name@001.snap`, `test_name@002.snap`, …
+    // Files then sort correctly in `cargo insta review`.
+    ($harness:ident, $desc:expr, $count:expr) => {{
         $harness.prepare_snap()?;
-        let buf = $harness.buffer_view();
-        let cursor_pos = format!(
+        let __buf = $harness.buffer_view();
+        let __cursor_pos = format!(
             "cursor: ({}, {})",
             $harness.skim.app().cursor_pos.1 + 1,
             $harness.skim.app().cursor_pos.0 + 1
         );
-        insta::assert_snapshot!(buf + &cursor_pos);
+        insta::with_settings!({
+            description => $desc,
+            snapshot_suffix => format!("{:03}", $count),
+            omit_expression => true,
+        }, {
+            insta::assert_snapshot!(__buf + &__cursor_pos);
+        });
+    }};
+    // With description only (simple/single-snapshot variants) — no suffix, so
+    // the file is named `test_name.snap` as before.
+    ($harness:ident, $desc:expr) => {{
+        $harness.prepare_snap()?;
+        let __buf = $harness.buffer_view();
+        let __cursor_pos = format!(
+            "cursor: ({}, {})",
+            $harness.skim.app().cursor_pos.1 + 1,
+            $harness.skim.app().cursor_pos.0 + 1
+        );
+        insta::with_settings!({ description => $desc, omit_expression => true }, {
+            insta::assert_snapshot!(__buf + &__cursor_pos);
+        });
+    }};
+    // Backward-compat form — no description, no suffix.
+    ($harness:ident) => {
+        $crate::snap!($harness, "")
     };
 }
 
@@ -518,7 +566,12 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_items([$($item),*], options)?;
-            $crate::snap!(h);
+            let __desc = format!(
+                "input: items [{}]\noptions: {}",
+                stringify!($($item),*),
+                $crate::common::insta::fmt_opts($options),
+            );
+            $crate::snap!(h, &__desc);
             Ok(())
         }
     };
@@ -529,7 +582,12 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_items($items, options)?;
-            $crate::snap!(h);
+            let __desc = format!(
+                "input: items {}\noptions: {}",
+                stringify!($items),
+                $crate::common::insta::fmt_opts($options),
+            );
+            $crate::snap!(h, &__desc);
             Ok(())
         }
     };
@@ -540,7 +598,28 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_cmd($cmd, options)?;
-            $crate::snap!(h);
+            let __desc = format!(
+                "input: cmd {}\noptions: {}",
+                stringify!($cmd),
+                $crate::common::insta::fmt_opts($options),
+            );
+            $crate::snap!(h, &__desc);
+            Ok(())
+        }
+    };
+
+    // Simple variant with @bytes - just snapshot
+    ($name:ident, @bytes $bytes:expr, $options:expr) => {
+        #[test]
+        fn $name() -> color_eyre::Result<()> {
+            let options = $crate::common::insta::parse_options($options);
+            let mut h = $crate::common::insta::enter_bytes($bytes, options)?;
+            let __desc = format!(
+                "input: bytes {}\noptions: {}",
+                stringify!($bytes),
+                $crate::common::insta::fmt_opts($options),
+            );
+            $crate::snap!(h, &__desc);
             Ok(())
         }
     };
@@ -551,7 +630,11 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_interactive(options)?;
-            $crate::snap!(h);
+            let __desc = format!(
+                "input: interactive\noptions: {}",
+                $crate::common::insta::fmt_opts($options),
+            );
+            $crate::snap!(h, &__desc);
             Ok(())
         }
     };
@@ -562,8 +645,14 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_items($items, options)?;
-
-            insta_test!(@expand h; $($content)*);
+            let __base_desc = format!(
+                "input: items {}\noptions: {}",
+                stringify!($items),
+                $crate::common::insta::fmt_opts($options),
+            );
+            let mut __cmds: Vec<&'static str> = Vec::new();
+            let mut __snap_count: u32 = 0;
+            insta_test!(@expand h, __base_desc, __cmds, __snap_count; $($content)*);
 
             Ok(())
         }
@@ -575,8 +664,33 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_cmd($cmd, options)?;
+            let __base_desc = format!(
+                "input: cmd {}\noptions: {}",
+                stringify!($cmd),
+                $crate::common::insta::fmt_opts($options),
+            );
+            let mut __cmds: Vec<&'static str> = Vec::new();
+            let mut __snap_count: u32 = 0;
+            insta_test!(@expand h, __base_desc, __cmds, __snap_count; $($content)*);
 
-            insta_test!(@expand h; $($content)*);
+            Ok(())
+        }
+    };
+
+    // DSL variant with @bytes
+    ($name:ident, @bytes $bytes:expr, $options:expr, { $($content:tt)* }) => {
+        #[test]
+        fn $name() -> color_eyre::Result<()> {
+            let options = $crate::common::insta::parse_options($options);
+            let mut h = $crate::common::insta::enter_bytes($bytes, options)?;
+            let __base_desc = format!(
+                "input: bytes {}\noptions: {}",
+                stringify!($bytes),
+                $crate::common::insta::fmt_opts($options),
+            );
+            let mut __cmds: Vec<&'static str> = Vec::new();
+            let mut __snap_count: u32 = 0;
+            insta_test!(@expand h, __base_desc, __cmds, __snap_count; $($content)*);
 
             Ok(())
         }
@@ -588,129 +702,154 @@ macro_rules! insta_test {
         fn $name() -> color_eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_interactive(options)?;
-
-            insta_test!(@expand h; $($content)*);
+            let __base_desc = format!(
+                "input: interactive\noptions: {}",
+                $crate::common::insta::fmt_opts($options),
+            );
+            let mut __cmds: Vec<&'static str> = Vec::new();
+            let mut __snap_count: u32 = 0;
+            insta_test!(@expand h, __base_desc, __cmds, __snap_count; $($content)*);
 
             Ok(())
         }
     };
 
     // Token processing rules
-    (@expand $h:ident; ) => {};
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; ) => {};
 
-    // @snap - take snapshot
-    (@expand $h:ident; @snap; $($rest:tt)*) => {
-        $crate::snap!($h);
-        insta_test!(@expand $h; $($rest)*);
+    // @snap - increment counter, build description, snapshot with sorted suffix, clear
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @snap; $($rest:tt)*) => {
+        {
+            $count += 1;
+            let __snap_desc = if $cmds.is_empty() {
+                $base.clone()
+            } else {
+                format!("{}\nafter:\n  {}", $base, $cmds.join("\n  "))
+            };
+            $crate::snap!($h, &__snap_desc, $count);
+            $cmds.clear();
+        }
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @char - send single character
-    (@expand $h:ident; @char $c:expr ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @char $c:expr ; $($rest:tt)*) => {
+        $cmds.push(concat!("@char ", stringify!($c)));
         $h.char($c)?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @type - type a string
-    (@expand $h:ident; @type $text:expr ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @type $text:expr ; $($rest:tt)*) => {
+        $cmds.push(concat!("@type ", stringify!($text)));
         $h.type_str($text)?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @action - send an action (e.g., @action Down(1); or @action BackwardChar;)
-    (@expand $h:ident; @action $action:ident ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @action $action:ident ; $($rest:tt)*) => {
+        $cmds.push(concat!("@action ", stringify!($action)));
         $h.action(skim::tui::event::Action::$action)?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @action with parenthesized args (e.g., @action Down(1);)
-    (@expand $h:ident; @action $action:ident ($($args:tt)*) ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @action $action:ident ($($args:tt)*) ; $($rest:tt)*) => {
+        $cmds.push(concat!("@action ", stringify!($action), "(", stringify!($($args)*), ")"));
         $h.action(skim::tui::event::Action::$action($($args)*))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @key - send a special key (Enter, Escape, Tab, etc.)
-    (@expand $h:ident; @key $key:ident ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @key $key:ident ; $($rest:tt)*) => {
+        $cmds.push(concat!("@key ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::$key,
             crossterm::event::KeyModifiers::NONE
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @ctrl - send a key with Ctrl modifier
-    (@expand $h:ident; @ctrl $key:ident ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @ctrl $key:ident ; $($rest:tt)*) => {
+        $cmds.push(concat!("@ctrl ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::$key,
             crossterm::event::KeyModifiers::CONTROL
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @ctrl with char
-    (@expand $h:ident; @ctrl $key:literal ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @ctrl $key:literal ; $($rest:tt)*) => {
+        $cmds.push(concat!("@ctrl ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Char($key),
             crossterm::event::KeyModifiers::CONTROL
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @alt - send a key with Alt modifier
-    (@expand $h:ident; @alt $key:ident ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @alt $key:ident ; $($rest:tt)*) => {
+        $cmds.push(concat!("@alt ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::$key,
             crossterm::event::KeyModifiers::ALT
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @alt with char
-    (@expand $h:ident; @alt $key:literal ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @alt $key:literal ; $($rest:tt)*) => {
+        $cmds.push(concat!("@alt ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Char($key),
             crossterm::event::KeyModifiers::ALT
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @shift - send a key with Shift modifier
-    (@expand $h:ident; @shift $key:ident ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @shift $key:ident ; $($rest:tt)*) => {
+        $cmds.push(concat!("@shift ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::$key,
             crossterm::event::KeyModifiers::SHIFT
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @shift with char
-    (@expand $h:ident; @shift $key:literal ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @shift $key:literal ; $($rest:tt)*) => {
+        $cmds.push(concat!("@shift ", stringify!($key)));
         $h.key(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Char($key),
             crossterm::event::KeyModifiers::SHIFT
         ))?;
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
-    // @dbg - debug print current buffer
-    (@expand $h:ident; @dbg; $($rest:tt)*) => {
+    // @dbg - debug print current buffer (not recorded in command history)
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @dbg; $($rest:tt)*) => {
         $h.render()?;
         println!("DBG buffer:\n{}", $h.buffer_view());
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @assert - run an assertion closure
     // Pass a closure that takes the harness as parameter
     // Usage: @assert(|h| h.skim.app().should_quit);
     //        @assert(|h| h.skim.app().item_list.selected().unwrap().text() == "1");
-    (@expand $h:ident; @assert ( $assertion:expr ) ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @assert ( $assertion:expr ) ; $($rest:tt)*) => {
         assert!(($assertion)(&$h));
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
     // @exited - assert that the app would exit with a specific status code
     // Usage: @exited 0;      // Assert successful exit (Accept)
     //        @exited 130;    // Assert abort (Ctrl+C, Ctrl+D, Esc)
-    (@expand $h:ident; @exited $code:expr ; $($rest:tt)*) => {
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @exited $code:expr ; $($rest:tt)*) => {
         assert_eq!(
             $h.app_exit_code(),
             Some($code),
@@ -718,6 +857,6 @@ macro_rules! insta_test {
             $code,
             $h.app_exit_code()
         );
-        insta_test!(@expand $h; $($rest)*);
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 }

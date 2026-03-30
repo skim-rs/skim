@@ -1,21 +1,18 @@
 use std::{rc::Rc, sync::Arc};
 
 use indexmap::IndexSet;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, ListState, StatefulWidget, Widget};
+use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, Widget};
 use regex::Regex;
-use unicode_display_width::width as display_width;
 
 use crate::options::feature_flag;
-use crate::tui::util::char_display_width;
 use crate::{
-    DisplayContext, MatchRange, Selector, SkimOptions,
+    Selector, SkimOptions,
     item::MatchedItem,
     spinlock::SpinLock,
     theme::ColorTheme,
     tui::BorderType,
+    tui::item_renderer::ItemRenderer,
     tui::options::TuiLayout,
-    tui::util::wrap_text,
     tui::widget::{SkimRender, SkimWidget},
 };
 
@@ -53,31 +50,38 @@ pub struct ItemList {
     pub(crate) processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
+    /// How many leading sub-lines of items[offset] have been scrolled off the top.
+    /// Only meaningful when multiline is active; always 0 otherwise.
+    sub_offset: usize,
     pub(crate) current: usize,
     pub(crate) height: u16,
     pub(crate) theme: std::sync::Arc<crate::theme::ColorTheme>,
     pub(crate) multi_select: bool,
     reserved: usize,
-    no_hscroll: bool,
-    ellipsis: String,
-    keep_right: bool,
-    skip_to_pattern: Option<Regex>,
-    tabstop: usize,
+    pub(crate) no_hscroll: bool,
+    pub(crate) ellipsis: String,
+    pub(crate) keep_right: bool,
+    pub(crate) skip_to_pattern: Option<Regex>,
+    pub(crate) tabstop: usize,
     selector: Option<Rc<dyn Selector>>,
     pre_select_target: usize, // How many items we want to pre-select
     no_clear_if_empty: bool,
     interactive: bool,              // Whether we're in interactive mode
     showing_stale_items: bool,      // True when displaying old items due to no_clear_if_empty
     pub(crate) manual_hscroll: i32, // Manual horizontal scroll offset for ScrollLeft/ScrollRight
-    selector_icon: String,
-    multi_select_icon: String,
+    pub(crate) selector_icon: String,
+    pub(crate) multi_select_icon: String,
     cycle: bool,
-    wrap: bool,
+    pub(crate) wrap: bool,
+    /// When Some, split item text on this separator and show each part on its own line
+    pub(crate) multiline: Option<String>,
     /// Border type, if borders are enabled
     pub border: Option<BorderType>,
     /// When true, prepend each item's match score to its display text
-    show_score: bool,
-    show_index: bool,
+    pub(crate) show_score: bool,
+    pub(crate) show_index: bool,
+    /// When true, highlight the entire current line (not just the matched text)
+    pub(crate) highlight_line: bool,
 }
 
 impl Default for ItemList {
@@ -90,6 +94,7 @@ impl Default for ItemList {
             items: Default::default(),
             selection: Default::default(),
             offset: Default::default(),
+            sub_offset: 0,
             current: Default::default(),
             height: Default::default(),
             theme: Arc::new(ColorTheme::default()),
@@ -110,9 +115,11 @@ impl Default for ItemList {
             multi_select_icon: String::from(">"),
             cycle: false,
             wrap: false,
+            multiline: None,
             border: None,
             show_score: false,
             show_index: false,
+            highlight_line: false,
         }
     }
 }
@@ -140,256 +147,6 @@ impl ItemList {
     pub fn append(&mut self, items: &mut Vec<MatchedItem>) {
         self.items.append(items);
         self.showing_stale_items = false;
-    }
-
-    /// Calculate the width to skip when using `skip_to_pattern`
-    /// Returns the actual skip width (not accounting for the ellipsis - that's handled in `apply_hscroll`)
-    fn calc_skip_width(&self, text: &str) -> usize {
-        if let Some(ref regex) = self.skip_to_pattern
-            && let Some(mat) = regex.find(text)
-        {
-            return display_width(&text[..mat.start()]).try_into().unwrap();
-        }
-        0
-    }
-
-    /// Calculate horizontal scroll offset for displaying a line with matches
-    /// Returns (shift, `full_width`, `has_left_overflow`, `has_right_overflow`)
-    fn calc_hscroll(
-        &self,
-        text: &str,
-        container_width: usize,
-        match_start_char: usize,
-        match_end_char: usize,
-    ) -> (usize, usize, bool, bool) {
-        // Calculate display width considering tab expansion
-        let full_width = text.chars().fold(0, |acc, ch| {
-            if ch == '\t' {
-                acc + self.tabstop - (acc % self.tabstop)
-            } else {
-                acc + char_display_width(ch)
-            }
-        });
-
-        // Reserve space for ellipsis
-        let available_width = if container_width >= display_width(&self.ellipsis).try_into().unwrap() {
-            container_width
-        } else {
-            return (0, full_width, false, false);
-        };
-
-        let base_shift = if self.no_hscroll {
-            // No horizontal scroll: always start from beginning
-            0
-        } else if match_start_char == 0 && match_end_char == 0 {
-            // No match to center on (empty query or no matches)
-            let skip_width = self.calc_skip_width(text);
-            if skip_width > 0 {
-                // skip_to_pattern is set and found a match
-                skip_width
-            } else if self.keep_right {
-                // Show the right end
-                full_width.saturating_sub(available_width)
-            } else {
-                // Start from beginning
-                0
-            }
-        } else {
-            // Calculate shift to show the match
-            // Calculate display widths for match positions
-            let mut match_start_width = 0;
-            let mut match_end_width = 0;
-            let mut current_width = 0;
-            let mut found_start = false;
-            let mut found_end = false;
-
-            for (idx, ch) in text.chars().enumerate() {
-                if idx == match_start_char {
-                    match_start_width = current_width;
-                    found_start = true;
-                }
-                if idx == match_end_char {
-                    match_end_width = current_width;
-                    found_end = true;
-                    break;
-                }
-
-                if ch == '\t' {
-                    current_width += self.tabstop - (current_width % self.tabstop);
-                } else {
-                    current_width += char_display_width(ch);
-                }
-            }
-
-            // If we didn't find the end, use the current width
-            if found_start && !found_end {
-                match_end_width = current_width;
-            }
-
-            let match_width = match_end_width.saturating_sub(match_start_width);
-
-            // Try to center the match, but ensure we show as much of it as possible
-            if match_width >= available_width {
-                // Match itself is too long, show from start of match
-                match_start_width
-            } else {
-                // Center the match in the available space
-                let desired_shift = match_start_width.saturating_sub((available_width - match_width) / 2);
-                // But don't shift more than necessary
-                let max_shift = full_width.saturating_sub(available_width);
-                desired_shift.min(max_shift)
-            }
-        };
-
-        // Apply manual horizontal scroll offset
-        // manual_hscroll can be positive (scroll right) or negative (scroll left)
-        // final_shift = base_shift + manual_hscroll
-        let proposed_shift = (i32::try_from(base_shift).unwrap_or(i32::MAX) + self.manual_hscroll)
-            .max(0)
-            .unsigned_abs() as usize;
-
-        // Only clamp if the text is actually wider than the container
-        // This allows skip_to_pattern to work even for short text
-        let shift = if full_width > available_width {
-            let max_shift = full_width.saturating_sub(available_width);
-            proposed_shift.min(max_shift)
-        } else {
-            proposed_shift
-        };
-
-        let has_left_overflow = shift > 0;
-        let has_right_overflow = shift + available_width < full_width;
-
-        (shift, full_width, has_left_overflow, has_right_overflow)
-    }
-
-    /// Apply horizontal scrolling to a line, adding ellipsis indicators as needed
-    /// Also expands tabs to spaces according to tabstop setting
-    fn apply_hscroll<'a>(
-        &'a self,
-        line: Line<'a>,
-        shift: usize,
-        container_width: usize,
-        full_width: usize,
-    ) -> Line<'a> {
-        let has_left_overflow = shift > 0;
-        let has_right_overflow = shift + container_width < full_width;
-
-        // Reserve space for overflow indicators
-        let left_indicator_width = if has_left_overflow {
-            display_width(&self.ellipsis).try_into().unwrap()
-        } else {
-            0
-        };
-        let right_indicator_width = if has_right_overflow {
-            display_width(&self.ellipsis).try_into().unwrap()
-        } else {
-            0
-        };
-        let content_width = container_width.saturating_sub(left_indicator_width + right_indicator_width);
-
-        // Extract the visible portion of the line while preserving styling
-        let mut result = Line::default();
-
-        // Add left indicator if needed
-        if has_left_overflow {
-            result.push_span(Span::raw(&self.ellipsis));
-        }
-
-        // Process spans to extract only the visible portion while preserving styles
-        let mut current_char_index = 0;
-        let mut current_width = 0;
-        let shift_char_start = self.char_index_at_width(&line, shift);
-        let shift_char_end = self.char_index_at_width(&line, shift + content_width);
-
-        for span in line.spans {
-            let span_text = span.content.as_ref();
-            let span_chars: Vec<char> = span_text.chars().collect();
-
-            let span_start_char = current_char_index;
-            let span_end_char = current_char_index + span_chars.len();
-
-            // Check if this span intersects with our visible range
-            if span_end_char > shift_char_start && span_start_char < shift_char_end {
-                // Calculate which part of this span is visible
-                let visible_start = shift_char_start.saturating_sub(span_start_char);
-
-                let visible_end = if span_end_char > shift_char_end {
-                    shift_char_end - span_start_char
-                } else {
-                    span_chars.len()
-                };
-
-                if visible_start < visible_end && visible_start < span_chars.len() {
-                    let visible_chars: String = span_chars[visible_start..visible_end.min(span_chars.len())]
-                        .iter()
-                        .collect();
-
-                    // Expand tabs to spaces and preserve styling
-                    let processed_chars = if visible_chars.contains('\t') {
-                        self.expand_tabs(&visible_chars, current_width)
-                    } else {
-                        visible_chars
-                    };
-
-                    if !processed_chars.is_empty() {
-                        result.push_span(Span::styled(processed_chars, span.style));
-                    }
-                }
-            }
-
-            current_char_index += span_chars.len();
-            current_width += usize::try_from(display_width(span_text)).unwrap();
-        }
-
-        // Add right indicator if needed
-        if has_right_overflow {
-            result.push_span(Span::raw(&self.ellipsis));
-        }
-
-        result
-    }
-
-    fn char_index_at_width(&self, line: &Line<'_>, target_width: usize) -> usize {
-        let mut current_width = 0;
-        let mut char_index = 0;
-
-        for span in &line.spans {
-            for ch in span.content.chars() {
-                let ch_width = if ch == '\t' {
-                    self.tabstop - (current_width % self.tabstop)
-                } else {
-                    char_display_width(ch)
-                };
-
-                if current_width >= target_width {
-                    return char_index;
-                }
-
-                current_width += ch_width;
-                char_index += 1;
-            }
-        }
-
-        char_index
-    }
-
-    fn expand_tabs(&self, text: &str, start_width: usize) -> String {
-        let mut result = String::new();
-        let mut current_width = start_width;
-
-        for ch in text.chars() {
-            if ch == '\t' {
-                let tab_width = self.tabstop - (current_width % self.tabstop);
-                result.push_str(&" ".repeat(tab_width));
-                current_width += tab_width;
-            } else {
-                result.push(ch);
-                current_width += char_display_width(ch);
-            }
-        }
-
-        result
     }
 
     /// Toggles the selection state of the item at the given index
@@ -443,8 +200,39 @@ impl ItemList {
         self.selection.clear();
         self.current = 0;
         self.offset = 0;
+        self.sub_offset = 0;
         self.showing_stale_items = false;
     }
+    /// Scrolls the list by `rows` terminal rows, counting each item's sub-lines.
+    /// Positive = toward higher indices (up the screen in default layout).
+    pub fn scroll_by_rows(&mut self, rows: i32) {
+        if self.reserved >= self.items.len() || rows == 0 {
+            return;
+        }
+        let total = self.items.len();
+        let reserved = self.reserved;
+
+        if rows > 0 {
+            let mut remaining = rows.unsigned_abs() as usize;
+            let mut idx = self.current;
+            while remaining > 0 && idx + 1 < total {
+                idx += 1;
+                let row_count = self.item_row_count(idx);
+                remaining = remaining.saturating_sub(row_count);
+            }
+            self.current = idx;
+        } else {
+            let mut remaining = rows.unsigned_abs() as usize;
+            let mut idx = self.current;
+            while remaining > 0 && idx > reserved {
+                let row_count = self.item_row_count(idx);
+                remaining = remaining.saturating_sub(row_count);
+                idx -= 1;
+            }
+            self.current = idx.max(reserved);
+        }
+    }
+
     /// Scrolls the list by the given offset
     pub fn scroll_by(&mut self, offset: i32) {
         if self.reserved >= self.items.len() {
@@ -477,13 +265,67 @@ impl ItemList {
     pub fn jump_to_first(&mut self) {
         if self.items.len() > self.reserved {
             self.current = self.reserved;
+            self.offset = self.reserved;
+            self.sub_offset = 0;
         }
     }
     /// Jump to the last item in the list
     pub fn jump_to_last(&mut self) {
         if !self.items.is_empty() {
             self.current = self.items.len().saturating_sub(1);
+            self.sub_offset = 0;
         }
+    }
+
+    /// Number of terminal rows item at `index` occupies.
+    ///
+    /// When `--multiline` is active this is the number of sub-lines produced by
+    /// splitting on the separator; otherwise every item is exactly 1 row.
+    fn item_row_count(&self, index: usize) -> usize {
+        if let Some(sep) = self.multiline.as_deref()
+            && let Some(item) = self.items.get(index)
+        {
+            item.item.text().split(sep).count().max(1)
+        } else {
+            1
+        }
+    }
+
+    /// How many terminal rows are consumed by items `[from, from + count)`.
+    fn rows_for_range(&self, from: usize, count: usize) -> usize {
+        (from..from + count).map(|i| self.item_row_count(i)).sum()
+    }
+
+    /// How many rows are consumed by items `[offset..=current]`, with `sub_offset`
+    /// leading sub-lines of `items[offset]` already scrolled off.
+    fn rows_visible(&self, offset: usize, sub_offset: usize, current: usize) -> usize {
+        if offset > current {
+            return 0;
+        }
+        let top_rows = self.item_row_count(offset).saturating_sub(sub_offset);
+        if offset == current {
+            return top_rows;
+        }
+        top_rows + self.rows_for_range(offset + 1, current - offset)
+    }
+
+    /// Advance `(offset, sub_offset)` one row at a time until `current` fits
+    /// within `available_rows`.  Returns the new `(offset, sub_offset)`.
+    fn advance_to_fit(&self, current: usize, available_rows: usize) -> (usize, usize) {
+        let mut offset = self.offset;
+        let mut sub_offset = self.sub_offset;
+        while offset < current && self.rows_visible(offset, sub_offset, current) > available_rows {
+            let top_rows = self.item_row_count(offset);
+            if sub_offset + 1 < top_rows {
+                // Still more sub-lines in the top item: scroll one sub-line off.
+                sub_offset += 1;
+            } else {
+                // Entire top item scrolled off: move to next item.
+                offset += 1;
+                sub_offset = 0;
+            }
+        }
+        (offset, sub_offset)
     }
 }
 
@@ -571,14 +413,20 @@ impl SkimWidget for ItemList {
             items: Default::default(),
             selection: Default::default(),
             offset: Default::default(),
+            sub_offset: 0,
             height: Default::default(),
             selector_icon: options.selector_icon.clone(),
             multi_select_icon: options.multi_select_icon.clone(),
             cycle: options.cycle,
             wrap: options.wrap_items,
+            multiline: options
+                .multiline
+                .clone()
+                .map(|opt_m| opt_m.unwrap_or(String::from("\\n"))),
             border: options.border,
             show_score: feature_flag!(options, ShowScore),
             show_index: feature_flag!(options, ShowIndex),
+            highlight_line: options.highlight_line,
         }
     }
 
@@ -601,10 +449,23 @@ impl SkimWidget for ItemList {
         };
 
         this.height = inner_area.height;
+        let available_rows = inner_area.height as usize;
+
+        // Clamp current to valid range after any item list replacement.
+        if this.items.is_empty() {
+            this.current = 0;
+            this.offset = 0;
+        } else {
+            this.current = this.current.min(this.items.len() - 1).max(this.reserved);
+        }
+
         if this.current < this.offset {
+            // Cursor moved above the top item: snap to it with no sub-line offset.
             this.offset = this.current;
-        } else if this.offset + inner_area.height as usize <= this.current {
-            this.offset = this.current - inner_area.height as usize + 1;
+            this.sub_offset = 0;
+        } else if this.rows_visible(this.offset, this.sub_offset, this.current) > available_rows {
+            // Current item is below the visible window: advance one row at a time.
+            (this.offset, this.sub_offset) = this.advance_to_fit(this.current, available_rows);
         }
         let initial_current = this.selected();
 
@@ -626,10 +487,12 @@ impl SkimWidget for ItemList {
                 match processed.merge {
                     MergeStrategy::Replace => {
                         this.items = processed.items;
+                        this.sub_offset = 0;
                     }
                     MergeStrategy::SortedMerge => {
                         let existing = std::mem::take(&mut this.items);
                         this.items = MatchedItem::sorted_merge(existing, processed.items);
+                        this.sub_offset = 0;
                     }
                     MergeStrategy::Append => {
                         this.items.extend(processed.items);
@@ -668,116 +531,34 @@ impl SkimWidget for ItemList {
             false
         };
 
-        let theme = &this.theme;
-        let selector_icon = &this.selector_icon;
-        let multi_select_icon = &this.multi_select_icon;
-        let wrap = &this.wrap;
+        let icon_width = this.selector_icon.chars().count() + this.multi_select_icon.chars().count();
+        let container_width = (inner_area.width as usize).saturating_sub(icon_width);
+        let sub_offset = this.sub_offset;
 
-        let list = List::new(
-            this.items
-                .iter()
-                .enumerate()
-                .skip(this.offset)
-                .take(inner_area.height as usize)
-                .map(|(idx, item)| {
-                    let is_current = idx == this.current;
-                    let is_selected = this.selection.contains(item);
+        let renderer = ItemRenderer::new_for(this, container_width);
 
-                    // Reserve 2 characters for cursor indicators ("> " or " >")
-                    let container_width = (inner_area.width as usize)
-                        .saturating_sub(selector_icon.chars().count() + multi_select_icon.chars().count());
+        let mut flat_rows: Vec<ListItem<'static>> = Vec::with_capacity(available_rows + 1);
+        let mut rows_used = 0usize;
 
-                    // Get item text for hscroll calculation
-                    let item_text = item.item.text();
+        for (idx, item) in this.items.iter().enumerate().skip(this.offset) {
+            if rows_used >= available_rows {
+                break;
+            }
+            let is_current = idx == this.current;
+            let is_selected = this.selection.contains(item);
+            let skip_subs = if idx == this.offset { sub_offset } else { 0 };
+            rows_used += renderer.render_item(
+                item,
+                is_current,
+                is_selected,
+                skip_subs,
+                available_rows,
+                rows_used,
+                &mut flat_rows,
+            );
+        }
 
-                    // Calculate match positions for hscroll
-                    let (match_start_char, match_end_char) = match &item.matched_range {
-                        Some(MatchRange::Chars(matched_indices)) => {
-                            if matched_indices.is_empty() {
-                                (0, 0)
-                            } else {
-                                (matched_indices[0], matched_indices[matched_indices.len() - 1] + 1)
-                            }
-                        }
-                        Some(MatchRange::ByteRange(match_start, match_end)) => {
-                            let match_start_char = item_text[..*match_start].chars().count();
-                            let diff = item_text[*match_start..*match_end].chars().count();
-                            (match_start_char, match_start_char + diff)
-                        }
-                        None => (0, 0),
-                    };
-
-                    // Calculate horizontal scroll
-                    let (shift, full_width, _has_left, _has_right) =
-                        this.calc_hscroll(&item_text, container_width, match_start_char, match_end_char);
-
-                    // Get display content from item
-                    // Avoid cloning chars vector - use reference instead
-                    let matches = match &item.matched_range {
-                        Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
-                        Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
-                        None => crate::Matches::None,
-                    };
-
-                    let mut display_line = item.item.display(DisplayContext {
-                        score: item.rank.score,
-                        matches,
-                        container_width,
-                        base_style: if is_current { theme.current } else { theme.normal },
-                        matched_style: if is_current { theme.current_match } else { theme.matched },
-                    });
-
-                    if !wrap {
-                        // Apply horizontal scrolling to the display content
-                        display_line = this.apply_hscroll(display_line, shift, container_width, full_width);
-                    }
-
-                    // Prepend cursor indicators
-                    // Pre-allocate capacity to avoid reallocation
-                    let mut spans: Vec<Span> = Vec::with_capacity(3 + display_line.spans.len());
-                    spans.push(Span::styled(
-                        if is_current {
-                            selector_icon.to_owned()
-                        } else {
-                            str::repeat(" ", selector_icon.chars().count())
-                        },
-                        theme.cursor,
-                    ));
-                    spans.push(Span::styled(
-                        if this.multi_select && is_selected {
-                            multi_select_icon.to_owned()
-                        } else {
-                            str::repeat(" ", multi_select_icon.chars().count())
-                        },
-                        theme.selected,
-                    ));
-                    // Optionally prepend debug fields
-                    if this.show_score {
-                        let score = item.rank.score;
-                        spans.push(Span::styled(
-                            format!("[{score}] "),
-                            if is_current { theme.current } else { theme.normal },
-                        ));
-                    }
-                    if this.show_index {
-                        let index = item.rank.index;
-                        spans.push(Span::styled(
-                            format!("[{index}] "),
-                            if is_current { theme.current } else { theme.normal },
-                        ));
-                    }
-                    spans.extend(display_line.spans);
-
-                    if *wrap {
-                        wrap_text(ratatui::text::Text::from(Line::from(spans)), inner_area.width.into()).into()
-                    } else {
-                        Line::from(spans).into()
-                    }
-                })
-                .collect::<Vec<ListItem>>(),
-        )
-        .direction(this.direction)
-        .style(this.theme.normal);
+        let list = List::new(flat_rows).direction(this.direction).style(this.theme.normal);
 
         Widget::render(Clear, area, buf);
 
@@ -790,12 +571,10 @@ impl SkimWidget for ItemList {
             Widget::render(block, area, buf);
         }
 
-        StatefulWidget::render(
-            list,
-            inner_area,
-            buf,
-            &mut ListState::default().with_selected(Some(this.current.saturating_sub(this.offset))),
-        );
+        // We manage offset and selection styling ourselves, so render as a plain
+        // Widget — this bypasses ratatui's get_items_bounds which can index out of
+        // bounds on our pre-sliced flat_rows when the selected row is near the edge.
+        Widget::render(list, inner_area, buf);
         let run_preview = if let Some(curr) = self.selected()
             && let Some(prev) = initial_current
         {

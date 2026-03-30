@@ -1,6 +1,6 @@
 ---
 source: tests/defaults.rs
-expression: buf + & cursor_pos
+description: "input: items [\"1\", \"2\", \"3\"]\noptions: "
 ---
 "                                                                                "
 "                                                                                "
