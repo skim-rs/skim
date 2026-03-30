@@ -359,7 +359,13 @@ impl SkimItemReader {
                     }
                     Ok(n) => n,
                     Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(_) => break,
+                    Err(_) => {
+                        // Flush any accumulated data before exiting on error.
+                        if !leftover.is_empty() {
+                            let _ = tx_chunks.send((seq, std::mem::take(&mut leftover)));
+                        }
+                        break;
+                    }
                 };
 
                 // Combine leftover from previous iteration with fresh data.
