@@ -48,7 +48,7 @@ pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,
     /// Thread pool used by the matcher (⌊2N/3⌋ threads).
-    pub thread_pool: Arc<ThreadPool>,
+    pub matcher_pool: Arc<ThreadPool>,
     /// Thread pool used by the reader pipeline (⌈N/3⌉ threads).
     pub reader_pool: Arc<ThreadPool>,
     /// Whether the application should quit
@@ -197,13 +197,14 @@ impl Default for App {
         let initial_header_height = header.height();
         let layout_template = LayoutTemplate::from_options(&opts, initial_header_height);
         let layout = layout_template.apply(Rect::default());
+        let (reader_threads, matcher_threads) = thread_pool::partition_threads(*NUM_THREADS);
         Self {
             input: Input::from_options(&opts, theme.clone()),
             preview: Preview::from_options(&opts, theme.clone()),
             header,
             item_list: ItemList::from_options(&opts, theme.clone()),
-            thread_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).1)),
-            reader_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).0)),
+            matcher_pool: Arc::new(ThreadPool::new(matcher_threads)),
+            reader_pool: Arc::new(ThreadPool::new(reader_threads)),
             item_pool: Arc::default(),
             theme,
             should_quit: false,
@@ -255,12 +256,13 @@ impl App {
         let initial_header_height = header.height();
         let layout_template = LayoutTemplate::from_options(&options, initial_header_height);
         let layout = layout_template.apply(Rect::default());
+        let (reader_threads, matcher_threads) = thread_pool::partition_threads(*NUM_THREADS);
         Self {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header,
-            thread_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).1)),
-            reader_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).0)),
+            matcher_pool: Arc::new(ThreadPool::new(matcher_threads)),
+            reader_pool: Arc::new(ThreadPool::new(reader_threads)),
             item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
@@ -1192,7 +1194,7 @@ impl App {
                 &self.input
             };
             let item_pool = self.item_pool.clone();
-            let thread_pool = &self.thread_pool;
+            let thread_pool = &self.matcher_pool;
             let no_sort = self.options.no_sort;
 
             if force {
