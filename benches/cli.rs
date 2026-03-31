@@ -259,6 +259,44 @@ fn process_alive(pid: u32) -> bool {
     Path::new(&format!("/proc/{}", pid)).exists()
 }
 
+// ---------------------------------------------------------------------------
+// Dedicated tmux server
+// ---------------------------------------------------------------------------
+
+/// A handle to a private tmux server identified by a unique socket name.
+///
+/// The server is started with a minimal, clean environment so that nothing
+/// from the caller (SKIM_DEFAULT_OPTIONS, FZF_DEFAULT_OPTS, HISTFILE, …)
+/// can reach the benchmark panes.  The server is killed automatically when
+/// this value is dropped.
+struct TmuxServer {
+    socket: String,
+}
+
+impl TmuxServer {
+    fn start() -> Self {
+        let socket = format!("skim_bench_{}", std::process::id());
+        let _ = Command::new("tmux")
+            .args(["-L", &socket, "start-server"])
+            .env_clear()
+            .envs(env_vars())
+            .output();
+        Self { socket }
+    }
+
+    fn socket(&self) -> &str {
+        &self.socket
+    }
+}
+
+impl Drop for TmuxServer {
+    fn drop(&mut self) {
+        let _ = Command::new("tmux").args(["-L", &self.socket, "kill-server"]).output();
+    }
+}
+
+// ---------------------------------------------------------------------------
+
 #[allow(clippy::too_many_arguments)]
 fn run_once(
     binary_path: &str,
@@ -269,6 +307,7 @@ fn run_once(
     run_index: u32,
     session_suffix: &str,
     perf_output: Option<&str>,
+    tmux_socket: &str,
 ) -> RunResult {
     let session_name = format!("skim_bench_{}_{}_{}", std::process::id(), session_suffix, run_index);
 
@@ -276,24 +315,13 @@ fn run_once(
     let status_tmp = NamedTempFile::new().expect("failed to create status temp file");
     let status_path = status_tmp.path().to_string_lossy().into_owned();
 
-    // Build environment (strip skim/fzf env vars)
-    let env_vars: Vec<(String, String)> = std::env::vars()
-        .filter(|(k, _)| k != "HISTFILE" && k != "FZF_DEFAULT_OPTS" && k != "SKIM_DEFAULT_OPTIONS")
-        .chain([("SHELL".into(), "/bin/sh".into())])
-        .collect();
-
-    // Create detached tmux session
+    // Create a detached session in the dedicated bench server.
     let _ = Command::new("tmux")
-        .args(["new-session", "-s", &session_name, "-d"])
+        .args(["-L", tmux_socket, "new-session", "-s", &session_name, "-d"])
         .env_clear()
-        .envs(env_vars)
+        .envs(env_vars())
         .output();
 
-    for cmd in ["unset HISTFILE", "unset FZF_DEFAULT_OPTS", "unset SKIM_DEFAULT_OPTIONS"] {
-        let _ = Command::new("tmux")
-            .args(["send-keys", "-t", &session_name, cmd, "Enter"])
-            .output();
-    }
     thread::sleep(Duration::from_millis(100));
 
     // Build the command to run inside the tmux pane
@@ -308,14 +336,22 @@ fn run_once(
     );
 
     let _ = Command::new("tmux")
-        .args(["send-keys", "-t", &session_name, &cmd_str, "Enter"])
+        .args(["-L", tmux_socket, "send-keys", "-t", &session_name, &cmd_str, "Enter"])
         .output();
 
     let start = Instant::now();
 
     // Find the pane PID, then the sk child PID
     let pane_pid: u32 = Command::new("tmux")
-        .args(["list-panes", "-t", &session_name, "-F", "#{pane_pid}"])
+        .args([
+            "-L",
+            tmux_socket,
+            "list-panes",
+            "-t",
+            &session_name,
+            "-F",
+            "#{pane_pid}",
+        ])
         .output()
         .ok()
         .and_then(|o| {
@@ -360,10 +396,10 @@ fn run_once(
         }
 
         let _ = Command::new("tmux")
-            .args(["capture-pane", "-b", &buf_name, "-t", &session_name])
+            .args(["-L", tmux_socket, "capture-pane", "-b", &buf_name, "-t", &session_name])
             .output();
         let _ = Command::new("tmux")
-            .args(["save-buffer", "-b", &buf_name, &status_path])
+            .args(["-L", tmux_socket, "save-buffer", "-b", &buf_name, &status_path])
             .output();
 
         let content = match fs::read_to_string(&status_path) {
@@ -393,7 +429,7 @@ fn run_once(
 
     // Send Escape to exit sk
     let _ = Command::new("tmux")
-        .args(["send-keys", "-t", &session_name, "Escape"])
+        .args(["-L", tmux_socket, "send-keys", "-t", &session_name, "Escape"])
         .output();
     thread::sleep(Duration::from_millis(100));
 
@@ -426,7 +462,7 @@ fn run_once(
     };
 
     let _ = Command::new("tmux")
-        .args(["kill-session", "-t", &session_name])
+        .args(["-L", tmux_socket, "kill-session", "-t", &session_name])
         .output();
 
     RunResult {
@@ -438,6 +474,13 @@ fn run_once(
         completed,
         perf_file: perf_output.map(str::to_owned),
     }
+}
+
+fn env_vars() -> Vec<(String, String)> {
+    std::env::vars()
+        .filter(|(k, _)| k != "HISTFILE" && !(k.starts_with("FZF") || k.starts_with("SKIM")))
+        .chain([("SHELL".into(), "/bin/sh".into())])
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -604,6 +647,177 @@ fn print_human(binary_label: &str, agg: &AggResult, num_items: u64, baseline: Op
             fmt_opt(agg.max_cpu, |v| format!("{:.1}%", v)),
             cmp(agg.avg_cpu, baseline.and_then(|b| b.avg_cpu)),
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Markdown table output
+// ---------------------------------------------------------------------------
+
+fn shorten_binary(binary: &str) -> String {
+    if binary.len() > 40 {
+        Path::new(binary)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(binary)
+            .to_owned()
+    } else {
+        binary.to_owned()
+    }
+}
+
+/// Pad `s` to a display width of `width` characters (measured in Unicode scalar
+/// values, not bytes — important for multi-byte chars like `Δ` and `—`).
+/// Right-aligns when `right_align` is `true`, otherwise left-aligns.
+fn pad_cell(s: &str, width: usize, right_align: bool) -> String {
+    let n = s.chars().count();
+    let extra = width.saturating_sub(n);
+    if right_align {
+        format!("{}{}", " ".repeat(extra), s)
+    } else {
+        format!("{}{}", s, " ".repeat(extra))
+    }
+}
+
+/// Print a GFM-compatible markdown table that is also column-aligned for
+/// terminal readability.  All cell values are pre-rendered, per-column widths
+/// are computed from the actual content (in chars, not bytes), and every cell
+/// is padded to that width before printing.
+///
+/// When multiple binaries are provided the first is treated as the baseline and
+/// delta (Δ) columns are added for every metric.
+fn print_markdown_table(binaries: &[String], aggregates: &[AggResult]) {
+    let multi = binaries.len() > 1;
+    let has_mem = aggregates.iter().any(|a| a.avg_mem.is_some());
+    let has_cpu = aggregates.iter().any(|a| a.avg_cpu.is_some());
+
+    // ---- column definitions: (header, right_align) -------------------------
+    let mut col_defs: Vec<(&str, bool)> =
+        vec![("Binary", false), ("Runs", true), ("Matched", true), ("Avg time", true)];
+    if multi {
+        col_defs.push(("Δ time", true));
+    }
+    col_defs.push(("Avg rate", true));
+    if multi {
+        col_defs.push(("Δ rate", true));
+    }
+    if has_mem {
+        col_defs.push(("Avg mem (MB)", true));
+        if multi {
+            col_defs.push(("Δ mem", true));
+        }
+    }
+    if has_cpu {
+        col_defs.push(("Avg CPU (%)", true));
+        if multi {
+            col_defs.push(("Δ CPU", true));
+        }
+    }
+
+    // ---- pre-render all data cells -----------------------------------------
+    let baseline = &aggregates[0];
+    let mut rows: Vec<Vec<String>> = Vec::new();
+
+    for (i, (binary, agg)) in binaries.iter().zip(aggregates).enumerate() {
+        let name = shorten_binary(binary);
+        let name = if i == 0 && multi {
+            format!("**{}** *(baseline)*", name)
+        } else {
+            name
+        };
+
+        let mut row: Vec<String> = vec![
+            name,
+            format!("{}/{}", agg.completed, agg.runs),
+            fmt_opt(agg.avg_matched, |v| format!("{:.0}", v)),
+            fmt_opt(agg.avg_time, |v| format!("{:.3}s", v)),
+        ];
+
+        if multi {
+            row.push(if i == 0 {
+                "—".into()
+            } else {
+                pct(baseline.avg_time, agg.avg_time)
+            });
+        }
+
+        row.push(fmt_opt(agg.avg_rate, |v| format!("{:.0}", v)));
+
+        if multi {
+            row.push(if i == 0 {
+                "—".into()
+            } else {
+                pct(baseline.avg_rate, agg.avg_rate)
+            });
+        }
+
+        if has_mem {
+            row.push(fmt_opt(agg.avg_mem, |v| format!("{:.1}", v / 1024.0)));
+            if multi {
+                row.push(if i == 0 {
+                    "—".into()
+                } else {
+                    pct(baseline.avg_mem, agg.avg_mem)
+                });
+            }
+        }
+
+        if has_cpu {
+            row.push(fmt_opt(agg.avg_cpu, |v| format!("{:.1}%", v)));
+            if multi {
+                row.push(if i == 0 {
+                    "—".into()
+                } else {
+                    pct(baseline.avg_cpu, agg.avg_cpu)
+                });
+            }
+        }
+
+        rows.push(row);
+    }
+
+    // ---- compute per-column display widths (chars, not bytes) --------------
+    let mut widths: Vec<usize> = col_defs.iter().map(|(h, _)| h.chars().count()).collect();
+    for row in &rows {
+        for (j, cell) in row.iter().enumerate() {
+            widths[j] = widths[j].max(cell.chars().count());
+        }
+    }
+
+    // ---- render a padded table row from a slice of cell strings ------------
+    let render_row = |cells: &[String]| -> String {
+        let padded: Vec<String> = cells
+            .iter()
+            .zip(&col_defs)
+            .zip(&widths)
+            .map(|((cell, &(_, right)), &w)| pad_cell(cell, w, right))
+            .collect();
+        format!("| {} |", padded.join(" | "))
+    };
+
+    // ---- header ------------------------------------------------------------
+    let headers: Vec<String> = col_defs.iter().map(|(h, _)| h.to_string()).collect();
+    println!("{}", render_row(&headers));
+
+    // ---- separator (dashes sized to column width, alignment markers) -------
+    let seps: Vec<String> = col_defs
+        .iter()
+        .zip(&widths)
+        .map(|(&(_, right), &w)| {
+            // Each separator cell is exactly `w` chars wide so it lines up
+            // with the padded header and data cells above and below it.
+            if right {
+                format!("{}:", "-".repeat(w.saturating_sub(1)))
+            } else {
+                format!(":{}", "-".repeat(w.saturating_sub(1)))
+            }
+        })
+        .collect();
+    println!("| {} |", seps.join(" | "));
+
+    // ---- data rows ---------------------------------------------------------
+    for row in &rows {
+        println!("{}", render_row(row));
     }
 }
 
@@ -781,11 +995,26 @@ fn main() {
         eprintln!("Input file: {}", tmp_file_path);
     }
     if !extra_args.is_empty() {
-        eprintln!("Extra args: {}", extra_args.join(" "));
+        eprintln!(
+            "Extra args: {}",
+            extra_args
+                .iter()
+                .map(|arg| String::from_utf8(shell_quote::Sh::quote_vec(arg)).unwrap())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
     }
     if record_perf {
         eprintln!("Perf recording: enabled (final measured run only)");
     }
+
+    // ---- dedicated tmux server ---------------------------------------------
+    // Started once with a clean environment; all benchmark panes run inside
+    // it so no ambient SKIM_DEFAULT_OPTIONS / FZF_DEFAULT_OPTS / etc. can
+    // affect the results.  Killed automatically when `_tmux_server` is dropped
+    // at the end of main.
+    let _tmux_server = TmuxServer::start();
+    let tmux_socket = _tmux_server.socket();
 
     // ---- warmup (results discarded) ----------------------------------------
     if warmup > 0 {
@@ -802,6 +1031,7 @@ fn main() {
                     wu,
                     &format!("warmup_b{}", bi),
                     None,
+                    tmux_socket,
                 );
             }
         }
@@ -854,6 +1084,7 @@ fn main() {
                 run_num,
                 &format!("b{}", bi),
                 this_perf,
+                tmux_socket,
             );
 
             if runs > 1 || binaries.len() > 1 {
@@ -894,54 +1125,13 @@ fn main() {
             );
         }
 
-        // Summary comparison table when multiple binaries
+        // Summary table — always shown, markdown-formatted
         if binaries.len() > 1 {
-            println!("\n=== Comparison Summary (vs baseline: {}) ===", binaries[0]);
-            let header = format!(
-                "{:<40} {:>12} {:>10} {:>14} {:>10} {:>14} {:>10} {:>12} {:>10}",
-                "Binary", "Avg time", "Δ time", "Avg rate", "Δ rate", "Avg mem (MB)", "Δ mem", "Avg CPU (%)", "Δ CPU",
-            );
-            println!("{}", header);
-            println!("{}", "-".repeat(header.len()));
-
-            for (i, (binary, agg)) in binaries.iter().zip(&aggregates).enumerate() {
-                let t = fmt_opt(agg.avg_time, |v| format!("{:.3}s", v));
-                let r = fmt_opt(agg.avg_rate, |v| format!("{:.0}", v));
-                let m = fmt_opt(agg.avg_mem, |v| format!("{:.1}", v / 1024.0));
-                let c = fmt_opt(agg.avg_cpu, |v| format!("{:.1}", v));
-
-                let (dt, dr, dm, dc) = if i == 0 {
-                    (
-                        "baseline".into(),
-                        "baseline".into(),
-                        "baseline".into(),
-                        "baseline".into(),
-                    )
-                } else {
-                    (
-                        pct(aggregates[0].avg_time, agg.avg_time),
-                        pct(aggregates[0].avg_rate, agg.avg_rate),
-                        pct(aggregates[0].avg_mem, agg.avg_mem),
-                        pct(aggregates[0].avg_cpu, agg.avg_cpu),
-                    )
-                };
-
-                let name = if binary.len() > 40 {
-                    Path::new(binary)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(binary)
-                        .to_owned()
-                } else {
-                    binary.clone()
-                };
-
-                println!(
-                    "{:<40} {:>12} {:>10} {:>14} {:>10} {:>14} {:>10} {:>12} {:>10}",
-                    name, t, dt, r, dr, m, dm, c, dc,
-                );
-            }
+            println!("\n## Comparison Summary (vs baseline: `{}`)\n", binaries[0]);
+        } else {
+            println!("\n## Results Summary\n");
         }
+        print_markdown_table(binaries, &aggregates);
     }
 
     // ---- perf summary ------------------------------------------------------

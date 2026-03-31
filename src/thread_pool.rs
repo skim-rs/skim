@@ -582,4 +582,36 @@ mod tests {
         );
         assert_eq!(result, 55);
     }
+
+    #[test]
+    fn parallel_work_queue_single_thread_pool_no_deadlock() {
+        // With a 1-thread pool the coordinator must NOT be a pool job —
+        // it runs on a dedicated OS thread and submits all worker jobs to
+        // the pool.  This ensures the single pool thread is always free to
+        // run those workers and no deadlock can occur.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let pool = Arc::new(ThreadPool::new(1));
+        let items: Arc<[u64]> = (1..=100u64).collect::<Vec<_>>().into();
+        let pool_coord = Arc::clone(&pool);
+        // Coordinator is a dedicated thread, not a pool job.
+        std::thread::spawn(move || {
+            parallel_work_queue(
+                &pool_coord,
+                1,
+                &items,
+                10,
+                || 0u64,
+                |_start, chunk| chunk.iter().sum::<u64>(),
+                |acc, partial| *acc += partial,
+                |_| {},
+                |worker_results| {
+                    let _ = tx.send(worker_results.into_iter().sum::<u64>());
+                },
+            );
+        });
+        let result = rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("deadlock or timeout");
+        assert_eq!(result, 5050);
+    }
 }

@@ -289,15 +289,13 @@ impl Matcher {
         let total = items.len();
         trace!("matcher start, total: {total}");
 
-        // Number of workers to use for the parallel matching phase.
-        // We use pool size minus 1 because the coordinator job itself occupies
-        // one pool thread; the remaining threads do the actual matching work.
-        // When the pool has only 1 thread we fall back to processing inline.
-        let num_workers = thread_pool.num_threads().saturating_sub(1).max(1);
-        let spawn_handle = Arc::clone(thread_pool);
+        // The coordinator runs on a dedicated OS thread so it does not occupy
+        // a pool slot while waiting for workers.  All pool threads are
+        // therefore available for the parallel matching work.
+        let num_workers = thread_pool.num_threads();
         let pool_for_work = Arc::clone(thread_pool);
 
-        spawn_handle.spawn(move || {
+        std::thread::spawn(move || {
             // Process items in parallel using a shared work queue.  Each worker
             // thread atomically grabs the next available chunk, processes it,
             // and immediately merges its partial results.  This means threads
