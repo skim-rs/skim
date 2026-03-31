@@ -50,6 +50,15 @@ fn merge_worker_results(
 
     // Single lock, single write into processed_items.
     let mut guard = processed_items.lock();
+    if matches!(merge_strategy, MergeStrategy::Replace) {
+        *guard = Some(ProcessedItems {
+            items,
+            merge: MergeStrategy::Replace,
+        });
+        drop(guard);
+        needs_render.store(true, Ordering::Relaxed);
+        return;
+    }
     match &mut *guard {
         Some(existing) => {
             if no_sort {
