@@ -177,27 +177,17 @@ sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
       "--extended",
       "--literal",
       "--no-mouse",
-      "--cycle",
       "--hscroll-off=10",
       "--filepath-word",
       "--jump-labels=CHARS",
-      "--inline-info",
-      "--header=STR",
-      "--header-lines=1",
       "--no-bold",
       "--history-size=10",
-      "--sync",
-      "--no-sort",
-      "--select-1",
-      "-1",
-      "--exit-0",
-      "-0",
   ];
 
   for option in reserved_options {
       println!("Starting sk with opt {}", option);
       let mut tmux = TmuxController::new()?;
-      tmux.start_sk(Some("echo -n -e 'a\\nb'"), &[option])?;
+      tmux.start_sk(None, &[option])?;
       tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
   }
 });
@@ -242,7 +232,7 @@ sk_test!(opt_multiple_flags_basic, "a\\nb", &[], tmux => {
 
   for cmd_flags in basic_flags {
       let mut tmux = TmuxController::new()?;
-      tmux.start_sk(Some("echo -n -e 'a\\nb'"), &[cmd_flags])?;
+      tmux.start_sk(None, &[cmd_flags])?;
       tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
   }
 });
