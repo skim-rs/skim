@@ -81,7 +81,7 @@ unicode-display-width = "=0.3.0"
 unicode-normalization = "=0.1.25"
 derive_more = { version = "=2.1.1", features = ["debug", "eq"] }
 portable-pty = "=0.9.0"
-tui-term = "=0.3.2"
+tui-term = "=0.3.3"
 kanal = "=0.1.1"
 gungraun = { version = "0.17.2", optional = true }
 mimalloc = { version = "0.1.48", features = ["v3"] }
