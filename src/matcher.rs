@@ -1,16 +1,84 @@
 //! This module contains the matching coordinator
-use rayon::ThreadPool;
+use crate::thread_pool::{self, ThreadPool};
+use crate::tui::item_list::{MergeStrategy, ProcessedItems};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
-use rayon::prelude::*;
 
 use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
-use crate::{CaseMatching, MatchEngineFactory, SkimOptions};
+use crate::spinlock::SpinLock;
+use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
+
+/// Merges per-worker match results and writes them into `processed_items`.
+///
+/// When `no_sort` is false, concatenates the pre-sorted worker results into a
+/// single contiguous `Vec` and calls `sort()`.  Rust's stable sort (driftsort
+/// since 1.81, a `TimSort` variant before that) detects the k pre-sorted runs
+/// and merges them in O(n log k) on contiguous memory — benchmarking shows
+/// this consistently outperforms tree-based or fold-based merge strategies
+/// due to driftsort's cache-friendly single-buffer merge passes.
+///
+/// When `no_sort` is true, the worker results are simply flattened.
+///
+/// Signals `needs_render` after writing so the UI picks up the new data.
+fn merge_worker_results(
+    worker_results: Vec<Vec<MatchedItem>>,
+    no_sort: bool,
+    processed_items: &SpinLock<Option<ProcessedItems>>,
+    merge_strategy: MergeStrategy,
+    needs_render: &AtomicBool,
+) {
+    let total_len: usize = worker_results.iter().map(Vec::len).sum();
+    let mut items = Vec::with_capacity(total_len);
+    for chunk in worker_results {
+        items.extend(chunk);
+    }
+
+    // Each worker's sub-list is already sorted by `prepare`, so the
+    // concatenated Vec consists of k sorted runs.  Rust's stable sort
+    // (driftsort since 1.81, a TimSort variant before that) detects
+    // pre-existing runs and merges them in O(n log k) for k workers,
+    // all on contiguous memory with a single auxiliary buffer.
+    if !no_sort {
+        items.sort();
+    }
+
+    trace!("matcher stop, total matched: {}", items.len());
+
+    // Single lock, single write into processed_items.
+    let mut guard = processed_items.lock();
+    if matches!(merge_strategy, MergeStrategy::Replace) {
+        *guard = Some(ProcessedItems {
+            items,
+            merge: MergeStrategy::Replace,
+        });
+        drop(guard);
+        needs_render.store(true, Ordering::Relaxed);
+        return;
+    }
+    match &mut *guard {
+        Some(existing) => {
+            if no_sort {
+                existing.items.extend(items);
+            } else {
+                // Both sides are fully sorted — one O(n+m) merge.
+                MatchedItem::merge_into_sorted(&mut existing.items, items);
+            }
+        }
+        None => {
+            *guard = Some(ProcessedItems {
+                items,
+                merge: merge_strategy,
+            });
+        }
+    }
+    // Guard is dropped here, releasing the lock before we signal the render flag.
+
+    needs_render.store(true, Ordering::Relaxed);
+}
 
 //==============================================================================
 /// Control handle for a running matcher operation.
@@ -183,18 +251,23 @@ impl Matcher {
 
     /// Runs the matcher on items from the pool in a background thread.
     ///
-    /// The callback is invoked when matching is complete with the matched items.
-    /// Returns a `MatcherControl` that can be used to monitor progress or stop the matcher.
-    pub fn run<C>(
+    /// When matching completes, the coordinator merges results directly into
+    /// `processed_items` according to `merge_strategy`, then signals
+    /// `needs_render` so the UI picks up the new data on its next tick.
+    ///
+    /// Returns a `MatcherControl` that can be used to monitor progress or
+    /// stop the matcher.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn run(
         &self,
         query: &str,
         item_pool: &Arc<ItemPool>,
-        thread_pool: &ThreadPool,
-        callback: C,
-    ) -> MatcherControl
-    where
-        C: Fn(Vec<MatchedItem>) + Send + 'static,
-    {
+        thread_pool: &Arc<ThreadPool>,
+        processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
+        merge_strategy: MergeStrategy,
+        no_sort: bool,
+        needs_render: Arc<AtomicBool>,
+    ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
         debug!("engine: {matcher_engine}");
         let stopped = Arc::new(AtomicBool::new(false));
@@ -216,85 +289,108 @@ impl Matcher {
         let total = items.len();
         trace!("matcher start, total: {total}");
 
-        thread_pool.spawn(move || {
-            // Process items in parallel using chunk-based accounting to minimize
-            // atomic contention. Each rayon work unit processes a chunk of items,
-            // updating the shared `processed` and `matched` counters only once per
-            // chunk instead of once per item. The interrupt flag is also checked
-            // only once per chunk to amortize the atomic load.
+        // The coordinator runs on a dedicated OS thread so it does not occupy
+        // a pool slot while waiting for workers.  All pool threads are
+        // therefore available for the parallel matching work.
+        let num_workers = thread_pool.num_threads();
+        let pool_for_work = Arc::clone(thread_pool);
+
+        std::thread::spawn(move || {
+            // Process items in parallel using a shared work queue.  Each worker
+            // thread atomically grabs the next available chunk, processes it,
+            // and immediately merges its partial results.  This means threads
+            // that finish early automatically pick up more work, providing
+            // natural load balancing.
             //
-            // `with_min_len` ensures rayon doesn't split work into chunks smaller
-            // than CHUNK_SIZE, keeping the overhead of the parallel iterator low
-            // relative to the actual matching work.
+            // The chunk size controls the granularity of work distribution and
+            // the frequency of atomic counter updates / interrupt checks.
             const CHUNK_SIZE: usize = 512;
 
-            let matched_items: Vec<MatchedItem> = items
-                .into_par_iter()
-                .with_min_len(CHUNK_SIZE)
-                .enumerate()
-                .fold(
-                    || (Vec::new(), 0usize, 0usize), // (local_matches, local_processed, local_matched)
-                    |(mut local_matches, mut local_processed, mut local_matched), (index, item)| {
-                        // Check interrupt once at the start of each chunk boundary.
-                        // The fold processes items sequentially within each rayon work unit,
-                        // so checking every CHUNK_SIZE items amortizes the atomic load.
-                        if local_processed % CHUNK_SIZE == 0 && interrupt.load(Ordering::Relaxed) {
-                            return (local_matches, local_processed, local_matched);
-                        }
+            // Convert items into an Arc slice so all workers can share them.
+            let shared_items: Arc<[Arc<dyn SkimItem>]> = items.into();
 
-                        local_processed += 1;
+            // Clones for the process_chunk closure.
+            let matcher_engine: Arc<dyn crate::MatchEngine> = Arc::from(matcher_engine);
+            let interrupt_for_work = Arc::clone(&interrupt);
+            let processed_for_work = Arc::clone(&processed);
+            let matched_for_work = Arc::clone(&matched);
+            let rank_builder_for_work = Arc::clone(&rank_builder);
 
+            thread_pool::parallel_work_queue(
+                &pool_for_work,
+                num_workers,
+                &shared_items,
+                CHUNK_SIZE,
+                // identity – seed value for each worker's local accumulator
+                Vec::<MatchedItem>::new,
+                // process_chunk – called for each chunk; returns a Vec of matches
+                move |chunk_start, chunk: &[Arc<dyn crate::SkimItem>]| {
+                    // Check interrupt before processing this chunk.
+                    if interrupt_for_work.load(Ordering::Relaxed) {
+                        return Vec::new();
+                    }
+
+                    let mut local_matches = Vec::new();
+                    let mut chunk_matched: usize = 0;
+
+                    for (i, item) in chunk.iter().enumerate() {
                         if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
-                            local_matched += 1;
+                            chunk_matched += 1;
                             let mut rank = match_result.rank;
-                            rank.index = i32::try_from(index + start).unwrap_or(i32::MAX);
-                            local_matches.push(MatchedItem {
-                                item,
+                            let index = chunk_start + i + start;
+                            rank.index = i32::try_from(index).unwrap_or(i32::MAX);
+                            local_matches.push(MatchedItem::new(
+                                Arc::clone(item),
                                 rank,
-                                rank_builder: rank_builder.clone(),
-                                matched_range: Some(match_result.matched_range),
-                            });
+                                Some(match_result.matched_range),
+                                &rank_builder_for_work,
+                            ));
                         }
-
-                        // Flush counters periodically so the UI sees progress updates.
-                        if local_processed % CHUNK_SIZE == 0 {
-                            processed.fetch_add(CHUNK_SIZE, Ordering::Relaxed);
-                            if local_matched > 0 {
-                                matched.fetch_add(local_matched, Ordering::Relaxed);
-                                local_matched = 0;
-                            }
-                        }
-
-                        (local_matches, local_processed, local_matched)
-                    },
-                )
-                .map(|(local_matches, local_processed, local_matched)| {
-                    // Flush any remaining counts that didn't hit a chunk boundary.
-                    let remainder = local_processed % CHUNK_SIZE;
-                    if remainder > 0 {
-                        processed.fetch_add(remainder, Ordering::Relaxed);
                     }
-                    if local_matched > 0 {
-                        matched.fetch_add(local_matched, Ordering::Relaxed);
+
+                    // Flush counters for this chunk so the UI sees progress.
+                    processed_for_work.fetch_add(chunk.len(), Ordering::Relaxed);
+                    if chunk_matched > 0 {
+                        matched_for_work.fetch_add(chunk_matched, Ordering::Relaxed);
                     }
+
                     local_matches
-                })
-                .reduce(Vec::new, |mut a, mut b| {
-                    // Merge per-thread result vectors. Always extend the larger one
-                    // to avoid unnecessary reallocations.
-                    if a.len() >= b.len() {
-                        a.extend(b);
-                        a
+                },
+                // reduce – accumulate chunk matches into the worker-local Vec.
+                // No sorting here — that would be O(m²/chunk_size) per worker.
+                |acc: &mut Vec<MatchedItem>, mut partial: Vec<MatchedItem>| {
+                    if acc.len() >= partial.len() {
+                        acc.extend(partial);
                     } else {
-                        b.extend(a);
-                        b
+                        partial.append(acc);
+                        *acc = partial;
                     }
-                });
+                },
+                // prepare – sort each worker's accumulator **on the worker
+                // thread** so that sorting runs in parallel across all workers.
+                // A single O((m/k)·log(m/k)) sort per worker is far cheaper
+                // than sorting during reduce.
+                // sort_unstable is used here because the worker's accumulator
+                // has no pre-existing sorted runs (items were appended in
+                // chunk order), so driftsort's run-detection overhead is pure
+                // cost.  The final merge uses sort() so that driftsort can
+                // exploit the k sorted runs produced by the workers.
+                move |acc: &mut Vec<MatchedItem>| {
+                    if !no_sort {
+                        acc.sort_unstable();
+                    }
+                },
+                // merge – concat pre-sorted worker results and sort().
+                // Rust's stable sort detects the k sorted runs and merges
+                // them in O(n log k), then writes into processed_items.
+                |worker_results: Vec<Vec<MatchedItem>>| {
+                    if interrupt.load(Ordering::SeqCst) {
+                        return;
+                    }
 
-            if !interrupt.load(Ordering::SeqCst) {
-                trace!("matcher stop, total matched: {}", matched_items.len());
-                callback(matched_items);
-            }
+                    merge_worker_results(worker_results, no_sort, &processed_items, merge_strategy, &needs_render);
+                },
+            );
             stopped.store(true, Ordering::Relaxed);
         });
 

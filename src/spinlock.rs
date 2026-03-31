@@ -51,9 +51,11 @@ impl<T: ?Sized> SpinLock<T> {
     pub fn lock(&self) -> SpinLockGuard<'_, T> {
         while self
             .locked
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
             .is_err()
-        {}
+        {
+            core::hint::spin_loop();
+        }
         SpinLockGuard::new(self)
     }
 }
@@ -75,12 +77,7 @@ impl<T: ?Sized> DerefMut for SpinLockGuard<'_, T> {
 impl<T: ?Sized> Drop for SpinLockGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        while self
-            .__lock
-            .locked
-            .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
-            .is_err()
-        {}
+        self.__lock.locked.store(false, Ordering::Release);
     }
 }
 

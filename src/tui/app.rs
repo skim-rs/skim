@@ -21,6 +21,7 @@ use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::{input, preview};
+use crate::thread_pool::{self, ThreadPool};
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use input::Input;
@@ -30,7 +31,6 @@ use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::layout::Rect;
 use ratatui::prelude::Backend;
 use ratatui::widgets::Widget;
-use rayon::ThreadPool;
 use std::sync::LazyLock;
 
 static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
@@ -47,8 +47,10 @@ const HIDE_GRACE_MS: u128 = 500;
 pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,
-    /// Separate thread pool for use by skim
-    pub thread_pool: Arc<ThreadPool>,
+    /// Thread pool used by the matcher (⌊2N/3⌋ threads).
+    pub matcher_pool: Arc<ThreadPool>,
+    /// Thread pool used by the reader pipeline (⌈N/3⌉ threads).
+    pub reader_pool: Arc<ThreadPool>,
     /// Whether the application should quit
     pub should_quit: bool,
 
@@ -195,17 +197,14 @@ impl Default for App {
         let initial_header_height = header.height();
         let layout_template = LayoutTemplate::from_options(&opts, initial_header_height);
         let layout = layout_template.apply(Rect::default());
+        let (reader_threads, matcher_threads) = thread_pool::partition_threads(*NUM_THREADS);
         Self {
             input: Input::from_options(&opts, theme.clone()),
             preview: Preview::from_options(&opts, theme.clone()),
             header,
             item_list: ItemList::from_options(&opts, theme.clone()),
-            thread_pool: Arc::new(
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(*NUM_THREADS)
-                    .build()
-                    .unwrap(),
-            ),
+            matcher_pool: Arc::new(ThreadPool::new(matcher_threads)),
+            reader_pool: Arc::new(ThreadPool::new(reader_threads)),
             item_pool: Arc::default(),
             theme,
             should_quit: false,
@@ -250,23 +249,20 @@ impl App {
     ///
     /// # Panics
     ///
-    /// Panics if the Rayon thread pool cannot be built (system resource exhaustion).
+    /// Panics if the thread pool cannot be built (system resource exhaustion).
     #[must_use]
     pub fn from_options(options: SkimOptions, theme: Arc<crate::theme::ColorTheme>, cmd: String) -> Self {
         let header = Header::from_options(&options, theme.clone());
         let initial_header_height = header.height();
         let layout_template = LayoutTemplate::from_options(&options, initial_header_height);
         let layout = layout_template.apply(Rect::default());
+        let (reader_threads, matcher_threads) = thread_pool::partition_threads(*NUM_THREADS);
         Self {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header,
-            thread_pool: Arc::new(
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(*NUM_THREADS)
-                    .build()
-                    .unwrap(),
-            ),
+            matcher_pool: Arc::new(ThreadPool::new(matcher_threads)),
+            reader_pool: Arc::new(ThreadPool::new(reader_threads)),
             item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
@@ -694,12 +690,12 @@ impl App {
                     ..Default::default()
                 };
                 self.item_pool.append(vec![item.clone()]);
-                self.item_list.append(&mut vec![MatchedItem {
+                self.item_list.append(&mut vec![MatchedItem::new(
                     item,
                     rank,
-                    rank_builder: self.matcher.rank_builder.clone(),
-                    matched_range: None,
-                }]);
+                    None,
+                    &self.matcher.rank_builder,
+                )]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher_debounced();
                 return Ok(Self::on_selection_changed());
@@ -1162,7 +1158,7 @@ impl App {
     /// If `force` is false, the matcher will only be restarted if there are new items
     /// to process or if the previous matcher has completed.
     pub fn restart_matcher(&mut self, force: bool) {
-        use crate::tui::item_list::{MergeStrategy, ProcessedItems};
+        use crate::tui::item_list::MergeStrategy;
         // Check if query meets minimum length requirement
         if let Some(min_length) = self.options.min_query_length
             && !self.options.disabled
@@ -1198,54 +1194,30 @@ impl App {
                 &self.input
             };
             let item_pool = self.item_pool.clone();
-            let thread_pool = &self.thread_pool;
-            let processed_items = self.item_list.processed_items.clone();
+            let thread_pool = &self.matcher_pool;
             let no_sort = self.options.no_sort;
 
             if force {
                 self.item_pool.reset();
             }
 
-            let needs_render = self.needs_render.clone();
+            let merge_strategy = if force {
+                MergeStrategy::Replace
+            } else if no_sort {
+                MergeStrategy::Append
+            } else {
+                MergeStrategy::SortedMerge
+            };
 
-            self.matcher_control = self.matcher.run(query, &item_pool, thread_pool, move |mut matches| {
-                debug!("Got {} results from matcher, sending to item list...", matches.len());
-
-                if !no_sort {
-                    matches.sort();
-                }
-
-                if force {
-                    // Full re-match: replace all results
-                    *processed_items.lock() = Some(ProcessedItems {
-                        items: matches,
-                        merge: MergeStrategy::Replace,
-                    });
-                } else {
-                    // Incremental: merge new matches into any unconsumed processed items,
-                    // and mark with merge strategy so the render loop merges with item_list.items
-                    let merge_strategy = if no_sort {
-                        MergeStrategy::Append
-                    } else {
-                        MergeStrategy::SortedMerge
-                    };
-                    let mut guard = processed_items.lock();
-                    if let Some(ref mut existing) = *guard {
-                        if no_sort {
-                            existing.items.extend(matches);
-                        } else {
-                            // Merge incoming matches into existing sorted list in-place.
-                            MatchedItem::merge_into_sorted(&mut existing.items, matches);
-                        }
-                    } else {
-                        *guard = Some(ProcessedItems {
-                            items: matches,
-                            merge: merge_strategy,
-                        });
-                    }
-                }
-                needs_render.store(true, Ordering::Relaxed);
-            });
+            self.matcher_control = self.matcher.run(
+                query,
+                &item_pool,
+                thread_pool,
+                self.item_list.processed_items.clone(),
+                merge_strategy,
+                no_sort,
+                self.needs_render.clone(),
+            );
         }
     }
 

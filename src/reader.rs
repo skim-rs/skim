@@ -5,6 +5,7 @@ use crate::item::ItemPool;
 use crate::options::SkimOptions;
 use crate::prelude::{Sender, SkimItemReader};
 use crate::spinlock::SpinLock;
+use crate::thread_pool::ThreadPool;
 use crate::{SkimItem, SkimItemReceiver};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -25,6 +26,12 @@ pub trait CommandCollector {
         cmd: &str,
         components_to_stop: Arc<AtomicUsize>,
     ) -> (SkimItemReceiver, crate::prelude::Sender<i32>);
+
+    /// Provides a shared thread pool so that chunk-processing work submitted
+    /// by this collector competes for the same threads as the matcher rather
+    /// than spawning additional OS threads.  The default implementation is a
+    /// no-op; collectors that support pool-based I/O should override it.
+    fn set_thread_pool(&mut self, _pool: Arc<ThreadPool>) {}
 }
 
 /// Handle for controlling a running reader
@@ -92,6 +99,13 @@ impl Reader {
     pub fn source(mut self, rx_item: Option<SkimItemReceiver>) -> Self {
         self.rx_item = rx_item;
         self
+    }
+
+    /// Forwards a shared thread pool to the underlying [`CommandCollector`] so
+    /// that I/O work shares the matcher's thread budget instead of spawning
+    /// separate OS threads.
+    pub fn set_thread_pool(&mut self, pool: Arc<ThreadPool>) {
+        self.cmd_collector.borrow_mut().set_thread_pool(pool);
     }
 
     /// Starts the reader and returns a control handle
@@ -182,7 +196,7 @@ where
                     callback(items);
                 }
                 Ok(None) => {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    std::thread::sleep(std::time::Duration::from_millis(1));
                 }
                 Err(_) => {
                     break;

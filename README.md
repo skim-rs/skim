@@ -743,15 +743,28 @@ export TERMINFO=/data/data/com.termux/files/usr/share/terminfo
 
 # Benchmarks
 
-## Shell script
+## Interactive benchmark (`cli`)
 
-The `bench.py` script is available to benchmark the code against other versions or fzf using `tmux` and querying the output. This is by no means a precise or foolproof way of running benchmarks, but it has the added benefit of allowing us to benchmark against `fzf` and of giving us resource metrics.
+The `cli` bench benchmarks skim (or any compatible binary) against other versions or fzf by running the interactive interface inside a tmux session and polling the status line until the matched count stabilises. This is by no means a precise or foolproof measurement, but it has the added benefit of benchmarking against `fzf` and of providing resource metrics (peak RSS and CPU).
 
-You can use it directly using `./bench.py <binary> -n <number of items> -r <number of runs>`, or generate the data using `./bench.py -g <output file> -n <number of items>`, then `./bench.py <binary> -f <file> -r <number of runs>`
+```sh
+cargo bench --bench cli                                      # defaults: sk, 1 M items, query "test"
+cargo bench --bench cli -- sk -n 500000 -q foo              # bare name resolved via $PATH
+cargo bench --bench cli -- ./old/sk ./new/sk -r 5           # compare two binaries, 5 runs each
+cargo bench --bench cli -- sk -r 5                          # 5 runs, show average
+cargo bench --bench cli -- sk -f input.txt -q search        # use an existing file
+cargo bench --bench cli -- -g testdata.txt -n 2000000       # generate input file and exit
+cargo bench --bench cli -- sk -p                            # record perf data (auto-named file)
+cargo bench --bench cli -- sk -p perf.data                 # record perf data to perf.data
+cargo bench --bench cli -- sk -j                            # JSON output
+cargo bench --bench cli -- sk -r 3 -- --tiebreak=index     # pass extra flags to sk
+```
+
+Binary names are resolved to absolute paths via `which` before use, so bare names like `sk` or `fzf` work as long as they are on `$PATH`.
 
 ### Criterion benchmarks
 
 Criterion benchmarks are available to measure skim's performance more precisely.
-To run them, you need to generate input data using `./bench.py -g benches/fixtures/10M.txt -n 10000000 && ./bench.py -g benches/fixtures/1M.txt -n 1000000`, then run `cargo bench -j 1`.
+To run them, you need to generate input data using `cargo bench --bench cli -- -g benches/fixtures/10M.txt -n 10000000 && cargo bench --bench cli -- -g benches/fixtures/1M.txt -n 1000000`, then run `cargo bench -j 1`.
 
 These will run for several minutes.

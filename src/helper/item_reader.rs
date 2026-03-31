@@ -1,5 +1,6 @@
 //! Helper utilities for converting input sources into skim item streams.
 
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Stdio};
@@ -7,6 +8,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+
+use crate::thread_pool::ThreadPool;
+
+/// Size of the read buffer used by the parallel I/O reader thread.
+const PARALLEL_READ_BUF_SIZE: usize = 256 * 1024;
 
 use regex::Regex;
 
@@ -170,12 +176,26 @@ impl SkimItemReaderOption {
 /// Reader for converting various input sources into streams of skim items
 pub struct SkimItemReader {
     option: Arc<SkimItemReaderOption>,
+    /// Thread pool used for chunk-processing jobs.  Reader and matcher share
+    /// this pool so they compete for the same thread budget rather than each
+    /// spawning their own OS threads.  Defaults to a private pool sized to the
+    /// number of logical CPUs; callers can replace it with a shared pool via
+    /// [`with_thread_pool`](Self::with_thread_pool) or
+    /// [`set_thread_pool`](Self::set_thread_pool).
+    thread_pool: Arc<ThreadPool>,
+}
+
+fn default_thread_pool() -> Arc<ThreadPool> {
+    let n = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    let (reader_threads, _) = crate::thread_pool::partition_threads(n);
+    Arc::new(ThreadPool::new(reader_threads))
 }
 
 impl Default for SkimItemReader {
     fn default() -> Self {
         Self {
             option: Arc::new(Default::default()),
+            thread_pool: default_thread_pool(),
         }
     }
 }
@@ -186,6 +206,7 @@ impl SkimItemReader {
     pub fn new(option: SkimItemReaderOption) -> Self {
         Self {
             option: Arc::new(option),
+            thread_pool: default_thread_pool(),
         }
     }
 
@@ -194,6 +215,20 @@ impl SkimItemReader {
     pub fn option(mut self, option: SkimItemReaderOption) -> Self {
         self.option = Arc::new(option);
         self
+    }
+
+    /// Replaces the thread pool used for chunk-processing.  Pass the matcher's
+    /// pool here so that reader and matcher share the same thread budget.
+    #[must_use]
+    pub fn with_thread_pool(mut self, pool: Arc<ThreadPool>) -> Self {
+        self.thread_pool = pool;
+        self
+    }
+
+    /// Like [`with_thread_pool`] but takes `&mut self` — useful when the pool
+    /// is only available after construction (e.g. injected from the app).
+    pub fn set_thread_pool(&mut self, pool: Arc<ThreadPool>) {
+        self.thread_pool = pool;
     }
 }
 
@@ -281,16 +316,185 @@ impl SkimItemReader {
         }
     }
 
-    /// helper: convert bufread into `SkimItemReceiver`
+    /// Parallel reader for the simple (no ANSI, no field transforms) case.
+    ///
+    /// Pipeline:
+    ///
+    /// 1. **I/O thread** (dedicated) — reads large byte chunks (~256 KB) from
+    ///    `source`, splitting on line boundaries, and sends them tagged with
+    ///    monotonic sequence numbers into a bounded channel.
+    /// 2. **Dispatcher thread** (dedicated, lightweight) — drains that channel
+    ///    and submits one pool job per chunk.  The bounded channel provides
+    ///    natural back-pressure on the I/O thread when the pool is busy.
+    /// 3. **Pool jobs** — parse lines, validate UTF-8, and create
+    ///    `DefaultSkimItem` + `Arc` per line.  Because these jobs share the
+    ///    same pool as the matcher, reader and matcher compete for the same
+    ///    thread budget rather than over-subscribing available CPU cores.
+    /// 4. **Reorder thread** (dedicated) — collects `(seq, items)` from pool
+    ///    jobs and emits them in sequence order so downstream index assignment
+    ///    and `--tac` behaviour are correct.
     fn raw_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = kanal::bounded(1024 * 1024);
         let option = self.option.clone();
+        let pool = Arc::clone(&self.thread_pool);
 
+        let num_threads = pool.num_threads();
+        let (tx_chunks, rx_chunks) = kanal::bounded::<(usize, Vec<u8>)>(num_threads * 4);
+        let (tx_results, rx_results) = kanal::bounded::<(usize, Vec<Arc<dyn SkimItem>>)>(num_threads * 4);
+
+        let line_ending = option.line_ending;
+
+        // Stage 1: I/O thread.
+        Self::spawn_io_reader(source, tx_chunks, line_ending);
+
+        // Stage 2: dispatcher thread — bridges the bounded channel to the pool.
         thread::spawn(move || {
-            Self::read_lines_into_items(source, &tx_item, &option, &[], &[]);
+            while let Ok((seq, chunk)) = rx_chunks.recv() {
+                let tx = tx_results.clone();
+                let opt = option.clone();
+                pool.spawn(move || {
+                    let result = Self::process_chunk(seq, &chunk, &opt);
+                    let _ = tx.send(result);
+                });
+            }
+            // rx_chunks closed → all chunks dispatched; tx_results dropped here
+            // so the reorder thread exits once the last pool job finishes.
         });
 
+        // Stage 4: reorder thread.
+        Self::spawn_reorder_thread(rx_results, tx_item);
+
         rx_item
+    }
+
+    /// Stage 1 of the parallel reader: reads large byte chunks from `source`,
+    /// splitting on line boundaries, and sends them to workers.
+    fn spawn_io_reader(
+        source: impl BufRead + Send + 'static,
+        tx_chunks: kanal::Sender<(usize, Vec<u8>)>,
+        line_ending: u8,
+    ) {
+        thread::spawn(move || {
+            debug!("parallel reader: I/O thread start");
+
+            let mut source = source;
+            let mut leftover: Vec<u8> = Vec::new();
+            let mut seq = 0usize;
+            let mut read_buf = vec![0u8; PARALLEL_READ_BUF_SIZE];
+
+            loop {
+                let n = match std::io::Read::read(&mut source, &mut read_buf) {
+                    Ok(0) => {
+                        // EOF — flush any remaining leftover as the final chunk.
+                        if !leftover.is_empty() {
+                            let _ = tx_chunks.send((seq, std::mem::take(&mut leftover)));
+                        }
+                        break;
+                    }
+                    Ok(n) => n,
+                    Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => {
+                        // Flush any accumulated data before exiting on error.
+                        if !leftover.is_empty() {
+                            let _ = tx_chunks.send((seq, std::mem::take(&mut leftover)));
+                        }
+                        break;
+                    }
+                };
+
+                // Combine leftover from previous iteration with fresh data.
+                let data = if leftover.is_empty() {
+                    read_buf[..n].to_vec()
+                } else {
+                    let mut combined = std::mem::take(&mut leftover);
+                    combined.extend_from_slice(&read_buf[..n]);
+                    combined
+                };
+
+                // Split at the last newline: everything up to it forms a
+                // complete-line chunk; the remainder carries over.
+                if let Some(last_nl) = memchr::memrchr(line_ending, &data) {
+                    leftover = data[last_nl + 1..].to_vec();
+                    let mut chunk = data;
+                    chunk.truncate(last_nl + 1);
+                    if tx_chunks.send((seq, chunk)).is_err() {
+                        break;
+                    }
+                    seq += 1;
+                } else {
+                    // No newline at all — accumulate for the next read.
+                    leftover = data;
+                }
+            }
+
+            debug!("parallel reader: I/O thread stop (sent {seq} chunks)");
+        });
+    }
+
+    /// Parses a raw byte chunk into a tagged batch of items.
+    ///
+    /// Shared by both the pool-based and dedicated-thread code paths.
+    fn process_chunk(seq: usize, chunk: &[u8], opt: &SkimItemReaderOption) -> (usize, Vec<Arc<dyn SkimItem>>) {
+        let mut items = Vec::new();
+        let line_ending = opt.line_ending;
+
+        // Chunks produced by the I/O thread end with the line-ending delimiter
+        // (except possibly the final leftover at EOF).  `split()` would produce
+        // a spurious trailing empty segment in that case, so we trim the
+        // trailing delimiter first.  After trimming, every segment — including
+        // empty ones — maps 1:1 to an input line.
+        let chunk_trimmed: &[u8] = if chunk.last() == Some(&line_ending) {
+            &chunk[..chunk.len() - 1]
+        } else {
+            chunk
+        };
+
+        for line_bytes in chunk_trimmed.split(|&b: &u8| b == line_ending) {
+            // Strip optional \r for \r\n endings.
+            let line_bytes: &[u8] = line_bytes.strip_suffix(b"\r").unwrap_or(line_bytes);
+            let Ok(line) = std::str::from_utf8(line_bytes) else {
+                continue;
+            };
+            // Use DefaultSkimItem::new to preserve ANSI-escape stripping
+            // behaviour even when --ansi is not set.
+            items.push(Arc::new(DefaultSkimItem::new(
+                line,
+                opt.use_ansi_color,
+                &opt.transform_fields,
+                &opt.matching_fields,
+                &opt.delimiter,
+            )) as Arc<dyn SkimItem>);
+        }
+
+        (seq, items)
+    }
+
+    /// Stage 3: receives item batches from workers and emits them through the
+    /// downstream channel in the original sequence order.
+    fn spawn_reorder_thread(rx_results: kanal::Receiver<(usize, Vec<Arc<dyn SkimItem>>)>, tx_item: SkimItemSender) {
+        thread::spawn(move || {
+            debug!("parallel reader: reorder thread start");
+            let mut expected = 0usize;
+            let mut pending: BTreeMap<usize, Vec<Arc<dyn SkimItem>>> = BTreeMap::new();
+
+            while let Ok((seq, items)) = rx_results.recv() {
+                pending.insert(seq, items);
+                // Flush consecutive batches starting from the expected seq.
+                while let Some(batch) = pending.remove(&expected) {
+                    if tx_item.send(batch).is_err() {
+                        return;
+                    }
+                    expected += 1;
+                }
+            }
+            // Drain anything left (shouldn't normally happen).
+            while let Some((&seq, _)) = pending.first_key_value() {
+                if pending.remove(&seq).is_some_and(|batch| tx_item.send(batch).is_err()) {
+                    return;
+                }
+            }
+            debug!("parallel reader: reorder thread stop");
+        });
     }
 
     /// `components_to_stop` == 0 => all the threads have been stopped
@@ -359,28 +563,23 @@ impl SkimItemReader {
             // busy waiting for the thread to start. (components_to_stop is added)
         }
 
-        let started = Arc::new(AtomicBool::new(false));
-        let started_clone = started.clone();
         let tx_interrupt_clone = tx_interrupt.clone();
         let option = self.option.clone();
         let transform_fields = option.transform_fields.clone();
         let matching_fields = option.matching_fields.clone();
 
-        thread::spawn(move || {
+        // Increment before submitting so components_to_stop is already non-zero
+        // when this function returns; no busy-wait needed.
+        components_to_stop.fetch_add(1, Ordering::SeqCst);
+        self.thread_pool.spawn(move || {
             debug!("collector: command collector start");
-            components_to_stop.fetch_add(1, Ordering::SeqCst);
-            started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
             Self::read_lines_into_items(source, &tx_item, &option, &transform_fields, &matching_fields);
 
-            let _ = tx_interrupt_clone.send(1); // ensure the waiting thread will exit
+            let _ = tx_interrupt_clone.send(1); // ensure the killer thread will exit
             components_to_stop.fetch_sub(1, Ordering::SeqCst);
             debug!("collector: command collector stop");
         });
-
-        while !started.load(Ordering::SeqCst) {
-            // busy waiting for the thread to start. (components_to_stop is added)
-        }
 
         (rx_item, tx_interrupt)
     }
@@ -393,6 +592,10 @@ impl CommandCollector for SkimItemReader {
         components_to_stop: Arc<AtomicUsize>,
     ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
         self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
+    }
+
+    fn set_thread_pool(&mut self, pool: Arc<ThreadPool>) {
+        self.thread_pool = pool;
     }
 }
 

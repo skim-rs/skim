@@ -258,12 +258,7 @@ mod test {
     use std::sync::Arc;
 
     fn make_item(s: &'static str) -> MatchedItem {
-        MatchedItem {
-            item: Arc::new(s),
-            rank: Rank::default(),
-            rank_builder: Arc::new(RankBuilder::default()),
-            matched_range: None,
-        }
+        MatchedItem::new(Arc::new(s), Rank::default(), None, &RankBuilder::default())
     }
 
     #[test]

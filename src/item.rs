@@ -118,10 +118,11 @@ pub struct MatchedItem {
     pub item: Arc<dyn SkimItem>,
     /// Raw match measurements
     pub rank: Rank,
-    /// The tiebreak criteria used to derive sort order from `rank`
-    pub rank_builder: Arc<RankBuilder>,
     /// Range of characters that matched the pattern
     pub matched_range: Option<MatchRange>,
+    /// Sort key precomputed at construction time from `rank` and the tiebreak
+    /// criteria.  Caching avoids recomputing it on every comparison during sort.
+    sort_key: [i32; 5],
 }
 
 impl std::fmt::Debug for MatchedItem {
@@ -129,9 +130,8 @@ impl std::fmt::Debug for MatchedItem {
         f.debug_struct("MatchedItem")
             .field("item", &self.item.text())
             .field("rank", &self.rank)
-            .field("sort_key", &self.rank.sort_key(self.rank_builder.criteria()))
             .field("matched_range", &self.matched_range)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -151,6 +151,20 @@ impl Deref for MatchedItem {
 }
 
 impl MatchedItem {
+    /// Create a new `MatchedItem`, building the `sort_key` from the Rank and `RankBuilder`
+    pub fn new(
+        item: Arc<dyn SkimItem>,
+        rank: Rank,
+        matched_range: Option<MatchRange>,
+        rank_builder: &RankBuilder,
+    ) -> Self {
+        Self {
+            item,
+            rank,
+            matched_range,
+            sort_key: rank.sort_key(rank_builder.criteria()),
+        }
+    }
     /// Merge two sorted `Vec<MatchedItem>` lists into one, preserving sort order by rank.
     ///
     /// Both input lists must already be sorted by the same tiebreak criteria (ascending).
@@ -212,36 +226,109 @@ impl MatchedItem {
     /// Merge `incoming` into an already-sorted `existing` vector in-place.
     ///
     /// This function chooses between two strategies:
-    /// - If `incoming` is small (few items), insert them one-by-one using binary
-    ///   search to find the insertion point. This is O(m log n) for m incoming
-    ///   items and is faster when m << n.
-    /// - Otherwise, fall back to the linear two-way merge which is O(n+m).
+    /// - If `incoming` is small (≤ 256 items), insert them one-by-one using
+    ///   binary search to find the insertion point.  Each insert is O(n) due
+    ///   to element shifting, giving O(m·n) overall, but the constant factor
+    ///   is small for tiny m and avoids any extra allocation.
+    /// - Otherwise, perform a backwards in-place merge that writes the result
+    ///   directly into `existing`'s buffer (after a single `reserve`).  This
+    ///   is O(n+m) time with **zero additional heap allocation** beyond the
+    ///   amortised `Vec::reserve`.
     ///
     /// `existing` must be sorted according to the same ordering used by
     /// `MatchedItem::cmp`.
     pub fn merge_into_sorted(existing: &mut Vec<MatchedItem>, incoming: Vec<MatchedItem>) {
-        // Heuristic threshold: for small incoming batches, prefer binary-insert.
-        // This avoids allocating a new vector and copying the entire existing
-        // list when we only need to insert a few new items.
         const SMALL_INSERT_THRESHOLD: usize = 256;
 
         if incoming.is_empty() {
             return;
         }
 
+        // When existing is empty, extend preserves any pre-allocated capacity
+        // (e.g. a caller that did `Vec::with_capacity(total)` before a fold).
+        if existing.is_empty() {
+            existing.extend(incoming);
+            return;
+        }
+
+        // Fast path: all existing ≤ first incoming — just append.
+        #[allow(clippy::missing_panics_doc)]
+        if existing.last().unwrap() <= incoming.first().unwrap() {
+            existing.extend(incoming);
+            return;
+        }
+
         if incoming.len() <= SMALL_INSERT_THRESHOLD {
-            // Insert each incoming item into the existing sorted vector.
-            // For small m this is typically faster than allocating a new
-            // buffer and performing a full linear merge.
             for item in incoming {
                 let pos = existing.binary_search_by(|e| e.cmp(&item)).unwrap_or_else(|p| p);
                 existing.insert(pos, item);
             }
         } else {
-            // For larger incoming batches, perform the linear two-way merge
-            // which is O(n+m) and avoids the O(n*m) cost of repeated inserts.
-            let old = std::mem::take(existing);
-            *existing = MatchedItem::sorted_merge(old, incoming);
+            Self::merge_backwards(existing, incoming);
+        }
+    }
+
+    /// Merges `incoming` into `existing` in-place using a right-to-left merge.
+    ///
+    /// Both inputs must already be sorted.  After `existing.reserve(b_len)`,
+    /// the buffer has room for all elements.  We then merge from the rightmost
+    /// end of each run, writing the larger element at the write cursor which
+    /// starts at `new_len - 1` and moves left.
+    ///
+    /// **Key invariant**: the write position is always strictly greater than
+    /// the read position in `existing` while both runs have remaining elements
+    /// (because `write - ai == remaining B elements > 0`), so
+    /// `copy_nonoverlapping` never aliases.  Each element is moved exactly
+    /// once.
+    ///
+    /// # Safety (internal)
+    ///
+    /// Uses `unsafe` for raw-pointer moves.  `MatchedItem::cmp` compares plain
+    /// integer fields and cannot panic, so no element is leaked or
+    /// double-dropped.  `incoming`'s backing allocation is freed with length 0
+    /// after all its elements have been moved out.
+    fn merge_backwards(existing: &mut Vec<MatchedItem>, incoming: Vec<MatchedItem>) {
+        let a_len = existing.len();
+        let b_len = incoming.len();
+        let new_len = a_len + b_len;
+
+        existing.reserve(b_len);
+
+        // Decompose `incoming` so we can move elements out via raw pointers
+        // and free the allocation separately.
+        let (b_ptr, b_cap) = {
+            let mut v = std::mem::ManuallyDrop::new(incoming);
+            (v.as_mut_ptr(), v.capacity())
+        };
+
+        // SAFETY: see doc-comment above for the aliasing / move proof.
+        unsafe {
+            let a_ptr = existing.as_mut_ptr();
+            let mut write = new_len;
+            let mut ai = a_len;
+            let mut bi = b_len;
+
+            while ai > 0 && bi > 0 {
+                write -= 1;
+                if *a_ptr.add(ai - 1) >= *b_ptr.add(bi - 1) {
+                    ai -= 1;
+                    std::ptr::copy_nonoverlapping(a_ptr.add(ai), a_ptr.add(write), 1);
+                } else {
+                    bi -= 1;
+                    std::ptr::copy_nonoverlapping(b_ptr.add(bi), a_ptr.add(write), 1);
+                }
+            }
+
+            // Remaining B elements go to the front of existing.
+            // (Remaining A elements at 0..ai are already in their final positions.)
+            if bi > 0 {
+                std::ptr::copy_nonoverlapping(b_ptr, a_ptr, bi);
+            }
+
+            existing.set_len(new_len);
+
+            // Free incoming's backing allocation; all elements were moved out.
+            drop(Vec::from_raw_parts(b_ptr, 0, b_cap));
         }
     }
 }
@@ -272,8 +359,9 @@ impl PartialOrd for MatchedItem {
 
 impl Ord for MatchedItem {
     fn cmp(&self, other: &Self) -> CmpOrd {
-        let criteria = self.rank_builder.criteria();
-        self.rank.sort_key(criteria).cmp(&other.rank.sort_key(criteria))
+        self.sort_key
+            .cmp(&other.sort_key)
+            .then_with(|| self.rank.index.cmp(&other.rank.index))
     }
 }
 

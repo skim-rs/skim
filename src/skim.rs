@@ -140,7 +140,7 @@ where
         // application state
         // Initialize theme from options
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
-        let reader = Reader::from_options(&options).source(source);
+        let mut reader = Reader::from_options(&options).source(source);
         let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
             Err(_) | Ok("") => crate::SKIM_DEFAULT_COMMAND,
             Ok(v) => v,
@@ -148,6 +148,11 @@ where
         let cmd = options.cmd.clone().unwrap_or(default_command);
 
         let app = App::from_options(options, theme.clone(), cmd.clone());
+
+        // Give the reader its own dedicated pool (⌈N/3⌉ threads) so it never
+        // competes with the matcher's pool (⌊2N/3⌋ threads) for the same
+        // worker threads.
+        reader.set_thread_pool(Arc::clone(&app.reader_pool));
 
         //------------------------------------------------------------------------------
         // reader

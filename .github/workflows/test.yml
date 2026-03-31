@@ -10,7 +10,7 @@ on:
   # pull_request: # No need to trigger on PR, cargo-dist already does
   push:
     branches:
-    - master
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,15 +23,15 @@ jobs:
       matrix:
         build: [linux, macos, windows]
         include:
-        - build: linux
-          os: ubuntu-latest
-          target: x86_64-unknown-linux-musl
-        - build: macos
-          os: macos-latest
-          target: x86_64-apple-darwin
-        - build: windows
-          os: windows-latest
-          target: x86_64-pc-windows-msvc
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - build: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - build: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
     steps:
       - name: "[linux] Install dependencies"
         run: |
@@ -81,7 +81,6 @@ jobs:
               echo "old: $base"
               cat "$base"
               diff "$base" "$new_snap"
-            else
             fi
           done
         shell: bash
