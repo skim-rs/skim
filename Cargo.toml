@@ -74,7 +74,7 @@ memchr = "=2.8.0"
 clap_complete_nushell = "=4.6.0"
 interprocess = { version = "=2.4.0", features = ["tokio"] }
 serde = { version = "=1.0.228", features = ["derive"] }
-ron = "=0.12.0"
+ron = "=0.12.1"
 frizbee = { version = "=0.8.3" }
 roff = "=1.1.1"
 unicode-display-width = "=0.3.0"
