@@ -10,6 +10,25 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
 // ---------------------------------------------------------------------------
+// Thread-count partitioning
+// ---------------------------------------------------------------------------
+
+/// Splits `n` logical threads between the reader pipeline and the matcher.
+///
+/// Returns `(reader, matcher)` where:
+/// - `reader`  = ⌈n / 3⌉, minimum 1
+/// - `matcher` = ⌊2n / 3⌋, minimum 1
+///
+/// On single-core machines (`n = 1`) both values are 1 so neither subsystem
+/// starves; the OS time-slices between the two small pools as usual.
+#[must_use]
+pub fn partition_threads(n: usize) -> (usize, usize) {
+    let reader = n.div_ceil(3); // ⌈n/3⌉
+    let matcher = (2 * n) / 3; // ⌊2n/3⌋
+    (reader.max(1), matcher.max(1))
+}
+
+// ---------------------------------------------------------------------------
 // Job type
 // ---------------------------------------------------------------------------
 
@@ -444,6 +463,29 @@ impl AtomicCounter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn partition_threads_split() {
+        // Single-core: both pools get at least 1 thread.
+        assert_eq!(partition_threads(1), (1, 1));
+        // Two cores: 1 reader, 1 matcher.
+        assert_eq!(partition_threads(2), (1, 1));
+        // Three cores: 1 reader, 2 matcher.
+        assert_eq!(partition_threads(3), (1, 2));
+        // Six cores: 2 reader, 4 matcher.
+        assert_eq!(partition_threads(6), (2, 4));
+        // Eight cores: 3 reader, 5 matcher; sums to 8.
+        assert_eq!(partition_threads(8), (3, 5));
+        // Nine cores: 3 reader, 6 matcher; sums to 9.
+        assert_eq!(partition_threads(9), (3, 6));
+        // The two values always sum to n for n >= 3.
+        for n in 3..=64 {
+            let (r, m) = partition_threads(n);
+            assert_eq!(r + m, n, "partition_threads({n}) = ({r}, {m}) does not sum to {n}");
+            assert!(r >= 1);
+            assert!(m >= 1);
+        }
+    }
 
     #[test]
     fn spawn_runs_closure() {

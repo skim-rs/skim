@@ -743,11 +743,9 @@ export TERMINFO=/data/data/com.termux/files/usr/share/terminfo
 
 # Benchmarks
 
-## Interactive benchmark (`bench`)
+## Interactive benchmark (`cli`)
 
-The `bench` binary benchmarks skim (or any compatible binary) against other versions or fzf by running the interactive interface inside a tmux session and polling the status line until the matched count stabilises. This is by no means a precise or foolproof measurement, but it has the added benefit of benchmarking against `fzf` and of providing resource metrics (peak RSS and CPU).
-
-Build and run it via the `bench-cli` cargo alias (requires the `bench` feature):
+The `cli` bench benchmarks skim (or any compatible binary) against other versions or fzf by running the interactive interface inside a tmux session and polling the status line until the matched count stabilises. This is by no means a precise or foolproof measurement, but it has the added benefit of benchmarking against `fzf` and of providing resource metrics (peak RSS and CPU).
 
 ```sh
 cargo bench --bench cli                                      # defaults: sk, 1 M items, query "test"

@@ -149,10 +149,10 @@ where
 
         let app = App::from_options(options, theme.clone(), cmd.clone());
 
-        // Share the app's thread pool with the reader so that chunk-processing
-        // jobs and matcher jobs compete for the same thread budget rather than
-        // each spawning their own OS threads.
-        reader.set_thread_pool(Arc::clone(&app.thread_pool));
+        // Give the reader its own dedicated pool (⌈N/3⌉ threads) so it never
+        // competes with the matcher's pool (⌊2N/3⌋ threads) for the same
+        // worker threads.
+        reader.set_thread_pool(Arc::clone(&app.reader_pool));
 
         //------------------------------------------------------------------------------
         // reader

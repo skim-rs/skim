@@ -359,7 +359,9 @@ impl PartialOrd for MatchedItem {
 
 impl Ord for MatchedItem {
     fn cmp(&self, other: &Self) -> CmpOrd {
-        self.sort_key.cmp(&other.sort_key)
+        self.sort_key
+            .cmp(&other.sort_key)
+            .then_with(|| self.rank.index.cmp(&other.rank.index))
     }
 }
 

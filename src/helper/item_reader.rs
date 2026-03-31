@@ -187,7 +187,8 @@ pub struct SkimItemReader {
 
 fn default_thread_pool() -> Arc<ThreadPool> {
     let n = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
-    Arc::new(ThreadPool::new(n))
+    let (reader_threads, _) = crate::thread_pool::partition_threads(n);
+    Arc::new(ThreadPool::new(reader_threads))
 }
 
 impl Default for SkimItemReader {

@@ -21,7 +21,7 @@ use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::{input, preview};
-use crate::thread_pool::ThreadPool;
+use crate::thread_pool::{self, ThreadPool};
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use input::Input;
@@ -47,8 +47,10 @@ const HIDE_GRACE_MS: u128 = 500;
 pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,
-    /// Separate thread pool for use by skim
+    /// Thread pool used by the matcher (⌊2N/3⌋ threads).
     pub thread_pool: Arc<ThreadPool>,
+    /// Thread pool used by the reader pipeline (⌈N/3⌉ threads).
+    pub reader_pool: Arc<ThreadPool>,
     /// Whether the application should quit
     pub should_quit: bool,
 
@@ -200,7 +202,8 @@ impl Default for App {
             preview: Preview::from_options(&opts, theme.clone()),
             header,
             item_list: ItemList::from_options(&opts, theme.clone()),
-            thread_pool: Arc::new(ThreadPool::new(*NUM_THREADS)),
+            thread_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).1)),
+            reader_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).0)),
             item_pool: Arc::default(),
             theme,
             should_quit: false,
@@ -256,7 +259,8 @@ impl App {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),
             header,
-            thread_pool: Arc::new(ThreadPool::new(*NUM_THREADS)),
+            thread_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).1)),
+            reader_pool: Arc::new(ThreadPool::new(thread_pool::partition_threads(*NUM_THREADS).0)),
             item_pool: Arc::new(ItemPool::from_options(&options)),
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
