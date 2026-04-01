@@ -60,6 +60,12 @@ jobs:
           tool: cargo-llvm-cov@0.8
       - name: Cache
         uses: Swatinem/rust-cache@v2
+        with: &cache-with
+          add-job-id-key: "false"
+          add-rust-environment-hash-key: "false"
+          env-vars: "____"
+          cache-on-failure: "true"
+          cache-all-crates: "true"
       - name: Run doctests
         run: cargo test --doc
       - name: Run tests
@@ -110,6 +116,7 @@ jobs:
       - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
+        with: *cache-with
       - name: Clippy
         run: cargo clippy
 
@@ -131,6 +138,7 @@ jobs:
       - run: rustup toolchain install
       - name: Cache
         uses: Swatinem/rust-cache@v2
+        with: *cache-with
       - name: Build without any feature
         run: |
           cargo build --no-default-features
