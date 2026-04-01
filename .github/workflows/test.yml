@@ -61,7 +61,7 @@ jobs:
       - name: Cache
         uses: Swatinem/rust-cache@v2
         with: &cache-with
-          key: ${{ matrix.target }}
+          key: ${{ runner.os }}
           add-job-id-key: "false"
           add-rust-environment-hash-key: "false"
           env-vars: "____"
