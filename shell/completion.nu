@@ -94,6 +94,8 @@ module completions {
     --border: string@"nu-complete sk border" # Draw borders around the UI components
     --wrap                    # Wrap items in the item list
     --multiline: string       # Split item text into multiple display lines at the given separator character defaults to \n if read0 is set, and \\n if not (matching literal \n in text)
+    --scrollbar: string       # Set scrollbar style for the item list
+    --no-scrollbar            # Disable the scrollbar in the item list
     --history: string         # History file
     --history-size: string    # Maximum number of query history entries to keep
     --cmd-history: string     # Command history file
@@ -153,8 +155,6 @@ module completions {
     --gutter: string
     --gutter-raw: string
     --marker-multi-line: string
-    --scrollbar: string
-    --no-scrollbar
     --list-border: string
     --list-label: string
     --list-label-pos: string

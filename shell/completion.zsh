@@ -61,6 +61,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
 '--border=[Draw borders around the UI components]::BORDER:(plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside)' \
 '--multiline=[Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)]::MULTILINE:_default' \
+'--scrollbar=[Set scrollbar style for the item list]:THUMB:_default' \
 '--history=[History file]:HISTORY_FILE:_default' \
 '--history-size=[Maximum number of query history entries to keep]:HISTORY_SIZE:_default' \
 '--cmd-history=[Command history file]:CMD_HISTORY_FILE:_default' \
@@ -107,7 +108,6 @@ show-index\:"Display the item'\''s index before its value in the item list"))' \
 '--gutter=[]:GUTTER:_default' \
 '--gutter-raw=[]:GUTTER_RAW:_default' \
 '--marker-multi-line=[]:MARKER_MULTI_LINE:_default' \
-'--scrollbar=[]:SCROLLBAR:_default' \
 '--list-border=[]:LIST_BORDER:_default' \
 '--list-label=[]:LIST_LABEL:_default' \
 '--list-label-pos=[]:LIST_LABEL_POS:_default' \
@@ -156,6 +156,7 @@ show-index\:"Display the item'\''s index before its value in the item list"))' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
 '--wrap[Wrap items in the item list]' \
+'--no-scrollbar[Disable the scrollbar in the item list]' \
 '--read0[Read input delimited by ASCII NUL(\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\0) characters]' \
 '--print-query[Print the query as the first line]' \
@@ -181,7 +182,6 @@ show-index\:"Display the item'\''s index before its value in the item list"))' \
 '--no-multi-line[]' \
 '--raw[]' \
 '--track[]' \
-'--no-scrollbar[]' \
 '--no-input[]' \
 '--no-separator[]' \
 '--header-first[]' \
