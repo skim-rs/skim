@@ -154,19 +154,7 @@ pub struct Input {
 
 impl Default for Input {
     fn default() -> Self {
-        Self {
-            prompt: String::from(">"),
-            alternate_prompt: String::from("c>"),
-            value: String::default(),
-            alternate_value: String::default(),
-            cursor_pos: 0,
-            alternate_cursor_pos: 0,
-            theme: Arc::new(ColorTheme::default()),
-            border: None,
-            status_info: None,
-            info_display: InfoDisplay::Default,
-            reverse: false,
-        }
+        Self::_default()
     }
 }
 
@@ -422,7 +410,13 @@ impl SkimWidget for Input {
             border: options.border,
             info_display: options.info.clone(),
             reverse: options.layout == TuiLayout::Reverse,
-            ..Default::default()
+            prompt: String::new(),
+            alternate_prompt: String::new(),
+            value: String::new(),
+            alternate_value: String::new(),
+            cursor_pos: 0,
+            alternate_cursor_pos: 0,
+            status_info: None,
         };
         if options.interactive {
             res.prompt.clone_from(&options.cmd_prompt);

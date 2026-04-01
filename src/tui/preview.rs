@@ -87,23 +87,7 @@ pub struct Preview {
 
 impl Default for Preview {
     fn default() -> Self {
-        Self {
-            content: Arc::new(RwLock::new(PreviewContent::Text(Text::default()))),
-            cmd: String::default(),
-            rows: 0,
-            cols: 0,
-            scroll_y: 0,
-            scroll_x: 0,
-            thread_handle: None,
-            interrupt_tx: None,
-            theme: Arc::new(ColorTheme::default()),
-            border: None,
-            direction: Direction::Right,
-            wrap: false,
-            pty: None,
-            pty_child: None,
-            total_lines: 0,
-        }
+        Self::_default()
     }
 }
 

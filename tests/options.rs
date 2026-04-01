@@ -628,3 +628,45 @@ insta_test!(opt_multiline_scroll_incr, [
     @key Up;
     @snap;
 });
+
+// 30 items — overflows the default 22-row list area, so the scrollbar thumb is partial.
+// Use --info=hidden to avoid a non-deterministic spinner character in the snapshot.
+const SCROLLBAR_ITEMS: [&str; 30] = [
+    "item_01", "item_02", "item_03", "item_04", "item_05", "item_06", "item_07", "item_08", "item_09", "item_10",
+    "item_11", "item_12", "item_13", "item_14", "item_15", "item_16", "item_17", "item_18", "item_19", "item_20",
+    "item_21", "item_22", "item_23", "item_24", "item_25", "item_26", "item_27", "item_28", "item_29", "item_30",
+];
+
+// Default scrollbar: double-vertical symbols, thumb at bottom (beginning of list visible).
+insta_test!(opt_scrollbar_default, SCROLLBAR_ITEMS, &["--info=hidden"], {
+    @snap;
+});
+
+// Scrolled half-way: thumb should have moved toward the top.
+insta_test!(opt_scrollbar_scrolled, SCROLLBAR_ITEMS, &["--info=hidden"], {
+    @snap;
+    @action Up(10);
+    @snap;
+    @action Up(20);
+    @snap;
+});
+
+// --no-scrollbar: no scrollbar column, full 80-column list.
+insta_test!(opt_no_scrollbar, SCROLLBAR_ITEMS, &["--info=hidden", "--no-scrollbar"], {
+    @snap;
+});
+
+// --scrollbar="" is equivalent to --no-scrollbar.
+insta_test!(opt_scrollbar_empty_string, SCROLLBAR_ITEMS, &["--info=hidden", "--scrollbar="], {
+    @snap;
+});
+
+// --scrollbar="|": only the thumb character is shown; track/begin/end are hidden.
+insta_test!(opt_scrollbar_custom_thumb, SCROLLBAR_ITEMS, &["--info=hidden", "--scrollbar=|"], {
+    @snap;
+});
+
+// --scrollbar with reverse layout: verify scrollbar works in TopToBottom direction too.
+insta_test!(opt_scrollbar_reverse, SCROLLBAR_ITEMS, &["--info=hidden", "--layout=reverse"], {
+    @snap;
+});

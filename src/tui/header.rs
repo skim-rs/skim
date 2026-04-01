@@ -26,7 +26,7 @@ use std::sync::Arc;
 // The field named `header` in `Header` is intentional — it holds the static
 // header string that this widget displays. Renaming it would reduce clarity.
 #[allow(clippy::struct_field_names)]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Header {
     /// The static header string (from --header option), with expanded tabstop
     pub header: String,
@@ -48,6 +48,12 @@ pub struct Header {
     reverse_lines: bool,
     /// Reverse layout
     reverse: bool,
+}
+
+impl Default for Header {
+    fn default() -> Self {
+        Self::_default()
+    }
 }
 
 impl Header {

@@ -11,24 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve matcher & reader performance (#1020)
 
-## [4.3.0] - 2026-03-31
-
-### 🚀 Features
-
-- Improve matcher & reader performance (#1020)
-
-## [4.3.0] - 2026-03-31
-
-### 🚀 Features
-
-- Improve matcher & reader performance (#1020)
-
-## [4.3.0] - 2026-03-31
-
-### 🚀 Features
-
-- Improve matcher & reader performance (#1020)
-
 ## [4.2.0] - 2026-03-30
 
 ### 🚀 Features

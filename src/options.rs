@@ -566,6 +566,25 @@ pub struct SkimOptions {
     )]
     pub multiline: Option<Option<String>>,
 
+    /// Set scrollbar style for the item list
+    ///
+    /// The optional value is used as the indicator
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long,
+            help_heading = "Display",
+            value_name = "THUMB",
+            overrides_with = "no_scrollbar",
+            default_value = "▐",
+            verbatim_doc_comment
+        )
+    )]
+    pub scrollbar: String,
+    /// Disable the scrollbar in the item list
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
+    pub no_scrollbar: bool,
+
     //  --- History ---
     /// History file
     ///
@@ -886,12 +905,6 @@ pub struct SkimOptions {
     marker_multi_line: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
-    scrollbar: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    no_scrollbar: bool,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
     list_border: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
@@ -1190,6 +1203,9 @@ impl SkimOptions {
                 KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL),
                 vec![Action::NextHistory],
             );
+        }
+        if self.no_scrollbar {
+            self.scrollbar = String::new();
         }
         if self.inline_info {
             self.info = InfoDisplay::Inline;

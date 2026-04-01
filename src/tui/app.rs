@@ -23,7 +23,7 @@ use super::item_list::ItemList;
 use super::{input, preview};
 use crate::thread_pool::{self, ThreadPool};
 use color_eyre::eyre::{Result, bail};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
@@ -124,6 +124,8 @@ pub struct App {
     pub pending_preview_run: bool,
     reader_timer: std::time::Instant,
     items_just_updated: bool,
+    /// Records if we are scrolling (mouse down on the scrollbar and no mouse up yet)
+    currently_scrolling: bool,
 }
 
 impl Widget for &mut App {
@@ -240,6 +242,7 @@ impl Default for App {
             pending_preview_run: false,
             reader_timer: std::time::Instant::now(),
             items_just_updated: false,
+            currently_scrolling: false,
         }
     }
 }
@@ -299,6 +302,7 @@ impl App {
                 .checked_sub(std::time::Duration::from_secs(1))
                 .unwrap(),
             pending_preview_run: false,
+            currently_scrolling: false,
         }
     }
 
@@ -1261,6 +1265,42 @@ impl App {
         }
     }
 
+    /// Returns the border-adjusted inner rect of the list area.
+    fn list_inner_area(&self) -> ratatui::layout::Rect {
+        let list_area = self.layout.list_area;
+        if self.options.border.is_some() {
+            ratatui::layout::Rect {
+                x: list_area.x + 1,
+                y: list_area.y + 1,
+                width: list_area.width.saturating_sub(2),
+                height: list_area.height.saturating_sub(2),
+            }
+        } else {
+            list_area
+        }
+    }
+
+    /// Returns the inner rect of the list area and the x column of the scrollbar, but only
+    /// when the scrollbar is actually rendered (config enabled and items overflow the area).
+    fn scrollbar_column(&self) -> Option<(ratatui::layout::Rect, u16)> {
+        let inner = self.list_inner_area();
+        let available_rows = inner.height as usize;
+        if inner.width == 0 || self.item_list.scrollbar_thumb.is_empty() || self.item_list.items.len() <= available_rows
+        {
+            return None;
+        }
+        Some((inner, inner.x + inner.width - 1))
+    }
+
+    /// Scroll based on a mouse position
+    fn scroll(&mut self, mouse_pos: ratatui::layout::Position) {
+        let inner = self.list_inner_area();
+        let track_height = inner.height as usize;
+        let total = self.item_list.items.len();
+        let click_row = usize::from(mouse_pos.y).saturating_sub(inner.y.into());
+        self.item_list.current = click_row * total / track_height;
+    }
+
     /// Handle mouse events
     fn handle_mouse<B: Backend>(&mut self, mouse_event: MouseEvent, tui: &mut Tui<B>) -> Result<()>
     where
@@ -1270,6 +1310,7 @@ impl App {
             x: mouse_event.column,
             y: mouse_event.row,
         };
+        trace!("Got mouse event {mouse_event:?}");
 
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
@@ -1302,6 +1343,36 @@ impl App {
                 // Otherwise scroll item list down
                 for evt in self.handle_action(&Action::Down(1))? {
                     tui.event_tx.try_send(evt)?;
+                }
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some((inner, scrollbar_col)) = self.scrollbar_column()
+                    && mouse_pos.x == scrollbar_col
+                    && inner.contains(mouse_pos)
+                {
+                    // Click landed on the scrollbar — start a scrub session.
+                    self.scroll(mouse_pos);
+                    self.currently_scrolling = true;
+                } else {
+                    // Click landed on the item list — move the cursor to that item.
+                    self.currently_scrolling = false;
+                    let inner = self.list_inner_area();
+                    if inner.contains(mouse_pos) {
+                        let row = (mouse_pos.y - inner.y) as usize;
+                        if let Some(idx) = self.item_list.item_at_visual_row(row) {
+                            self.item_list.current = idx;
+                        }
+                    }
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if self.currently_scrolling {
+                    self.scroll(mouse_pos);
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                if self.currently_scrolling {
+                    self.currently_scrolling = false;
                 }
             }
             _ => {

@@ -29,4 +29,12 @@ pub trait SkimWidget: Sized {
 
     /// Render the widget to the buffer
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender;
+
+    /// Create a widget with default options and theme
+    ///
+    /// This is made to be reused from a blanket `std::default::Default` trait impl
+    #[must_use]
+    fn _default() -> Self {
+        Self::from_options(&SkimOptions::default(), Arc::new(ColorTheme::default()))
+    }
 }

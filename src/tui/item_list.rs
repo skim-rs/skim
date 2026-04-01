@@ -1,7 +1,10 @@
 use std::{rc::Rc, sync::Arc};
 
 use indexmap::IndexSet;
-use ratatui::widgets::{Block, Borders, Clear, List, ListDirection, ListItem, Widget};
+use ratatui::widgets::{
+    Block, Borders, Clear, List, ListDirection, ListItem, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    StatefulWidget, Widget,
+};
 use regex::Regex;
 
 use crate::options::feature_flag;
@@ -82,45 +85,13 @@ pub struct ItemList {
     pub(crate) show_index: bool,
     /// When true, highlight the entire current line (not just the matched text)
     pub(crate) highlight_line: bool,
+    /// Scrollbar display configuration
+    pub(crate) scrollbar_thumb: String,
 }
 
 impl Default for ItemList {
     fn default() -> Self {
-        let processed_items = Arc::new(SpinLock::new(None));
-
-        Self {
-            processed_items,
-            direction: ListDirection::BottomToTop,
-            items: Default::default(),
-            selection: Default::default(),
-            offset: Default::default(),
-            sub_offset: 0,
-            current: Default::default(),
-            height: Default::default(),
-            theme: Arc::new(ColorTheme::default()),
-            multi_select: false,
-            reserved: 0,
-            no_hscroll: false,
-            ellipsis: String::from(".."),
-            keep_right: false,
-            skip_to_pattern: None,
-            tabstop: 8,
-            selector: None,
-            pre_select_target: 0,
-            no_clear_if_empty: false,
-            interactive: false,
-            showing_stale_items: false,
-            manual_hscroll: 0,
-            selector_icon: String::from(">"),
-            multi_select_icon: String::from(">"),
-            cycle: false,
-            wrap: false,
-            multiline: None,
-            border: None,
-            show_score: false,
-            show_index: false,
-            highlight_line: false,
-        }
+        Self::_default()
     }
 }
 
@@ -269,6 +240,43 @@ impl ItemList {
             self.sub_offset = 0;
         }
     }
+    /// Given a terminal row within the list's rendered inner area (0 = topmost row),
+    /// return the index of the item that occupies that row, or `None` if the row is
+    /// empty (e.g. fewer items than the available height).
+    ///
+    /// Respects `direction`: in `BottomToTop` layouts item `offset` occupies the
+    /// bottom row, so row 0 (top) maps to the highest-indexed visible item.
+    #[must_use]
+    pub fn item_at_visual_row(&self, row: usize) -> Option<usize> {
+        let available_rows = self.height as usize;
+        if row >= available_rows || self.items.is_empty() {
+            return None;
+        }
+        // In BottomToTop, flat_rows[0] is rendered at the BOTTOM terminal row.
+        // Terminal row `r` from the top = flat_row index `available_rows - 1 - r`.
+        let flat_row = match self.direction {
+            ListDirection::BottomToTop => available_rows - 1 - row,
+            ListDirection::TopToBottom => row,
+        };
+        // Walk items from `offset`, counting sub-lines, until we cover `flat_row`.
+        let mut rows_counted = 0;
+        for idx in self.offset..self.items.len() {
+            let item_rows = if idx == self.offset {
+                self.item_row_count(idx).saturating_sub(self.sub_offset)
+            } else {
+                self.item_row_count(idx)
+            };
+            rows_counted += item_rows;
+            if rows_counted > flat_row {
+                return Some(idx);
+            }
+            if rows_counted >= available_rows {
+                break;
+            }
+        }
+        None
+    }
+
     /// Jump to the last item in the list
     pub fn jump_to_last(&mut self) {
         if !self.items.is_empty() {
@@ -427,6 +435,7 @@ impl SkimWidget for ItemList {
             show_score: feature_flag!(options, ShowScore),
             show_index: feature_flag!(options, ShowIndex),
             highlight_line: options.highlight_line,
+            scrollbar_thumb: options.scrollbar.clone(),
         }
     }
 
@@ -575,6 +584,27 @@ impl SkimWidget for ItemList {
         // Widget — this bypasses ratatui's get_items_bounds which can index out of
         // bounds on our pre-sliced flat_rows when the selected row is near the edge.
         Widget::render(list, inner_area, buf);
+
+        // Render the scrollbar on top of the rightmost column of inner_area, but only
+        // when there are more items than fit on screen (nothing to scroll → no bar).
+        if !this.scrollbar_thumb.is_empty() && this.items.len() > available_rows {
+            // Use offset directly as the scroll position for all layout directions:
+            // offset == 0           → thumb at top    (beginning of content)
+            // offset == max_offset  → thumb at bottom (end of content)
+            // This matches conventional scrollbar behaviour regardless of list direction.
+            let mut scrollbar_state = ScrollbarState::new(this.items.len()).position(this.current);
+            // .viewport_content_length(available_rows);
+
+            // Both Default and Custom use a thumb-only style (no track/begin/end arrows).
+            // Default uses ▐ (right half-block), which gives a clean minimal look.
+            let scrollbar: Scrollbar<'_> = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .thumb_symbol(&self.scrollbar_thumb)
+                .track_symbol(None)
+                .begin_symbol(None)
+                .end_symbol(None);
+            StatefulWidget::render(scrollbar, inner_area, buf, &mut scrollbar_state);
+        }
+
         let run_preview = if let Some(curr) = self.selected()
             && let Some(prev) = initial_current
         {
