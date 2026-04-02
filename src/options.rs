@@ -804,16 +804,15 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
 
-    /// Run in a tmux popup
+    /// Run in a tmux or zellij popup
     ///
-    /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
+    /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     ///
     /// Depending on the direction, the order and behavior of the sizes varies:
     ///
     /// Default: center,50%
-    /// Ignored on Windows
-    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
-    pub tmux: Option<String>,
+    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]
+    pub popup: Option<String>,
 
     /// Set the log level
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
@@ -1084,7 +1083,7 @@ impl Default for SkimOptions {
             pre_select_items: Default::default(),
             pre_select_file: Default::default(),
             filter: Default::default(),
-            tmux: Default::default(),
+            popup: Default::default(),
             log_file: Default::default(),
             extended: Default::default(),
             literal: Default::default(),

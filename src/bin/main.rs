@@ -20,8 +20,8 @@ use skim::binds::parse_action_chain;
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
+use std::io;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
-use std::{env, io};
 
 use skim::prelude::*;
 
@@ -154,11 +154,8 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (if opts.tmux.is_some() && env::var("TMUX").is_ok() && cfg!(unix) {
-        #[cfg(not(unix))]
-        unreachable!("tmux is ignored on windows");
-        #[cfg(unix)]
-        crate::tmux::run_with(&opts)
+    let Some(result) = (if opts.popup.is_some() && popup::check_env() {
+        crate::popup::run_with(&opts)
     } else {
         // read from pipe or command
         let rx_item = if io::stdin().is_terminal() || (opts.interactive && opts.cmd.is_some()) {
