@@ -1,7 +1,7 @@
-use crate::{SkimOptions, tui::Size};
-use std::fmt::Write as _;
-
 use super::{PopupWindowDir, SkimPopup};
+use crate::{SkimOptions, tui::Size};
+
+use std::fmt::Write as _;
 use std::process::{Command, ExitStatus, Stdio};
 
 pub fn is_available() -> bool {
@@ -15,17 +15,26 @@ pub(super) struct ZellijPopup {
 
 fn middle_coord(size: Size, var: &str) -> Size {
     match size {
-        Size::Percent(p) => Size::Percent(50 - p / 2),
-        Size::Fixed(cols) => {
-            Size::Fixed((std::env::var(var).map(|s| s.parse().unwrap_or(80)).unwrap_or(80) - cols) / 2)
-        }
+        Size::Percent(p) => Size::Percent(100u16.saturating_sub(p) / 2),
+        Size::Fixed(cols) => Size::Fixed(
+            std::env::var(var)
+                .map(|s| s.parse().unwrap_or(80))
+                .unwrap_or(80u16)
+                .saturating_sub(cols)
+                / 2,
+        ),
     }
 }
 
 fn align_end_coord(size: Size, var: &str) -> Size {
     match size {
         Size::Percent(p) => Size::Percent(100 - p),
-        Size::Fixed(cols) => Size::Fixed(std::env::var(var).map(|s| s.parse().unwrap_or(80)).unwrap_or(80) - cols),
+        Size::Fixed(cols) => Size::Fixed(
+            std::env::var(var)
+                .map(|s| s.parse().unwrap_or(80))
+                .unwrap_or(80u16)
+                .saturating_sub(cols),
+        ),
     }
 }
 
@@ -155,6 +164,10 @@ mod tests {
     }
 
     // ── middle_coord ────────────────────────────────────────────────────────
+    // Tests that mutate COLUMNS are annotated with #[serial] so they never run
+    // concurrently. `set_var`/`remove_var` are `unsafe fn` in Rust ≥ 1.81
+    // (edition 2024); the SAFETY invariant holds because #[serial] serialises
+    // access so no other thread reads the var while it is being written.
 
     #[test]
     fn middle_coord_percent() {
@@ -163,17 +176,19 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn middle_coord_fixed_uses_env_var() {
-        // Override COLUMNS to a known value so the test is deterministic
-        // SAFETY: single-threaded test binary section; no concurrent env reads.
+        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
         unsafe { std::env::set_var("COLUMNS", "80") };
         // 20 cols wide → offset = (80 - 20) / 2 = 30
         assert_eq!(middle_coord(Size::Fixed(20), "COLUMNS"), Size::Fixed(30));
+        unsafe { std::env::remove_var("COLUMNS") };
     }
 
     #[test]
+    #[serial_test::serial]
     fn middle_coord_fixed_fallback() {
-        // SAFETY: single-threaded test binary section; no concurrent env reads.
+        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
         unsafe { std::env::remove_var("COLUMNS") };
         // fallback width = 80; (80 - 20) / 2 = 30
         assert_eq!(middle_coord(Size::Fixed(20), "COLUMNS"), Size::Fixed(30));
@@ -188,11 +203,13 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn align_end_coord_fixed_uses_env_var() {
-        // SAFETY: single-threaded test binary section; no concurrent env reads.
+        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
         unsafe { std::env::set_var("COLUMNS", "80") };
         // 20 cols wide → end offset = 80 - 20 = 60
         assert_eq!(align_end_coord(Size::Fixed(20), "COLUMNS"), Size::Fixed(60));
+        unsafe { std::env::remove_var("COLUMNS") };
     }
 
     // ── from_options / build ─────────────────────────────────────────────────
@@ -226,15 +243,17 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn right_direction() {
         require_zellij!();
-        // SAFETY: single-threaded test binary section; no concurrent env reads.
+        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
         unsafe { std::env::set_var("COLUMNS", "80") };
         let popup = ZellijPopup::build(&opts("right,25%"));
         let a = args(&popup);
         // width = 25%, x = align_end_coord(25%, "COLUMNS") = 75%
         assert_eq!(get_flag(&a, "--width"), Some("25%"));
         assert_eq!(get_flag(&a, "-x"), Some("75%"));
+        unsafe { std::env::remove_var("COLUMNS") };
     }
 
     #[test]

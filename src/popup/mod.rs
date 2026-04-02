@@ -388,18 +388,26 @@ mod tests {
     }
 
     // ── push_quoted_arg ───────────────────────────────────────────────────────
+    // These tests mutate the SHELL env var. `#[serial]` ensures they never run
+    // concurrently. `set_var`/`remove_var` are `unsafe fn` in Rust ≥ 1.81
+    // (edition 2024); the SAFETY invariant holds because `#[serial]` serialises
+    // access so no other thread reads the var while it is being written.
 
     #[test]
+    #[serial_test::serial]
     fn push_quoted_arg_simple_word_sh() {
-        // SAFETY: single-threaded test binary section; no concurrent env reads.
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
         unsafe { std::env::set_var("SHELL", "/bin/sh") };
         let mut s = String::new();
         push_quoted_arg(&mut s, "hello");
         assert_eq!(s, " hello");
+        unsafe { std::env::remove_var("SHELL") };
     }
 
     #[test]
+    #[serial_test::serial]
     fn push_quoted_arg_spaces_are_quoted() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
         unsafe { std::env::set_var("SHELL", "/bin/sh") };
         let mut s = String::new();
         push_quoted_arg(&mut s, "hello world");
@@ -407,29 +415,39 @@ mod tests {
         assert!(s.contains("hello"));
         assert!(s.contains("world"));
         assert_ne!(s.trim(), "hello world"); // must be quoted somehow
+        unsafe { std::env::remove_var("SHELL") };
     }
 
     #[test]
+    #[serial_test::serial]
     fn push_quoted_arg_appends_with_space_prefix() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
         unsafe { std::env::set_var("SHELL", "/bin/sh") };
         let mut s = String::from("sk");
         push_quoted_arg(&mut s, "--flag");
         assert!(s.starts_with("sk "));
+        unsafe { std::env::remove_var("SHELL") };
     }
 
     #[test]
+    #[serial_test::serial]
     fn push_quoted_arg_bash_shell() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
         unsafe { std::env::set_var("SHELL", "/usr/bin/bash") };
         let mut s = String::new();
         push_quoted_arg(&mut s, "simple");
         assert_eq!(s, " simple");
+        unsafe { std::env::remove_var("SHELL") };
     }
 
     #[test]
+    #[serial_test::serial]
     fn push_quoted_arg_zsh_shell() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
         unsafe { std::env::set_var("SHELL", "/bin/zsh") };
         let mut s = String::new();
         push_quoted_arg(&mut s, "simple");
         assert_eq!(s, " simple");
+        unsafe { std::env::remove_var("SHELL") };
     }
 }
