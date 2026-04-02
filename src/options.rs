@@ -807,10 +807,8 @@ pub struct SkimOptions {
     /// Run in a tmux or zellij popup
     ///
     /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
-    ///
-    /// Depending on the direction, the order and behavior of the sizes varies:
-    ///
-    /// Default: center,50%
+    /// Note: this will try to detect a Zellij session, then a Tmux session
+    /// This means that in nested sesions, skim will prioritize Zellij over Tmux
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]
     pub popup: Option<String>,
 

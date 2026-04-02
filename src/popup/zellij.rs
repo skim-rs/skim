@@ -40,10 +40,15 @@ impl ZellijPopup {
             .arg("--close-on-exit")
             .args(["--pinned", "true"])
             .args(["--name", "skim"])
-            .args(["--cwd", std::env::current_dir().unwrap().to_str().unwrap()]);
+            .args([
+                "--cwd",
+                &std::env::current_dir()
+                    .ok()
+                    .map_or(".".to_string(), |d| d.to_string_lossy().to_string()),
+            ]);
 
         if options.border.is_none() {
-            cmd.arg("--borderless");
+            cmd.args(["--borderless", "true"]);
         }
 
         let arg = options.popup.as_ref().expect("this arg should be present to get here");
@@ -98,17 +103,23 @@ impl SkimPopup for ZellijPopup {
     }
 
     fn add_env(&mut self, key: &str, value: &str) {
-        let _ = write!(self.env, " {key}={value}");
+        let _ = write!(
+            self.env,
+            " {key}={}",
+            &String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value))
+        );
     }
 
     fn run_and_wait(&mut self, command: &str) -> std::io::Result<ExitStatus> {
         debug!("zellij command: {command:?}");
-        self.cmd.arg("--").args(["sh", "-c", command]);
+        self.cmd
+            .arg("--")
+            .args(["sh", "-c", format!("{} {command}", self.env).trim()]);
         debug!("zellij full command: {:?}", self.cmd);
 
         self.cmd
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            // .stdout(Stdio::null())
+            // .stderr(Stdio::null())
             .stdin(Stdio::null())
             .status()
     }

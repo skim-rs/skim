@@ -61,7 +61,6 @@ pub mod item;
 pub mod matcher;
 pub mod options;
 mod output;
-#[cfg(unix)]
 pub mod popup;
 pub mod prelude;
 pub mod reader;

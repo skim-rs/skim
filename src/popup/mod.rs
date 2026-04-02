@@ -209,7 +209,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     // Run downstream sk in tmux
     let mut popup: Box<dyn SkimPopup> = if zellij::is_available() {
-        println!("z");
         ZellijPopup::from_options(opts)
     } else if tmux::is_available() {
         TmuxPopup::from_options(opts)

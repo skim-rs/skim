@@ -17,11 +17,14 @@ impl TmuxPopup {
         let mut cmd = Command::new(
             which::which("tmux").expect("tmux not found in path. This should have been caught by is_available"),
         );
-        cmd.arg("display-popup")
-            .arg("-E")
-            .args(["-d", std::env::current_dir().unwrap().to_str().unwrap()]);
+        cmd.arg("display-popup").arg("-E").args([
+            "-d",
+            &std::env::current_dir()
+                .ok()
+                .map_or(".".to_string(), |d| d.to_string_lossy().to_string()),
+        ]);
 
-        let _border = {
+        let border = {
             use crate::tui::BorderType::{Plain, Rounded, Thick};
             match options.border {
                 None => "none",
@@ -58,7 +61,8 @@ impl TmuxPopup {
         cmd.args(["-h", height])
             .args(["-w", width])
             .args(["-x", x])
-            .args(["-y", y]);
+            .args(["-y", y])
+            .args(["-b", border]);
 
         Self { cmd }
     }
