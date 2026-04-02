@@ -462,10 +462,8 @@ Disable the scrollbar in the item list
 Run in a tmux or zellij popup
 
 Format: `sk \-\-popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
-
-Depending on the direction, the order and behavior of the sizes varies:
-
-Default: center,50%
+Note: this will try to detect a Zellij session, then a Tmux session
+This means that in nested sesions, skim will prioritize Zellij over Tmux
 .SH HISTORY
 .TP
 \fB\-\-history\fR \fI<HISTORY_FILE>\fR
