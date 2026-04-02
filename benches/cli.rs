@@ -26,7 +26,7 @@ use clap::Parser;
 use rand::RngExt as _;
 use serde::Serialize;
 use std::fs::{self, File};
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Result, Write};
 use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -41,13 +41,17 @@ use tempfile::NamedTempFile;
 const DEFAULT_BINARY: &str = "./target/release/sk";
 const DEFAULT_NUM_ITEMS: u64 = 1_000_000;
 const DEFAULT_QUERY: &str = "test";
+/// Prompt string injected via `--prompt` so we can detect first render in the tmux buffer.
+const BENCH_PROMPT: &str = "BENCH> ";
+/// Timeout for pre-measurement phases (waiting for shell prompt / command echo).
+const PRE_MEASUREMENT_TIMEOUT_S: f64 = 15.0;
 
 /// Seconds the matched count must be unchanged before declaring completion.
 const REQUIRED_STABLE_S: f64 = 5.0;
 /// Hard timeout per run.
 const MAX_WAIT_S: f64 = 60.0;
 /// Polling interval in milliseconds.
-const CHECK_INTERVAL_MS: u64 = 50;
+const CHECK_INTERVAL_MS: u64 = 1;
 
 const WORDS: &[&str] = &[
     "home",
@@ -141,6 +145,11 @@ struct Args {
     )]
     perf: Option<String>,
 
+    /// Seconds the matched count must remain unchanged before a run is declared
+    /// complete (default: 5.0).
+    #[arg(short = 's', long, default_value_t = REQUIRED_STABLE_S, value_name = "SECS")]
+    stable_secs: f64,
+
     /// Pass remaining arguments to the benchmarked binary
     #[arg(last = true)]
     extra_args: Vec<String>,
@@ -196,12 +205,12 @@ impl ResourceMonitor {
                             break;
                         }
                         let mut parts = line.split_whitespace();
-                        if let (Some(rss), Some(cpu)) = (parts.next(), parts.next()) {
-                            if let (Ok(mem), Ok(cpu)) = (rss.parse::<u64>(), cpu.parse::<f64>()) {
-                                let mut s = stats_clone.lock().unwrap();
-                                s.peak_mem_kb = s.peak_mem_kb.max(mem);
-                                s.peak_cpu = s.peak_cpu.max(cpu);
-                            }
+                        if let (Some(rss), Some(cpu)) = (parts.next(), parts.next())
+                            && let (Ok(mem), Ok(cpu)) = (rss.parse::<u64>(), cpu.parse::<f64>())
+                        {
+                            let mut s = stats_clone.lock().unwrap();
+                            s.peak_mem_kb = s.peak_mem_kb.max(mem);
+                            s.peak_cpu = s.peak_cpu.max(cpu);
                         }
                     }
                     Err(_) => break,
@@ -229,27 +238,34 @@ struct RunResult {
     elapsed_s: f64,
     rate: f64,
     matched: u64,
+    /// Total items fed to the binary, as reported by the status line.
+    total_count: u64,
     peak_mem_kb: Option<u64>,
     peak_cpu: Option<f64>,
     completed: bool,
     perf_file: Option<String>,
+    /// Time from launch until both the prompt+query and the `N/M` status counts
+    /// are visible — i.e. `max(prompt_appeared, status_appeared)`.
+    startup_s: Option<f64>,
 }
 
-/// Try for up to 5 s to find the sk child PID under `pane_pid`.
+/// Try for up to 2 s to find the sk child PID under `pane_pid`.
+/// Checks immediately, then sleeps 5 ms between retries (sleep-after pattern
+/// so the first successful check adds no artificial delay).
 fn find_sk_pid(pane_pid: u32, binary_path: &str) -> u32 {
-    for _ in 0..50 {
-        thread::sleep(Duration::from_millis(100));
+    for _ in 0..400 {
         if let Ok(o) = Command::new("pgrep")
             .args(["-P", &pane_pid.to_string(), "-f", binary_path])
             .output()
         {
             let text = String::from_utf8_lossy(&o.stdout);
-            if let Some(first) = text.trim().lines().next() {
-                if let Ok(pid) = first.trim().parse::<u32>() {
-                    return pid;
-                }
+            if let Some(first) = text.trim().lines().next()
+                && let Ok(pid) = first.trim().parse::<u32>()
+            {
+                return pid;
             }
         }
+        thread::sleep(Duration::from_millis(5));
     }
     0
 }
@@ -271,21 +287,77 @@ fn process_alive(pid: u32) -> bool {
 /// this value is dropped.
 struct TmuxServer {
     socket: String,
+    capture_buf: String,
 }
 
 impl TmuxServer {
     fn start() -> Self {
         let socket = format!("skim_bench_{}", std::process::id());
+        let capture_buf = NamedTempFile::new()
+            .expect("failed to capture temp file")
+            .path()
+            .to_string_lossy()
+            .into_owned();
         let _ = Command::new("tmux")
             .args(["-L", &socket, "start-server"])
             .env_clear()
             .envs(env_vars())
             .output();
-        Self { socket }
+        Self { socket, capture_buf }
     }
 
-    fn socket(&self) -> &str {
-        &self.socket
+    fn capture(&self, session_name: &str) -> Result<String> {
+        let buf_name = format!("status-{}", session_name);
+        let _ = Command::new("tmux")
+            .args(["-L", &self.socket, "capture-pane", "-b", &buf_name, "-t", session_name])
+            .output();
+        let _ = Command::new("tmux")
+            .args(["-L", &self.socket, "save-buffer", "-b", &buf_name, &self.capture_buf])
+            .output();
+        fs::read_to_string(&self.capture_buf)
+    }
+    fn new_session(&self, name: &str) -> Result<()> {
+        Command::new("tmux")
+            .args(["-L", &self.socket, "new-session", "-s", name, "-d"])
+            .env_clear()
+            .envs(env_vars())
+            .status()
+            .and(Ok(()))
+    }
+    fn send_keys(&self, session_name: &str, keys: &str) -> Result<()> {
+        Command::new("tmux")
+            .args(["-L", &self.socket, "send-keys", "-t", session_name, keys])
+            .status()
+            .and(Ok(()))
+    }
+    fn pane_pid(&self, session_name: &str) -> Result<u32> {
+        Command::new("tmux")
+            .args([
+                "-L",
+                &self.socket,
+                "list-panes",
+                "-t",
+                session_name,
+                "-F",
+                "#{pane_pid}",
+            ])
+            .output()
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .trim()
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .trim()
+                    .parse::<u32>()
+                    .unwrap_or(0u32)
+            })
+    }
+    fn kill_session(&self, session_name: &str) -> Result<()> {
+        Command::new("tmux")
+            .args(["-L", &self.socket, "kill-session", "-t", session_name])
+            .status()
+            .and(Ok(()))
     }
 }
 
@@ -302,87 +374,114 @@ fn run_once(
     binary_path: &str,
     query: &str,
     tmp_file: &str,
-    num_items: u64,
     extra_args: &[String],
     run_index: u32,
     session_suffix: &str,
     perf_output: Option<&str>,
-    tmux_socket: &str,
-) -> RunResult {
+    tmux_server: &TmuxServer,
+    stable_secs: f64,
+) -> Result<RunResult> {
     let session_name = format!("skim_bench_{}_{}_{}", std::process::id(), session_suffix, run_index);
 
-    // Temp file for tmux save-buffer output
-    let status_tmp = NamedTempFile::new().expect("failed to create status temp file");
-    let status_path = status_tmp.path().to_string_lossy().into_owned();
-
     // Create a detached session in the dedicated bench server.
-    let _ = Command::new("tmux")
-        .args(["-L", tmux_socket, "new-session", "-s", &session_name, "-d"])
-        .env_clear()
-        .envs(env_vars())
-        .output();
-
-    thread::sleep(Duration::from_millis(100));
-
-    // Build the command to run inside the tmux pane
+    tmux_server.new_session(&session_name)?;
+    // Build the command string (will be typed into the shell, not executed yet).
     let extra_str = extra_args.join(" ");
     let perf_prefix = match perf_output {
         Some(path) => format!("perf record -o {} -- ", path),
         None => String::new(),
     };
     let cmd_str = format!(
-        "cat {} | {}{} --query '{}' {}",
-        tmp_file, perf_prefix, binary_path, query, extra_str
+        "cat {} | {}{} --prompt '{}' {}",
+        tmp_file, perf_prefix, binary_path, BENCH_PROMPT, extra_str
     );
 
-    let _ = Command::new("tmux")
-        .args(["-L", tmux_socket, "send-keys", "-t", &session_name, &cmd_str, "Enter"])
-        .output();
+    // --- Phase 1: wait for the shell to be ready (any pane content appears) --
+    // We don't rely on PS1: whatever prompt the shell shows, any non-blank
+    // content means the shell is alive and accepting input.
+    {
+        let phase_start = Instant::now();
+        loop {
+            thread::sleep(Duration::from_millis(CHECK_INTERVAL_MS));
+            if phase_start.elapsed().as_secs_f64() >= PRE_MEASUREMENT_TIMEOUT_S {
+                break;
+            }
+            if tmux_server.capture(&session_name).is_ok_and(|c| !c.trim().is_empty()) {
+                break;
+            }
+        }
+    }
 
+    // Type the command into the shell — no Enter yet.
+    tmux_server.send_keys(&session_name, &cmd_str)?;
+
+    // --- Phase 2: wait until the typed command is echoed in the pane ---------
+    // `--prompt '` is a short, unique substring of cmd_str that never appears
+    // in the binary's TUI output, so it reliably signals the command is ready.
+    {
+        let cmd_marker = "--prompt '";
+        let phase_start = Instant::now();
+        loop {
+            thread::sleep(Duration::from_millis(CHECK_INTERVAL_MS));
+            if phase_start.elapsed().as_secs_f64() >= PRE_MEASUREMENT_TIMEOUT_S {
+                break;
+            }
+            if tmux_server.capture(&session_name).is_ok_and(|c| c.contains(cmd_marker)) {
+                break;
+            }
+        }
+    }
+
+    // --- Pre-launch setup (before starting the measurement clock) ------------
+
+    // Get the pane PID now — the session exists and the shell is ready, so
+    // this is available without sk running yet.
+    let pane_pid: u32 = tmux_server.pane_pid(&session_name)?;
+
+    // Spawn a background thread to find the sk child PID and start the resource
+    // monitor.  This must not run on the hot path after Enter because
+    // find_sk_pid's pgrep polling would inflate the measured startup time.
+    let binary_path_owned = binary_path.to_owned();
+    let monitor_cell: Arc<Mutex<Option<ResourceMonitor>>> = Arc::new(Mutex::new(None));
+    let sk_pid_cell: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
+    {
+        let monitor_cell = Arc::clone(&monitor_cell);
+        let sk_pid_cell = Arc::clone(&sk_pid_cell);
+        thread::spawn(move || {
+            let pid = find_sk_pid(pane_pid, &binary_path_owned);
+            *sk_pid_cell.lock().unwrap() = pid;
+            if pid > 0 {
+                *monitor_cell.lock().unwrap() = Some(ResourceMonitor::start(pid));
+            }
+        });
+    }
+
+    // Compile the status-line regex once, outside the hot polling loop.
+    let re = regex::Regex::new(r"(\d+)/(\d+)").expect("valid regex");
+    let prompt_with_query = format!("{}{}", BENCH_PROMPT, query);
+
+    // --- Launch: press Return, queue the query, start the measurement clock --
+    tmux_server.send_keys(&session_name, "Enter")?;
+    if !query.is_empty() {
+        tmux_server.send_keys(&session_name, query)?;
+    }
     let start = Instant::now();
 
-    // Find the pane PID, then the sk child PID
-    let pane_pid: u32 = Command::new("tmux")
-        .args([
-            "-L",
-            tmux_socket,
-            "list-panes",
-            "-t",
-            &session_name,
-            "-F",
-            "#{pane_pid}",
-        ])
-        .output()
-        .ok()
-        .and_then(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .trim()
-                .lines()
-                .next()
-                .and_then(|s| s.trim().parse().ok())
-        })
-        .unwrap_or(0);
-
-    let sk_pid = if pane_pid > 0 {
-        find_sk_pid(pane_pid, binary_path)
-    } else {
-        0
-    };
-    let monitor = if sk_pid > 0 {
-        Some(ResourceMonitor::start(sk_pid))
-    } else {
-        None
-    };
-
-    // Poll the tmux pane until the matched count stabilises
-    let re = regex::Regex::new(r"(\d+)/(\d+)").expect("valid regex");
+    // Poll the tmux pane until both matched and total counts stabilise.
+    // We do NOT compare against a pre-counted `num_items`; instead we treat
+    // any change in either counter as proof that loading is still in progress.
     let mut completed = false;
     let mut matched_count: u64 = 0;
+    let mut total_count: u64 = 0;
     let mut prev_matched: u64 = u64::MAX;
+    let mut prev_total: u64 = u64::MAX;
     let mut stable_since: Option<Instant> = None;
     let mut last_change_elapsed: Option<Duration> = None;
     let loop_start = Instant::now();
-    let buf_name = format!("status-{}", session_name);
+
+    // Startup measurements: recorded on first observation, relative to `start`.
+    let mut startup_prompt_s: Option<f64> = None;
+    let mut startup_status_s: Option<f64> = None;
 
     loop {
         thread::sleep(Duration::from_millis(CHECK_INTERVAL_MS));
@@ -391,33 +490,42 @@ fn run_once(
             break;
         }
 
+        // Check whether sk has exited (non-blocking, via /proc).
+        let sk_pid = *sk_pid_cell.lock().unwrap();
         if sk_pid > 0 && !process_alive(sk_pid) {
             break;
         }
 
-        let _ = Command::new("tmux")
-            .args(["-L", tmux_socket, "capture-pane", "-b", &buf_name, "-t", &session_name])
-            .output();
-        let _ = Command::new("tmux")
-            .args(["-L", tmux_socket, "save-buffer", "-b", &buf_name, &status_path])
-            .output();
-
-        let content = match fs::read_to_string(&status_path) {
+        let content = match tmux_server.capture(&session_name) {
             Ok(c) => c,
             Err(_) => continue,
         };
+
+        // Startup event: prompt with typed query rendered
+        if startup_prompt_s.is_none() && content.contains(&prompt_with_query) {
+            startup_prompt_s = Some(start.elapsed().as_secs_f64());
+        }
 
         if let Some(caps) = re.captures(&content) {
             let mc: u64 = caps[1].parse().unwrap_or(0);
             let total: u64 = caps[2].parse().unwrap_or(0);
 
-            if total == num_items {
-                if mc != prev_matched {
+            // Startup event: status counts visible for the first time
+            if startup_status_s.is_none() {
+                startup_status_s = Some(start.elapsed().as_secs_f64());
+            }
+
+            // Only start the stability clock once we have at least one item.
+            if total > 0 {
+                total_count = total;
+                matched_count = mc;
+
+                if mc != prev_matched || total != prev_total {
                     prev_matched = mc;
-                    matched_count = mc;
+                    prev_total = total;
                     stable_since = Some(Instant::now());
                     last_change_elapsed = Some(start.elapsed());
-                } else if stable_since.is_some_and(|t| t.elapsed().as_secs_f64() >= REQUIRED_STABLE_S) {
+                } else if stable_since.is_some_and(|t| t.elapsed().as_secs_f64() >= stable_secs) {
                     completed = true;
                     break;
                 }
@@ -428,9 +536,7 @@ fn run_once(
     let elapsed_s = last_change_elapsed.unwrap_or_else(|| start.elapsed()).as_secs_f64();
 
     // Send Escape to exit sk
-    let _ = Command::new("tmux")
-        .args(["-L", tmux_socket, "send-keys", "-t", &session_name, "Escape"])
-        .output();
+    tmux_server.send_keys(&session_name, "Escape")?;
     thread::sleep(Duration::from_millis(100));
 
     // Wait for perf record to finish writing before killing the session
@@ -453,27 +559,33 @@ fn run_once(
         }
     }
 
+    let monitor = monitor_cell.lock().unwrap().take();
     let (peak_mem_kb, peak_cpu) = monitor.map(ResourceMonitor::join).unwrap_or((None, None));
 
-    let rate = if elapsed_s > 0.0 {
-        num_items as f64 / elapsed_s
+    let rate = if elapsed_s > 0.0 && total_count > 0 {
+        total_count as f64 / elapsed_s
     } else {
         0.0
     };
 
-    let _ = Command::new("tmux")
-        .args(["-L", tmux_socket, "kill-session", "-t", &session_name])
-        .output();
+    let _ = tmux_server.kill_session(&session_name);
 
-    RunResult {
+    Ok(RunResult {
         elapsed_s,
         rate,
         matched: matched_count,
+        total_count,
         peak_mem_kb,
         peak_cpu,
         completed,
         perf_file: perf_output.map(str::to_owned),
-    }
+        startup_s: match (startup_prompt_s, startup_status_s) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        },
+    })
 }
 
 fn env_vars() -> Vec<(String, String)> {
@@ -497,6 +609,11 @@ struct AggResult {
     min_rate: Option<f64>,
     max_rate: Option<f64>,
     avg_matched: Option<f64>,
+    avg_total_count: Option<f64>,
+    // startup: time until both prompt+query and status counts are visible
+    avg_startup_s: Option<f64>,
+    min_startup_s: Option<f64>,
+    max_startup_s: Option<f64>,
     min_matched: Option<f64>,
     max_matched: Option<f64>,
     avg_mem: Option<f64>,
@@ -521,8 +638,11 @@ fn aggregate(results: &[RunResult]) -> AggResult {
     let times: Vec<f64> = done.iter().map(|r| r.elapsed_s).collect();
     let rates: Vec<f64> = done.iter().map(|r| r.rate).collect();
     let matched: Vec<f64> = done.iter().map(|r| r.matched as f64).collect();
+    let totals: Vec<f64> = done.iter().map(|r| r.total_count as f64).collect();
     let mems: Vec<f64> = done.iter().filter_map(|r| r.peak_mem_kb.map(|v| v as f64)).collect();
     let cpus: Vec<f64> = done.iter().filter_map(|r| r.peak_cpu).collect();
+    // Startup metrics are collected from all runs (not just completed ones)
+    let startup: Vec<f64> = results.iter().filter_map(|r| r.startup_s).collect();
 
     AggResult {
         completed: done.len(),
@@ -536,12 +656,16 @@ fn aggregate(results: &[RunResult]) -> AggResult {
         avg_matched: avg(&matched),
         min_matched: matched.iter().copied().reduce(f64::min),
         max_matched: matched.iter().copied().reduce(f64::max),
+        avg_total_count: avg(&totals),
         avg_mem: avg(&mems),
         min_mem: mems.iter().copied().reduce(f64::min),
         max_mem: mems.iter().copied().reduce(f64::max),
         avg_cpu: avg(&cpus),
         min_cpu: cpus.iter().copied().reduce(f64::min),
         max_cpu: cpus.iter().copied().reduce(f64::max),
+        avg_startup_s: avg(&startup),
+        min_startup_s: startup.iter().copied().reduce(f64::min),
+        max_startup_s: startup.iter().copied().reduce(f64::max),
     }
 }
 
@@ -571,7 +695,7 @@ fn fmt_opt(value: Option<f64>, fmt: impl Fn(f64) -> String) -> String {
 // Human-readable output
 // ---------------------------------------------------------------------------
 
-fn print_human(binary_label: &str, agg: &AggResult, num_items: u64, baseline: Option<&AggResult>, is_baseline: bool) {
+fn print_human(binary_label: &str, agg: &AggResult, baseline: Option<&AggResult>, is_baseline: bool) {
     let tag = if is_baseline { " [baseline]" } else { "" };
     println!("\n=== Results: {}{} ===", binary_label, tag);
     println!("Completed runs: {} / {}", agg.completed, agg.runs);
@@ -585,17 +709,14 @@ fn print_human(binary_label: &str, agg: &AggResult, num_items: u64, baseline: Op
         }
     };
 
-    // Matched
+    // Matched / total
     println!(
-        "Average items matched: {}  (min: {}, max: {}){num_items_total}",
+        "Average items matched: {}  (min: {}, max: {}) / {}{}",
         fmt_opt(agg.avg_matched, |v| format!("{:.0}", v)),
         fmt_opt(agg.min_matched, |v| format!("{:.0}", v)),
         fmt_opt(agg.max_matched, |v| format!("{:.0}", v)),
-        num_items_total = format!(
-            " / {}{}",
-            num_items,
-            cmp(agg.avg_matched, baseline.and_then(|b| b.avg_matched))
-        ),
+        fmt_opt(agg.avg_total_count, |v| format!("{:.0}", v)),
+        cmp(agg.avg_matched, baseline.and_then(|b| b.avg_matched)),
     );
 
     // Time (lower is better — preserve Python's sign convention: positive means slower)
@@ -648,6 +769,17 @@ fn print_human(binary_label: &str, agg: &AggResult, num_items: u64, baseline: Op
             cmp(agg.avg_cpu, baseline.and_then(|b| b.avg_cpu)),
         );
     }
+
+    // Startup: time until both prompt+query and status counts are visible
+    if agg.avg_startup_s.is_some() {
+        println!(
+            "Startup time (UI ready): {}  (min: {}, max: {}){}",
+            fmt_opt(agg.avg_startup_s, |v| format!("{:.3}s", v)),
+            fmt_opt(agg.min_startup_s, |v| format!("{:.3}s", v)),
+            fmt_opt(agg.max_startup_s, |v| format!("{:.3}s", v)),
+            cmp(agg.avg_startup_s, baseline.and_then(|b| b.avg_startup_s)),
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -690,6 +822,7 @@ fn print_markdown_table(binaries: &[String], aggregates: &[AggResult]) {
     let multi = binaries.len() > 1;
     let has_mem = aggregates.iter().any(|a| a.avg_mem.is_some());
     let has_cpu = aggregates.iter().any(|a| a.avg_cpu.is_some());
+    let has_startup = aggregates.iter().any(|a| a.avg_startup_s.is_some());
 
     // ---- column definitions: (header, right_align) -------------------------
     let mut col_defs: Vec<(&str, bool)> =
@@ -711,6 +844,12 @@ fn print_markdown_table(binaries: &[String], aggregates: &[AggResult]) {
         col_defs.push(("Avg CPU (%)", true));
         if multi {
             col_defs.push(("Δ CPU", true));
+        }
+    }
+    if has_startup {
+        col_defs.push(("Startup (s)", true));
+        if multi {
+            col_defs.push(("Δ startup", true));
         }
     }
 
@@ -769,6 +908,17 @@ fn print_markdown_table(binaries: &[String], aggregates: &[AggResult]) {
                     "—".into()
                 } else {
                     pct(baseline.avg_cpu, agg.avg_cpu)
+                });
+            }
+        }
+
+        if has_startup {
+            row.push(fmt_opt(agg.avg_startup_s, |v| format!("{:.3}s", v)));
+            if multi {
+                row.push(if i == 0 {
+                    "—".into()
+                } else {
+                    pct(baseline.avg_startup_s, agg.avg_startup_s)
                 });
             }
         }
@@ -835,20 +985,21 @@ struct JsonMinMaxAvg {
 #[derive(Serialize)]
 struct JsonEntry {
     binary: String,
-    num_items: u64,
     runs: u32,
     completed_runs: usize,
     items_matched: JsonMinMaxAvg,
+    items_total: Option<f64>,
     time_s: JsonMinMaxAvg,
     items_per_second: JsonMinMaxAvg,
     peak_memory_kb: JsonMinMaxAvg,
     peak_cpu: JsonMinMaxAvg,
+    /// Time from launch until both prompt+query and N/M status counts are visible.
+    startup_s: JsonMinMaxAvg,
 }
 
-fn build_json_entry(binary: &str, agg: &AggResult, num_items: u64, runs: u32) -> JsonEntry {
+fn build_json_entry(binary: &str, agg: &AggResult, runs: u32) -> JsonEntry {
     JsonEntry {
         binary: binary.to_owned(),
-        num_items,
         runs,
         completed_runs: agg.completed,
         items_matched: JsonMinMaxAvg {
@@ -856,6 +1007,7 @@ fn build_json_entry(binary: &str, agg: &AggResult, num_items: u64, runs: u32) ->
             min: agg.min_matched,
             max: agg.max_matched,
         },
+        items_total: agg.avg_total_count,
         time_s: JsonMinMaxAvg {
             avg: agg.avg_time,
             min: agg.min_time,
@@ -876,14 +1028,19 @@ fn build_json_entry(binary: &str, agg: &AggResult, num_items: u64, runs: u32) ->
             min: agg.min_cpu,
             max: agg.max_cpu,
         },
+        startup_s: JsonMinMaxAvg {
+            avg: agg.avg_startup_s,
+            min: agg.min_startup_s,
+            max: agg.max_startup_s,
+        },
     }
 }
 
-fn print_json(binaries: &[String], aggregates: &[AggResult], num_items: u64, runs: u32) {
+fn print_json(binaries: &[String], aggregates: &[AggResult], runs: u32) {
     let entries: Vec<JsonEntry> = binaries
         .iter()
         .zip(aggregates)
-        .map(|(b, a)| build_json_entry(b, a, num_items, runs))
+        .map(|(b, a)| build_json_entry(b, a, runs))
         .collect();
     if entries.len() == 1 {
         println!("{}", serde_json::to_string(&entries[0]).unwrap());
@@ -917,7 +1074,7 @@ fn perf_path_for(binary: &str, explicit: &str) -> String {
 // Main
 // ---------------------------------------------------------------------------
 
-fn main() {
+fn main() -> Result<()> {
     // `cargo bench` injects `--bench` into argv for harness=false benches;
     // strip it before clap sees it so it doesn't land in `extra_args` or
     // cause an "unexpected argument" error.
@@ -950,7 +1107,7 @@ fn main() {
         eprintln!("Generating {} items to {} ...", args.num_items, path);
         generate_test_data(path, args.num_items).expect("failed to write test data");
         eprintln!("Generated {} items successfully", args.num_items);
-        return;
+        return Ok(());
     }
 
     // ---- prepare input data -----------------------------------------------
@@ -1013,8 +1170,7 @@ fn main() {
     // it so no ambient SKIM_DEFAULT_OPTIONS / FZF_DEFAULT_OPTS / etc. can
     // affect the results.  Killed automatically when `_tmux_server` is dropped
     // at the end of main.
-    let _tmux_server = TmuxServer::start();
-    let tmux_socket = _tmux_server.socket();
+    let tmux_server = TmuxServer::start();
 
     // ---- warmup (results discarded) ----------------------------------------
     if warmup > 0 {
@@ -1022,17 +1178,17 @@ fn main() {
         for (bi, binary) in binaries.iter().enumerate() {
             for wu in 1..=warmup {
                 eprintln!("  Warmup {}/{} — {} ...", wu, warmup, binary);
-                run_once(
+                let _ = run_once(
                     binary,
                     query,
                     &tmp_file_path,
-                    num_items,
                     extra_args,
                     wu,
                     &format!("warmup_b{}", bi),
                     None,
-                    tmux_socket,
-                );
+                    &tmux_server,
+                    args.stable_secs,
+                )?;
             }
         }
     }
@@ -1079,17 +1235,17 @@ fn main() {
                 binary,
                 query,
                 &tmp_file_path,
-                num_items,
                 extra_args,
                 run_num,
                 &format!("b{}", bi),
                 this_perf,
-                tmux_socket,
-            );
+                &tmux_server,
+                args.stable_secs,
+            )?;
 
             if runs > 1 || binaries.len() > 1 {
                 eprintln!("Status: {}", if result.completed { "COMPLETED" } else { "TIMEOUT" });
-                eprintln!("Items matched: {} / {}", result.matched, num_items);
+                eprintln!("Items matched: {} / {}", result.matched, result.total_count);
                 eprintln!("Total time: {:.3}s", result.elapsed_s);
                 eprintln!("Items/second: {:.0}", result.rate);
                 if let Some(kb) = result.peak_mem_kb {
@@ -1097,6 +1253,9 @@ fn main() {
                 }
                 if let Some(cpu) = result.peak_cpu {
                     eprintln!("Peak CPU usage: {:.1}%", cpu);
+                }
+                if let Some(s) = result.startup_s {
+                    eprintln!("Startup time (UI ready): {:.3}s", s);
                 }
                 if let Some(ref pf) = result.perf_file {
                     eprintln!("Perf data: {}", pf);
@@ -1112,14 +1271,13 @@ fn main() {
 
     // ---- output ------------------------------------------------------------
     if args.json {
-        print_json(binaries, &aggregates, num_items, runs);
+        print_json(binaries, &aggregates, runs);
     } else {
         let baseline_agg = &aggregates[0];
         for (i, (binary, agg)) in binaries.iter().zip(&aggregates).enumerate() {
             print_human(
                 binary,
                 agg,
-                num_items,
                 if binaries.len() > 1 { Some(baseline_agg) } else { None },
                 i == 0,
             );
@@ -1147,4 +1305,5 @@ fn main() {
             }
         }
     }
+    Ok(())
 }

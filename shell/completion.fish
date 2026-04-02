@@ -62,6 +62,7 @@ heavy-quadruple-dashed\t''
 quadrant-inside\t''
 quadrant-outside\t''"
 complete -c sk -l multiline -d 'Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)' -r
+complete -c sk -l scrollbar -d 'Set scrollbar style for the item list' -r
 complete -c sk -l history -d 'History file' -r
 complete -c sk -l history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l cmd-history -d 'Command history file' -r
@@ -106,7 +107,6 @@ complete -c sk -l scroll-off -r
 complete -c sk -l gutter -r
 complete -c sk -l gutter-raw -r
 complete -c sk -l marker-multi-line -r
-complete -c sk -l scrollbar -r
 complete -c sk -l list-border -r
 complete -c sk -l list-label -r
 complete -c sk -l list-label-pos -r
@@ -152,6 +152,7 @@ complete -c sk -l ansi -d 'Parse ANSI color codes in input strings'
 complete -c sk -l no-info -d 'Alias for --info=hidden'
 complete -c sk -l inline-info -d 'Alias for --info=inline'
 complete -c sk -l wrap -d 'Wrap items in the item list'
+complete -c sk -l no-scrollbar -d 'Disable the scrollbar in the item list'
 complete -c sk -l read0 -d 'Read input delimited by ASCII NUL(\\0) characters'
 complete -c sk -l print0 -d 'Print output delimited by ASCII NUL(\\0) characters'
 complete -c sk -l print-query -d 'Print the query as the first line'
@@ -174,7 +175,6 @@ complete -c sk -l no-color
 complete -c sk -l no-multi-line
 complete -c sk -l raw
 complete -c sk -l track
-complete -c sk -l no-scrollbar
 complete -c sk -l no-input
 complete -c sk -l no-separator
 complete -c sk -l header-first
