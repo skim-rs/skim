@@ -85,7 +85,7 @@ power-shell\t'PowerShell'
 zsh\t'Zsh'"
 complete -c sk -l listen -d 'Run an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (defaults to sk)' -r
-complete -c sk -l tmux -d 'Run in a tmux popup' -r
+complete -c sk -l popup -d 'Run in a tmux or zellij popup' -r
 complete -c sk -l log-level -d 'Set the log level' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'

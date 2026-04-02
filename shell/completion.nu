@@ -126,7 +126,7 @@ module completions {
     --man                     # Generate man page and output it to stdout
     --listen: string          # Run an IPC socket with optional name (defaults to sk)
     --remote: string          # Send commands to an IPC socket with optional name (defaults to sk)
-    --tmux: string            # Run in a tmux popup
+    --popup: string           # Run in a tmux or zellij popup
     --log-level: string       # Set the log level
     --log-file: string        # Pipe log output to a file
     --flags: string@"nu-complete sk flags" # Feature flags

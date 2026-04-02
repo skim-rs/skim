@@ -86,7 +86,7 @@ power-shell\:"PowerShell"
 zsh\:"Zsh"))' \
 '--listen=[Run an IPC socket with optional name (defaults to sk)]::LISTEN:_default' \
 '--remote=[Send commands to an IPC socket with optional name (defaults to sk)]::REMOTE:_default' \
-'--tmux=[Run in a tmux popup]::TMUX:_default' \
+'--popup=[Run in a tmux or zellij popup]::POPUP:_default' \
 '--log-level=[Set the log level]:LOG_LEVEL:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
