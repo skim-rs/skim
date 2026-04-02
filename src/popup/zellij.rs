@@ -75,7 +75,7 @@ impl ZellijPopup {
                 (x, y)
             }
             PopupWindowDir::Top => (middle_coord(width, "COLUMNS"), Size::Fixed(0)),
-            PopupWindowDir::Bottom => (align_end_coord(height, "ROWS"), middle_coord(width, "COLUMNS")),
+            PopupWindowDir::Bottom => (middle_coord(width, "COLUMNS"), align_end_coord(height, "ROWS")),
             PopupWindowDir::Left => (Size::Fixed(0), middle_coord(height, "ROWS")),
             PopupWindowDir::Right => (align_end_coord(width, "COLUMNS"), middle_coord(height, "ROWS")),
         };
@@ -128,9 +128,9 @@ mod tests {
         };
     }
 
-    fn opts(tmux: &str) -> crate::SkimOptions {
+    fn opts(popup: &str) -> crate::SkimOptions {
         SkimOptionsBuilder::default()
-            .popup(tmux)
+            .popup(popup)
             .build()
             .expect("valid options")
     }
