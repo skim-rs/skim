@@ -33,7 +33,7 @@ module completions {
   }
 
   def "nu-complete sk flags" [] {
-    [ "no-preview-pty" "show-score" "show-index" ]
+    [ "no-preview-pty" "show-score" "show-index" "single-reader" "single-matcher" ]
   }
 
   # Fuzzy Finder in rust!

@@ -91,7 +91,9 @@ zsh\:"Zsh"))' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
 show-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"
-show-index\:"Display the item'\''s index before its value in the item list"))' \
+show-index\:"Display the item'\''s index before its value in the item list"
+single-reader\:"Limit the reader thread pool to a single thread"
+single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--hscroll-off=[]:HSCROLL_OFF:_default' \
 '--jump-labels=[]:JUMP_LABELS:_default' \
 '--tail=[]:TAIL:_default' \

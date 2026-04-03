@@ -266,7 +266,7 @@ _sk() {
                     return 0
                     ;;
                 --flags)
-                    COMPREPLY=($(compgen -W "no-preview-pty show-score show-index" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "no-preview-pty show-score show-index single-reader single-matcher" -- "${cur}"))
                     return 0
                     ;;
                 --hscroll-off)
