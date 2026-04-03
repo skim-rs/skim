@@ -304,7 +304,7 @@ impl Matcher {
             //
             // The chunk size controls the granularity of work distribution and
             // the frequency of atomic counter updates / interrupt checks.
-            const CHUNK_SIZE: usize = 1 << 20;
+            const CHUNK_SIZE: usize = 1 << 12;
 
             // Convert items into an Arc slice so all workers can share them.
             let shared_items: Arc<[Arc<dyn SkimItem>]> = items.into();

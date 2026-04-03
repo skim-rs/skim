@@ -79,8 +79,10 @@ impl SkimPopup for TmuxPopup {
 
     fn run_and_wait(&mut self, command: &str) -> std::io::Result<ExitStatus> {
         debug!("tmux command: {command:?}");
+        self.cmd.args(["sh", "-c", command]);
+
+        debug!("tmux full command: {:?}", self.cmd);
         self.cmd
-            .args(["sh", "-c", command])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .stdin(Stdio::null())

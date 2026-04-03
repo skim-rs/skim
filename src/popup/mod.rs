@@ -72,10 +72,11 @@ impl SkimItem for SkimPopupOutput {
     }
 }
 
-/// Returns whether or not a compatible multiplexer is running
+/// Returns true if a compatible multiplexer is running and we are not already in a popup
+/// (`$_SKIM_POPUP`)
 #[must_use]
 pub fn check_env() -> bool {
-    tmux::is_available() || zellij::is_available()
+    std::env::var("_SKIM_POPUP").is_err() && (tmux::is_available() || zellij::is_available())
 }
 
 /// Run skim in a tmux popup
@@ -222,6 +223,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             popup.add_env(&name, &value);
         }
     }
+    popup.add_env("_SKIM_POPUP", "1");
 
     let status = popup
         .run_and_wait(&stripped_shell_cmd)
