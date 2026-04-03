@@ -8,7 +8,6 @@ mod zellij;
 
 use std::{
     borrow::Cow,
-    env,
     fmt::Write as FmtWrite,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
     process::ExitStatus,
@@ -318,19 +317,11 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 }
 
 fn push_quoted_arg(args_str: &mut String, arg: &str) {
-    use shell_quote::{Bash, Fish, Quote as _, Sh, Zsh};
-    let shell_path = env::var("SHELL").unwrap_or(String::from("/bin/sh"));
-    let shell = shell_path.rsplit_once('/').unwrap_or(("", "sh")).1;
-    let quoted_arg: Vec<u8> = match shell {
-        "zsh" => Zsh::quote(arg),
-        "bash" => Bash::quote(arg),
-        "fish" => Fish::quote(arg),
-        _ => Sh::quote(arg),
-    };
+    use shell_quote::{Quote as _, Sh};
     let _ = write!(
         args_str,
         " {}",
-        String::from_utf8(quoted_arg).expect("Failed to parse quoted arg as utf8, this should not happen")
+        String::from_utf8(Sh::quote(arg)).expect("Failed to parse quoted arg as utf8, this should not happen")
     );
 }
 
