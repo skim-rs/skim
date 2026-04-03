@@ -61,6 +61,8 @@ pub mod item;
 pub mod matcher;
 pub mod options;
 mod output;
+#[cfg(unix)]
+pub mod popup;
 pub mod prelude;
 pub mod reader;
 mod skim;
@@ -68,8 +70,6 @@ mod skim_item;
 pub mod spinlock;
 pub mod theme;
 pub mod thread_pool;
-#[cfg(unix)]
-pub mod tmux;
 pub mod tui;
 mod util;
 

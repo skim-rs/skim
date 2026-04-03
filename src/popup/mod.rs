@@ -1,14 +1,16 @@
-//! Tmux integration utilities.
+//! Tmux & Zellij integration utilities.
 //!
-//! This module provides functionality for running skim within tmux panes,
+//! This module provides functionality for running skim within tmux/zellij panes,
 //! allowing skim to be used as a tmux popup or split pane.
+
+mod tmux;
+mod zellij;
 
 use std::{
     borrow::Cow,
-    env,
     fmt::Write as FmtWrite,
     io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
-    process::{Command, Stdio},
+    process::ExitStatus,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -20,7 +22,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nix::sys::stat::Mode;
 use nix::unistd::mkfifo;
 use rand::{RngExt as _, distr::Alphanumeric};
-use which::which;
 
 use crate::{
     Rank, SkimItem, SkimOptions, SkimOutput,
@@ -28,8 +29,11 @@ use crate::{
     tui::{Event, event::Action},
 };
 
+use tmux::TmuxPopup;
+use zellij::ZellijPopup;
+
 #[derive(Debug, PartialEq, Eq)]
-enum TmuxWindowDir {
+enum PopupWindowDir {
     Center,
     Top,
     Bottom,
@@ -37,9 +41,9 @@ enum TmuxWindowDir {
     Right,
 }
 
-impl From<&str> for TmuxWindowDir {
+impl From<&str> for PopupWindowDir {
     fn from(value: &str) -> Self {
-        use TmuxWindowDir::{Bottom, Center, Left, Right, Top};
+        use PopupWindowDir::{Bottom, Center, Left, Right, Top};
         match value {
             "top" => Top,
             "bottom" => Bottom,
@@ -50,51 +54,29 @@ impl From<&str> for TmuxWindowDir {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct TmuxOptions<'a> {
-    width: &'a str,
-    height: &'a str,
-    x: &'a str,
-    y: &'a str,
+trait SkimPopup {
+    fn from_options(options: &SkimOptions) -> Box<dyn SkimPopup>
+    where
+        Self: Sized;
+    fn add_env(&mut self, key: &str, value: &str);
+    fn run_and_wait(&mut self, command: &str) -> std::io::Result<ExitStatus>;
 }
 
-struct SkimTmuxOutput {
+struct SkimPopupOutput {
     line: String,
 }
 
-impl SkimItem for SkimTmuxOutput {
+impl SkimItem for SkimPopupOutput {
     fn text(&self) -> Cow<'_, str> {
         Cow::from(&self.line)
     }
 }
 
-impl<'a> From<&'a String> for TmuxOptions<'a> {
-    fn from(value: &'a String) -> Self {
-        let (raw_dir, size) = value.split_once(',').unwrap_or((value, "50%"));
-        let dir = TmuxWindowDir::from(raw_dir);
-        let (height, width) = if let Some((lhs, rhs)) = size.split_once(',') {
-            match dir {
-                TmuxWindowDir::Center | TmuxWindowDir::Left | TmuxWindowDir::Right => (rhs, lhs),
-                TmuxWindowDir::Top | TmuxWindowDir::Bottom => (lhs, rhs),
-            }
-        } else {
-            match dir {
-                TmuxWindowDir::Left | TmuxWindowDir::Right => ("100%", size),
-                TmuxWindowDir::Top | TmuxWindowDir::Bottom => (size, "100%"),
-                TmuxWindowDir::Center => (size, size),
-            }
-        };
-
-        let (x, y) = match dir {
-            TmuxWindowDir::Center => ("C", "C"),
-            TmuxWindowDir::Top => ("C", "0%"),
-            TmuxWindowDir::Bottom => ("C", "100%"),
-            TmuxWindowDir::Left => ("0%", "C"),
-            TmuxWindowDir::Right => ("100%", "C"),
-        };
-
-        Self { width, height, x, y }
-    }
+/// Returns true if a compatible multiplexer is running and we are not already in a popup
+/// (`$_SKIM_POPUP`)
+#[must_use]
+pub fn check_env() -> bool {
+    std::env::var("_SKIM_POPUP").is_err() && (tmux::is_available() || zellij::is_available())
 }
 
 /// Run skim in a tmux popup
@@ -109,7 +91,7 @@ impl<'a> From<&'a String> for TmuxOptions<'a> {
 pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Create temp dir for downstream output
     let temp_dir_name = format!(
-        "sk-tmux-{}",
+        "sk-popup-{}",
         &rand::rng()
             .sample_iter(&Alphanumeric)
             .take(8)
@@ -173,14 +155,14 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     };
 
     // Build args to send to downstream sk invocation
-    let mut tmux_shell_cmd = String::new();
-    let mut prev_is_tmux_flag = false;
+    let mut stripped_shell_cmd = String::new();
+    let mut prev_is_popup = false;
     let mut prev_is_output_format_flag = false;
     // We keep argv[0] to use in the popup's command
     for arg in std::env::args() {
         debug!("Got arg {arg}");
-        if prev_is_tmux_flag {
-            prev_is_tmux_flag = false;
+        if prev_is_popup {
+            prev_is_popup = false;
             if !arg.starts_with('-') {
                 continue;
             }
@@ -188,12 +170,12 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             prev_is_output_format_flag = false;
             continue;
         }
-        if arg == "--tmux" {
-            debug!("Found tmux arg, skipping this and the next");
-            prev_is_tmux_flag = true;
+        if arg == "--tmux" || arg == "--popup" {
+            debug!("Found popup arg, skipping this and the next");
+            prev_is_popup = true;
             continue;
-        } else if arg.starts_with("--tmux") {
-            debug!("Found equal tmux arg, skipping");
+        } else if arg.starts_with("--tmux") || arg.starts_with("--popup") {
+            debug!("Found equal popup arg, skipping");
             continue;
         } else if arg == "--output-format" {
             debug!("Found output format arg, skipping this and the next");
@@ -203,7 +185,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             debug!("Found equal output format arg, skipping");
             continue;
         }
-        push_quoted_arg(&mut tmux_shell_cmd, &arg);
+        push_quoted_arg(&mut stripped_shell_cmd, &arg);
     }
     // Always add all --print-xxx flags to the child sk command so that the output
     // is fully structured and can be parsed unconditionally below, regardless of
@@ -215,49 +197,37 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         "--print-current",
         "--print-score",
     ] {
-        let _ = write!(tmux_shell_cmd, " {flag}");
+        let _ = write!(stripped_shell_cmd, " {flag}");
     }
-    tmux_shell_cmd = tmux_shell_cmd.replace("--output-format", "");
 
     if has_piped_input {
-        let _ = write!(tmux_shell_cmd, " <{}", tmp_stdin.display());
+        let _ = write!(stripped_shell_cmd, " <{}", tmp_stdin.display());
     }
-    let _ = write!(tmux_shell_cmd, " >{}", tmp_stdout.display());
+    let _ = write!(stripped_shell_cmd, " >{}", tmp_stdout.display());
 
-    debug!("build cmd {}", &tmux_shell_cmd);
+    debug!("build cmd {}", &stripped_shell_cmd);
 
     // Run downstream sk in tmux
-    let raw_tmux_opts = &opts.tmux.clone().unwrap();
-    let tmux_opts = TmuxOptions::from(raw_tmux_opts);
-    let mut tmux_cmd = Command::new(which("tmux").unwrap_or_else(|e| panic!("Failed to find tmux in path: {e}")));
-
-    tmux_cmd
-        .arg("display-popup")
-        .arg("-E")
-        .args(["-d", std::env::current_dir().unwrap().to_str().unwrap()])
-        .args(["-h", tmux_opts.height])
-        .args(["-w", tmux_opts.width])
-        .args(["-x", tmux_opts.x])
-        .args(["-y", tmux_opts.y]);
+    let mut popup: Box<dyn SkimPopup> = if zellij::is_available() {
+        ZellijPopup::from_options(opts)
+    } else if tmux::is_available() {
+        TmuxPopup::from_options(opts)
+    } else {
+        panic!("You shouldn't have been able to get here");
+    };
 
     for (name, value) in std::env::vars() {
         if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
             let value = sanitize_value(value);
             debug!("adding {name} = {value} to the command's env");
-            tmux_cmd.args(["-e", &format!("{name}={value}")]);
+            popup.add_env(&name, &value);
         }
     }
+    popup.add_env("_SKIM_POPUP", "1");
 
-    tmux_cmd.args(["sh", "-c", &tmux_shell_cmd]);
-
-    debug!("tmux command: {tmux_cmd:?}");
-
-    let status = tmux_cmd
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null())
-        .status()
-        .unwrap_or_else(|e| panic!("Tmux invocation failed with {e}"));
+    let status = popup
+        .run_and_wait(&stripped_shell_cmd)
+        .unwrap_or_else(|e| panic!("Popup invocation of {stripped_shell_cmd} failed with {e}"));
 
     // Signal the stdin thread to stop and wait for it to exit
     stop_reading.store(true, Ordering::Relaxed);
@@ -267,6 +237,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     stdout_bytes.pop();
     let mut stdout = stdout_bytes.split(output_ending);
     let _ = std::fs::remove_dir_all(temp_dir);
+
+    debug!("popup stdout: {stdout:?}");
 
     // The child sk process always runs with --print-query, --print-cmd, --print-header,
     // and --print-score, so we always read those lines unconditionally.
@@ -295,7 +267,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             None
         } else {
             Some(MatchedItem::new(
-                Arc::new(SkimTmuxOutput { line: line.to_string() }),
+                Arc::new(SkimPopupOutput { line: line.to_string() }),
                 Rank::default(),
                 None,
                 &RankBuilder::default(),
@@ -315,7 +287,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             ..Default::default()
         };
         let item = MatchedItem::new(
-            Arc::new(SkimTmuxOutput { line: line.to_string() }),
+            Arc::new(SkimPopupOutput { line: line.to_string() }),
             rank,
             None,
             &RankBuilder::default(),
@@ -334,8 +306,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         final_event,
         is_abort,
         final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
-        // Note: In tmux mode, the actual final key is not available since skim runs in a separate
-        // tmux popup process. Only the output text is captured. Use --expect with --bind to capture
+        // Note: In poup mode, the actual final key is not available since skim runs in a separate
+        // popup process. Only the output text is captured. Use --expect with --bind to capture
         // specific accept keys in the output if needed.
         query: query_str.to_string(),
         cmd: command_str.to_string(),
@@ -347,19 +319,11 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 }
 
 fn push_quoted_arg(args_str: &mut String, arg: &str) {
-    use shell_quote::{Bash, Fish, Quote as _, Sh, Zsh};
-    let shell_path = env::var("SHELL").unwrap_or(String::from("/bin/sh"));
-    let shell = shell_path.rsplit_once('/').unwrap_or(("", "sh")).1;
-    let quoted_arg: Vec<u8> = match shell {
-        "zsh" => Zsh::quote(arg),
-        "bash" => Bash::quote(arg),
-        "fish" => Fish::quote(arg),
-        _ => Sh::quote(arg),
-    };
+    use shell_quote::{Quote as _, Sh};
     let _ = write!(
         args_str,
         " {}",
-        String::from_utf8(quoted_arg).expect("Failed to parse quoted arg as utf8, this should not happen")
+        String::from_utf8(Sh::quote(arg)).expect("Failed to parse quoted arg as utf8, this should not happen")
     );
 }
 
@@ -377,76 +341,106 @@ fn sanitize_value(value: String) -> String {
 mod tests {
     use super::*;
 
-    fn check(input: &str, height: &str, width: &str, x: &str, y: &str) {
-        assert_eq!(
-            TmuxOptions::from(&String::from(input)),
-            TmuxOptions { width, height, x, y }
-        );
+    // ── PopupWindowDir::from ──────────────────────────────────────────────────
+
+    #[test]
+    fn popup_window_dir_known_values() {
+        assert_eq!(PopupWindowDir::from("center"), PopupWindowDir::Center);
+        assert_eq!(PopupWindowDir::from("top"), PopupWindowDir::Top);
+        assert_eq!(PopupWindowDir::from("bottom"), PopupWindowDir::Bottom);
+        assert_eq!(PopupWindowDir::from("left"), PopupWindowDir::Left);
+        assert_eq!(PopupWindowDir::from("right"), PopupWindowDir::Right);
     }
 
     #[test]
-    fn tmux_options_default() {
-        check("", "50%", "50%", "C", "C");
+    fn popup_window_dir_unknown_falls_back_to_center() {
+        assert_eq!(PopupWindowDir::from(""), PopupWindowDir::Center);
+        assert_eq!(PopupWindowDir::from("foobar"), PopupWindowDir::Center);
+        assert_eq!(PopupWindowDir::from("CENTER"), PopupWindowDir::Center); // case-sensitive
     }
+
+    // ── sanitize_value ────────────────────────────────────────────────────────
+
     #[test]
-    fn tmux_options_center() {
-        let (x, y) = ("C", "C");
-        check("center", "50%", "50%", x, y);
-        check("center,10", "10", "10", x, y);
-        check("center,10,20", "20", "10", x, y);
-        check("center,10%,20", "20", "10%", x, y);
-        check("center,10%,20%", "20%", "10%", x, y);
-    }
-    #[test]
-    fn tmux_options_top() {
-        let (x, y) = ("C", "0%");
-        check("top", "50%", "100%", x, y);
-        check("top,10", "10", "100%", x, y);
-        check("top,10,20", "10", "20", x, y);
-        check("top,10%,20", "10%", "20", x, y);
-        check("top,10%,20%", "10%", "20%", x, y);
-    }
-    #[test]
-    fn tmux_options_bottom() {
-        let (x, y) = ("C", "100%");
-        check("bottom", "50%", "100%", x, y);
-        check("bottom,10", "10", "100%", x, y);
-        check("bottom,10,20", "10", "20", x, y);
-        check("bottom,10%,20", "10%", "20", x, y);
-        check("bottom,10%,20%", "10%", "20%", x, y);
-    }
-    #[test]
-    fn tmux_options_left() {
-        let (x, y) = ("0%", "C");
-        check("left", "100%", "50%", x, y);
-        check("left,10", "100%", "10", x, y);
-        check("left,10,20", "20", "10", x, y);
-        check("left,10%,20", "20", "10%", x, y);
-        check("left,10%,20%", "20%", "10%", x, y);
-    }
-    #[test]
-    fn tmux_options_right() {
-        let (x, y) = ("100%", "C");
-        check("right", "100%", "50%", x, y);
-        check("right,10", "100%", "10", x, y);
-        check("right,10,20", "20", "10", x, y);
-        check("right,10%,20", "20", "10%", x, y);
-        check("right,10%,20%", "20%", "10%", x, y);
+    fn sanitize_value_no_semicolon() {
+        assert_eq!(sanitize_value("hello".to_string()), "hello");
+        assert_eq!(sanitize_value("foo=bar".to_string()), "foo=bar");
+        assert_eq!(sanitize_value(String::new()), "");
     }
 
     #[test]
-    fn test_sanitize_value() {
-        assert_eq!(sanitize_value("some-value".to_string()), "some-value".to_string());
-        assert_eq!(sanitize_value("some-value;".to_string()), "some-value\\;".to_string());
-        assert_eq!(sanitize_value("some-value;;".to_string()), "some-value;\\;".to_string());
-        assert_eq!(
-            sanitize_value("some-value;;;".to_string()),
-            "some-value;;\\;".to_string()
-        );
-        assert_eq!(sanitize_value("some-value;x".to_string()), "some-value;x".to_string());
-        assert_eq!(
-            sanitize_value("some-value;x;".to_string()),
-            "some-value;x\\;".to_string()
-        );
+    fn sanitize_value_trailing_semicolon_is_escaped() {
+        assert_eq!(sanitize_value("hello;".to_string()), "hello\\;");
+        assert_eq!(sanitize_value(";".to_string()), "\\;");
+    }
+
+    #[test]
+    fn sanitize_value_semicolon_in_middle_unchanged() {
+        assert_eq!(sanitize_value("hel;lo".to_string()), "hel;lo");
+        assert_eq!(sanitize_value("a;b;c".to_string()), "a;b;c");
+    }
+
+    // ── push_quoted_arg ───────────────────────────────────────────────────────
+    // These tests mutate the SHELL env var. `#[serial]` ensures they never run
+    // concurrently. `set_var`/`remove_var` are `unsafe fn` in Rust ≥ 1.81
+    // (edition 2024); the SAFETY invariant holds because `#[serial]` serialises
+    // access so no other thread reads the var while it is being written.
+
+    #[test]
+    #[serial_test::serial]
+    fn push_quoted_arg_simple_word_sh() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
+        unsafe { std::env::set_var("SHELL", "/bin/sh") };
+        let mut s = String::new();
+        push_quoted_arg(&mut s, "hello");
+        assert_eq!(s, " hello");
+        unsafe { std::env::remove_var("SHELL") };
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn push_quoted_arg_spaces_are_quoted() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
+        unsafe { std::env::set_var("SHELL", "/bin/sh") };
+        let mut s = String::new();
+        push_quoted_arg(&mut s, "hello world");
+        // The result must preserve both words and not be a bare unquoted string
+        assert!(s.contains("hello"));
+        assert!(s.contains("world"));
+        assert_ne!(s.trim(), "hello world"); // must be quoted somehow
+        unsafe { std::env::remove_var("SHELL") };
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn push_quoted_arg_appends_with_space_prefix() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
+        unsafe { std::env::set_var("SHELL", "/bin/sh") };
+        let mut s = String::from("sk");
+        push_quoted_arg(&mut s, "--flag");
+        assert!(s.starts_with("sk "));
+        unsafe { std::env::remove_var("SHELL") };
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn push_quoted_arg_bash_shell() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
+        unsafe { std::env::set_var("SHELL", "/usr/bin/bash") };
+        let mut s = String::new();
+        push_quoted_arg(&mut s, "simple");
+        assert_eq!(s, " simple");
+        unsafe { std::env::remove_var("SHELL") };
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn push_quoted_arg_zsh_shell() {
+        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
+        unsafe { std::env::set_var("SHELL", "/bin/zsh") };
+        let mut s = String::new();
+        push_quoted_arg(&mut s, "simple");
+        assert_eq!(s, " simple");
+        unsafe { std::env::remove_var("SHELL") };
     }
 }

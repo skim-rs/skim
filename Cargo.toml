@@ -97,6 +97,7 @@ gungraun = ["dep:gungraun"]
 criterion = { version = "0.8.2", features = ["async_tokio"] }
 insta = "1.47"
 serde_json = { version = "=1.0.149" }
+serial_test = "=3.4.0"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage, coverage_nightly)'] }

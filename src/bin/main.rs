@@ -20,8 +20,8 @@ use skim::binds::parse_action_chain;
 use skim::reader::CommandCollector;
 use skim::tui::event::Action;
 use std::fs::File;
+use std::io;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
-use std::{env, io};
 
 use skim::prelude::*;
 
@@ -125,6 +125,20 @@ fn main() -> Result<()> {
     }
 }
 
+/// Returns `None` if the popup should not open, otherwise run the popup and return the result
+#[cfg(unix)]
+fn check_and_run_popup(opts: &SkimOptions) -> Option<Option<SkimOutput>> {
+    if opts.popup.is_some() && popup::check_env() {
+        Some(crate::popup::run_with(opts))
+    } else {
+        None
+    }
+}
+#[cfg(not(unix))]
+fn check_and_run_popup(_opts: &SkimOptions) -> Option<Option<SkimOutput>> {
+    None
+}
+
 fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     let reader_opts = SkimItemReaderOption::from_options(&opts);
     let cmd_collector = Rc::new(RefCell::new(SkimItemReader::new(reader_opts)));
@@ -154,12 +168,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (if opts.tmux.is_some() && env::var("TMUX").is_ok() && cfg!(unix) {
-        #[cfg(not(unix))]
-        unreachable!("tmux is ignored on windows");
-        #[cfg(unix)]
-        crate::tmux::run_with(&opts)
-    } else {
+    let Some(result) = check_and_run_popup(&opts).unwrap_or_else(|| {
         // read from pipe or command
         let rx_item = if io::stdin().is_terminal() || (opts.interactive && opts.cmd.is_some()) {
             None
@@ -167,7 +176,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
             let rx_item = cmd_collector.borrow().of_bufread(BufReader::new(std::io::stdin()));
             Some(rx_item)
         };
-        Some(Skim::run_with(opts, rx_item)?)
+        Skim::run_with(opts, rx_item).ok()
     }) else {
         return Ok(135);
     };

@@ -86,12 +86,14 @@ power-shell\:"PowerShell"
 zsh\:"Zsh"))' \
 '--listen=[Run an IPC socket with optional name (defaults to sk)]::LISTEN:_default' \
 '--remote=[Send commands to an IPC socket with optional name (defaults to sk)]::REMOTE:_default' \
-'--tmux=[Run in a tmux popup]::TMUX:_default' \
+'--popup=[Run in a tmux or zellij popup]::POPUP:_default' \
 '--log-level=[Set the log level]:LOG_LEVEL:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
 show-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"
-show-index\:"Display the item'\''s index before its value in the item list"))' \
+show-index\:"Display the item'\''s index before its value in the item list"
+single-reader\:"Limit the reader thread pool to a single thread"
+single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--hscroll-off=[]:HSCROLL_OFF:_default' \
 '--jump-labels=[]:JUMP_LABELS:_default' \
 '--tail=[]:TAIL:_default' \

@@ -804,16 +804,13 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
 
-    /// Run in a tmux popup
+    /// Run in a tmux or zellij popup
     ///
-    /// Format: `sk --tmux <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
-    ///
-    /// Depending on the direction, the order and behavior of the sizes varies:
-    ///
-    /// Default: center,50%
-    /// Ignored on Windows
-    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0..))]
-    pub tmux: Option<String>,
+    /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
+    /// Note: this will try to detect a Zellij session, then a Tmux session
+    /// This means that in nested sesions, skim will prioritize Zellij over Tmux
+    #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]
+    pub popup: Option<String>,
 
     /// Set the log level
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
@@ -1084,7 +1081,7 @@ impl Default for SkimOptions {
             pre_select_items: Default::default(),
             pre_select_file: Default::default(),
             filter: Default::default(),
-            tmux: Default::default(),
+            popup: Default::default(),
             log_file: Default::default(),
             extended: Default::default(),
             literal: Default::default(),
@@ -1327,6 +1324,17 @@ pub enum FeatureFlag {
     ShowScore,
     /// Display the item's index before its value in the item list
     ShowIndex,
+    /// Limit the reader thread pool to a single thread
+    ///
+    /// Forces the reader pipeline to run on exactly one thread, regardless of the number of
+    /// available CPU cores.  Useful for debugging reader-side behaviour or for environments where
+    /// parallelism causes ordering issues.
+    SingleReader,
+    /// Limit the matcher thread pool to a single thread
+    ///
+    /// Forces the matcher to run on exactly one thread, regardless of the number of available CPU
+    /// cores.  Useful for reproducing deterministic match ordering or for debugging the matcher.
+    SingleMatcher,
 }
 
 #[allow(unused_macros)]

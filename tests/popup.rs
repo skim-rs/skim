@@ -42,6 +42,30 @@ fn get_tmux_cmd(outfile: &str) -> Result<String> {
     Ok(cmd)
 }
 
+/// Regression test: when --popup/--tmux is set via SKIM_DEFAULT_OPTIONS the child
+/// sk process must not re-enter the popup path (infinite recursion guard).
+#[test]
+fn tmux_via_skim_default_options() -> Result<()> {
+    let tmux = TmuxController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    // Run sk with SKIM_DEFAULT_OPTIONS=--tmux inline (bypassing the SK constant
+    // which always clears SKIM_DEFAULT_OPTIONS).
+    let sk_bin = crate::common::SK
+        .split_whitespace()
+        .last()
+        .expect("SK must have a binary path");
+    let cmd = format!("SKIM_DEFAULT_OPTIONS='--tmux' {sk_bin}");
+    tmux.send_keys(&[Str(&cmd), Enter])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    // The parent should have opened exactly one popup; the child must not loop back.
+    assert!(cmd.starts_with("display-popup"));
+    // _SKIM_POPUP must be forwarded so the child knows it is already inside a popup
+    assert!(cmd.contains("_SKIM_POPUP=1"));
+
+    Ok(())
+}
+
 #[test]
 fn tmux_vanilla() -> Result<()> {
     let mut tmux = TmuxController::new()?;
@@ -104,61 +128,10 @@ fn tmux_stdin() -> Result<()> {
 }
 
 #[test]
-fn tmux_quote_bash() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
-    let outfile = setup_tmux_mock(&tmux)?;
-    tmux.send_keys(&[Str("export SHELL=/bin/bash"), Enter])?;
-    tmux.send_keys(&[Str("export SKIM_ESCAPED_VAR=';;'"), Enter])?;
-    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
-    tmux.until(|_| Path::new(&outfile).exists())?;
-    let cmd = get_tmux_cmd(&outfile)?;
-    assert!(cmd.starts_with("display-popup"));
-    assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind $'ctrl-a:reload(ls /foo*)'"));
-    assert!(cmd.contains("SKIM_ESCAPED_VAR=;\\;"));
-
-    Ok(())
-}
-#[test]
-fn tmux_quote_zsh() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
-    let outfile = setup_tmux_mock(&tmux)?;
-    tmux.send_keys(&[Str("export SHELL=/bin/zsh"), Enter])?;
-    tmux.send_keys(&[Str("export SKIM_ESCAPED_VAR=';;'"), Enter])?;
-    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
-    tmux.until(|_| Path::new(&outfile).exists())?;
-    let cmd = get_tmux_cmd(&outfile)?;
-    println!("{cmd}");
-    assert!(cmd.starts_with("display-popup"));
-    assert!(cmd.contains("-E"));
-    assert!(cmd.contains(
-        "sk --bind $'ctrl-a:reload(ls /foo*)' --print-query --print-cmd --print-header --print-current --print-score >"
-    ));
-    assert!(cmd.contains("SKIM_ESCAPED_VAR=;\\;"));
-
-    Ok(())
-}
-#[test]
-fn tmux_quote_sh() -> Result<()> {
+fn tmux_quote() -> Result<()> {
     let mut tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.send_keys(&[Str("export SHELL=/bin/sh"), Enter])?;
-    tmux.send_keys(&[Str("export SKIM_ESCAPED_VAR=';;'"), Enter])?;
-    tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
-    tmux.until(|_| Path::new(&outfile).exists())?;
-    let cmd = get_tmux_cmd(&outfile)?;
-    assert!(cmd.starts_with("display-popup"));
-    assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind ctrl-a':reload(ls /foo*)'"));
-    assert!(cmd.contains("SKIM_ESCAPED_VAR=;\\;"));
-
-    Ok(())
-}
-#[test]
-fn tmux_quote_fish() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
-    let outfile = setup_tmux_mock(&tmux)?;
-    tmux.send_keys(&[Str("export SHELL=/bin/fish"), Enter])?;
     tmux.send_keys(&[Str("export SKIM_ESCAPED_VAR=';;'"), Enter])?;
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;

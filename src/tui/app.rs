@@ -259,7 +259,13 @@ impl App {
         let initial_header_height = header.height();
         let layout_template = LayoutTemplate::from_options(&options, initial_header_height);
         let layout = layout_template.apply(Rect::default());
-        let (reader_threads, matcher_threads) = thread_pool::partition_threads(*NUM_THREADS);
+        let (mut reader_threads, mut matcher_threads) = thread_pool::partition_threads(*NUM_THREADS);
+        if options.flags.contains(&crate::options::FeatureFlag::SingleReader) {
+            reader_threads = 1;
+        }
+        if options.flags.contains(&crate::options::FeatureFlag::SingleMatcher) {
+            matcher_threads = 1;
+        }
         Self {
             input: Input::from_options(&options, theme.clone()),
             preview: Preview::from_options(&options, theme.clone()),

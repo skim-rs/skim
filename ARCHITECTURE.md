@@ -12,7 +12,7 @@
    - [Interactive / Command Mode (`--interactive`)](#interactive--command-mode---interactive)
    - [Select-1 / Exit-0 / Sync Modes](#select-1--exit-0--sync-modes)
    - [ANSI Mode (`--ansi`)](#ansi-mode---ansi)
-   - [Tmux Mode (`--tmux`)](#tmux-mode---tmux)
+   - [Popup Mode (`--popup` / `--tmux`)](#popup-mode---popup----tmux)
 6. [Item Ingestion Pipeline](#item-ingestion-pipeline)
 7. [The Matching Subsystem](#the-matching-subsystem)
    - [Match Engine Hierarchy](#match-engine-hierarchy)
@@ -105,7 +105,10 @@ skim/                  ← workspace root
 │   ├── field.rs       ← field range parsing (--nth / --with-nth)
 │   ├── spinlock.rs    ← lightweight SpinLock<T>
 │   ├── util.rs        ← printf helper, misc utilities
-│   ├── tmux.rs        ← tmux popup integration
+│   ├── popup/         ← tmux & zellij popup integration
+│   │   ├── mod.rs           ← SkimPopup trait, run_with(), check_env(), SkimPopupOutput
+│   │   ├── tmux.rs          ← TmuxPopup (builds/runs tmux display-popup)
+│   │   └── zellij.rs        ← ZellijPopup (builds/runs zellij action new-floating-pane)
 │   ├── prelude.rs     ← convenience re-exports
 │   ├── manpage.rs     ← man-page generation (cli feature)
 │   ├── shell.rs       ← shell completion generation (cli feature)
@@ -186,7 +189,7 @@ main()
   │     ├─ SkimItemReader::new(reader_opts)   ← configure stdin reader
   │     ├─ opts.cmd_collector = cmd_collector
   │     │
-  │     ├─ if --tmux && TMUX is set → tmux::run_with(&opts)
+  │     ├─ if --popup/--tmux && check_env() → popup::run_with(&opts)
   │     │
   │     └─ else:
   │           ├─ if stdin not a TTY (piped) → cmd_collector.of_bufread(stdin)
@@ -346,21 +349,40 @@ Without `--ansi`, any ANSI escape codes are passed through to `text()` and displ
 
 **Key files:** `src/helper/item.rs` (`DefaultSkimItem::new`, `strip_ansi`, `display`)
 
-### Tmux Mode (`--tmux`)
+### Popup Mode (`--popup` / `--tmux`)
 
-When `--tmux [direction[,size[,size]]]` is set and `$TMUX` is in the environment, the binary delegates to `tmux::run_with()` instead of `Skim::run_with()`.
+When `--popup [direction[,size[,size]]]` (alias `--tmux`) is set, the binary calls `check_and_run_popup()`, which checks `popup::check_env()` and, if true, delegates to `popup::run_with()` instead of `Skim::run_with()`.
 
-The tmux mode works by:
-1. Creating a temp directory for IPC (`/tmp/sk-tmux-XXXXXXXX/`).
-2. If stdin is piped, creating a named FIFO and spawning a thread to copy stdin to it (so the child process can read incrementally).
-3. Reconstructing the full `sk` command line without `--tmux`, adding `--print-query --print-cmd --print-header --print-current --print-score`.
-4. Launching `tmux display-popup -E … sh -c <sk command> > stdout_file`.
-5. Waiting for the popup to exit.
-6. Parsing the structured stdout file (always `query\ncmd\nheader\ncurrent\nitem1\nscore1\nitem2\nscore2\n…`) into a `SkimOutput`.
+**`check_env()`** returns `true` only when:
+- `$_SKIM_POPUP` is **not** set in the environment (prevents the child process from recursing back into popup mode), and
+- at least one supported multiplexer is detected: tmux (`$TMUX` set) or Zellij (`$ZELLIJ` set).
 
-The child `sk` process runs fully independently inside the tmux popup. The parent reads back a synthetic `SkimOutput` from the file.
+The popup flow:
+1. Creates a temp directory for IPC (`/tmp/sk-popup-XXXXXXXX/`).
+2. If stdin is piped, creates a named FIFO (`tmp_stdin`) and spawns a thread to relay stdin into it incrementally so the child can stream-read.
+3. Reconstructs the `sk` command line from `std::env::args()`, stripping `--popup`/`--tmux` and `--output-format`, then appending `--print-query --print-cmd --print-header --print-current --print-score`.
+4. Forwards all `SKIM_*`, `RUST*`, and `PATH` environment variables to the child via the multiplexer's `-e` flag, **plus `_SKIM_POPUP=1`** to prevent re-entry.
+5. Launches the popup via the appropriate backend:
+   - **tmux**: `tmux display-popup -E … sh -c <cmd> > stdout_file`
+   - **Zellij**: `zellij action new-floating-pane … -- sh -c <cmd> > stdout_file`
+6. Waits for the popup process to exit.
+7. Parses the structured stdout file (`query\ncmd\nheader\ncurrent_item\nitem1\nscore1\n…`) into a synthetic `SkimOutput`.
 
-**Key files:** `src/tmux.rs`, `src/bin/main.rs` (`sk_main`)
+The internal `SkimPopup` trait abstracts the two multiplexer backends:
+
+```rust
+trait SkimPopup {
+    fn from_options(options: &SkimOptions) -> Box<dyn SkimPopup>;
+    fn add_env(&mut self, key: &str, value: &str);
+    fn run_and_wait(&mut self, command: &str) -> std::io::Result<ExitStatus>;
+}
+```
+
+`TmuxPopup` and `ZellijPopup` each implement this trait. The active backend is selected at runtime: Zellij takes priority if both are available.
+
+The child `sk` process runs fully independently inside the popup. The parent reads back a synthetic `SkimOutput` from the captured file. Because `_SKIM_POPUP=1` is set in the child's environment, `check_env()` returns `false` in the child, so it runs as a normal interactive skim session regardless of what `SKIM_DEFAULT_OPTIONS` contains.
+
+**Key files:** `src/popup/mod.rs` (`run_with`, `check_env`), `src/popup/tmux.rs` (`TmuxPopup`), `src/popup/zellij.rs` (`ZellijPopup`), `src/bin/main.rs` (`check_and_run_popup`)
 
 ---
 
@@ -1062,7 +1084,7 @@ Preview thread (OS thread, per preview spawn):
 IPC handler task (Tokio, per connection):
   └─ reads RON actions → sends Event::Action to TUI channel
 
-Tmux stdin relay thread (OS thread, only in --tmux mode):
+Popup stdin relay thread (OS thread, only in --popup/--tmux mode):
   └─ copies stdin → FIFO for child sk process
 ```
 
@@ -1108,8 +1130,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `Tui::new_with_height_and_backend` | `src/tui/backend.rs:68` | Terminal init + viewport sizing |
 | `Tui::enter` | `src/tui/backend.rs:130` | Enable raw mode + start event pump |
 | `Tui::start` | `src/tui/backend.rs:163` | Spawn crossterm EventStream task |
-| `tmux::run_with` | `src/tmux.rs:107` | Delegate to tmux popup + parse output |
-| `sk_main` | `src/bin/main.rs:121` | CLI orchestration + output printing |
+| `popup::run_with` | `src/popup/mod.rs:91` | Delegate to multiplexer popup + parse output |
+| `popup::check_env` | `src/popup/mod.rs:78` | Guard: multiplexer present and not already in popup |
+| `check_and_run_popup` | `src/bin/main.rs:130` | Check popup conditions, dispatch to popup::run_with |
+| `sk_main` | `src/bin/main.rs:142` | CLI orchestration + output printing |
 | `parse_key` | `src/binds.rs:130` | `"ctrl-a"` → `KeyEvent` |
 | `parse_action_chain` | `src/binds.rs:214` | `"down+select"` → `Vec<Action>` |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:~140` | Build engine factory chain from options |

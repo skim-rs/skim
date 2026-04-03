@@ -112,6 +112,15 @@ impl Default for Size {
     }
 }
 
+impl std::fmt::Display for Size {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Percent(p) => f.write_fmt(format_args!("{p}%")),
+            Self::Fixed(s) => f.write_fmt(format_args!("{s}")),
+        }
+    }
+}
+
 /// This mirrors Ratatui's border type
 ///
 /// We need it so that we can properly use `ValueEnum`
