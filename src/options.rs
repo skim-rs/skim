@@ -1324,6 +1324,17 @@ pub enum FeatureFlag {
     ShowScore,
     /// Display the item's index before its value in the item list
     ShowIndex,
+    /// Limit the reader thread pool to a single thread
+    ///
+    /// Forces the reader pipeline to run on exactly one thread, regardless of the number of
+    /// available CPU cores.  Useful for debugging reader-side behaviour or for environments where
+    /// parallelism causes ordering issues.
+    SingleReader,
+    /// Limit the matcher thread pool to a single thread
+    ///
+    /// Forces the matcher to run on exactly one thread, regardless of the number of available CPU
+    /// cores.  Useful for reproducing deterministic match ordering or for debugging the matcher.
+    SingleMatcher,
 }
 
 #[allow(unused_macros)]

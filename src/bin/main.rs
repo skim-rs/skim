@@ -154,8 +154,15 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     //------------------------------------------------------------------------------
     // output
 
-    let Some(result) = (if opts.popup.is_some() && popup::check_env() {
-        crate::popup::run_with(&opts)
+    let Some(result) = (if cfg!(unix) && opts.popup.is_some() && popup::check_env() {
+        #[cfg(unix)]
+        {
+            crate::popup::run_with(&opts)
+        }
+        #[cfg(not(unix))]
+        {
+            unreachable!()
+        }
     } else {
         // read from pipe or command
         let rx_item = if io::stdin().is_terminal() || (opts.interactive && opts.cmd.is_some()) {
