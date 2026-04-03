@@ -225,7 +225,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
     let status = popup
         .run_and_wait(&stripped_shell_cmd)
-        .expect("Popup invocation of {stripped_shell_cmd} failed with {e}");
+        .unwrap_or_else(|e| panic!("Popup invocation of {stripped_shell_cmd} failed with {e}"));
 
     // Signal the stdin thread to stop and wait for it to exit
     stop_reading.store(true, Ordering::Relaxed);
