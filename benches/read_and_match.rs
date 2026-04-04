@@ -28,6 +28,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.to_async(rt)
             .iter(async || wait_until_done(SkimOptionsBuilder::default().query("test").build().unwrap()).await);
     });
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     c.bench_function("query_frizbee", |b| {
         let rt = tokio::runtime::Runtime::new().unwrap();
         b.to_async(rt).iter(async || {
@@ -56,6 +57,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             .await
         });
     });
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     c.bench_function("query_frizbee_typos", |b| {
         let rt = tokio::runtime::Runtime::new().unwrap();
         b.to_async(rt).iter(async || {

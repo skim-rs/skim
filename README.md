@@ -457,7 +457,7 @@ sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 
 Skim offers multiple algorithms, check the help or manpage for an exhaustive list. Among them are:
 - `skim_v2`, the default algorithm, loosely based on `fzf`'s algorithm
-- `frizbee`([crate](https://crates.io/frizbee), the typo-resistant algorithm used in the [blink.cmp](https://github.com/saghen/blink.cmp) neovim plugin
+- `frizbee`, uses [frizbee](https://crates.io/frizbee), the typo-resistant algorithm from in the [blink.cmp](https://github.com/saghen/blink.cmp) neovim plugin (**x86_64 and aarch64 only**)
 - `fzy`, based on [fzy](https://github.com/jhawthorn/fzy/)'s algorithm expanded for basic typo-resistance
 - `arinae`, skim's newest algorithm, designed in-house with typo-resistance in mind, expanding on all the above to make typo-resistant matching feel more natural while keeping the per-item performance up to the best standards
 

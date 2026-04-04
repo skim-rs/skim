@@ -38,36 +38,39 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-    c.bench_function("filter_10M_frizbee", |b| {
-        b.iter_batched(
-            || {
-                prepare(
-                    "10M.txt",
-                    SkimOptionsBuilder::default()
-                        .filter("test")
-                        .algorithm(FuzzyAlgorithm::Frizbee)
-                        .typos(Typos::Disabled),
-                )
-            },
-            |(opts, rx)| Skim::run_with(opts, Some(rx)),
-            criterion::BatchSize::SmallInput,
-        );
-    });
-    c.bench_function("filter_10M_frizbee_typos", |b| {
-        b.iter_batched(
-            || {
-                prepare(
-                    "10M.txt",
-                    SkimOptionsBuilder::default()
-                        .filter("test")
-                        .algorithm(FuzzyAlgorithm::Frizbee)
-                        .typos(Typos::Smart),
-                )
-            },
-            |(opts, rx)| Skim::run_with(opts, Some(rx)),
-            criterion::BatchSize::SmallInput,
-        );
-    });
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        c.bench_function("filter_10M_frizbee", |b| {
+            b.iter_batched(
+                || {
+                    prepare(
+                        "10M.txt",
+                        SkimOptionsBuilder::default()
+                            .filter("test")
+                            .algorithm(FuzzyAlgorithm::Frizbee)
+                            .typos(Typos::Disabled),
+                    )
+                },
+                |(opts, rx)| Skim::run_with(opts, Some(rx)),
+                criterion::BatchSize::SmallInput,
+            );
+        });
+        c.bench_function("filter_10M_frizbee_typos", |b| {
+            b.iter_batched(
+                || {
+                    prepare(
+                        "10M.txt",
+                        SkimOptionsBuilder::default()
+                            .filter("test")
+                            .algorithm(FuzzyAlgorithm::Frizbee)
+                            .typos(Typos::Smart),
+                    )
+                },
+                |(opts, rx)| Skim::run_with(opts, Some(rx)),
+                criterion::BatchSize::SmallInput,
+            );
+        });
+    }
     c.bench_function("filter_10M_clangd", |b| {
         b.iter_batched(
             || {
@@ -152,36 +155,39 @@ fn criterion_benchmark_1m(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-    c.bench_function("filter_1M_frizbee", |b| {
-        b.iter_batched(
-            || {
-                prepare(
-                    "1M.txt",
-                    SkimOptionsBuilder::default()
-                        .filter("test")
-                        .algorithm(FuzzyAlgorithm::Frizbee)
-                        .typos(Typos::Disabled),
-                )
-            },
-            |(opts, rx)| Skim::run_with(opts, Some(rx)),
-            criterion::BatchSize::SmallInput,
-        );
-    });
-    c.bench_function("filter_1M_frizbee_typos", |b| {
-        b.iter_batched(
-            || {
-                prepare(
-                    "1M.txt",
-                    SkimOptionsBuilder::default()
-                        .filter("test")
-                        .algorithm(FuzzyAlgorithm::Frizbee)
-                        .typos(Typos::Smart),
-                )
-            },
-            |(opts, rx)| Skim::run_with(opts, Some(rx)),
-            criterion::BatchSize::SmallInput,
-        );
-    });
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        c.bench_function("filter_1M_frizbee", |b| {
+            b.iter_batched(
+                || {
+                    prepare(
+                        "1M.txt",
+                        SkimOptionsBuilder::default()
+                            .filter("test")
+                            .algorithm(FuzzyAlgorithm::Frizbee)
+                            .typos(Typos::Disabled),
+                    )
+                },
+                |(opts, rx)| Skim::run_with(opts, Some(rx)),
+                criterion::BatchSize::SmallInput,
+            );
+        });
+        c.bench_function("filter_1M_frizbee_typos", |b| {
+            b.iter_batched(
+                || {
+                    prepare(
+                        "1M.txt",
+                        SkimOptionsBuilder::default()
+                            .filter("test")
+                            .algorithm(FuzzyAlgorithm::Frizbee)
+                            .typos(Typos::Smart),
+                    )
+                },
+                |(opts, rx)| Skim::run_with(opts, Some(rx)),
+                criterion::BatchSize::SmallInput,
+            );
+        });
+    }
     c.bench_function("filter_1M_clangd", |b| {
         b.iter_batched(
             || {
