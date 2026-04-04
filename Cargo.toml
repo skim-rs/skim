@@ -75,7 +75,6 @@ clap_complete_nushell = "=4.6.0"
 interprocess = { version = "=2.4.0", features = ["tokio"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 ron = "=0.12.1"
-frizbee = { version = "=0.8.3" }
 roff = "=1.1.1"
 unicode-display-width = "=0.3.0"
 unicode-normalization = "=0.1.25"
@@ -85,6 +84,9 @@ tui-term = "=0.3.3"
 kanal = "=0.1.1"
 gungraun = { version = "0.17.2", optional = true }
 mimalloc = { version = "0.1.48", features = ["v3"] }
+
+[target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
+frizbee = { version = "=0.8.3" }
 
 [features]
 default = ["cli"]

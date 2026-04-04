@@ -8,6 +8,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use skim::CaseMatching;
 use skim::fuzzy_matcher::FuzzyMatcher;
 use skim::fuzzy_matcher::arinae::ArinaeMatcher;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use skim::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use skim::prelude::SkimMatcherV2;
 
@@ -31,30 +32,33 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
-    c.bench_function("micro_frizbee", |b| {
-        let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(0));
-        b.iter(|| {
-            let mut count = 0u64;
-            for line in &lines {
-                if m.fuzzy_indices(line, "test").is_some() {
-                    count += 1;
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        c.bench_function("micro_frizbee", |b| {
+            let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(0));
+            b.iter(|| {
+                let mut count = 0u64;
+                for line in &lines {
+                    if m.fuzzy_indices(line, "test").is_some() {
+                        count += 1;
+                    }
                 }
-            }
-            count
+                count
+            });
         });
-    });
-    c.bench_function("micro_typos_frizbee", |b| {
-        let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(1));
-        b.iter(|| {
-            let mut count = 0u64;
-            for line in &lines {
-                if m.fuzzy_indices(line, "test").is_some() {
-                    count += 1;
+        c.bench_function("micro_typos_frizbee", |b| {
+            let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(1));
+            b.iter(|| {
+                let mut count = 0u64;
+                for line in &lines {
+                    if m.fuzzy_indices(line, "test").is_some() {
+                        count += 1;
+                    }
                 }
-            }
-            count
+                count
+            });
         });
-    });
+    }
     c.bench_function("micro_arinae", |b| {
         let m = ArinaeMatcher::new(CaseMatching::Smart, false, false);
         b.iter(|| {

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::fuzzy_matcher::MatchIndices;
 use crate::fuzzy_matcher::arinae::ArinaeMatcher;
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use crate::fuzzy_matcher::{FuzzyMatcher, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2};
 
@@ -24,6 +25,7 @@ pub enum FuzzyAlgorithm {
     /// Fzy matching algorithm (<https://github.com/jhawthorn/fzy>)
     Fzy,
     /// Frizbee matching algorithm, typo resistant
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     Frizbee,
     /// Arinae: typo-resistant & natural algorithm, default
     #[cfg_attr(feature = "cli", clap(alias = "ari"))]
@@ -129,6 +131,7 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
+            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
             FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher::default().case(self.case).max_typos(max_typos)),
             FuzzyAlgorithm::Fzy => {
                 let matcher = FzyMatcher::default().max_typos(max_typos);

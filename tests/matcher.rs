@@ -64,9 +64,11 @@ insta_test!(matcher_skim_v2, INPUT_ITEMS, &["-q", "stum", "--algo", "skim_v2"], 
 insta_test!(matcher_clangd, INPUT_ITEMS, &["-q", "stum", "--algo", "clangd"], {
     @snap;
 });
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 insta_test!(matcher_frizbee, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee", "--no-typos"], {
     @snap;
 });
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 insta_test!(matcher_frizbee_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "frizbee", "--typos"], {
     @snap;
 });
