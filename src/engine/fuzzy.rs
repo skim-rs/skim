@@ -24,7 +24,7 @@ pub enum FuzzyAlgorithm {
     Clangd,
     /// Fzy matching algorithm (<https://github.com/jhawthorn/fzy>)
     Fzy,
-    /// Frizbee matching algorithm, typo resistant
+    /// Frizbee matching algorithm, typo resistant (`x86_64` and `aarch64` only)
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     Frizbee,
     /// Arinae: typo-resistant & natural algorithm, default
