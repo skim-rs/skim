@@ -86,7 +86,7 @@ gungraun = { version = "0.17.2", optional = true }
 mimalloc = { version = "0.1.48", features = ["v3"] }
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
-frizbee = { version = "=0.8.3" }
+frizbee = { version = "=0.9.0" }
 
 [features]
 default = ["cli"]
