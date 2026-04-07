@@ -48,7 +48,7 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
       - run: rustup toolchain install
