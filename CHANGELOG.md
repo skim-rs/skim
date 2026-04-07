@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-04-07
+
+### 🚀 Features
+
+- Rename tmux -> popup and add zellij (#1027)
+- Better performance on small datasets
+
+### ⚙️ Miscellaneous Tasks
+
+- Deps: Only use frizbee on x86_64 and aarch64 (#1028)
+
+### New Contributors
+* @Xeonacid made their first contribution in [#1028](https://github.com/skim-rs/skim/pull/1028)
+
 ## [4.4.0] - 2026-04-02
 
 ### 🚀 Features
