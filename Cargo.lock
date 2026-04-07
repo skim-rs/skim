@@ -1045,9 +1045,9 @@ checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
 name = "gnuplot"
-version = "0.0.45"
+version = "0.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50b34e7ffbf21f5e89a35b321483b71e857680fca763bb3a982d9cf32a5acccf"
+checksum = "ca6d93295d3f751f0cb4055953bfd5c55b50a1c83b10f105c2c8e616d011f252"
 dependencies = [
  "byteorder",
  "tempfile",
