@@ -78,8 +78,8 @@ stdin / command
                                   SkimOutput
 ```
 
-The **Reader** pulls raw text from stdin or a shell command and converts it into `Arc<dyn SkimItem>` batches, depositing them into the shared `ItemPool`.  
-The **Matcher** picks items up from the pool, evaluates every item against the current query string using a configured engine, and writes ranked `MatchedItem` results into `ProcessedItems`.  
+The **Reader** pulls raw text from stdin or a shell command and converts it into `Arc<dyn SkimItem>` batches, depositing them into the shared `ItemPool`.
+The **Matcher** picks items up from the pool, evaluates every item against the current query string using a configured engine, and writes ranked `MatchedItem` results into `ProcessedItems`.
 The **TUI** renders four composable widgets (Input, ItemList, Preview, Header), drives a `crossterm`-based event loop, and converts user keystrokes into typed `Action` values that are dispatched back to the `App` state machine.
 
 ---
@@ -254,7 +254,7 @@ Each call to `tick()` runs a `tokio::select!` on four concurrent futures:
 | Branch | Source | Action |
 |---|---|---|
 | `tui.next()` | crossterm keyboard/mouse/resize/paste events | Dispatch to `app.handle_event()` |
-| `matcher_interval.tick()` | 10 ms periodic timer | `app.restart_matcher(false)` |
+| `matcher_interval.tick()` | 10 ms periodic timer (adaptive: disabled once reader finishes and all items are matched) | `app.restart_matcher(false)` |
 | `items_available.notified()` | `Notify` set by `ItemPool::append` | `app.restart_matcher(false)` |
 | `listener.accept()` | IPC socket (when `--listen`) | Parse RON-encoded `Action`, push to event queue |
 
@@ -347,6 +347,8 @@ The coordinate mapping is critical: match indices come back in terms of stripped
 
 Without `--ansi`, any ANSI escape codes are passed through to `text()` and displayed as literal characters. If the raw input happens to contain escape sequences (but `--ansi` is not set), `escape_ansi()` is called to make them visible.
 
+ANSI input uses the same parallel pipeline as plain input — there is no separate serial path. `DefaultSkimItem::new` handles the stripping inline inside the worker threads.
+
 **Key files:** `src/helper/item.rs` (`DefaultSkimItem::new`, `strip_ansi`, `display`)
 
 ### Popup Mode (`--popup` / `--tmux`)
@@ -388,29 +390,30 @@ The child `sk` process runs fully independently inside the popup. The parent rea
 
 ## Item Ingestion Pipeline
 
+All inputs — plain stdin, `--ansi`, `--nth`/`--with-nth`, and shell commands — flow through a
+single unified parallel pipeline (`parallel_bufread`). There is no serial fallback path.
+
 ```
 Source (stdin bytes or child process stdout)
   │
   │  SkimItemReader::of_bufread() or CommandCollector::invoke()
   │
-  ├── Simple path (no ANSI, no --nth, no --with-nth):
-  │     raw_bufread()
-  │       ├─ Thread 1: I/O reader — reads 256 KB chunks, splits at line boundaries,
-  │       │             assigns monotonic sequence numbers, sends to MPMC channel
-  │       ├─ Thread N: workers — receive chunks, validate UTF-8, create DefaultSkimItem
-  │       │             (no metadata allocation, just Box<str>), send (seq, items) pairs
-  │       └─ Thread 1: reorder — collects (seq, items), emits in order through SkimItemReceiver
-  │
-  └── Complex path (ANSI | --nth | --with-nth):
-        read_lines_into_items()  (single-threaded)
-          ├─ reads line by line via read_until(line_ending)
-          ├─ creates DefaultSkimItem::new(line, ansi, trans_fields, matching_fields, delimiter)
-          └─ buffers up to 1024 items before sending to SkimItemReceiver
+  └── parallel_bufread()  (all inputs)
+        ├─ Thread 1: I/O reader — reads 256 KB chunks, splits at line boundaries,
+        │             assigns monotonic sequence numbers, sends to MPMC channel
+        ├─ Thread N: workers — receive chunks, validate UTF-8,
+        │             create DefaultSkimItem::new(line, ansi, trans_fields, matching_fields, delimiter)
+        │             (handles ANSI stripping, --nth / --with-nth transforms inline),
+        │             send (seq, items) pairs
+        ├─ Thread 1: reorder — collects (seq, items), emits in order through SkimItemReceiver;
+        │             drops tx_pipeline_done on exit (signals killer thread)
+        └─ Thread 1: killer — waits on rx_interrupt OR rx_pipeline_done (whichever fires first);
+                      kills child process if one exists, then exits
 
 SkimItemReceiver channel
   │
   │  Reader::collect()
-  │  collect_items() spawns a thread that polls the channel every 1ms
+  │  collect_items() spawns a thread that blocks on recv_timeout (5ms) from the channel
   │
   └── ItemPool::append(items)
         ├─ respects --tac (reverse order)
@@ -511,11 +514,11 @@ Matcher::run(query, item_pool, thread_pool, …)
   ├─ create matcher_engine from factory (synchronous)
   ├─ take items from pool synchronously (avoids race with restart)
   │
-  └─ thread_pool.spawn(coordinator closure)
+  └─ std::thread::spawn(coordinator closure)
         │
         ├─ shares items as Arc<[Arc<dyn SkimItem>]>
         │
-        ├─ parallel_work_queue(pool, num_workers, items, CHUNK_SIZE=512, …)
+        ├─ parallel_work_queue(pool, num_workers, items, CHUNK_SIZE=4096, …)
         │     │
         │     ├─ Worker threads (num_cpus - 1):
         │     │    ├─ atomically grab next chunk
@@ -523,6 +526,8 @@ Matcher::run(query, item_pool, thread_pool, …)
         │     │    ├─ flush processed/matched counters (Relaxed atomic)
         │     │    └─ accumulate into worker-local Vec<MatchedItem>
         │     │         └─ sort_unstable() on worker thread (parallel sort)
+        │     │
+        │     ├─ AtomicCounter barrier (lock-free AtomicUsize + thread::park/unpark)
         │     │
         │     └─ coordinator:
         │          └─ merge_worker_results(worker_results, no_sort, …)
@@ -616,7 +621,7 @@ loop {
 
 The main loop (`Skim::run()`) calls `tick()` in a loop, which `select!`s on the same channel plus the matcher interval and IPC listener.
 
-Frame rate is capped at 30 fps (`FRAME_TIME_MS = 1000/30`). `App::handle_event(Heartbeat)` checks `needs_render` (an `AtomicBool` set by the matcher when new results arrive) and emits `Event::Render` only when the last render was more than `FRAME_TIME_MS` ago.
+Frame rate is capped at 120 fps (`FRAME_TIME_MS = 1000/120`). `App::handle_event(Heartbeat)` checks `needs_render` (an `AtomicBool` set by the matcher when new results arrive) and emits `Event::Render` only when the last render was more than `FRAME_TIME_MS` ago.
 
 ### App State
 
@@ -1072,10 +1077,12 @@ ThreadPool (N = num_cpus OS threads, persistent)
   └─ Worker threads (N-1 slots per match run)
 
 Reader threads (OS threads, per-invocation):
-  ├─ collect_items thread: polls SkimItemReceiver, calls ItemPool::append
-  ├─ I/O reader thread (parallel path only): reads large byte chunks
-  ├─ Worker threads (parallel path only): parse lines, create DefaultSkimItem
-  └─ Reorder thread (parallel path only): sequence-ordered output
+  ├─ collect_items thread: blocks on SkimItemReceiver (recv_timeout 5ms), calls ItemPool::append
+  ├─ I/O reader thread: reads large byte chunks, splits lines, assigns sequence numbers
+  ├─ Worker threads (N): parse lines, create DefaultSkimItem (ANSI strip + field transforms inline)
+  ├─ Reorder thread: sequence-ordered output; drops tx_pipeline_done on EOF
+  └─ Killer thread (command inputs only): waits for rx_interrupt or rx_pipeline_done;
+       kills child process when either fires
 
 Preview thread (OS thread, per preview spawn):
   └─ reads PTY/child stdout → vt100::Parser or content Arc<RwLock>
@@ -1124,8 +1131,9 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `ItemPool::append` | `src/item.rs:467` | Add items, notify matcher |
 | `ItemPool::take` | `src/item.rs:512` | Take un-matched items for matcher |
 | `DefaultSkimItem::new` | `src/helper/item.rs:55` | ANSI strip, field transform, ranges |
-| `SkimItemReader::raw_bufread` | `src/helper/item_reader.rs:300` | 3-stage parallel reader (simple path) |
-| `SkimItemReader::read_lines_into_items` | `src/helper/item_reader.rs:217` | Single-threaded reader (complex path) |
+| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:260` | Unified parallel pipeline (all inputs) |
+| `spawn_io_reader` | `src/helper/item_reader.rs:352` | I/O reader thread: chunk reads + line splitting |
+| `spawn_reorder_thread` | `src/helper/item_reader.rs:452` | Reorder thread: ordered output + pipeline-done signal |
 | `Preview::spawn` | `src/tui/preview.rs:272` | Start PTY or plain child process |
 | `Tui::new_with_height_and_backend` | `src/tui/backend.rs:68` | Terminal init + viewport sizing |
 | `Tui::enter` | `src/tui/backend.rs:130` | Enable raw mode + start event pump |

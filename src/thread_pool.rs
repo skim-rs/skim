@@ -124,9 +124,10 @@ impl ThreadPool {
         self.shared.job_available.notify_one();
     }
 
-    /// Submits multiple closures in a single lock acquisition, then wakes all
-    /// workers.  This is more efficient than calling [`spawn`](Self::spawn) in
-    /// a loop when you have several jobs ready at once.
+    /// Submits multiple closures in a single lock acquisition, then wakes
+    /// exactly as many workers as there are new jobs (capped at the pool size).
+    /// This avoids unnecessary wakes when fewer jobs than workers are
+    /// submitted.
     ///
     /// # Panics
     ///
@@ -135,13 +136,21 @@ impl ThreadPool {
     where
         I: IntoIterator<Item = Box<dyn FnOnce() + Send + 'static>>,
     {
-        {
+        let count = {
             let mut queue = self.shared.queue.lock().unwrap();
+            let before = queue.jobs.len();
             for job in jobs {
                 queue.jobs.push_back(job);
             }
-        } // lock dropped before notify
-        self.shared.job_available.notify_all();
+            queue.jobs.len() - before
+        }; // lock dropped before notify
+        if count >= self.num_threads {
+            self.shared.job_available.notify_all();
+        } else {
+            for _ in 0..count {
+                self.shared.job_available.notify_one();
+            }
+        }
     }
 }
 
@@ -295,10 +304,10 @@ impl<R> Slot<R> {
 /// * `prepare`        – called on each worker's finished accumulator **on the worker thread** (runs in parallel).  Use this for expensive per-worker work like sorting.
 /// * `merge`          – called once on the coordinator with all per-worker results.
 #[allow(clippy::too_many_arguments)]
-pub fn parallel_work_queue<T, R, P, M, I, W, G>(
+pub fn parallel_work_queue<S, T, R, P, M, I, W, G>(
     pool: &ThreadPool,
     num_workers: usize,
-    items: &Arc<[T]>,
+    items: &Arc<S>,
     chunk_size: usize,
     identity: I,
     process_chunk: P,
@@ -306,6 +315,7 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
     prepare: W,
     merge: G,
 ) where
+    S: AsRef<[T]> + Send + Sync + ?Sized + 'static,
     T: Send + Sync + 'static,
     R: Send + 'static,
     P: Fn(usize, &[T]) -> R + Send + Sync + 'static,
@@ -314,7 +324,8 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
     W: Fn(&mut R) + Send + Sync + 'static,
     G: FnOnce(Vec<R>),
 {
-    let total = items.len();
+    let items_slice: &[T] = AsRef::<[T]>::as_ref(&**items);
+    let total = items_slice.len();
     if total == 0 {
         merge(Vec::new());
         return;
@@ -332,6 +343,8 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
 
     // Barrier: we wait until all workers have finished.
     let remaining = Arc::new(AtomicCounter::new(num_workers));
+    // Register the coordinator thread so workers can unpark it.
+    remaining.set_waiter();
 
     let process_chunk = Arc::new(process_chunk);
     let reduce = Arc::new(reduce);
@@ -366,7 +379,8 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
 
                         let start = chunk_idx * chunk_size;
                         let end = total.min(start + chunk_size);
-                        let partial = w_process_chunk(start, &w_items[start..end]);
+                        let slice: &[T] = AsRef::<[T]>::as_ref(&*w_items);
+                        let partial = w_process_chunk(start, &slice[start..end]);
                         w_reduce(&mut local_acc, partial);
                     }
 
@@ -421,41 +435,59 @@ pub fn parallel_work_queue<T, R, P, M, I, W, G>(
 // ---------------------------------------------------------------------------
 
 struct AtomicCounter {
-    state: Mutex<usize>,
-    done: Condvar,
+    count: AtomicUsize,
+    /// The thread that called `wait_for_zero`.  Workers unpark it when the
+    /// count reaches zero.  Set once by `wait_for_zero` before any worker can
+    /// finish, so plain `Relaxed` loads inside `dec_and_notify` are fine
+    /// (the `fetch_sub` with `AcqRel` provides the necessary ordering).
+    waiter: UnsafeCell<Option<thread::Thread>>,
 }
+
+// SAFETY: `waiter` is written exactly once (by the coordinator in
+// `set_waiter`, before any worker can observe it via `dec_and_notify`)
+// and read by workers only after that write is visible (guaranteed by the
+// `AcqRel` ordering on the atomic counter operations).
+unsafe impl Send for AtomicCounter {}
+unsafe impl Sync for AtomicCounter {}
 
 impl AtomicCounter {
     fn new(n: usize) -> Self {
         Self {
-            state: Mutex::new(n),
-            done: Condvar::new(),
+            count: AtomicUsize::new(n),
+            waiter: UnsafeCell::new(None),
         }
     }
 
-    /// Decrements the counter by one and notifies waiters if it reaches zero.
+    /// Register the current thread as the waiter.
+    ///
+    /// Must be called exactly once, before any worker calls `dec_and_notify`.
+    fn set_waiter(&self) {
+        // SAFETY: called once by the coordinator before workers start.
+        unsafe { *self.waiter.get() = Some(thread::current()) };
+    }
+
+    /// Decrements the counter by one and unparks the waiter if it reaches zero.
     ///
     /// # Panics (debug only)
     ///
     /// Debug-asserts that the counter has not already reached zero, which
     /// would indicate a double-decrement bug.
     fn dec_and_notify(&self) {
-        let mut count = self.state.lock().unwrap();
-        debug_assert!(
-            *count > 0,
-            "AtomicCounter decremented below zero — double-decrement bug?"
-        );
-        *count -= 1;
-        if *count == 0 {
-            self.done.notify_all();
+        let prev = self.count.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(prev > 0, "AtomicCounter decremented below zero — double-decrement bug?");
+        if prev == 1 {
+            // We just decremented from 1 → 0.
+            // SAFETY: waiter was set before workers were dispatched.
+            if let Some(t) = unsafe { &*self.waiter.get() } {
+                t.unpark();
+            }
         }
     }
 
     /// Blocks until the counter reaches zero.
     fn wait_for_zero(&self) {
-        let mut count = self.state.lock().unwrap();
-        while *count > 0 {
-            count = self.done.wait(count).unwrap();
+        while self.count.load(Ordering::Acquire) > 0 {
+            thread::park();
         }
     }
 }

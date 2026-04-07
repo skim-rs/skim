@@ -17,9 +17,8 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::util::cursor_pos_from_tty;
-use super::{Event, Size};
+use super::{Event, Size, TICK_RATE};
 
-const TICK_RATE: f64 = 12.;
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
@@ -104,7 +103,7 @@ where
             task: None,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
-            tick_rate: TICK_RATE,
+            tick_rate: f64::from(TICK_RATE),
             cancellation_token: CancellationToken::default(),
             is_fullscreen: lines.is_none(),
         })

@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
-use crate::fuzzy_matcher::MatchIndices;
 use crate::fuzzy_matcher::arinae::ArinaeMatcher;
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
@@ -48,10 +47,6 @@ pub struct FuzzyEngineBuilder {
     /// - `Typos::Smart`: adaptive (`pattern_length` / 4)
     /// - `Typos::Fixed(n)`: exactly n typos allowed
     typos: Typos,
-    /// When true, use `fuzzy_match_range` instead of `fuzzy_indices` to avoid
-    /// per-character index computation (useful in filter mode where highlighting
-    /// is not needed).
-    filter_mode: bool,
     /// When true, prefer the last (rightmost) occurrence on tied scores.
     last_match: bool,
 }
@@ -82,8 +77,9 @@ impl FuzzyEngineBuilder {
         self
     }
 
-    pub fn filter_mode(mut self, filter_mode: bool) -> Self {
-        self.filter_mode = filter_mode;
+    /// No-op: `fuzzy_match_range` is now always used (`ByteRange`).
+    /// Kept for API backward compatibility.
+    pub fn filter_mode(self, _filter_mode: bool) -> Self {
         self
     }
 
@@ -154,7 +150,6 @@ impl FuzzyEngineBuilder {
             matcher,
             query: self.query,
             rank_builder: self.rank_builder,
-            filter_mode: self.filter_mode,
         }
     }
 }
@@ -164,7 +159,6 @@ pub struct FuzzyEngine {
     query: String,
     matcher: Box<dyn FuzzyMatcher>,
     rank_builder: Arc<RankBuilder>,
-    filter_mode: bool,
 }
 
 impl FuzzyEngine {
@@ -180,83 +174,67 @@ impl MatchEngine for FuzzyEngine {
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
 
-        if self.filter_mode {
-            // Fast path: use fuzzy_match_range to avoid per-character index computation
-            let mut best: Option<(i64, usize, usize)> = None;
-            for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-                let start = min(start, item_text.len());
-                let end = min(end, item_text.len());
+        // Always use fuzzy_match_range which returns (score, begin, end)
+        // without computing per-character match indices.  This avoids an
+        // O(pattern_len) Vec allocation per matched item and skips the full
+        // traceback in the DP.  The renderer handles ByteRange directly for
+        // both horizontal scrolling and match highlighting.
+        let mut best: Option<(i64, usize, usize)> = None;
+        for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
+            let start = min(start, item_text.len());
+            let end = min(end, item_text.len());
 
-                let result = if self.query.is_empty() {
-                    Some((0i64, 0, 0))
-                } else if item_text[start..end].is_empty() {
-                    None
-                } else {
-                    self.matcher
-                        .fuzzy_match_range(&item_text[start..end], &self.query)
-                        .map(|(s, b, e)| {
-                            let offset = if start != 0 {
-                                item_text[..start].chars().count()
-                            } else {
-                                0
-                            };
-                            (s, b + offset, e + offset)
-                        })
-                };
+            let result = if self.query.is_empty() {
+                Some((0i64, 0, 0))
+            } else if item_text[start..end].is_empty() {
+                None
+            } else {
+                self.matcher
+                    .fuzzy_match_range(&item_text[start..end], &self.query)
+                    .map(|(s, b, e)| {
+                        let offset = if start != 0 {
+                            item_text[..start].chars().count()
+                        } else {
+                            0
+                        };
+                        (s, b + offset, e + offset)
+                    })
+            };
 
-                if result.is_some() {
-                    best = result;
-                    break;
-                }
+            if result.is_some() {
+                best = result;
+                break;
             }
-
-            let (score, begin, end) = best?;
-            Some(MatchResult {
-                rank: self
-                    .rank_builder
-                    .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end, &item_text),
-                matched_range: MatchRange::ByteRange(begin, end),
-            })
-        } else {
-            let mut matched_result = None;
-            for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-                let start = min(start, item_text.len());
-                let end = min(end, item_text.len());
-
-                let result = if self.query.is_empty() {
-                    Some((0i64, MatchIndices::new()))
-                } else if item_text[start..end].is_empty() {
-                    None
-                } else {
-                    self.matcher.fuzzy_indices(&item_text[start..end], &self.query)
-                };
-
-                matched_result = result.map(|(s, vec)| {
-                    if start != 0 {
-                        let start_char = item_text[..start].chars().count();
-                        (s, vec.iter().map(|x| x + start_char).collect::<MatchIndices>())
-                    } else {
-                        (s, vec)
-                    }
-                });
-
-                if matched_result.is_some() {
-                    break;
-                }
-            }
-
-            let (score, matched_indices) = matched_result?;
-            let begin = *matched_indices.first().unwrap_or(&0);
-            let end = *matched_indices.last().unwrap_or(&0);
-            let matched_range = MatchRange::Chars(matched_indices);
-
-            Some(MatchResult {
-                rank: self
-                    .rank_builder
-                    .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end, &item_text),
-                matched_range,
-            })
         }
+
+        let (score, begin, end) = best?;
+        // `fuzzy_match_range` returns `end` as the inclusive index of the last
+        // matched character.  Convert to exclusive upper bound for CharRange.
+        let end_excl = if self.query.is_empty() { end } else { end + 1 };
+
+        // When the span length equals the query length, the match is
+        // contiguous and CharRange is a perfect representation (no gaps).
+        // When the span is wider than the query, there are gaps between
+        // matched characters; fall back to fuzzy_indices for accurate
+        // per-character highlighting (only ~25 visible items need this).
+        let query_len = self.query.chars().count();
+        let matched_range = if end_excl - begin == query_len {
+            // Contiguous match — CharRange is exact.
+            MatchRange::CharRange(begin, end_excl)
+        } else {
+            // Non-contiguous match — compute exact indices for correct highlighting.
+            match self.matcher.fuzzy_indices(&item_text, &self.query) {
+                Some((_s, indices)) => MatchRange::Chars(indices),
+                None => MatchRange::CharRange(begin, end_excl),
+            }
+        };
+
+        Some(MatchResult {
+            rank: self
+                .rank_builder
+                .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end_excl, &item_text),
+            matched_range,
+        })
     }
 }
 

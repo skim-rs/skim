@@ -6,12 +6,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::item::{ItemPool, MatchedItem};
 use crate::matcher::{Matcher, MatcherControl};
 use crate::prelude::ExactOrFuzzyEngineFactory;
-use crate::tui::SkimRender;
 use crate::tui::input::StatusInfo;
 use crate::tui::layout::{AppLayout, LayoutTemplate};
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
+use crate::tui::{SkimRender, TICK_RATE};
 use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
 use crate::{Rank, util};
 
@@ -39,7 +39,6 @@ static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
         .map_or_else(|| 0, std::num::NonZero::get)
 });
 
-const FRAME_TIME_MS: u128 = 1000 / 30;
 const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
 
@@ -545,7 +544,7 @@ impl App {
                     self.restart_matcher(true);
                 }
                 if self.needs_render.load(Ordering::Relaxed)
-                    && self.last_render_timer.elapsed().as_millis() > FRAME_TIME_MS
+                    && self.last_render_timer.elapsed().as_millis() > 1000 / u128::from(TICK_RATE)
                 {
                     debug!("Triggering render");
                     self.needs_render.store(false, Ordering::Relaxed);
@@ -1255,7 +1254,7 @@ impl App {
 
     /// Restart matcher with debouncing to avoid excessive restarts during rapid typing
     fn restart_matcher_debounced(&mut self) {
-        const DEBOUNCE_MS: u64 = 50;
+        const DEBOUNCE_MS: u64 = 10;
 
         if self.options.disabled {
             return;

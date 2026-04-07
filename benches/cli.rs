@@ -6,20 +6,6 @@
 //!
 //! Binary names are resolved to absolute paths via `which` before use, so bare
 //! names like `sk` or `fzf` work as long as they are on `$PATH`.
-//!
-//! Invoke via the `bench-cli` cargo alias:
-//!
-//! ```text
-//! cargo bench-cli                                      # defaults
-//! cargo bench-cli -- sk -n 500000 -q foo
-//! cargo bench-cli -- ./old/sk ./new/sk -r 5           # compare two binaries
-//! cargo bench-cli -- sk -r 5                          # 5 runs, show average
-//! cargo bench-cli -- sk -f input.txt -q search        # use existing file
-//! cargo bench-cli -- -g testdata.txt -n 2000000       # generate file and exit
-//! cargo bench-cli -- sk -p                            # record perf (auto-named)
-//! cargo bench-cli -- sk -p perf.data                 # record perf to perf.data
-//! cargo bench-cli -- sk -j                            # JSON output
-//! cargo bench-cli -- sk -r 3 -- --tiebreak=index     # pass extra flags to sk
 //! ```
 
 use clap::Parser;
@@ -145,6 +131,18 @@ struct Args {
     )]
     perf: Option<String>,
 
+    /// Run the final benchmark run under strace and write the trace to FILE.
+    /// Optionally specify the output file (default: auto-named
+    /// strace-<binary>-<timestamp>.out).
+    #[arg(
+        short = 't',
+        long,
+        num_args = 0..=1,
+        default_missing_value = "",
+        value_name = "FILE"
+    )]
+    strace: Option<String>,
+
     /// Seconds the matched count must remain unchanged before a run is declared
     /// complete (default: 5.0).
     #[arg(short = 's', long, default_value_t = REQUIRED_STABLE_S, value_name = "SECS")]
@@ -244,6 +242,7 @@ struct RunResult {
     peak_cpu: Option<f64>,
     completed: bool,
     perf_file: Option<String>,
+    strace_file: Option<String>,
     /// Time from launch until both the prompt+query and the `N/M` status counts
     /// are visible — i.e. `max(prompt_appeared, status_appeared)`.
     startup_s: Option<f64>,
@@ -378,6 +377,7 @@ fn run_once(
     run_index: u32,
     session_suffix: &str,
     perf_output: Option<&str>,
+    strace_output: Option<&str>,
     tmux_server: &TmuxServer,
     stable_secs: f64,
 ) -> Result<RunResult> {
@@ -391,9 +391,13 @@ fn run_once(
         Some(path) => format!("perf record -o {} -- ", path),
         None => String::new(),
     };
+    let strace_prefix = match strace_output {
+        Some(path) => format!("strace -C -ttt -o {} -- ", path),
+        None => String::new(),
+    };
     let cmd_str = format!(
-        "cat {} | {}{} --prompt '{}' {}",
-        tmp_file, perf_prefix, binary_path, BENCH_PROMPT, extra_str
+        "cat {} | {}{}{} --prompt '{}' {}",
+        tmp_file, perf_prefix, strace_prefix, binary_path, BENCH_PROMPT, extra_str
     );
 
     // --- Phase 1: wait for the shell to be ready (any pane content appears) --
@@ -559,6 +563,26 @@ fn run_once(
         }
     }
 
+    // Wait for strace to finish writing before killing the session
+    if strace_output.is_some() && pane_pid > 0 {
+        let strace_wait = Instant::now();
+        loop {
+            if strace_wait.elapsed().as_secs_f64() >= 15.0 {
+                eprintln!("Warning: strace did not exit within 15 s; trace data may be incomplete.");
+                break;
+            }
+            let still_running = Command::new("pgrep")
+                .args(["-P", &pane_pid.to_string(), "-f", "strace"])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            if !still_running {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+
     let monitor = monitor_cell.lock().unwrap().take();
     let (peak_mem_kb, peak_cpu) = monitor.map(ResourceMonitor::join).unwrap_or((None, None));
 
@@ -579,6 +603,7 @@ fn run_once(
         peak_cpu,
         completed,
         perf_file: perf_output.map(str::to_owned),
+        strace_file: strace_output.map(str::to_owned),
         startup_s: match (startup_prompt_s, startup_status_s) {
             (Some(a), Some(b)) => Some(a.max(b)),
             (Some(a), None) => Some(a),
@@ -1070,6 +1095,23 @@ fn perf_path_for(binary: &str, explicit: &str) -> String {
     format!("perf-{}-{}.data", base, ts)
 }
 
+fn strace_path_for(binary: &str, explicit: &str) -> String {
+    if !explicit.is_empty() {
+        return explicit.to_owned();
+    }
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let base = Path::new(binary)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|s| s.replace(' ', "_"))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "sk".into());
+    format!("strace-{}-{}.out", base, ts)
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -1137,6 +1179,8 @@ fn main() -> Result<()> {
     let extra_args = &args.extra_args;
     let record_perf = args.perf.is_some();
     let perf_explicit = args.perf.as_deref().unwrap_or("");
+    let record_strace = args.strace.is_some();
+    let strace_explicit = args.strace.as_deref().unwrap_or("");
 
     // ---- header ------------------------------------------------------------
     eprintln!("=== Skim Ingestion + Matching Benchmark ===");
@@ -1164,6 +1208,9 @@ fn main() -> Result<()> {
     if record_perf {
         eprintln!("Perf recording: enabled (final measured run only)");
     }
+    if record_strace {
+        eprintln!("Strace recording: enabled (final measured run only)");
+    }
 
     // ---- dedicated tmux server ---------------------------------------------
     // Started once with a clean environment; all benchmark panes run inside
@@ -1185,6 +1232,7 @@ fn main() -> Result<()> {
                     extra_args,
                     wu,
                     &format!("warmup_b{}", bi),
+                    None,
                     None,
                     &tmux_server,
                     args.stable_secs,
@@ -1211,6 +1259,19 @@ fn main() -> Result<()> {
         vec![None; binaries.len()]
     };
 
+    // Determine strace output paths (one per binary, recorded only on last run)
+    let strace_files: Vec<Option<String>> = if record_strace {
+        binaries
+            .iter()
+            .map(|binary| {
+                let explicit = if binaries.len() == 1 { strace_explicit } else { "" };
+                Some(strace_path_for(binary, explicit))
+            })
+            .collect()
+    } else {
+        vec![None; binaries.len()]
+    };
+
     for run_num in 1..=runs {
         for (bi, binary) in binaries.iter().enumerate() {
             if runs > 1 || binaries.len() > 1 {
@@ -1224,9 +1285,14 @@ fn main() -> Result<()> {
                 );
             }
 
-            // Attach perf only on the final run for this binary
+            // Attach perf/strace only on the final run for this binary
             let this_perf = if run_num == runs {
                 perf_files[bi].as_deref()
+            } else {
+                None
+            };
+            let this_strace = if run_num == runs {
+                strace_files[bi].as_deref()
             } else {
                 None
             };
@@ -1239,6 +1305,7 @@ fn main() -> Result<()> {
                 run_num,
                 &format!("b{}", bi),
                 this_perf,
+                this_strace,
                 &tmux_server,
                 args.stable_secs,
             )?;
@@ -1259,6 +1326,9 @@ fn main() -> Result<()> {
                 }
                 if let Some(ref pf) = result.perf_file {
                     eprintln!("Perf data: {}", pf);
+                }
+                if let Some(ref sf) = result.strace_file {
+                    eprintln!("Strace output: {}", sf);
                 }
             }
 
@@ -1301,6 +1371,20 @@ fn main() -> Result<()> {
                     eprintln!("  [{}] perf data: {}", binary, p);
                 } else {
                     eprintln!("  [{}] perf data not found (perf may have failed)", binary);
+                }
+            }
+        }
+    }
+
+    // ---- strace summary ----------------------------------------------------
+    if record_strace {
+        eprintln!("\n=== Strace output ===");
+        for (binary, path) in binaries.iter().zip(&strace_files) {
+            if let Some(p) = path {
+                if Path::new(p).is_file() {
+                    eprintln!("  [{}] strace output: {}", binary, p);
+                } else {
+                    eprintln!("  [{}] strace output not found (strace may have failed)", binary);
                 }
             }
         }
