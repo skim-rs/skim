@@ -36,6 +36,7 @@
           cargo-dist
           cargo-cross
           cargo-xwin
+          gnuplot
         ];
         gungraun = with pkgs; [
           valgrind

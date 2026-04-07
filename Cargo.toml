@@ -98,6 +98,7 @@ gungraun = ["dep:gungraun"]
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["async_tokio"] }
 insta = "1.47"
+gnuplot = "0.0.45"
 serde_json = { version = "=1.0.149" }
 serial_test = "=3.4.0"
 

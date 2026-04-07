@@ -10,7 +10,7 @@
 
 use clap::Parser;
 use rand::RngExt as _;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{BufWriter, Result, Write};
 use std::path::Path;
@@ -35,7 +35,7 @@ const PRE_MEASUREMENT_TIMEOUT_S: f64 = 15.0;
 /// Seconds the matched count must be unchanged before declaring completion.
 const REQUIRED_STABLE_S: f64 = 5.0;
 /// Hard timeout per run.
-const MAX_WAIT_S: f64 = 60.0;
+const MAX_WAIT_S: f64 = 120.0;
 /// Polling interval in milliseconds.
 const CHECK_INTERVAL_MS: u64 = 1;
 
@@ -85,10 +85,60 @@ const WORDS: &[&str] = &[
     ignore_errors(true)
 )]
 struct Args {
+    #[command(subcommand)]
+    command: Subcommand,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Subcommand {
+    /// Generate test data to a file and exit
+    #[command(alias = "gen", alias = "g")]
+    Generate(GenerateArgs),
+
+    /// Run the benchmark
+    #[command(alias = "r")]
+    Run(RunArgs),
+
+    /// Plot results from a JSON file produced by one (or multiple concatenated) `run --json` calls
+    Plot(PlotArgs),
+}
+
+#[derive(clap::Args, Debug)]
+struct PlotArgs {
+    /// JSON file produced by `run --json` (entries may be concatenated across runs)
+    #[arg(short = 'i', long, default_value = "/tmp/bench.json", value_name = "FILE")]
+    input: String,
+
+    /// Output image path
+    #[arg(short = 'o', long, default_value = "bench.png", value_name = "FILE")]
+    output: String,
+
+    /// Image width in pixels
+    #[arg(long, default_value_t = 1600u32, value_name = "PX")]
+    width: u32,
+
+    /// Image height in pixels
+    #[arg(long, default_value_t = 1200u32, value_name = "PX")]
+    height: u32,
+}
+
+#[derive(clap::Args, Debug)]
+struct GenerateArgs {
+    /// Output file to write generated items to
+    #[arg(short = 'f', long, value_name = "FILE", required = true)]
+    file: String,
+
+    /// Number of items to generate
+    #[arg(short = 'n', long, default_value_t = DEFAULT_NUM_ITEMS, value_name = "NUM")]
+    num_items: u64,
+}
+
+#[derive(clap::Args, Debug)]
+struct RunArgs {
     /// One or more paths to binaries (default: ./target/release/sk).
     /// When multiple are given they run in round-robin and the first is used
     /// as the baseline for +/- comparisons.
-    #[arg(value_name = "BINARY_PATH")]
+    #[arg(value_name = "BINARY_PATH", default_value = "")]
     binaries: Vec<String>,
 
     /// Number of items to generate
@@ -110,10 +160,6 @@ struct Args {
     /// Use existing file as input instead of generating
     #[arg(short = 'f', long, value_name = "FILE")]
     file: Option<String>,
-
-    /// Generate test data to file and exit
-    #[arg(short = 'g', long, value_name = "FILE")]
-    generate_file: Option<String>,
 
     /// Output results as JSON
     #[arg(short = 'j', long)]
@@ -695,6 +741,57 @@ fn aggregate(results: &[RunResult]) -> AggResult {
 }
 
 // ---------------------------------------------------------------------------
+// Binary display name
+// ---------------------------------------------------------------------------
+
+/// Return a human-readable `"<name> <version>"` label for a binary.
+///
+/// * If the resolved path lives under `$PWD/target/` the version is `HEAD`.
+/// * Otherwise `binary --version` is executed; its first line is parsed:
+///   the executable name is stripped from the front (if present), then
+///   everything up to the first whitespace is taken as the version token.
+fn binary_display_name(binary_path: &str) -> String {
+    let exe_name = Path::new(binary_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(binary_path)
+        .to_owned();
+
+    // Binaries built locally (in $PWD/target/) are labelled as HEAD.
+    let in_target = std::env::current_dir()
+        .ok()
+        .map(|cwd| Path::new(binary_path).starts_with(cwd.join("target")))
+        .unwrap_or(false);
+
+    if in_target {
+        return format!("{} HEAD", exe_name);
+    }
+
+    // Run `binary --version` and parse the first line.
+    let version = Command::new(binary_path)
+        .arg("--version")
+        .output()
+        .ok()
+        .and_then(|o| {
+            // Some tools write the version to stderr instead of stdout.
+            let stdout = String::from_utf8_lossy(&o.stdout).into_owned();
+            let stderr = String::from_utf8_lossy(&o.stderr).into_owned();
+            let output = if stdout.trim().is_empty() { stderr } else { stdout };
+            let first_line = output.lines().next()?.trim().to_owned();
+            // Strip the executable name prefix if present, then take the first token.
+            let rest = if let Some(stripped) = first_line.strip_prefix(&exe_name) {
+                stripped.trim_start().to_owned()
+            } else {
+                first_line
+            };
+            Some(rest.split_whitespace().next()?.to_owned())
+        })
+        .unwrap_or_else(|| "unknown".into());
+
+    format!("{} {}", exe_name, version)
+}
+
+// ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
@@ -843,8 +940,8 @@ fn pad_cell(s: &str, width: usize, right_align: bool) -> String {
 ///
 /// When multiple binaries are provided the first is treated as the baseline and
 /// delta (Δ) columns are added for every metric.
-fn print_markdown_table(binaries: &[String], aggregates: &[AggResult]) {
-    let multi = binaries.len() > 1;
+fn print_markdown_table(display_names: &[String], aggregates: &[AggResult]) {
+    let multi = display_names.len() > 1;
     let has_mem = aggregates.iter().any(|a| a.avg_mem.is_some());
     let has_cpu = aggregates.iter().any(|a| a.avg_cpu.is_some());
     let has_startup = aggregates.iter().any(|a| a.avg_startup_s.is_some());
@@ -882,8 +979,8 @@ fn print_markdown_table(binaries: &[String], aggregates: &[AggResult]) {
     let baseline = &aggregates[0];
     let mut rows: Vec<Vec<String>> = Vec::new();
 
-    for (i, (binary, agg)) in binaries.iter().zip(aggregates).enumerate() {
-        let name = shorten_binary(binary);
+    for (i, (display_name, agg)) in display_names.iter().zip(aggregates).enumerate() {
+        let name = shorten_binary(display_name);
         let name = if i == 0 && multi {
             format!("**{}** *(baseline)*", name)
         } else {
@@ -1010,6 +1107,7 @@ struct JsonMinMaxAvg {
 #[derive(Serialize)]
 struct JsonEntry {
     binary: String,
+    display_name: String,
     runs: u32,
     completed_runs: usize,
     items_matched: JsonMinMaxAvg,
@@ -1022,9 +1120,10 @@ struct JsonEntry {
     startup_s: JsonMinMaxAvg,
 }
 
-fn build_json_entry(binary: &str, agg: &AggResult, runs: u32) -> JsonEntry {
+fn build_json_entry(binary: &str, display_name: &str, agg: &AggResult, runs: u32) -> JsonEntry {
     JsonEntry {
         binary: binary.to_owned(),
+        display_name: display_name.to_owned(),
         runs,
         completed_runs: agg.completed,
         items_matched: JsonMinMaxAvg {
@@ -1061,11 +1160,12 @@ fn build_json_entry(binary: &str, agg: &AggResult, runs: u32) -> JsonEntry {
     }
 }
 
-fn print_json(binaries: &[String], aggregates: &[AggResult], runs: u32) {
+fn print_json(binaries: &[String], display_names: &[String], aggregates: &[AggResult], runs: u32) {
     let entries: Vec<JsonEntry> = binaries
         .iter()
+        .zip(display_names)
         .zip(aggregates)
-        .map(|(b, a)| build_json_entry(b, a, runs))
+        .map(|((b, dn), a)| build_json_entry(b, dn, a, runs))
         .collect();
     if entries.len() == 1 {
         println!("{}", serde_json::to_string(&entries[0]).unwrap());
@@ -1113,6 +1213,342 @@ fn strace_path_for(binary: &str, explicit: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Plot subcommand
+// ---------------------------------------------------------------------------
+
+/// Deserialised subset of the JSON entries written by `print_json`.
+#[derive(Deserialize)]
+struct PlotMinMaxAvg {
+    avg: Option<f64>,
+    min: Option<f64>,
+    max: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct PlotEntry {
+    display_name: String,
+    items_total: Option<f64>,
+    time_s: PlotMinMaxAvg,
+    peak_memory_kb: PlotMinMaxAvg,
+    peak_cpu: PlotMinMaxAvg,
+    startup_s: PlotMinMaxAvg,
+}
+
+/// A single x-point in a min/avg/max band.
+struct BandPoint {
+    x: f64,
+    min: f64,
+    avg: f64,
+    max: f64,
+}
+
+/// All band points for one binary / metric combination.
+struct BandSeries {
+    name: String,
+    points: Vec<BandPoint>,
+}
+
+/// Parse all `PlotEntry` values from a file containing one or more concatenated
+/// JSON objects or arrays (as produced by repeated `run --json >>` calls).
+fn load_plot_entries(path: &str) -> std::io::Result<Vec<PlotEntry>> {
+    let content = fs::read_to_string(path)?;
+    let mut entries: Vec<PlotEntry> = Vec::new();
+    for val in serde_json::Deserializer::from_str(&content).into_iter::<serde_json::Value>() {
+        match val.ok() {
+            Some(serde_json::Value::Array(arr)) => {
+                entries.extend(arr.into_iter().filter_map(|v| serde_json::from_value(v).ok()));
+            }
+            Some(obj @ serde_json::Value::Object(_)) => {
+                if let Ok(e) = serde_json::from_value(obj) {
+                    entries.push(e);
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(entries)
+}
+
+/// Group entries into per-binary band series for one metric.
+/// `extract` returns `(min, avg, max)` or `None` to skip the entry.
+fn collect_bands<F>(entries: &[PlotEntry], extract: F) -> Vec<BandSeries>
+where
+    F: Fn(&PlotEntry) -> Option<(f64, f64, f64)>,
+{
+    use std::collections::{BTreeMap, HashMap};
+    let mut map: HashMap<String, BTreeMap<u64, BandPoint>> = HashMap::new();
+    for e in entries {
+        let x = match e.items_total {
+            Some(v) if v > 0.0 => v,
+            _ => continue,
+        };
+        let (mn, avg, mx) = match extract(e) {
+            Some(t) => t,
+            None => continue,
+        };
+        map.entry(e.display_name.clone()).or_default().insert(
+            x as u64,
+            BandPoint {
+                x,
+                min: mn,
+                avg,
+                max: mx,
+            },
+        );
+    }
+    let mut series: Vec<BandSeries> = map
+        .into_iter()
+        .map(|(name, pts)| BandSeries {
+            name,
+            points: pts.into_values().collect(),
+        })
+        .collect();
+    series.sort_by(|a, b| a.name.cmp(&b.name));
+    series
+}
+
+fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    use gnuplot::{
+        AlignType::*, AutoOption::Fix, AxesCommon, BorderLocation2D::*, Caption, Color, Figure, FillAlpha,
+        LabelOption::TextColor, LegendOption::Placement, LineWidth,
+    };
+
+    // ── Catppuccin Mocha dark palette ─────────────────────────────────────────
+    // Colours are referenced as HTML hex strings throughout.
+    const BG: &str = "#1e1e2e"; // base
+    const SURFACE: &str = "#31324c"; // approximate surface0 (#313244) — used for grid/border
+    const TEXT: &str = "#cdd6f4"; // text
+    const PALETTE: &[&str] = &[
+        "#89b4fa", // blue
+        "#f38ba8", // red
+        "#a6e3a1", // green
+        "#f9e2af", // yellow
+        "#cba6f7", // mauve
+        "#94e2d5", // teal
+        "#fab387", // peach
+    ];
+
+    let entries = load_plot_entries(&args.input).map_err(|e| format!("cannot read '{}': {}", args.input, e))?;
+    if entries.is_empty() {
+        return Err(format!("no valid benchmark entries found in '{}'", args.input).into());
+    }
+
+    // ── Build per-metric band series ─────────────────────────────────────────
+    let time_bands = collect_bands(&entries, |e| Some((e.time_s.min?, e.time_s.avg?, e.time_s.max?)));
+    let cpu_bands = collect_bands(&entries, |e| Some((e.peak_cpu.min?, e.peak_cpu.avg?, e.peak_cpu.max?)));
+    let mem_bands = collect_bands(&entries, |e| {
+        Some((
+            e.peak_memory_kb.min? / 1024.0,
+            e.peak_memory_kb.avg? / 1024.0,
+            e.peak_memory_kb.max? / 1024.0,
+        ))
+    });
+    let startup_bands = collect_bands(&entries, |e| {
+        Some((e.startup_s.min?, e.startup_s.avg?, e.startup_s.max?))
+    });
+
+    // ── x range ──────────────────────────────────────────────────────────────
+    let all_x: Vec<f64> = entries
+        .iter()
+        .filter_map(|e| e.items_total)
+        .filter(|&v| v > 0.0)
+        .collect();
+    if all_x.is_empty() {
+        return Err("no item-count data".into());
+    }
+    let x_min = all_x.iter().copied().fold(f64::INFINITY, f64::min);
+    let x_max = all_x.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let x_lo = x_min * 0.5;
+    let x_hi = x_max * 2.0;
+
+    // Helper: compute (min, max) across all points in a set of band series.
+    let y_extent = |bands: &[BandSeries]| -> (f64, f64) {
+        let mn = bands
+            .iter()
+            .flat_map(|s| s.points.iter())
+            .map(|p| p.min)
+            .fold(f64::INFINITY, f64::min);
+        let mx = bands
+            .iter()
+            .flat_map(|s| s.points.iter())
+            .map(|p| p.max)
+            .fold(f64::NEG_INFINITY, f64::max);
+        (mn, mx)
+    };
+
+    // ── Helper: draw band series onto an axes object ─────────────────────────
+    // Draws a translucent filled region between min and max, plus a solid avg
+    // line for each BandSeries.
+    let draw_bands = |axes: &mut gnuplot::Axes2D, bands: &[BandSeries]| {
+        for (band, &color) in bands.iter().zip(PALETTE.iter().cycle()) {
+            if band.points.len() < 2 {
+                continue;
+            }
+            let xs: Vec<f64> = band.points.iter().map(|p| p.x).collect();
+            let ys_lo: Vec<f64> = band.points.iter().map(|p| p.min).collect();
+            let ys_hi: Vec<f64> = band.points.iter().map(|p| p.max).collect();
+            // Filled band (min → max), no legend entry.
+            axes.fill_between(
+                xs.iter().copied(),
+                ys_lo.iter().copied(),
+                ys_hi.iter().copied(),
+                &[Color(color.into()), FillAlpha(0.22), Caption("")],
+            );
+            // Average line with legend entry.
+            let ys_avg: Vec<f64> = band.points.iter().map(|p| p.avg).collect();
+            axes.lines(
+                xs.iter().copied(),
+                ys_avg.iter().copied(),
+                &[Color(color.into()), LineWidth(2.0), Caption(band.name.as_str())],
+            );
+        }
+    };
+
+    // ── Dark-theme gnuplot pre-commands ───────────────────────────────────────
+    // These raw gnuplot commands run before any plot-specific commands and apply
+    // the Catppuccin Mocha colour scheme globally:
+    //   • canvas/plot background
+    //   • border, axes and tick colours
+    //   • grid line colours
+    //   • legend (key) box fill and border
+    //   • default text colour
+    let pre = format!(
+        "set border lc rgb '{surf}'\n\
+         set tics textcolor rgb '{text}'\n\
+         set xlabel textcolor rgb '{text}'\n\
+         set ylabel textcolor rgb '{text}'\n\
+         set title  textcolor rgb '{text}'\n\
+         set grid lc rgb '{surf}'\n\
+         set key opaque fc rgb '{bg}'\n\
+         set key box lc rgb '{surf}'\n\
+         set key textcolor rgb '{text}'",
+        bg = BG,
+        surf = SURFACE,
+        text = TEXT,
+    );
+
+    // ── Build the figure ─────────────────────────────────────────────────────
+    let mut fg = Figure::new();
+    // The pngcairo terminal lets us set a background color via the `background`
+    // keyword; we embed the pixel dimensions here as well.
+    fg.set_terminal(
+        &format!("pngcairo size {},{} background '{}'", args.width, args.height, BG),
+        &args.output,
+    );
+    fg.set_pre_commands(&pre);
+    fg.set_multiplot_layout(2, 2).set_title("Benchmark Results");
+
+    // Shared label options: text in TEXT colour.
+    let lbl = &[TextColor(TEXT)];
+
+    // ── Panel 0: Total Time — log x, log y ───────────────────────────────────
+    {
+        let (mn, mx) = y_extent(&time_bands);
+        let y_lo = (mn * 0.5).max(1e-9);
+        let y_hi = mx * 2.0;
+        let axes = fg.axes2d();
+        axes.set_title("Total Time", lbl)
+            .set_x_label("Items", lbl)
+            .set_y_label("Time (s)", lbl)
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_x_log(Some(10.0))
+            .set_y_log(Some(10.0))
+            .set_x_range(Fix(x_lo), Fix(x_hi))
+            .set_y_range(Fix(y_lo), Fix(y_hi))
+            .set_x_grid(true)
+            .set_y_grid(true)
+            // Legend at upper-left inside the graph, matching the original.
+            .set_legend(
+                gnuplot::Coordinate::Graph(0.02),
+                gnuplot::Coordinate::Graph(0.98),
+                &[Placement(AlignLeft, AlignTop)],
+                lbl,
+            );
+        draw_bands(axes, &time_bands);
+    }
+
+    // ── Panel 1: Peak CPU — log x, linear y ──────────────────────────────────
+    {
+        let (_, mx) = y_extent(&cpu_bands);
+        let y_hi = (mx * 1.25).max(100.0);
+        let axes = fg.axes2d();
+        axes.set_title("Peak CPU", lbl)
+            .set_x_label("Items", lbl)
+            .set_y_label("CPU (%)", lbl)
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_x_log(Some(10.0))
+            .set_x_range(Fix(x_lo), Fix(x_hi))
+            .set_y_range(Fix(0.0), Fix(y_hi))
+            .set_x_grid(true)
+            .set_y_grid(true)
+            .set_legend(
+                gnuplot::Coordinate::Graph(0.02),
+                gnuplot::Coordinate::Graph(0.98),
+                &[Placement(AlignLeft, AlignTop)],
+                lbl,
+            );
+        draw_bands(axes, &cpu_bands);
+    }
+
+    // ── Panel 2: Peak Memory — log x, linear y ───────────────────────────────
+    {
+        let (_, mx) = y_extent(&mem_bands);
+        let y_hi = (mx * 1.25).max(1.0);
+        let axes = fg.axes2d();
+        axes.set_title("Peak Memory", lbl)
+            .set_x_label("Items", lbl)
+            .set_y_label("Memory (MB)", lbl)
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_x_log(Some(10.0))
+            .set_x_range(Fix(x_lo), Fix(x_hi))
+            .set_y_range(Fix(0.0), Fix(y_hi))
+            .set_x_grid(true)
+            .set_y_grid(true)
+            .set_legend(
+                gnuplot::Coordinate::Graph(0.02),
+                gnuplot::Coordinate::Graph(0.98),
+                &[Placement(AlignLeft, AlignTop)],
+                lbl,
+            );
+        draw_bands(axes, &mem_bands);
+    }
+
+    // ── Panel 3: Startup Time — log x, linear y ──────────────────────────────
+    {
+        let (_, mx) = y_extent(&startup_bands);
+        let y_hi = (mx * 1.25).max(0.01);
+        let axes = fg.axes2d();
+        axes.set_title("Startup Time", lbl)
+            .set_x_label("Items", lbl)
+            .set_y_label("Time (s)", lbl)
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_x_log(Some(10.0))
+            .set_x_range(Fix(x_lo), Fix(x_hi))
+            .set_y_range(Fix(0.0), Fix(y_hi))
+            .set_x_grid(true)
+            .set_y_grid(true)
+            .set_legend(
+                gnuplot::Coordinate::Graph(0.02),
+                gnuplot::Coordinate::Graph(0.98),
+                &[Placement(AlignLeft, AlignTop)],
+                lbl,
+            );
+        draw_bands(axes, &startup_bands);
+    }
+
+    // Send all commands to gnuplot and wait for it to finish writing the PNG.
+    // `show_and_keep_running` spawns gnuplot (if not yet spawned), pipes all
+    // the plot commands, and returns.  The subsequent `close()` sends "quit"
+    // and waits for the process to exit (ensuring the output file is flushed).
+    fg.show_and_keep_running().map_err(|e| {
+        format!("gnuplot not found or failed to start: {e}\nMake sure gnuplot is installed and available in PATH.")
+    })?;
+    fg.close();
+    eprintln!("Plot written to '{}'", args.output);
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -1121,15 +1557,34 @@ fn main() -> Result<()> {
     // strip it before clap sees it so it doesn't land in `extra_args` or
     // cause an "unexpected argument" error.
     let raw: Vec<String> = std::env::args().filter(|a| a != "--bench").collect();
-    let mut args = Args::parse_from(raw);
+    let args = Args::parse_from(raw);
 
-    if args.binaries.is_empty() {
-        args.binaries.push(DEFAULT_BINARY.to_owned());
+    // ---- generate / plot subcommands (exit early) --------------------------
+    let run_args = match args.command {
+        Subcommand::Generate(ref g) => {
+            eprintln!("Generating {} items to {} ...", g.num_items, g.file);
+            generate_test_data(&g.file, g.num_items).expect("failed to write test data");
+            eprintln!("Generated {} items successfully", g.num_items);
+            return Ok(());
+        }
+        Subcommand::Plot(ref p) => {
+            if let Err(e) = cmd_plot(p) {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+            return Ok(());
+        }
+        Subcommand::Run(ref r) => r,
+    };
+
+    let mut binaries = run_args.binaries.clone();
+    if binaries.is_empty() || (binaries.len() == 1 && binaries[0].is_empty()) {
+        binaries = vec![DEFAULT_BINARY.to_owned()];
     }
 
     // Resolve every binary to an absolute path, the same as replacing
     // `<name>` with `$(which <name>)` at the call site.
-    for binary in &mut args.binaries {
+    for binary in &mut binaries {
         match which::which(&*binary) {
             Ok(resolved) => *binary = resolved.to_string_lossy().into_owned(),
             Err(e) => {
@@ -1139,21 +1594,11 @@ fn main() -> Result<()> {
         }
     }
 
-    if args.file.is_some() && args.generate_file.is_some() {
-        eprintln!("error: cannot use both --file and --generate-file");
-        std::process::exit(1);
-    }
-
-    // ---- generate-file mode -----------------------------------------------
-    if let Some(ref path) = args.generate_file {
-        eprintln!("Generating {} items to {} ...", args.num_items, path);
-        generate_test_data(path, args.num_items).expect("failed to write test data");
-        eprintln!("Generated {} items successfully", args.num_items);
-        return Ok(());
-    }
+    // Compute a human-readable display name for each binary once, up front.
+    let display_names: Vec<String> = binaries.iter().map(|b| binary_display_name(b)).collect();
 
     // ---- prepare input data -----------------------------------------------
-    let (tmp_file_path, _tmp_file_handle, num_items) = if let Some(ref path) = args.file {
+    let (tmp_file_path, _tmp_file_handle, num_items) = if let Some(ref path) = run_args.file {
         if !Path::new(path).is_file() {
             eprintln!("Error: Input file '{}' not found", path);
             std::process::exit(1);
@@ -1168,31 +1613,30 @@ fn main() -> Result<()> {
         let tmp = NamedTempFile::new().expect("failed to create temp input file");
         let path = tmp.path().to_string_lossy().into_owned();
         eprintln!("Generating test data...");
-        generate_test_data(&path, args.num_items).expect("failed to generate test data");
-        (path, Some(tmp), args.num_items)
+        generate_test_data(&path, run_args.num_items).expect("failed to generate test data");
+        (path, Some(tmp), run_args.num_items)
     };
 
-    let binaries = &args.binaries;
-    let query = &args.query;
-    let runs = args.runs;
-    let warmup = args.warmup;
-    let extra_args = &args.extra_args;
-    let record_perf = args.perf.is_some();
-    let perf_explicit = args.perf.as_deref().unwrap_or("");
-    let record_strace = args.strace.is_some();
-    let strace_explicit = args.strace.as_deref().unwrap_or("");
+    let query = &run_args.query;
+    let runs = run_args.runs;
+    let warmup = run_args.warmup;
+    let extra_args = &run_args.extra_args;
+    let record_perf = run_args.perf.is_some();
+    let perf_explicit = run_args.perf.as_deref().unwrap_or("");
+    let record_strace = run_args.strace.is_some();
+    let strace_explicit = run_args.strace.as_deref().unwrap_or("");
 
     // ---- header ------------------------------------------------------------
     eprintln!("=== Skim Ingestion + Matching Benchmark ===");
     eprintln!(
         "Binaries: {} | Items: {} | Query: '{}' | Warmup: {} | Runs: {} (per binary)",
-        binaries.join(", "),
+        display_names.join(", "),
         num_items,
         query,
         warmup,
         runs,
     );
-    if args.file.is_some() {
+    if run_args.file.is_some() {
         eprintln!("Input file: {}", tmp_file_path);
     }
     if !extra_args.is_empty() {
@@ -1224,7 +1668,7 @@ fn main() -> Result<()> {
         eprintln!("\n=== Warmup ({} run(s) per binary) ===", warmup);
         for (bi, binary) in binaries.iter().enumerate() {
             for wu in 1..=warmup {
-                eprintln!("  Warmup {}/{} — {} ...", wu, warmup, binary);
+                eprintln!("  Warmup {}/{} — {} ...", wu, warmup, display_names[bi]);
                 let _ = run_once(
                     binary,
                     query,
@@ -1235,7 +1679,7 @@ fn main() -> Result<()> {
                     None,
                     None,
                     &tmux_server,
-                    args.stable_secs,
+                    run_args.stable_secs,
                 )?;
             }
         }
@@ -1281,7 +1725,7 @@ fn main() -> Result<()> {
                     runs,
                     bi + 1,
                     binaries.len(),
-                    binary
+                    display_names[bi]
                 );
             }
 
@@ -1307,7 +1751,7 @@ fn main() -> Result<()> {
                 this_perf,
                 this_strace,
                 &tmux_server,
-                args.stable_secs,
+                run_args.stable_secs,
             )?;
 
             if runs > 1 || binaries.len() > 1 {
@@ -1340,13 +1784,13 @@ fn main() -> Result<()> {
     let aggregates: Vec<AggResult> = all_results.iter().map(|r| aggregate(r)).collect();
 
     // ---- output ------------------------------------------------------------
-    if args.json {
-        print_json(binaries, &aggregates, runs);
+    if run_args.json {
+        print_json(&binaries, &display_names, &aggregates, runs);
     } else {
         let baseline_agg = &aggregates[0];
-        for (i, (binary, agg)) in binaries.iter().zip(&aggregates).enumerate() {
+        for (i, (display_name, agg)) in display_names.iter().zip(&aggregates).enumerate() {
             print_human(
-                binary,
+                display_name,
                 agg,
                 if binaries.len() > 1 { Some(baseline_agg) } else { None },
                 i == 0,
@@ -1355,22 +1799,22 @@ fn main() -> Result<()> {
 
         // Summary table — always shown, markdown-formatted
         if binaries.len() > 1 {
-            println!("\n## Comparison Summary (vs baseline: `{}`)\n", binaries[0]);
+            println!("\n## Comparison Summary (vs baseline: `{}`)\n", display_names[0]);
         } else {
             println!("\n## Results Summary\n");
         }
-        print_markdown_table(binaries, &aggregates);
+        print_markdown_table(&display_names, &aggregates);
     }
 
     // ---- perf summary ------------------------------------------------------
     if record_perf {
         eprintln!("\n=== Perf recording output ===");
-        for (binary, path) in binaries.iter().zip(&perf_files) {
+        for (display_name, path) in display_names.iter().zip(&perf_files) {
             if let Some(p) = path {
                 if Path::new(p).is_file() {
-                    eprintln!("  [{}] perf data: {}", binary, p);
+                    eprintln!("  [{}] perf data: {}", display_name, p);
                 } else {
-                    eprintln!("  [{}] perf data not found (perf may have failed)", binary);
+                    eprintln!("  [{}] perf data not found (perf may have failed)", display_name);
                 }
             }
         }
@@ -1379,12 +1823,12 @@ fn main() -> Result<()> {
     // ---- strace summary ----------------------------------------------------
     if record_strace {
         eprintln!("\n=== Strace output ===");
-        for (binary, path) in binaries.iter().zip(&strace_files) {
+        for (display_name, path) in display_names.iter().zip(&strace_files) {
             if let Some(p) = path {
                 if Path::new(p).is_file() {
-                    eprintln!("  [{}] strace output: {}", binary, p);
+                    eprintln!("  [{}] strace output: {}", display_name, p);
                 } else {
-                    eprintln!("  [{}] strace output not found (strace may have failed)", binary);
+                    eprintln!("  [{}] strace output not found (strace may have failed)", display_name);
                 }
             }
         }

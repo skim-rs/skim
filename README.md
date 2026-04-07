@@ -599,42 +599,10 @@ Check out more examples under the [examples/](https://github.com/skim-rs/skim/tr
 ## Benchmarks
 
 This benchmarks runs the interactive interface in a tmux session, and waits for the UI to stabilize.
-It uses a 10 million path-like ASCII items input file, and the query test.
 
-```
-=== Results: sk v4.0.0 [baseline] ===
-Completed runs: 50 / 50
-Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782)
-Average time: 3.827s  (min: 3.576s, max: 4.090s)
-Average items/second: 2615767  (min: 2445033, max: 2796365)
-Average peak memory usage: 1589.2 MB  (min: 1518.6 MB, max: 1661.2 MB)
-Average peak CPU usage: 528.9%  (min: 457.0%, max: 740.0%)
+![benchmark graphs](./bench.png)
 
-=== Results: sk v3.7.0 ===
-Completed runs: 50 / 50
-Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782) +0.0%
-Average time: 3.930s  (min: 3.565s, max: 4.226s)  +2.7%
-Average items/second: 2548674  (min: 2366263, max: 2804816)  -2.6%
-Average peak memory usage: 1618.8 MB  (min: 1539.1 MB, max: 1680.6 MB) +1.9%
-Average peak CPU usage: 696.8%  (min: 608.0%, max: 875.0%)  +31.7%
-
-=== Results: fzf 0.70.0 ===
-Completed runs: 50 / 50
-Average items matched: 2895782 / 10000000  (min: 2895782, max: 2895782) +0.0%
-Average time: 5.421s  (min: 4.814s, max: 6.111s)  +41.7%
-Average items/second: 1848269  (min: 1636444, max: 2077385)  -29.3%
-Average peak memory usage: 2015.3 MB  (min: 1860.7 MB, max: 2173.9 MB) +26.8%
-Average peak CPU usage: 1301.1%  (min: 1229.0%, max: 1431.0%)  +146.0%
-
-=== Comparison Summary (vs baseline: sk v4.0.0) ===
-Binary      Avg time     Δ time  Avg rate     Δ rate
-------------------------------------------------------------------------------
-sk v4.0.0   3.827s    baseline   2615767     baseline
-sk v3.7.0   3.930s      +2.7%    2548674      -2.6%
-fzf 0.70.0  5.421s     +41.7%    1848269     -29.3%
-```
-
-TL;DR: sk v4.0.0 is ~30% faster than fzf 0.70.0 with a third of the CPU usage and less memory usage
+You can generate the graphs by using `just bench-plot` or running the recipe manually in GNU bash.
 
 # FAQ
 
@@ -748,16 +716,16 @@ export TERMINFO=/data/data/com.termux/files/usr/share/terminfo
 The `cli` bench benchmarks skim (or any compatible binary) against other versions or fzf by running the interactive interface inside a tmux session and polling the status line until the matched count stabilises. This is by no means a precise or foolproof measurement, but it has the added benefit of benchmarking against `fzf` and of providing resource metrics (peak RSS and CPU).
 
 ```sh
-cargo bench --bench cli                                      # defaults: sk, 1 M items, query "test"
-cargo bench --bench cli -- sk -n 500000 -q foo              # bare name resolved via $PATH
-cargo bench --bench cli -- ./old/sk ./new/sk -r 5           # compare two binaries, 5 runs each
-cargo bench --bench cli -- sk -r 5                          # 5 runs, show average
-cargo bench --bench cli -- sk -f input.txt -q search        # use an existing file
-cargo bench --bench cli -- -g testdata.txt -n 2000000       # generate input file and exit
-cargo bench --bench cli -- sk -p                            # record perf data (auto-named file)
-cargo bench --bench cli -- sk -p perf.data                 # record perf data to perf.data
-cargo bench --bench cli -- sk -j                            # JSON output
-cargo bench --bench cli -- sk -r 3 -- --tiebreak=index     # pass extra flags to sk
+cargo bench --bench cli -- run                              # defaults: sk, 1 M items, query "test"
+cargo bench --bench cli -- run sk -n 500000 -q foo              # bare name resolved via $PATH
+cargo bench --bench cli -- run ./old/sk ./new/sk -r 5           # compare two binaries, 5 runs each
+cargo bench --bench cli -- run sk -f input.txt -q search        # use an existing file
+cargo bench --bench cli -- generate -f testdata.txt -n 2000000       # generate input file and exit
+cargo bench --bench cli -- run sk --perf                            # record perf data (auto-named file)
+cargo bench --bench cli -- run sk --strace                            # record strace data (auto-named file)
+cargo bench --bench cli -- run sk -p perf.data                 # record perf data to perf.data
+cargo bench --bench cli -- run sk -j                            # JSON output
+cargo bench --bench cli -- run sk -r 3 -- --tiebreak=index     # pass extra flags to sk
 ```
 
 Binary names are resolved to absolute paths via `which` before use, so bare names like `sk` or `fzf` work as long as they are on `$PATH`.

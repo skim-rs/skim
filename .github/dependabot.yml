@@ -1,9 +1,16 @@
 version: 2
 updates:
-  - package-ecosystem: "cargo"
+  - package-ecosystem: cargo
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: weekly
     commit-message:
       prefix: chore(deps)
       prefix-development: chore(dev-deps)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore(ci/deps)
+      prefix-development: chore(ci/dev-deps)

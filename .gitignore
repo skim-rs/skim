@@ -13,15 +13,12 @@
 /bin/sk
 .idea/
 .ropeproject/
-bench_data.txt
 .direnv
 
 # Coverage
 lcov.info
 codecov.json
 *.profraw
-
-benches/fixtures/*.txt
 
 # Profiling
 profile.json.gz
