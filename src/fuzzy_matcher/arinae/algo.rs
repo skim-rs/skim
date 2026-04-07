@@ -6,7 +6,7 @@ use thread_local::ThreadLocal;
 
 use crate::fuzzy_matcher::{IndexType, MatchIndices};
 
-use super::banding::{compute_banding, typo_vband_row};
+use super::banding::{BandingInfo, typo_vband_row};
 use super::constants::{
     CONSECUTIVE_BONUS, GAP_EXTEND, GAP_OPEN, MATCH_BONUS, MAX_PAT_LEN, MISMATCH_PENALTY, TYPO_PENALTY,
 };
@@ -111,6 +111,7 @@ fn compute_cell<const ALLOW_TYPOS: bool>(
 ///    and subsequent rows are dead (since UP/LEFT can only propagate
 ///    existing scores). We track this and allow early termination.
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
@@ -119,11 +120,11 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
     full_buf: &ThreadLocal<RefCell<SWMatrix>>,
     indices_buf: &ThreadLocal<RefCell<MatchIndices>>,
     use_last_match: bool,
+    banding: &BandingInfo,
 ) -> Option<(Score, MatchIndices)> {
     let n = pat.len();
     let m = cho.len();
 
-    let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
     let j_start = banding.j_first; // earliest match — skip columns before this
 
     // Column offset: the matrix stores only columns from j_start onward.
@@ -377,11 +378,11 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     respect_case: bool,
     full_buf: &ThreadLocal<RefCell<SWMatrix>>,
     use_last_match: bool,
+    banding: &BandingInfo,
 ) -> Option<(Score, usize, usize)> {
     let n = pat.len();
     let m = cho.len();
 
-    let banding = compute_banding::<ALLOW_TYPOS, C>(pat, cho, respect_case)?;
     let j_start = banding.j_first;
     let col_off = j_start - 1;
     let mcols = m - col_off + 1;

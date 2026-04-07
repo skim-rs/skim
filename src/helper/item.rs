@@ -86,7 +86,7 @@ impl DefaultSkimItem {
         };
 
         // Keep track of whether we have null bytes for special handling
-        let has_null_bytes = temp_text.contains('\0');
+        let has_null_bytes = memchr::memchr(b'\0', temp_text.as_bytes()).is_some();
 
         // Preserve original text with null bytes for output if needed
         if has_null_bytes && orig_text.is_none() {
@@ -171,7 +171,7 @@ impl DefaultSkimItem {
     }
 
     fn contains_ansi_escape(s: &str) -> bool {
-        s.contains('\x1b')
+        memchr::memchr(b'\x1b', s.as_bytes()).is_some()
     }
 
     /// Getter for `stripped_text` stored in the metadata

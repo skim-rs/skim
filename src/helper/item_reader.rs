@@ -5,9 +5,8 @@ use std::error::Error;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
-use std::time::{Duration, Instant};
 
 use crate::thread_pool::ThreadPool;
 
@@ -23,13 +22,6 @@ use crate::{SkimItem, SkimItemReceiver, SkimItemSender, SkimOptions};
 
 const DELIMITER_STR: &str = r"[\t\n ]+";
 const READ_BUFFER_SIZE: usize = 1024;
-const ITEMS_BUFFER_SIZE: usize = 1024;
-const SEND_TIMEOUT_MS: u64 = 100; // Send items if we haven't sent anything in 100ms
-
-pub enum CollectorInput {
-    Pipe(Box<dyn BufRead + Send>),
-    Command(String),
-}
 
 /// Options for configuring how items are read and parsed
 #[derive(Debug)]
@@ -165,12 +157,6 @@ impl SkimItemReaderOption {
     pub fn build(self) -> Self {
         self
     }
-
-    /// Returns true if no field transformations or ANSI parsing is needed
-    #[must_use]
-    pub fn is_simple(&self) -> bool {
-        !self.use_ansi_color && self.matching_fields.is_empty() && self.transform_fields.is_empty()
-    }
 }
 
 /// Reader for converting various input sources into streams of skim items
@@ -233,90 +219,19 @@ impl SkimItemReader {
 }
 
 impl SkimItemReader {
-    /// Converts a `BufRead` source into a stream of skim items
+    /// Converts a `BufRead` source into a stream of skim items using the
+    /// parallel pipeline.
     pub fn of_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
-        if self.option.is_simple() {
-            self.raw_bufread(source)
-        } else {
-            self.read_and_collect_from_command(Arc::new(AtomicUsize::new(0)), CollectorInput::Pipe(Box::new(source)))
-                .0
-        }
+        self.parallel_bufread(source, None, &Arc::new(AtomicUsize::new(0))).0
     }
 
-    /// Helper function that contains the common logic for reading lines from a `BufRead` source
-    /// and converting them into `SkimItems`.
-    fn read_lines_into_items(
-        mut source: impl BufRead + Send + 'static,
-        tx_item: &SkimItemSender,
-        option: &Arc<SkimItemReaderOption>,
-        transform_fields: &[FieldRange],
-        matching_fields: &[FieldRange],
-    ) {
-        let mut buffer = Vec::with_capacity(option.buf_size);
-        let mut items_to_send = Vec::with_capacity(ITEMS_BUFFER_SIZE);
-        let mut last_send_time = Instant::now();
-        let send_timeout = Duration::from_millis(SEND_TIMEOUT_MS);
-
-        loop {
-            buffer.clear();
-
-            // start reading
-            match source.read_until(option.line_ending, &mut buffer) {
-                Ok(0) => break,
-                Ok(_) => {
-                    // Strip line endings
-                    if buffer.ends_with(b"\r\n") {
-                        buffer.pop();
-                        buffer.pop();
-                    } else if buffer.ends_with(&[option.line_ending]) {
-                        buffer.pop();
-                    }
-
-                    let Ok(line) = std::str::from_utf8(&buffer) else {
-                        continue;
-                    };
-
-                    trace!("got item {line}");
-
-                    let raw_item = DefaultSkimItem::new(
-                        line,
-                        option.use_ansi_color,
-                        transform_fields,
-                        matching_fields,
-                        &option.delimiter,
-                    );
-                    items_to_send.push(Arc::new(raw_item) as Arc<dyn SkimItem>);
-                }
-                Err(err) => {
-                    trace!("Got {err:?} when reading, skipping");
-                } // String not UTF8 or other error, skip.
-            }
-
-            // Send batched items if buffer is full OR timeout has elapsed
-            let should_send = items_to_send.len() == ITEMS_BUFFER_SIZE
-                || (!items_to_send.is_empty() && last_send_time.elapsed() >= send_timeout);
-
-            if should_send {
-                let batch = std::mem::replace(&mut items_to_send, Vec::with_capacity(ITEMS_BUFFER_SIZE));
-                match tx_item.send(batch) {
-                    Ok(()) => {
-                        last_send_time = Instant::now();
-                    }
-                    Err(e) => {
-                        warn!("Failed to send items: {e:?}");
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Send remaining items
-        if !items_to_send.is_empty() {
-            let _ = tx_item.send(items_to_send);
-        }
-    }
-
-    /// Parallel reader for the simple (no ANSI, no field transforms) case.
+    /// Core parallel reader pipeline.
+    ///
+    /// All input — whether a plain pipe, a `--ansi`-decorated stream, or one
+    /// with `--nth`/`--with-nth` field transforms — goes through the same four
+    /// stages.  Every per-line operation inside `DefaultSkimItem::new` is
+    /// stateless and purely functional, so chunks can be processed concurrently
+    /// without any coordination beyond sequence reordering.
     ///
     /// Pipeline:
     ///
@@ -326,14 +241,28 @@ impl SkimItemReader {
     /// 2. **Dispatcher thread** (dedicated, lightweight) — drains that channel
     ///    and submits one pool job per chunk.  The bounded channel provides
     ///    natural back-pressure on the I/O thread when the pool is busy.
-    /// 3. **Pool jobs** — parse lines, validate UTF-8, and create
-    ///    `DefaultSkimItem` + `Arc` per line.  Because these jobs share the
-    ///    same pool as the matcher, reader and matcher compete for the same
-    ///    thread budget rather than over-subscribing available CPU cores.
+    /// 3. **Pool jobs** — parse lines, validate UTF-8, apply ANSI stripping and
+    ///    field transforms, and create `DefaultSkimItem` + `Arc` per line.
+    ///    Because these jobs share the same pool as the matcher, reader and
+    ///    matcher compete for the same thread budget rather than over-subscribing
+    ///    available CPU cores.
     /// 4. **Reorder thread** (dedicated) — collects `(seq, items)` from pool
     ///    jobs and emits them in sequence order so downstream index assignment
     ///    and `--tac` behaviour are correct.
-    fn raw_bufread(&self, source: impl BufRead + Send + 'static) -> SkimItemReceiver {
+    ///
+    /// When `child` is `Some`, a **killer thread** is also spawned.  It waits
+    /// on `rx_interrupt` and kills the child process on request (or when the
+    /// reader is dropped).  This thread participates in `components_to_stop`
+    /// accounting so that [`ReaderControl::kill`] waits for it to finish.
+    ///
+    /// Returns `(rx_item, tx_interrupt)`.  The caller must send on `tx_interrupt`
+    /// to signal shutdown; the killer thread (if any) will then kill the child.
+    fn parallel_bufread(
+        &self,
+        source: impl BufRead + Send + 'static,
+        child: Option<Child>,
+        components_to_stop: &Arc<AtomicUsize>,
+    ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
         let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = kanal::bounded(1024 * 1024);
         let option = self.option.clone();
         let pool = Arc::clone(&self.thread_pool);
@@ -361,10 +290,60 @@ impl SkimItemReader {
             // so the reorder thread exits once the last pool job finishes.
         });
 
-        // Stage 4: reorder thread.
-        Self::spawn_reorder_thread(rx_results, tx_item);
+        // A zero-capacity channel used as a completion signal: the reorder
+        // thread drops its sender when it exits, closing the channel.  The
+        // killer thread waits on either this signal (natural EOF) or on the
+        // external interrupt (early termination request).
+        let (tx_pipeline_done, rx_pipeline_done) = kanal::bounded::<()>(0);
 
-        rx_item
+        // Stage 4: reorder thread.
+        Self::spawn_reorder_thread(rx_results, tx_item.clone(), tx_pipeline_done);
+
+        // Killer thread: exits when the pipeline drains naturally (child process
+        // reached EOF) OR when it receives an explicit interrupt signal.
+        //
+        // This thread participates in `components_to_stop` accounting so that
+        // [`ReaderControl::is_done`] correctly waits for cleanup to complete.
+        let (tx_interrupt, rx_interrupt) = crate::prelude::bounded::<i32>(8);
+        let components_to_stop_killer = components_to_stop.clone();
+        components_to_stop.fetch_add(1, Ordering::SeqCst);
+        thread::spawn(move || {
+            debug!("parallel reader: killer thread start");
+
+            // Wait for either a kill request or the pipeline finishing naturally.
+            // kanal doesn't have a multi-channel select, so we poll with a short
+            // timeout.  Both channels are bounded so this never busy-spins in
+            // practice: the kill path is rare, and the done path fires quickly.
+            loop {
+                if rx_interrupt.try_recv().is_ok_and(|v| v.is_some()) {
+                    // Explicit kill: terminate the child immediately.
+                    if let Some(mut c) = child {
+                        let _ = c.kill();
+                        let _ = c.wait();
+                    }
+                    break;
+                }
+                // Channel closed = reorder thread exited = pipeline drained.
+                match rx_pipeline_done.recv_timeout(std::time::Duration::from_millis(1)) {
+                    Ok(()) => break,
+                    Err(kanal::ReceiveErrorTimeout::Closed | kanal::ReceiveErrorTimeout::SendClosed) => {
+                        // Natural EOF: child already exited; just reap if present.
+                        if let Some(mut c) = child {
+                            let _ = c.wait();
+                        }
+                        break;
+                    }
+                    Err(kanal::ReceiveErrorTimeout::Timeout) => {
+                        // Neither signal yet — loop.
+                    }
+                }
+            }
+
+            components_to_stop_killer.fetch_sub(1, Ordering::SeqCst);
+            debug!("parallel reader: killer thread stop");
+        });
+
+        (rx_item, tx_interrupt)
     }
 
     /// Stage 1 of the parallel reader: reads large byte chunks from `source`,
@@ -432,8 +411,6 @@ impl SkimItemReader {
     }
 
     /// Parses a raw byte chunk into a tagged batch of items.
-    ///
-    /// Shared by both the pool-based and dedicated-thread code paths.
     fn process_chunk(seq: usize, chunk: &[u8], opt: &SkimItemReaderOption) -> (usize, Vec<Arc<dyn SkimItem>>) {
         let mut items = Vec::new();
         let line_ending = opt.line_ending;
@@ -455,8 +432,6 @@ impl SkimItemReader {
             let Ok(line) = std::str::from_utf8(line_bytes) else {
                 continue;
             };
-            // Use DefaultSkimItem::new to preserve ANSI-escape stripping
-            // behaviour even when --ansi is not set.
             items.push(Arc::new(DefaultSkimItem::new(
                 line,
                 opt.use_ansi_color,
@@ -469,9 +444,15 @@ impl SkimItemReader {
         (seq, items)
     }
 
-    /// Stage 3: receives item batches from workers and emits them through the
-    /// downstream channel in the original sequence order.
-    fn spawn_reorder_thread(rx_results: kanal::Receiver<(usize, Vec<Arc<dyn SkimItem>>)>, tx_item: SkimItemSender) {
+    /// Stage 4: receives item batches from workers and emits them through the
+    /// downstream channel in the original sequence order.  Drops
+    /// `tx_pipeline_done` on exit to signal the killer thread that the
+    /// pipeline has drained naturally.
+    fn spawn_reorder_thread(
+        rx_results: kanal::Receiver<(usize, Vec<Arc<dyn SkimItem>>)>,
+        tx_item: SkimItemSender,
+        tx_pipeline_done: kanal::Sender<()>,
+    ) {
         thread::spawn(move || {
             debug!("parallel reader: reorder thread start");
             let mut expected = 0usize;
@@ -493,95 +474,11 @@ impl SkimItemReader {
                     return;
                 }
             }
+            // Dropping tx_pipeline_done closes the channel, waking the killer
+            // thread so it can decrement components_to_stop.
+            drop(tx_pipeline_done);
             debug!("parallel reader: reorder thread stop");
         });
-    }
-
-    /// `components_to_stop` == 0 => all the threads have been stopped
-    /// return (`channel_for_receive_item`, `channel_to_stop_command`)
-    fn read_and_collect_from_command(
-        &self,
-        components_to_stop: Arc<AtomicUsize>,
-        input: CollectorInput,
-    ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
-        let send_error = self.option.show_error;
-        let (command, source) = match input {
-            CollectorInput::Pipe(pipe) => (None, pipe),
-            CollectorInput::Command(cmd) => get_command_output(&cmd, send_error).expect("command not found"),
-        };
-
-        let (tx_interrupt, rx_interrupt) = crate::prelude::bounded(8);
-        let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = crate::prelude::bounded(1024 * 1024);
-
-        let started = Arc::new(AtomicBool::new(false));
-        let started_clone = started.clone();
-        let components_to_stop_clone = components_to_stop.clone();
-        let tx_item_clone = tx_item.clone();
-        // listening to close signal and kill command if needed
-        thread::spawn(move || {
-            debug!("collector: command killer start");
-            components_to_stop_clone.fetch_add(1, Ordering::SeqCst);
-            started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
-
-            let _ = rx_interrupt.recv();
-            if let Some(mut child) = command {
-                // clean up resources
-                let _ = child.kill();
-                let _ = child.wait();
-
-                if send_error {
-                    let has_error = child
-                        .try_wait()
-                        .map(|os| os.is_none_or(|s| !s.success()))
-                        .unwrap_or(false);
-                    if has_error {
-                        trace!("collector: sending error");
-                        let output = child.wait_with_output().expect("could not retrieve error message");
-                        let error_text = String::from_utf8_lossy(&output.stderr).to_string();
-                        let error_items: Vec<Arc<dyn SkimItem>> = error_text
-                            .lines()
-                            .map(|line| {
-                                Arc::new(DefaultSkimItem::new(
-                                    line,
-                                    false,
-                                    &[],
-                                    &[],
-                                    &Regex::new(DELIMITER_STR).unwrap(),
-                                )) as Arc<dyn SkimItem>
-                            })
-                            .collect();
-                        let _ = tx_item_clone.send(error_items);
-                    }
-                }
-            }
-
-            components_to_stop_clone.fetch_sub(1, Ordering::SeqCst);
-            debug!("collector: command killer stop");
-        });
-
-        while !started.load(Ordering::SeqCst) {
-            // busy waiting for the thread to start. (components_to_stop is added)
-        }
-
-        let tx_interrupt_clone = tx_interrupt.clone();
-        let option = self.option.clone();
-        let transform_fields = option.transform_fields.clone();
-        let matching_fields = option.matching_fields.clone();
-
-        // Increment before submitting so components_to_stop is already non-zero
-        // when this function returns; no busy-wait needed.
-        components_to_stop.fetch_add(1, Ordering::SeqCst);
-        self.thread_pool.spawn(move || {
-            debug!("collector: command collector start");
-
-            Self::read_lines_into_items(source, &tx_item, &option, &transform_fields, &matching_fields);
-
-            let _ = tx_interrupt_clone.send(1); // ensure the killer thread will exit
-            components_to_stop.fetch_sub(1, Ordering::SeqCst);
-            debug!("collector: command collector stop");
-        });
-
-        (rx_item, tx_interrupt)
     }
 }
 
@@ -591,7 +488,9 @@ impl CommandCollector for SkimItemReader {
         cmd: &str,
         components_to_stop: Arc<AtomicUsize>,
     ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
-        self.read_and_collect_from_command(components_to_stop, CollectorInput::Command(cmd.to_string()))
+        let send_error = self.option.show_error;
+        let (child, source) = get_command_output(cmd, send_error).expect("command not found");
+        self.parallel_bufread(source, child, &components_to_stop)
     }
 
     fn set_thread_pool(&mut self, pool: Arc<ThreadPool>) {

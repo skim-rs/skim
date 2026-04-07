@@ -83,6 +83,9 @@ impl AndEngine {
                 MatchRange::ByteRange(..) => {
                     ranges.extend(item.range_char_indices(text));
                 }
+                MatchRange::CharRange(start, end) => {
+                    ranges.extend(start..end);
+                }
                 MatchRange::Chars(vec) => {
                     ranges.extend(vec.iter().copied());
                 }
@@ -103,7 +106,11 @@ impl AndEngine {
 
 impl MatchEngine for AndEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
-        // mock
+        // Fast path: single sub-engine — skip merge entirely.
+        if self.engines.len() == 1 {
+            return self.engines[0].match_item(item);
+        }
+
         let mut results = vec![];
         for engine in &self.engines {
             let result = engine.match_item(item)?;

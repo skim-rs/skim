@@ -321,6 +321,9 @@ impl From<usize> for Typos {
 pub enum MatchRange {
     /// Range of bytes (start, end)
     ByteRange(usize, usize),
+    /// Range of character indices (start, end) — used by fuzzy matchers that
+    /// operate on `char` arrays rather than raw bytes.
+    CharRange(usize, usize),
     /// Individual character indices that matched
     Chars(MatchIndices),
 }
@@ -367,6 +370,7 @@ impl MatchResult {
                 let last = first + text[start..end].chars().count();
                 (first..last).collect()
             }
+            &MatchRange::CharRange(start, end) => (start..end).collect(),
             MatchRange::Chars(vec) => vec.clone(),
         }
     }

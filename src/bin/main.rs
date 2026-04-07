@@ -186,63 +186,71 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
         return Ok(130);
     }
 
-    // Output
-    if let Some(ref output_format) = bin_options.output_format {
-        print!(
-            "{}{}",
-            skim::printf(
-                output_format,
-                &bin_options.delimiter,
-                &bin_options.replstr,
-                &result.selected_items.iter(),
-                &result.current,
-                &result.query,
-                &result.cmd,
-                true
-            ),
-            bin_options.output_ending
-        );
-    } else {
-        if bin_options.print_query {
-            print!("{}{}", result.query, bin_options.output_ending);
-        }
+    // Output — use a large BufWriter to batch all writes into a few syscalls
+    // instead of one syscall per item (Rust's default LineWriter flushes on \n).
+    {
+        let stdout = io::stdout();
+        let mut out = BufWriter::with_capacity(1 << 20, stdout.lock());
 
-        if bin_options.print_cmd {
-            print!("{}{}", result.cmd, bin_options.output_ending);
-        }
+        if let Some(ref output_format) = bin_options.output_format {
+            write!(
+                out,
+                "{}{}",
+                skim::printf(
+                    output_format,
+                    &bin_options.delimiter,
+                    &bin_options.replstr,
+                    &result.selected_items.iter(),
+                    &result.current,
+                    &result.query,
+                    &result.cmd,
+                    true
+                ),
+                bin_options.output_ending
+            )?;
+        } else {
+            if bin_options.print_query {
+                write!(out, "{}{}", result.query, bin_options.output_ending)?;
+            }
 
-        if bin_options.print_header {
-            print!("{}{}", result.header, bin_options.output_ending);
-        }
+            if bin_options.print_cmd {
+                write!(out, "{}{}", result.cmd, bin_options.output_ending)?;
+            }
 
-        if bin_options.print_current {
-            if let Some(ref current) = result.current {
-                print!("{}{}", current.output(), bin_options.output_ending);
-            } else {
-                print!("{}", bin_options.output_ending);
+            if bin_options.print_header {
+                write!(out, "{}{}", result.header, bin_options.output_ending)?;
+            }
+
+            if bin_options.print_current {
+                if let Some(ref current) = result.current {
+                    write!(out, "{}{}", current.output(), bin_options.output_ending)?;
+                } else {
+                    write!(out, "{}", bin_options.output_ending)?;
+                }
+            }
+
+            if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
+                write!(out, "{}{}", accept_key, bin_options.output_ending)?;
+            }
+
+            for item in &result.selected_items {
+                if bin_options.strip_ansi {
+                    write!(
+                        out,
+                        "{}{}",
+                        skim::helper::item::strip_ansi(&item.output()).0,
+                        bin_options.output_ending
+                    )?;
+                } else {
+                    write!(out, "{}{}", item.output(), bin_options.output_ending)?;
+                }
+                if bin_options.print_score {
+                    write!(out, "{}{}", item.rank.score, bin_options.output_ending)?;
+                }
             }
         }
-
-        if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
-            print!("{}{}", accept_key, bin_options.output_ending);
-        }
-
-        for item in &result.selected_items {
-            if bin_options.strip_ansi {
-                print!(
-                    "{}{}",
-                    skim::helper::item::strip_ansi(&item.output()).0,
-                    bin_options.output_ending
-                );
-            } else {
-                print!("{}{}", item.output(), bin_options.output_ending);
-            }
-            if bin_options.print_score {
-                print!("{}{}", item.rank.score, bin_options.output_ending);
-            }
-        }
+        out.flush()?;
     }
-    std::io::stdout().flush()?;
 
     //------------------------------------------------------------------------------
     // write the history with latest item

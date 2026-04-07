@@ -1,7 +1,7 @@
 //! Byte/Char helpers
 use super::Score;
 use super::constants::SEPARATOR_TABLE;
-use memchr::memchr;
+use memchr::{memchr, memrchr};
 
 pub(super) trait Atom: PartialEq + Into<char> + Copy {
     #[inline(always)]
@@ -27,6 +27,17 @@ pub(super) trait Atom: PartialEq + Into<char> + Copy {
     fn find_first_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
         haystack.iter().position(|&c| self.eq(c, respect_case))
     }
+
+    /// Return the index of the last occurrence of `self` in `haystack`,
+    /// or `None` if not found.
+    ///
+    /// Implementations may override this with a SIMD-backed search (e.g.
+    /// `memrchr` for `u8` in case-sensitive mode).
+    #[inline(always)]
+    fn find_last_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
+        haystack.iter().rposition(|&c| self.eq(c, respect_case))
+    }
+
     /// Return the word-separator bonus for this character, or `0` if it is not
     /// a separator.  Uses a table lookup — a single bounds check replaces
     /// several branches and the returned value encodes both *whether* the
@@ -72,6 +83,28 @@ impl Atom for u8 {
                 match (p_lo, p_hi) {
                     (None, x) | (x, None) => x,
                     (Some(a), Some(b)) => Some(a.min(b)),
+                }
+            }
+        }
+    }
+
+    /// Case-sensitive backward search uses SIMD-backed `memrchr`.
+    #[inline(always)]
+    fn find_last_in(self, haystack: &[Self], respect_case: bool) -> Option<usize> {
+        if respect_case {
+            memrchr(self, haystack)
+        } else {
+            let lo = self.to_ascii_lowercase();
+            let hi = self.to_ascii_uppercase();
+            if lo == hi {
+                memrchr(lo, haystack)
+            } else {
+                // Return the rightmost occurrence across both case variants.
+                let p_lo = memrchr(lo, haystack);
+                let p_hi = memrchr(hi, haystack);
+                match (p_lo, p_hi) {
+                    (None, x) | (x, None) => x,
+                    (Some(a), Some(b)) => Some(a.max(b)),
                 }
             }
         }
