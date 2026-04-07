@@ -212,10 +212,7 @@ pub struct SkimOptions {
     pub typos: Typos,
 
     /// Disable typo-resistant matching
-    #[cfg_attr(
-        feature = "cli",
-        arg(long, conflicts_with = "typos", conflicts_with = "typos", help_heading = "Search")
-    )]
+    #[cfg_attr(feature = "cli", arg(long, overrides_with = "typos", help_heading = "Search"))]
     pub no_typos: bool,
 
     /// Normalize unicode characters
@@ -303,7 +300,7 @@ pub struct SkimOptions {
     pub multi: bool,
 
     /// Disable multiple selection
-    #[cfg_attr(feature = "cli", arg(long, conflicts_with = "multi", help_heading = "Interface"))]
+    #[cfg_attr(feature = "cli", arg(long, overrides_with = "multi", help_heading = "Interface"))]
     pub no_multi: bool,
 
     /// Disable mouse
@@ -546,6 +543,10 @@ pub struct SkimOptions {
     )]
     #[debug(skip)]
     pub border: Option<BorderType>,
+
+    /// Disables all borders, including in tmux/zellij popups
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", overrides_with = "border"))]
+    pub no_border: bool,
 
     /// Wrap items in the item list
     #[cfg_attr(feature = "cli", arg(long = "wrap", help_heading = "Display"))]
@@ -1151,6 +1152,7 @@ impl Default for SkimOptions {
             shell_bindings: false,
             flags: Default::default(),
             log_level: Default::default(),
+            no_border: false,
         }
     }
 }
@@ -1212,6 +1214,9 @@ impl SkimOptions {
         }
         if self.no_typos {
             self.typos = Typos::Disabled;
+        }
+        if self.no_border {
+            self.border = None;
         }
 
         if let Some(ref filter_query) = self.filter

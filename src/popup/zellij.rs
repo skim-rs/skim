@@ -56,7 +56,7 @@ impl ZellijPopup {
                     .map_or(".".to_string(), |d| d.to_string_lossy().to_string()),
             ]);
 
-        if options.border.is_none() {
+        if options.no_border {
             cmd.args(["--borderless", "true"]);
         }
 
@@ -259,7 +259,13 @@ mod tests {
     #[test]
     fn borderless_when_no_border_option() {
         require_zellij!();
-        let popup = ZellijPopup::build(&opts("center"));
+        let popup = ZellijPopup::build(
+            &SkimOptionsBuilder::default()
+                .popup("center")
+                .no_border(true)
+                .build()
+                .unwrap(),
+        );
         let a = args(&popup);
         assert!(a.contains(&"--borderless".to_string()));
     }
