@@ -10,6 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::{runtime::Handle, select, task::block_in_place};
 
 use crate::reader::{Reader, ReaderControl};
+use crate::tui::TICK_RATE;
 use crate::tui::{App, Event, Size, Tui, event::Action};
 use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
 
@@ -223,6 +224,12 @@ where
         {
             self.reader_done = true;
             self.app.restart_matcher(false);
+            // If the matcher already consumed everything, stop the periodic
+            // interval immediately rather than waiting for the next tick.
+            if self.app.matcher_control.stopped() && self.app.item_pool.num_not_taken() == 0 {
+                trace!("matcher interval stopped in check_reader: all items consumed");
+                self.matcher_interval = None;
+            }
             true
         } else {
             false
@@ -484,6 +491,22 @@ where
         self.app.should_quit
     }
 
+    /// If `needs_render` has been set (e.g. by the matcher thread), immediately
+    /// send a `Render` event to the TUI so the screen updates without waiting
+    /// for the next heartbeat tick.  Respects the 30 FPS frame-rate cap.
+    fn try_flush_render(&mut self) {
+        use std::sync::atomic::Ordering;
+        if self.app.needs_render.load(Ordering::Relaxed)
+            && self.app.last_render_timer.elapsed().as_millis() > 1000 / u128::from(TICK_RATE)
+        {
+            self.app.needs_render.store(false, Ordering::Relaxed);
+            self.app.last_render_timer = std::time::Instant::now();
+            if let Some(tui) = self.tui.as_ref() {
+                let _ = tui.event_tx.try_send(Event::Render);
+            }
+        }
+    }
+
     /// Process a single event loop iteration.
     ///
     /// This awaits the next event from the TUI, matcher, or IPC listener,
@@ -537,12 +560,37 @@ where
                     None => std::future::pending::<()>().await,
                 }
             } => {
-              self.app.restart_matcher(false);
+              // Check for a pending debounced restart (e.g. the user typed
+              // while a match-all was running).  Checking here (every 10ms)
+              // rather than only on the heartbeat (83ms) eliminates most of
+              // the latency between query change and matcher restart.
+              if self.app.pending_matcher_restart {
+                  self.app.restart_matcher(true);
+              } else {
+                  self.app.restart_matcher(false);
+              }
+              // Check if the matcher (or reader) has set the render flag and
+              // flush a render event immediately instead of waiting for the
+              // next heartbeat tick.  This can shave up to ~80ms of latency
+              // when the heartbeat runs at 12 Hz.
+              self.try_flush_render();
+              // Once the reader has finished and the matcher has consumed all
+              // items, stop the periodic interval — it can only produce empty
+              // ticks from this point.  The `items_available` Notify branch
+              // still handles the (rare) case of late-arriving items.
+              if self.reader_done
+                  && self.app.matcher_control.stopped()
+                  && self.app.item_pool.num_not_taken() == 0
+              {
+                  trace!("matcher interval stopped: reader done, matcher idle, no pending items");
+                  self.matcher_interval = None;
+              }
             }
             // Wake immediately when new items arrive in the pool so the matcher
             // can pick them up without waiting for the next periodic interval.
             () = items_available.notified() => {
                 self.app.restart_matcher(false);
+                self.try_flush_render();
             }
             Ok(stream) = async {
                 match &self.listener {

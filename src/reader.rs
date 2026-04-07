@@ -190,15 +190,16 @@ where
                 debug!("interrupt: {msg}");
                 break;
             }
-            match rx_item.try_recv() {
-                Ok(Some(items)) => {
+            match rx_item.recv_timeout(std::time::Duration::from_millis(1)) {
+                Ok(items) => {
                     trace!("collect_item: got {} items", items.len());
                     callback(items);
                 }
-                Ok(None) => {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
+                Err(kanal::ReceiveErrorTimeout::Timeout) => {
+                    // No items within the timeout — loop back to check the
+                    // interrupt channel before blocking again.
                 }
-                Err(_) => {
+                Err(kanal::ReceiveErrorTimeout::Closed | kanal::ReceiveErrorTimeout::SendClosed) => {
                     break;
                 }
             }

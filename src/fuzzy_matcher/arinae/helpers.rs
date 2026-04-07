@@ -30,7 +30,7 @@ pub(super) fn compute_last_match_cols<C: Atom>(
     let mut last = [0usize; MAX_PAT_LEN];
     let mut end = m; // search up to this choice index (exclusive)
     for i in (0..n).rev() {
-        let found = cho[..end].iter().rposition(|&c| pat[i].eq(c, respect_case));
+        let found = pat[i].find_last_in(&cho[..end], respect_case);
         match found {
             Some(pos) => {
                 last[i] = pos + 1; // 1-indexed column

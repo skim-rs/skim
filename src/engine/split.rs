@@ -54,6 +54,7 @@ impl MatchEngine for SplitMatchEngine {
 
         let mut combined_indices: MatchIndices = match before_result.matched_range {
             MatchRange::Chars(indices) => indices,
+            MatchRange::CharRange(start, end) => (start..end).collect(),
             MatchRange::ByteRange(start, end) => {
                 // Convert byte range to char indices for the before part
                 text_before
@@ -70,6 +71,7 @@ impl MatchEngine for SplitMatchEngine {
 
         let after_indices: MatchIndices = match after_result.matched_range {
             MatchRange::Chars(indices) => indices.into_iter().map(|i| i + offset).collect(),
+            MatchRange::CharRange(start, end) => (start..end).map(|i| i + offset).collect(),
             MatchRange::ByteRange(start, end) => {
                 // Convert byte range to char indices for the after part
                 text_after

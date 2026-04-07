@@ -7,6 +7,7 @@ use super::constants::{MAX_PAT_LEN, TYPO_BAND_SLACK};
 use super::helpers::{compute_last_match_cols, compute_row_col_bounds, find_first_char};
 
 /// Precomputed banding information shared by both score-only and full DP.
+#[derive(Clone)]
 pub(super) struct BandingInfo {
     /// Per-row column bounds (only present in exact mode).
     pub(super) row_bounds: Option<([usize; MAX_PAT_LEN], [usize; MAX_PAT_LEN])>,

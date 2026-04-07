@@ -36,6 +36,9 @@ pub mod statusline;
 /// Widget rendering utilities
 pub mod widget;
 
+/// Number of heartbeats per second
+pub const TICK_RATE: u32 = 120;
+
 /// Represents a size value, either as a percentage or fixed value
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
