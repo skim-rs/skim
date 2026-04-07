@@ -67,9 +67,6 @@ library_benchmark_group!(
 );
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-library_benchmark_group!(
-    name = benches,
-    benchmarks = [skim_v2, arinae, arinae_typos]
-);
+library_benchmark_group!(name = benches, benchmarks = [skim_v2, arinae, arinae_typos]);
 
 main!(library_benchmark_groups = benches);

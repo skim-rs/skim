@@ -98,6 +98,7 @@ impl<'a> ItemRenderer<'a> {
                 let diff = item_text[*start..*end].chars().count();
                 (msc, msc + diff)
             }
+            Some(MatchRange::CharRange(start, end)) => (*start, *end),
             None => (0, 0),
         };
 
@@ -182,6 +183,7 @@ impl<'a> ItemRenderer<'a> {
 
                 let matches = match &item.matched_range {
                     Some(MatchRange::ByteRange(start, end)) => crate::Matches::ByteRange(*start, *end),
+                    Some(MatchRange::CharRange(start, end)) => crate::Matches::CharRange(*start, *end),
                     Some(MatchRange::Chars(chars)) => crate::Matches::CharIndices(chars.clone()),
                     None => crate::Matches::None,
                 };

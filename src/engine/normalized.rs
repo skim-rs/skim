@@ -40,6 +40,15 @@ impl MatchEngine for NormalizedEngine {
         // Map the matched range back to the original text
         result.matched_range = match result.matched_range {
             MatchRange::Chars(indices) => MatchRange::Chars(map_char_indices_to_original(&indices, &char_mapping)),
+            MatchRange::CharRange(start, end) => {
+                let orig_start = char_mapping.get(start).copied().unwrap_or(start);
+                let orig_end = if end > 0 {
+                    char_mapping.get(end - 1).copied().map_or(end, |e| e + 1)
+                } else {
+                    0
+                };
+                MatchRange::CharRange(orig_start, orig_end)
+            }
             MatchRange::ByteRange(start, end) => {
                 let (orig_start, orig_end) = map_byte_range_to_original(start, end, &byte_mapping, &item_text);
                 MatchRange::ByteRange(orig_start, orig_end)
