@@ -134,12 +134,12 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '-e[Run in exact mode]' \
 '--exact[Run in exact mode]' \
 '--regex[Start in regex mode instead of fuzzy-match]' \
-'(--typos --typos)--no-typos[Disable typo-resistant matching]' \
+'--no-typos[Disable typo-resistant matching]' \
 '--normalize[Normalize unicode characters]' \
 '--last-match[Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts]' \
 '-m[Enable multiple selection]' \
 '--multi[Enable multiple selection]' \
-'(-m --multi)--no-multi[Disable multiple selection]' \
+'--no-multi[Disable multiple selection]' \
 '--no-mouse[Disable mouse]' \
 '-i[Start skim in interactive mode]' \
 '--interactive[Start skim in interactive mode]' \
@@ -157,6 +157,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
+'--no-border[Disables all borders, including in tmux/zellij popups]' \
 '--wrap[Wrap items in the item list]' \
 '--no-scrollbar[Disable the scrollbar in the item list]' \
 '--read0[Read input delimited by ASCII NUL(\\0) characters]' \
