@@ -506,13 +506,7 @@ pub struct SkimOptions {
     ///   - default: display info in a dedicated row above the input
     #[cfg_attr(
         feature = "cli",
-        arg(
-            long,
-            help_heading = "Display",
-            value_enum,
-            default_value = "default",
-            verbatim_doc_comment
-        )
+        arg(long, help_heading = "Display", default_value = "default", verbatim_doc_comment)
     )]
     pub info: InfoDisplay,
 
@@ -1215,7 +1209,7 @@ impl SkimOptions {
             self.scrollbar = String::new();
         }
         if self.inline_info {
-            self.info = InfoDisplay::Inline;
+            self.info = InfoDisplay::Inline(crate::tui::statusline::DEFAULT_SEPARATOR.to_string());
         }
         if self.no_info {
             self.info = InfoDisplay::Hidden;

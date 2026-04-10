@@ -255,6 +255,24 @@ insta_test!(opt_info_inline, ["a", "b", "c"], &["--info", "inline"], {
     @snap;
 });
 
+insta_test!(opt_info_inline_right, ["a", "b", "c"], &["--info", "inline-right"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
+insta_test!(opt_info_inline_custom, ["a", "b", "c"], &["--info", "inline:SEP"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
+insta_test!(opt_info_inline_right_custom, ["a", "b", "c"], &["--info", "inline-right:SEP"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
 insta_test!(opt_inline_info, ["a", "b", "c"], &["--inline-info"], {
     @snap;
     @char 'a';

@@ -1,7 +1,5 @@
-#[cfg(feature = "cli")]
-use clap::ValueEnum;
-#[cfg(feature = "cli")]
-use clap::builder::PossibleValue;
+/// Default inline info separator
+pub const DEFAULT_SEPARATOR: &str = "  < ";
 
 /// Display mode for the info/status line
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -10,24 +8,38 @@ pub enum InfoDisplay {
     #[default]
     Default,
     /// Display info inline with the input
-    Inline,
+    Inline(String),
     /// Hide the info display
     Hidden,
+    /// Inline and right-aligned
+    InlineRight(String),
 }
 
-#[cfg(feature = "cli")]
-impl ValueEnum for InfoDisplay {
-    fn value_variants<'a>() -> &'a [Self] {
-        use InfoDisplay::{Default, Hidden, Inline};
-        &[Default, Inline, Hidden]
+impl InfoDisplay {
+    pub(crate) fn separator(&self) -> Option<String> {
+        if let InfoDisplay::Inline(s) = self {
+            Some(s.clone())
+        } else if let InfoDisplay::InlineRight(s) = self {
+            Some(s.clone())
+        } else {
+            None
+        }
     }
+}
 
-    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
-        use InfoDisplay::{Default, Hidden, Inline};
-        match self {
-            Default => Some(PossibleValue::new("default")),
-            Inline => Some(PossibleValue::new("inline")),
-            Hidden => Some(PossibleValue::new("hidden")),
+impl From<&str> for InfoDisplay {
+    fn from(s: &str) -> Self {
+        use InfoDisplay::{Default, Hidden, Inline, InlineRight};
+        let (variant, separator) = s.split_once(':').unwrap_or((s, DEFAULT_SEPARATOR));
+
+        match variant {
+            "default" => Default,
+            "inline" => Inline(separator.to_string()),
+            "inline-right" => InlineRight(separator.to_string()),
+            "hidden" => Hidden,
+            x => panic!(
+                "Failed to parse {x} as an InfoDisplay. Possible options are `default`, `inline[:separator]`, `inline-right:[separator]` or `hidden`"
+            ),
         }
     }
 }
