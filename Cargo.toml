@@ -82,7 +82,7 @@ derive_more = { version = "=2.1.1", features = ["debug", "eq"] }
 portable-pty = "=0.9.0"
 tui-term = "=0.3.3"
 kanal = "=0.1.1"
-gungraun = { version = "0.17.2", optional = true }
+gungraun = { version = "0.18.0", optional = true }
 mimalloc = { version = "0.1.48", features = ["v3"] }
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
