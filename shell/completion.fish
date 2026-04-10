@@ -49,7 +49,8 @@ inline\t''
 hidden\t''"
 complete -c sk -l header -d 'Set header, displayed next to the info' -r
 complete -c sk -l header-lines -d 'Number of lines of the input treated as header' -r
-complete -c sk -l border -d 'Draw borders around the UI components' -r -f -a "plain\t''
+complete -c sk -l border -d 'Draw borders around the UI components' -r -f -a "none\t''
+plain\t''
 rounded\t''
 double\t''
 thick\t''
