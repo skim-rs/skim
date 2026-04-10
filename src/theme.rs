@@ -355,7 +355,7 @@ impl ColorTheme {
             if let Some((name, spec)) = pair.split_once(':') {
                 theme.set_color(name, spec);
             } else {
-                theme = match color {
+                theme = match pair {
                     "molokai" => ColorTheme::molokai256(),
                     "light" => ColorTheme::light256(),
                     "16" => ColorTheme::default16(),
