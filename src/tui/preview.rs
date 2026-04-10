@@ -101,6 +101,10 @@ impl Preview {
                 // Result is at most dimension (a u16), so truncation cannot occur.
                 u16::try_from(u32::from(dimension) * u32::from(p) / 100).unwrap_or(u16::MAX)
             }
+            super::Size::Neg(n) => {
+                let dimension = if is_vertical { self.rows } else { self.cols };
+                dimension.saturating_sub(n)
+            }
         }
     }
 

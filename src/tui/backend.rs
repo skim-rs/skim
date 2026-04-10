@@ -75,6 +75,7 @@ where
             Size::Percent(100) => None,
             Size::Fixed(lines) => Some(lines),
             Size::Percent(p) => Some(term_height * p / 100),
+            Size::Neg(lines) => Some(term_height.saturating_sub(lines)),
         };
 
         let viewport = if let Some(mut height) = lines {

@@ -68,6 +68,27 @@ insta_test!(preview_plus, ["a", "b", "c"], &["--preview", "echo {+}", "-m"], {
     @snap;
 });
 
+insta_test!(
+    preview_window_right_neg,
+    ["a", "b", "c"],
+    &["--preview", PREVIEW, "--preview-window", "right:-10"]
+);
+insta_test!(
+    preview_window_left_neg,
+    ["a", "b", "c"],
+    &["--preview", PREVIEW, "--preview-window", "left:-10"]
+);
+insta_test!(
+    preview_window_up_neg,
+    ["a", "b", "c"],
+    &["--preview", PREVIEW, "--preview-window", "up:-10"]
+);
+insta_test!(
+    preview_window_down_neg,
+    ["a", "b", "c"],
+    &["--preview", PREVIEW, "--preview-window", "down:-10"]
+);
+
 #[cfg(target_os = "linux")]
 insta_test!(preview_no_pty_linux, ["x"], &["--preview", "tty -s && echo YES || echo NO", "--preview-window", "wrap"], {
     @snap;
