@@ -568,12 +568,24 @@ mod tests {
     }
 
     #[test]
-    fn test_base_theme_with_overrides() {
-        // Test that base theme can be overridden
-        let theme = ColorTheme::from_options("dark,matched:200");
+    fn test_default_theme_with_overrides() {
+        // Test overriding default theme
+        let theme = ColorTheme::from_options("default,matched:200");
         assert_eq!(theme.matched.fg, Some(Color::Indexed(200)));
-        // Other colors should still be from dark theme
+        // Other colors should still be from default theme
         assert!(theme.prompt.fg.is_some());
+    }
+
+    #[test]
+    fn test_theme_with_overrides() {
+        // Test overriding theme
+        for opts in &["16,prompt:200", "prompt:150,16,prompt:200"] {
+            let theme = ColorTheme::from_options(opts);
+            assert_eq!(theme.prompt.fg, Some(Color::Indexed(200)));
+            // Other colors should still be from given theme
+            assert_eq!(theme.matched.fg, Some(Color::Green));
+            assert_eq!(theme.matched.bg, None);
+        }
     }
 
     #[test]
