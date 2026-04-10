@@ -25,8 +25,9 @@ impl TmuxPopup {
         ]);
 
         let border = {
-            use crate::tui::BorderType::{None, Plain, Rounded, Thick};
+            use crate::tui::BorderType::{ForceOff, None, Plain, Rounded, Thick};
             match options.border {
+                ForceOff => "none",
                 None | Plain => "single",
                 Rounded => "rounded",
                 Thick => "heavy",

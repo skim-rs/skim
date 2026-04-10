@@ -139,6 +139,9 @@ impl std::fmt::Display for Size {
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[allow(missing_docs)]
 pub enum BorderType {
+    /// `ForceOff` disables borders around popups too
+    /// set with `no_border`
+    ForceOff,
     #[default]
     None,
     Plain,
@@ -161,10 +164,10 @@ pub enum BorderType {
 
 impl BorderType {
     fn is_none(self) -> bool {
-        self == BorderType::None
+        matches!(self, BorderType::None | BorderType::ForceOff)
     }
     fn is_some(self) -> bool {
-        self != BorderType::None
+        !self.is_none()
     }
     fn into_ratatui(self) -> Option<ratatui::widgets::BorderType> {
         if self.is_none() {
@@ -184,7 +187,7 @@ impl BorderType {
             BorderType::HeavyQuadrupleDashed => ratatui::widgets::BorderType::HeavyQuadrupleDashed,
             BorderType::QuadrantInside => ratatui::widgets::BorderType::QuadrantInside,
             BorderType::QuadrantOutside => ratatui::widgets::BorderType::QuadrantOutside,
-            BorderType::None => unreachable!(),
+            BorderType::None | BorderType::ForceOff => unreachable!(),
         })
     }
 }

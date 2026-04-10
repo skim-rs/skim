@@ -1224,7 +1224,7 @@ impl SkimOptions {
             self.typos = Typos::Disabled;
         }
         if self.no_border {
-            self.border = BorderType::None;
+            self.border = BorderType::ForceOff;
         }
 
         if let Some(ref filter_query) = self.filter
