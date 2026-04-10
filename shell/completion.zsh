@@ -56,7 +56,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--multi-selector=[Set selected item icon]:MULTI_SELECT_ICON:_default' \
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
 '--ellipsis=[The characters used to display truncated lines]:ELLIPSIS:_default' \
-'--info=[Set matching result count display position]:INFO:(default inline hidden)' \
+'--info=[Set matching result count display position]:INFO:_default' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
 '--border=[Draw borders around the UI components]::BORDER:((force-off\:"ForceOff disables borders around popups too set with no_border"
