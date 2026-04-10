@@ -46,6 +46,8 @@ pub enum Size {
     Percent(u16),
     /// Fixed size in terminal cells
     Fixed(u16),
+    /// Negative size is substracted from term height
+    Neg(u16),
 }
 
 /// Direction for movement or layout
@@ -99,6 +101,11 @@ impl TryFrom<&str> for Size {
                 return Err(SizeParseError::InvalidPercent(percent));
             }
             Ok(Self::Percent(percent))
+        } else if let Some(neg) = value.strip_prefix('-') {
+            Ok(Self::Neg(
+                neg.parse::<u16>()
+                    .map_err(|e| SizeParseError::ParseError(value.to_string(), e))?,
+            ))
         } else {
             Ok(Self::Fixed(
                 value
@@ -120,6 +127,7 @@ impl std::fmt::Display for Size {
         match self {
             Self::Percent(p) => f.write_fmt(format_args!("{p}%")),
             Self::Fixed(s) => f.write_fmt(format_args!("{s}")),
+            Self::Neg(s) => f.write_fmt(format_args!("-{s}")),
         }
     }
 }
@@ -183,11 +191,7 @@ mod size_test {
     }
     #[test]
     fn fixed_neg() {
-        let SizeParseError::ParseError(err_value, internal_error) = Size::try_from("-10").unwrap_err() else {
-            panic!();
-        };
-        assert_eq!(internal_error.kind(), &IntErrorKind::InvalidDigit);
-        assert_eq!(err_value, String::from("-10"));
+        assert_eq!(Size::try_from("-10"), Ok(Size::Neg(10)));
     }
     #[test]
     fn percent_neg() {

@@ -405,7 +405,11 @@ pub struct SkimOptions {
     /// Height of skim's window
     ///
     /// Can either be a row count or a percentage
-    #[cfg_attr(feature = "cli", arg(long, default_value = "100%", help_heading = "Layout"))]
+    /// A negative row count will use `term height` - `value` as height
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, default_value = "100%", help_heading = "Layout", allow_hyphen_values = true)
+    )]
     pub height: String,
 
     /// Disable height (force full screen)
@@ -630,7 +634,7 @@ pub struct SkimOptions {
 
     /// Preview window layout
     ///
-    /// Format: [up|down|left|right][:SIZE[%]][:hidden][:[no]wrap][:[no]pty][:+SCROLL[-OFFSET]]
+    /// Format: [up|down|left|right][:SIZE][:hidden][:[no]wrap][:[no]pty][:+SCROLL[-OFFSET]]
     ///
     /// Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by
     /// default until toggle-preview action is triggered. Long lines are truncated by default.
@@ -639,7 +643,11 @@ pub struct SkimOptions {
     ///
     /// Note: the preview will run in a PTY (interactive session) on linux and when `wrap` is unset
     ///
-    /// If size is given as 0, preview window will not be visible, but sk will still execute the command in the background.
+    /// SIZE can be either:
+    ///     - `0`, which will hide the preview window
+    ///     - A positive size (eg `20`)
+    ///     - A percentage of the total size (eg `50%`)
+    ///     - A negative size, which will set the size of everything but the preview to that value
     ///
     /// +SCROLL[-OFFSET] determines the initial scroll offset of the preview window. SCROLL can be either a  numeric  integer
     /// or  a  single-field index expression that refers to a numeric integer. The optional -OFFSET part is for adjusting the

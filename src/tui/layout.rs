@@ -92,11 +92,12 @@ impl LayoutTemplate {
         };
 
         // Preview placement and layout.
-        let preview_visible =
-            (options.preview.is_some() || options.preview_fn.is_some()) && !options.preview_window.hidden;
+        let preview_visible = (options.preview.is_some() || options.preview_fn.is_some())
+            && !options.preview_window.hidden
+            && !matches!(options.preview_window.size, Size::Fixed(0));
 
         let (preview_placement, preview_layout) = if preview_visible {
-            let pc = size_to_constraint(options.preview_window.size);
+            let (preview_c, rest_c) = size_to_constraint(options.preview_window.size);
             let placement = match options.preview_window.direction {
                 Direction::Left => PreviewPlacement::Left,
                 Direction::Right => PreviewPlacement::Right,
@@ -104,10 +105,10 @@ impl LayoutTemplate {
                 Direction::Down => PreviewPlacement::Down,
             };
             let layout = match placement {
-                PreviewPlacement::Left => Layout::new(RatatuiDirection::Horizontal, [pc, Constraint::Fill(1)]),
-                PreviewPlacement::Right => Layout::new(RatatuiDirection::Horizontal, [Constraint::Fill(1), pc]),
-                PreviewPlacement::Up => Layout::new(RatatuiDirection::Vertical, [pc, Constraint::Fill(1)]),
-                PreviewPlacement::Down => Layout::new(RatatuiDirection::Vertical, [Constraint::Fill(1), pc]),
+                PreviewPlacement::Left => Layout::new(RatatuiDirection::Horizontal, [preview_c, rest_c]),
+                PreviewPlacement::Right => Layout::new(RatatuiDirection::Horizontal, [rest_c, preview_c]),
+                PreviewPlacement::Up => Layout::new(RatatuiDirection::Vertical, [preview_c, rest_c]),
+                PreviewPlacement::Down => Layout::new(RatatuiDirection::Vertical, [rest_c, preview_c]),
                 PreviewPlacement::None => unreachable!(),
             };
             (placement, Some(layout))
@@ -237,10 +238,11 @@ impl AppLayout {
 // Helper
 // ---------------------------------------------------------------------------
 
-fn size_to_constraint(size: Size) -> Constraint {
+fn size_to_constraint(size: Size) -> (Constraint, Constraint) {
     match size {
-        Size::Fixed(n) => Constraint::Length(n),
-        Size::Percent(p) => Constraint::Percentage(p),
+        Size::Fixed(n) => (Constraint::Length(n), Constraint::Fill(1)),
+        Size::Percent(p) => (Constraint::Percentage(p), Constraint::Fill(1)),
+        Size::Neg(n) => (Constraint::Fill(1), Constraint::Length(n)),
     }
 }
 

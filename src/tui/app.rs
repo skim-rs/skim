@@ -406,6 +406,7 @@ impl App {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn run_preview<B: Backend>(&mut self, tui: &mut Tui<B>) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
@@ -468,12 +469,14 @@ impl App {
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Neg(n) => self.preview.rows.saturating_sub(n),
                         crate::tui::Size::Percent(p) => {
                             u16::try_from(u32::from(self.preview.rows) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }
                     };
                     let v_offset = match preview_position.v_offset {
                         crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Neg(n) => self.preview.rows.saturating_sub(n),
                         crate::tui::Size::Percent(p) => {
                             u16::try_from(u32::from(self.preview.rows) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }
@@ -483,12 +486,14 @@ impl App {
 
                     let h_scroll = match preview_position.h_scroll {
                         crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Neg(n) => self.preview.cols.saturating_sub(n),
                         crate::tui::Size::Percent(p) => {
                             u16::try_from(u32::from(self.preview.cols) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }
                     };
                     let h_offset = match preview_position.h_offset {
                         crate::tui::Size::Fixed(n) => n,
+                        crate::tui::Size::Neg(n) => self.preview.cols.saturating_sub(n),
                         crate::tui::Size::Percent(p) => {
                             u16::try_from(u32::from(self.preview.cols) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }

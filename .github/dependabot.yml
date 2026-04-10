@@ -12,5 +12,7 @@ updates:
     schedule:
       interval: monthly
     commit-message:
-      prefix: chore(ci/deps)
-      prefix-development: chore(ci/dev-deps)
+      prefix: chore(deps)
+      prefix-development: chore(dev-deps)
+    exclude-paths:
+      - .github/workflows/release.yml
