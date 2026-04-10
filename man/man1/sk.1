@@ -377,9 +377,12 @@ Number of spaces that make up a tab
 \fB\-\-info\fR \fI<INFO>\fR [default: default]
 Set matching result count display position
 
-  \- hidden: do not display info
-  \- inline: display info in the same row as the input
-  \- default: display info in a dedicated row above the input
+  \- hidden  do not display info
+  \- inline[:SEP]  display info in the same row as the input with an optional non\-default
+    separator
+  \- default  display info in a dedicated row above the input
+  \- inline\-right[:SEP]  display info in the same row as the input with an optional
+    non\-default separator
 .TP
 \fB\-\-no\-info\fR
 Alias for \-\-info=hidden

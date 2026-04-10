@@ -501,9 +501,12 @@ pub struct SkimOptions {
 
     /// Set matching result count display position
     ///
-    ///   - hidden: do not display info
-    ///   - inline: display info in the same row as the input
-    ///   - default: display info in a dedicated row above the input
+    ///   - hidden  do not display info
+    ///   - inline[:SEP]  display info in the same row as the input with an optional non-default
+    ///     separator
+    ///   - default  display info in a dedicated row above the input
+    ///   - inline-right[:SEP]  display info in the same row as the input with an optional
+    ///     non-default separator
     #[cfg_attr(
         feature = "cli",
         arg(long, help_heading = "Display", default_value = "default", verbatim_doc_comment)
