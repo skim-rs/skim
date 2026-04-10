@@ -25,16 +25,13 @@ impl TmuxPopup {
         ]);
 
         let border = {
-            use crate::tui::BorderType::{Plain, Rounded, Thick};
-            if options.no_border {
-                "none"
-            } else {
-                match options.border {
-                    None | Some(Plain) => "single",
-                    Some(Rounded) => "rounded",
-                    Some(Thick) => "heavy",
-                    Some(_) => "double",
-                }
+            use crate::tui::BorderType::{ForceOff, None, Plain, Rounded, Thick};
+            match options.border {
+                ForceOff => "none",
+                None | Plain => "single",
+                Rounded => "rounded",
+                Thick => "heavy",
+                _ => "double",
             }
         };
 

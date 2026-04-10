@@ -135,11 +135,15 @@ impl std::fmt::Display for Size {
 /// This mirrors Ratatui's border type
 ///
 /// We need it so that we can properly use `ValueEnum`
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[allow(missing_docs)]
 pub enum BorderType {
+    /// `ForceOff` disables borders around popups too
+    /// set with `no_border`
+    ForceOff,
     #[default]
+    None,
     Plain,
     Rounded,
     Double,
@@ -158,9 +162,19 @@ pub enum BorderType {
     QuadrantOutside,
 }
 
-impl From<BorderType> for ratatui::widgets::BorderType {
-    fn from(val: BorderType) -> Self {
-        match val {
+impl BorderType {
+    fn is_none(self) -> bool {
+        matches!(self, BorderType::None | BorderType::ForceOff)
+    }
+    fn is_some(self) -> bool {
+        !self.is_none()
+    }
+    fn into_ratatui(self) -> Option<ratatui::widgets::BorderType> {
+        if self.is_none() {
+            return None;
+        }
+
+        Some(match self {
             BorderType::Plain => ratatui::widgets::BorderType::Plain,
             BorderType::Rounded => ratatui::widgets::BorderType::Rounded,
             BorderType::Double => ratatui::widgets::BorderType::Double,
@@ -173,7 +187,8 @@ impl From<BorderType> for ratatui::widgets::BorderType {
             BorderType::HeavyQuadrupleDashed => ratatui::widgets::BorderType::HeavyQuadrupleDashed,
             BorderType::QuadrantInside => ratatui::widgets::BorderType::QuadrantInside,
             BorderType::QuadrantOutside => ratatui::widgets::BorderType::QuadrantOutside,
-        }
+            BorderType::None | BorderType::ForceOff => unreachable!(),
+        })
     }
 }
 

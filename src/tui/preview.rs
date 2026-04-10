@@ -76,8 +76,8 @@ pub struct Preview {
     /// Channel to signal thread interruption
     interrupt_tx: Option<mpsc::Sender<()>>,
     pub theme: Arc<ColorTheme>,
-    /// Border type, if borders are enabled
-    pub border: Option<BorderType>,
+    /// Border type
+    pub border: BorderType,
     pub direction: Direction,
     pub wrap: bool,
     pty: Option<PtyPair>,
@@ -482,8 +482,8 @@ impl SkimWidget for Preview {
         let mut block = Block::new().style(self.theme.normal).border_style(self.theme.border);
 
         // Add borders based on direction and border setting
-        if let Some(border_type) = self.border {
-            block = block.borders(Borders::ALL).border_type(border_type.into());
+        if let Some(border_type) = self.border.into_ratatui() {
+            block = block.borders(Borders::ALL).border_type(border_type);
         } else {
             // No border on preview itself - separator will be drawn between areas
             match self.direction {

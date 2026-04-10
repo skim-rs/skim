@@ -78,8 +78,8 @@ pub struct ItemList {
     pub(crate) wrap: bool,
     /// When Some, split item text on this separator and show each part on its own line
     pub(crate) multiline: Option<String>,
-    /// Border type, if borders are enabled
-    pub border: Option<BorderType>,
+    /// Border type
+    pub border: BorderType,
     /// When true, prepend each item's match score to its display text
     pub(crate) show_score: bool,
     pub(crate) show_index: bool,
@@ -572,10 +572,10 @@ impl SkimWidget for ItemList {
         Widget::render(Clear, area, buf);
 
         // Render border if enabled
-        if let Some(border_type) = this.border {
+        if let Some(border_type) = this.border.into_ratatui() {
             let block = Block::default()
                 .borders(Borders::ALL)
-                .border_type(border_type.into())
+                .border_type(border_type)
                 .border_style(this.theme.border);
             Widget::render(block, area, buf);
         }

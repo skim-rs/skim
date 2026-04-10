@@ -42,8 +42,8 @@ pub struct Header {
     /// The number of spaces to show before the header
     indent_size: u16,
     theme: Arc<ColorTheme>,
-    /// Border type, if borders are enabled
-    pub border: Option<BorderType>,
+    /// Border type
+    pub border: BorderType,
     /// Whether to reverse the order of `header_lines` (for default/bottom-to-top layout)
     reverse_lines: bool,
     /// Reverse layout
@@ -155,10 +155,10 @@ impl SkimWidget for Header {
     }
 
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
-        let block = if let Some(border_type) = self.border {
+        let block = if let Some(border_type) = self.border.into_ratatui() {
             Block::default()
                 .borders(Borders::ALL)
-                .border_type(border_type.into())
+                .border_type(border_type)
                 .border_style(self.theme.border)
         } else {
             Block::default()

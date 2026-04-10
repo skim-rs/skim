@@ -58,7 +58,7 @@ impl ZellijPopup {
                     .map_or(".".to_string(), |d| d.to_string_lossy().to_string()),
             ]);
 
-        if options.no_border {
+        if options.border == crate::tui::BorderType::ForceOff {
             cmd.args(["--borderless", "true"]);
         }
 
