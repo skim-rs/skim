@@ -543,10 +543,10 @@ pub struct SkimOptions {
     ///
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_missing_value = "plain", help_heading = "Display", num_args=0..)
+        arg(long, default_missing_value = "plain", help_heading = "Display", default_value = "none", num_args=0..)
     )]
     #[debug(skip)]
-    pub border: Option<BorderType>,
+    pub border: BorderType,
 
     /// Disables all borders, including in tmux/zellij popups
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", overrides_with = "border"))]
@@ -1224,7 +1224,7 @@ impl SkimOptions {
             self.typos = Typos::Disabled;
         }
         if self.no_border {
-            self.border = None;
+            self.border = BorderType::ForceOff;
         }
 
         if let Some(ref filter_query) = self.filter

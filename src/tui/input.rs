@@ -142,8 +142,8 @@ pub struct Input {
     pub cursor_pos: u16,
     pub alternate_cursor_pos: u16,
     pub theme: Arc<ColorTheme>,
-    /// Border type, if borders are enabled
-    pub border: Option<BorderType>,
+    /// Border type
+    pub border: BorderType,
     /// Status information to display as the input's title
     pub status_info: Option<StatusInfo>,
     /// How to display the info/status (default, inline, or hidden)
@@ -450,10 +450,10 @@ impl SkimWidget for Input {
         let mut block = Block::default();
 
         // Add borders if enabled
-        if let Some(border_type) = self.border {
+        if let Some(border_type) = self.border.into_ratatui() {
             block = block
                 .borders(Borders::ALL)
-                .border_type(border_type.into())
+                .border_type(border_type)
                 .border_style(self.theme.border);
         }
 

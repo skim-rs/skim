@@ -456,6 +456,14 @@ insta_test!(opt_multiple_flags_layout_and_reverse, ["a b c", "d e f"], &["--layo
     @snap;
 });
 
+insta_test!(opt_border_default, ["a", "b", "c", "ac"], &["-q", "a", "--border"], {
+    @snap;
+});
+
+insta_test!(opt_border_none, ["a", "b", "c", "ac"], &["-q", "a", "--border", "none"], {
+    @snap;
+});
+
 insta_test!(opt_border_plain, ["a", "b", "c", "ac"], &["-q", "a", "--border", "plain"], {
     @snap;
 });
