@@ -166,7 +166,7 @@ _sk() {
                     return 0
                     ;;
                 --border)
-                    COMPREPLY=($(compgen -W "none plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "force-off none plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside" -- "${cur}"))
                     return 0
                     ;;
                 --multiline)

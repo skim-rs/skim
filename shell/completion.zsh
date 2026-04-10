@@ -59,7 +59,20 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--info=[Set matching result count display position]:INFO:(default inline hidden)' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
-'--border=[Draw borders around the UI components]::BORDER:(none plain rounded double thick light-double-dashed heavy-double-dashed light-triple-dashed heavy-triple-dashed light-quadruple-dashed heavy-quadruple-dashed quadrant-inside quadrant-outside)' \
+'--border=[Draw borders around the UI components]::BORDER:((force-off\:"ForceOff disables borders around popups too set with no_border"
+none\:""
+plain\:""
+rounded\:""
+double\:""
+thick\:""
+light-double-dashed\:""
+heavy-double-dashed\:""
+light-triple-dashed\:""
+heavy-triple-dashed\:""
+light-quadruple-dashed\:""
+heavy-quadruple-dashed\:""
+quadrant-inside\:""
+quadrant-outside\:""))' \
 '--multiline=[Split item text into multiple display lines at the given separator character defaults to \\n if read0 is set, and \\\\n if not (matching literal \\n in text)]::MULTILINE:_default' \
 '--scrollbar=[Set scrollbar style for the item list]:THUMB:_default' \
 '--history=[History file]:HISTORY_FILE:_default' \
