@@ -44,9 +44,7 @@ complete -c sk -l selector -d 'Set selected item icon' -r
 complete -c sk -l multi-selector -d 'Set selected item icon' -r
 complete -c sk -l tabstop -d 'Number of spaces that make up a tab' -r
 complete -c sk -l ellipsis -d 'The characters used to display truncated lines' -r
-complete -c sk -l info -d 'Set matching result count display position' -r -f -a "default\t''
-inline\t''
-hidden\t''"
+complete -c sk -l info -d 'Set matching result count display position' -r
 complete -c sk -l header -d 'Set header, displayed next to the info' -r
 complete -c sk -l header-lines -d 'Number of lines of the input treated as header' -r
 complete -c sk -l border -d 'Draw borders around the UI components' -r -f -a "force-off\t'ForceOff disables borders around popups too set with no_border'

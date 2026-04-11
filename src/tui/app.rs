@@ -174,6 +174,11 @@ impl Widget for &mut App {
                 current_item_idx: self.item_list.current,
                 hscroll_offset: i64::from(self.item_list.manual_hscroll),
                 start: Some(self.spinner_start),
+                inline_separator: self
+                    .options
+                    .info
+                    .separator()
+                    .unwrap_or(super::statusline::DEFAULT_SEPARATOR.to_string()),
             })
         };
         res |= self.input.render(self.layout.input_area, buf);

@@ -41,6 +41,8 @@ pub struct StatusInfo {
     pub hscroll_offset: i64,
     /// Start time for calculating spinner animation
     pub start: Option<Instant>,
+    /// Inline prefix/separator (when the spinner is hidden)
+    pub inline_separator: String,
 }
 
 impl StatusInfo {
@@ -86,16 +88,20 @@ impl StatusInfo {
 
     /// Get the inline separator character: spinner when active, '<' otherwise
     /// Used for Inline info display mode
-    pub fn inline_separator(&self) -> char {
+    pub fn inline_separator_or_spinner(&self) -> String {
         if self.show_spinner
             && let Some(start) = self.start
         {
             let spinner_elapsed_ms = start.elapsed().as_millis();
             let index =
                 ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
-            SPINNERS_UNICODE[index]
+            format!(
+                "{}{}",
+                SPINNERS_UNICODE[index],
+                " ".repeat(display_width(&self.inline_separator).try_into().unwrap())
+            )
         } else {
-            '<'
+            self.inline_separator.clone()
         }
     }
 
@@ -459,12 +465,12 @@ impl SkimWidget for Input {
 
         // Handle different info display modes
         match self.info_display {
-            InfoDisplay::Inline => {
+            InfoDisplay::Inline(_) | InfoDisplay::InlineRight(_) => {
                 // Inline mode: render status on the same line as input
                 // Format: prompt + value + " " + separator_char + " " + status + padding + right_status
                 // separator_char is spinner when active, '<' otherwise
                 if let Some(ref status) = self.status_info {
-                    let separator = status.inline_separator();
+                    let separator = status.inline_separator_or_spinner();
                     let inline_status = status.inline_status();
                     let right_status = status.right_title();
 
@@ -472,7 +478,7 @@ impl SkimWidget for Input {
                     // Format: " X " where X is separator (3 chars total)
                     let prompt_width = display_width(&self.prompt);
                     let value_width = display_width(&self.value);
-                    let separator_width = 4; // "  X " (2xspace + separator + space)
+                    let separator_width = display_width(&separator); // "  X " (2xspace + separator + space)
                     let inline_status_width = display_width(&inline_status);
                     let right_status_width = display_width(&right_status);
 
@@ -481,9 +487,16 @@ impl SkimWidget for Input {
                     let available_width = u64::from(area.width);
                     let padding_width = available_width.saturating_sub(used_width);
 
-                    line.push_span(Span::styled(format!("  {separator} "), self.theme.info));
+                    if let InfoDisplay::InlineRight(_) = self.info_display {
+                        line.push_span(Span::raw(" ".repeat(usize::try_from(padding_width).unwrap() - 2)));
+                    }
+                    line.push_span(Span::styled(separator, self.theme.info));
                     line.push_span(Span::styled(inline_status, self.theme.info));
-                    line.push_span(Span::raw(" ".repeat(padding_width.try_into().unwrap())));
+                    if let InfoDisplay::Inline(_) = self.info_display {
+                        line.push_span(Span::raw(" ".repeat(padding_width.try_into().unwrap())));
+                    } else {
+                        line.push_span(Span::raw(" ".repeat(2)));
+                    }
                     line.push_span(Span::styled(right_status, self.theme.info));
 
                     Paragraph::new(line)
