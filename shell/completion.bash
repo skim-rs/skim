@@ -154,7 +154,7 @@ _sk() {
                     return 0
                     ;;
                 --info)
-                    COMPREPLY=($(compgen -W "default inline hidden" -- "${cur}"))
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --header)

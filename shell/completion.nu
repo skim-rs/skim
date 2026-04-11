@@ -20,10 +20,6 @@ module completions {
     [ "default" "reverse" "reverse-list" ]
   }
 
-  def "nu-complete sk info" [] {
-    [ "default" "inline" "hidden" ]
-  }
-
   def "nu-complete sk border" [] {
     [ "force-off" "none" "plain" "rounded" "double" "thick" "light-double-dashed" "heavy-double-dashed" "light-triple-dashed" "heavy-triple-dashed" "light-quadruple-dashed" "heavy-quadruple-dashed" "quadrant-inside" "quadrant-outside" ]
   }
@@ -86,7 +82,7 @@ module completions {
     --ansi                    # Parse ANSI color codes in input strings
     --tabstop: string         # Number of spaces that make up a tab
     --ellipsis: string        # The characters used to display truncated lines
-    --info: string@"nu-complete sk info" # Set matching result count display position
+    --info: string            # Set matching result count display position
     --no-info                 # Alias for --info=hidden
     --inline-info             # Alias for --info=inline
     --header: string          # Set header, displayed next to the info
