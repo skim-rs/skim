@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-04-14
+
+### 🚀 Features
+
+- Allow negative sizes (closes #1040) (#1043)
+- Add border none (closes #1041) (#1044)
+- Add more info variants (closes #1042) (#1048)
+
+### 🐛 Bug Fixes
+
+- Theme not being set with multiple values (#1049)
+- Ignore missing files for ssh completion (closes #1054)
+- Remove breaking change introduced with 7375d30b
+
+### ⚙️ Miscellaneous Tasks
+
+- Unpin wide-used dependencies (closes #1050)
+
+### New Contributors
+* @leaty made their first contribution in [#1049](https://github.com/skim-rs/skim/pull/1049)
+
 ## [4.5.1] - 2026-04-07
 
 ### 🐛 Bug Fixes
