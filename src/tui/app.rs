@@ -156,7 +156,7 @@ impl Widget for &mut App {
         res |= self.item_list.render(self.layout.list_area, buf);
 
         // Render the input after the item list so that the status shows correct information.
-        self.input.status_info = if self.options.info == InfoDisplay::Hidden {
+        self.input.status_info = if self.options.info.display == InfoDisplay::Hidden {
             None
         } else {
             Some(StatusInfo {
@@ -178,7 +178,8 @@ impl Widget for &mut App {
                     .options
                     .info
                     .separator()
-                    .unwrap_or(super::statusline::DEFAULT_SEPARATOR.to_string()),
+                    .unwrap_or(super::statusline::DEFAULT_SEPARATOR)
+                    .to_string(),
             })
         };
         res |= self.input.render(self.layout.input_area, buf);

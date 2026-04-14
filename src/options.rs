@@ -18,6 +18,7 @@ use crate::tui::BorderType;
 use crate::tui::PreviewCallback;
 use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
+use crate::tui::statusline::Info;
 use crate::tui::statusline::InfoDisplay;
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector, Typos};
@@ -505,13 +506,13 @@ pub struct SkimOptions {
     ///   - inline[:SEP]  display info in the same row as the input with an optional non-default
     ///     separator
     ///   - default  display info in a dedicated row above the input
-    ///   - inline-right[:SEP]  display info in the same row as the input with an optional
+    ///   - inline-right[:SEP]  display info right-aligned in the same row as the input with an optional
     ///     non-default separator
     #[cfg_attr(
         feature = "cli",
         arg(long, help_heading = "Display", default_value = "default", verbatim_doc_comment)
     )]
-    pub info: InfoDisplay,
+    pub info: Info,
 
     /// Alias for --info=hidden
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
@@ -1212,10 +1213,16 @@ impl SkimOptions {
             self.scrollbar = String::new();
         }
         if self.inline_info {
-            self.info = InfoDisplay::Inline(crate::tui::statusline::DEFAULT_SEPARATOR.to_string());
+            self.info = Info {
+                display: InfoDisplay::Inline,
+                separator: Some(String::from(crate::tui::statusline::DEFAULT_SEPARATOR)),
+            };
         }
         if self.no_info {
-            self.info = InfoDisplay::Hidden;
+            self.info = Info {
+                display: InfoDisplay::Hidden,
+                separator: None,
+            };
         }
         if self.no_typos {
             self.typos = Typos::Disabled;

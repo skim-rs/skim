@@ -9,7 +9,7 @@ use unicode_display_width::width as display_width;
 use crate::helper::item::strip_ansi;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
-use crate::tui::statusline::InfoDisplay;
+use crate::tui::statusline::{Info, InfoDisplay};
 use crate::tui::util::style_line;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimOptions, theme::ColorTheme};
@@ -153,7 +153,7 @@ pub struct Input {
     /// Status information to display as the input's title
     pub status_info: Option<StatusInfo>,
     /// How to display the info/status (default, inline, or hidden)
-    pub info_display: InfoDisplay,
+    pub info: Info,
     /// Whether layout is reversed (status goes below input instead of above)
     pub reverse: bool,
 }
@@ -414,7 +414,7 @@ impl SkimWidget for Input {
         let mut res = Self {
             theme,
             border: options.border,
-            info_display: options.info.clone(),
+            info: options.info.clone(),
             reverse: options.layout == TuiLayout::Reverse,
             prompt: String::new(),
             alternate_prompt: String::new(),
@@ -464,8 +464,8 @@ impl SkimWidget for Input {
         }
 
         // Handle different info display modes
-        match self.info_display {
-            InfoDisplay::Inline(_) | InfoDisplay::InlineRight(_) => {
+        match self.info.display {
+            InfoDisplay::Inline | InfoDisplay::InlineRight => {
                 // Inline mode: render status on the same line as input
                 // Format: prompt + value + " " + separator_char + " " + status + padding + right_status
                 // separator_char is spinner when active, '<' otherwise
@@ -487,12 +487,12 @@ impl SkimWidget for Input {
                     let available_width = u64::from(area.width);
                     let padding_width = available_width.saturating_sub(used_width);
 
-                    if let InfoDisplay::InlineRight(_) = self.info_display {
+                    if self.info.display == InfoDisplay::InlineRight {
                         line.push_span(Span::raw(" ".repeat(usize::try_from(padding_width).unwrap() - 2)));
                     }
                     line.push_span(Span::styled(separator, self.theme.info));
                     line.push_span(Span::styled(inline_status, self.theme.info));
-                    if let InfoDisplay::Inline(_) = self.info_display {
+                    if self.info.display == InfoDisplay::Inline {
                         line.push_span(Span::raw(" ".repeat(padding_width.try_into().unwrap())));
                     } else {
                         line.push_span(Span::raw(" ".repeat(2)));
