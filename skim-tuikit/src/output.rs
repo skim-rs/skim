@@ -99,7 +99,7 @@ impl Output {
 
     /// Write to output stream and flush.
     pub fn flush(&mut self) {
-        let _ = self.stdout.write(&self.buffer);
+        let _ = self.stdout.write_all(&self.buffer);
         self.buffer.clear();
         let _ = self.stdout.flush();
     }
