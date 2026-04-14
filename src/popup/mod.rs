@@ -21,7 +21,6 @@ use std::{
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nix::sys::stat::Mode;
 use nix::unistd::mkfifo;
-use rand::{RngExt as _, distr::Alphanumeric};
 
 use crate::{
     Rank, SkimItem, SkimOptions, SkimOutput,
@@ -88,23 +87,14 @@ pub fn check_env() -> bool {
 ///
 /// Panics if the temporary directory for IPC cannot be created.
 #[allow(clippy::too_many_lines)]
+#[must_use]
 pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Create temp dir for downstream output
-    let temp_dir_name = format!(
-        "sk-popup-{}",
-        &rand::rng()
-            .sample_iter(&Alphanumeric)
-            .take(8)
-            .map(char::from)
-            .collect::<String>(),
-    );
-    let temp_dir = std::env::temp_dir().join(&temp_dir_name);
-    std::fs::create_dir(&temp_dir)
-        .unwrap_or_else(|e| panic!("Failed to create temp dir {}: {}", temp_dir.display(), e));
+    let temp_dir = tempfile::tempdir().ok()?;
 
-    debug!("Created temp dir {}", temp_dir.display());
-    let tmp_stdout = temp_dir.join("stdout");
-    let tmp_stdin = temp_dir.join("stdin");
+    debug!("Created temp dir {temp_dir:?}");
+    let tmp_stdout = temp_dir.path().join("stdout");
+    let tmp_stdin = temp_dir.path().join("stdin");
 
     let has_piped_input = !std::io::stdin().is_terminal();
     let mut stdin_reader = BufReader::new(std::io::stdin());
