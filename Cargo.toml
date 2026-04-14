@@ -57,7 +57,7 @@ derive_builder = "=0.20.2"
 derive_more = { version = "2.1.1", features = ["debug", "eq"] }
 env_logger = { version = "0.11.10", optional = true, features = ["humantime"] }
 futures = "=0.3.32"
-gungraun = { version = "0.17.2", optional = true }
+gungraun = { version = "0.18.1", optional = true }
 indexmap = "2.13.1"
 interprocess = { version = "2.4.0", features = ["tokio"] }
 kanal = "=0.1.1"
