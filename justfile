@@ -1,3 +1,5 @@
+alias pr := pr-review
+
 bump-version version:
     sed -i 's/^version = ".*"/version = "{{ version }}"/' ./Cargo.toml
 
@@ -58,3 +60,29 @@ bench-plot bins="./target/release/sk sk fzf":
     done
 
     cargo bench --bench cli -- plot -i /tmp/bench.json
+
+pr-review id="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    PR_ID="{{ id }}"
+    if [[ -z "$PR_ID" ]]; then
+      PR_ID="$(gh pr list | sk | cut -d'	' -f1)"
+    fi
+    echo "Checking out PR $PR_ID"
+
+    gh pr checkout "$PR_ID"
+
+    # Check the PR title
+    PR_TITLE="$(gh pr view | head -n1 | sed 's@title:\s\+@@;s@skim-rs/skim#.*@@')"
+    echo "Checking $PR_TITLE by simulating a git cliff generation"
+
+    git cliff --from-context <(echo '[{"commits":[{"id": "foo", "message": "'$PR_TITLE'", "links": [], "author": {"name": "","timestamp":1}, "committer": {"name": "", "timestamp":0}, "merge_commit": false,"github":{"pr_labels":[], "is_first_time": false},"gitlab":{"pr_labels":[],"is_first_time":false},"gitea":{"pr_labels":[],"is_first_time":false},"bitbucket":{"pr_labels":[],"is_first_time":false},"azure_devops":{"pr_labels":[],"is_first_time":false}}],"submodule_commits":{},"github":{"contributors":[]},"gitlab":{"contributors":[]},"gitea":{"contributors":[]},"bitbucket":{"contributors":[]},"azure_devops":{"contributors":[]}}]') -s all | grep -Ev '^(## \[unreleased\]|)$' | grep -q '^.\+$'
+
+    echo "Check done, PR title is valid"
+
+    git diff master
+    tty -s && read -p "Confirm code review ?"
+
+    just generate-files
+    (git add man/ shell/ && git commit -m 'chore: generate-files' && git push) || echo "Nothing to do"
