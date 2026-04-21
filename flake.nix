@@ -2,6 +2,7 @@
   description = "Nix flake for skim development";
 
   inputs.nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz";
+  inputs.mdbook-ts.url = "github:LoricAndre/mdbook-treesitter";
 
   outputs = inputs: let
     inherit (inputs.nixpkgs) lib;
@@ -11,6 +12,23 @@
       import inputs.nixpkgs {
         inherit system;
         config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) ["vagrant"];
+        overlays = [
+          (final: prev: {
+            mdbook-permalinks = prev.rustPlatform.buildRustPackage {
+              pname = "mdbook-permalinks";
+              version = "2.0.1";
+              doCheck = false;
+              cargoHash = "sha256-v0+A1rkfpbHlntJE7U7M/vU/2ZDKLqeV+wJ5ofrdLbM=";
+              cargoFlags = ["-p" "mdbook-permalinks"];
+              src = prev.fetchFromGitHub {
+                owner = "tonywu6";
+                repo = "mdbookkit";
+                rev = "875eb757abacbcc4f44e25eeeb0309d042c5e01d";
+                sha256 = "sha256-aDn79TIgQ2OUs36akbH9bUvqQcJzZVSpCzpBfmBDCiY=";
+              };
+            };
+          })
+        ];
       };
   in {
     devShells = eachSystem (
@@ -47,6 +65,13 @@
           vagrant
           rsync
         ];
+        bookPkgs = with pkgs; [
+          mdbook
+          mdbook-mermaid
+          mdbook-open-on-gh
+          mdbook-permalinks
+          inputs.mdbook-ts.packages.${system}.default
+        ];
 
         # --- shell hooks (only groups that need env vars) -------------------------
         gungraunHook = ''
@@ -64,7 +89,8 @@
         utils = mkShell (base ++ utils) "";
         gungraun = mkShell (base ++ gungraun) gungraunHook;
         vagrant = mkShell (base ++ vagrantDeps) vagrantHook;
-        full = mkShell (base ++ tests ++ utils ++ gungraun ++ vagrantDeps) (gungraunHook + vagrantHook);
+        book = mkShell bookPkgs "";
+        full = mkShell (base ++ tests ++ utils ++ gungraun ++ vagrantDeps ++ bookPkgs) (gungraunHook + vagrantHook);
       }
     );
 

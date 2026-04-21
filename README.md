@@ -92,9 +92,7 @@ The skim project contains several components:
 | Guix           | guix              | `guix install skim`          |
 | Void           | XBPS              | `xbps-install -S skim`       |
 
-<a href="https://repology.org/project/skim-fuzzy-finder/versions">
-    <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
-</a>
+[![Packaging status](https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4)](https://repology.org/project/skim-fuzzy-finder/versions)
 
 ### Fedora
 Up to date Fedora packages are provided via an unofficial community-maintained COPR repository.
@@ -103,30 +101,36 @@ sudo dnf copr enable sisyphus1813/skim
 sudo dnf install skim
 ```
 
+## Installation script (executable only)
 
-## Manually
+```bash
+# Always check the content of the script before running it !
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/skim-rs/skim/releases/latest/download/skim-installer.sh | sh
+```
 
-Any of the following applies:
+You then have access to :
 
-- Using the install script:
-    ```sh
-    # Always check the content of the script before running it !
-    $ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/skim-rs/skim/releases/latest/download/skim-installer.sh | sh
-    ```
-- Using Binary: Simply [download the sk executable](https://github.com/skim-rs/skim/releases) directly.
-- Install from [crates.io](https://crates.io/): `cargo install skim`
-- Build Manually:
-    ```sh
-    $ git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
-    $ cd ~/.skim
-    $ cargo build --release
-    $ # Add the resulting `target/release/sk` executable to your PATH
-    ```
+- The man page using `sk --man`, which you can either write to the correct path or view directly by running `man --local-file <(sk --man)`
+- The shell completions (and optional keybinds), using `source <(sk --shell \<shell> \[--shell-bindings])` which you can add to your `.bashrc`, `.zshrc`, etc.
+
+## Install manually
+
+Run one of the commands below:
+
+```bash
+# Install from crates.io
+cargo install --locked skim
+```
+
+You can also [download the sk executable](https://github.com/skim-rs/skim/releases) directly or clone and build the repository:
+```bash
+git clone --depth 1 git@github.com:skim-rs/skim.git ~/.skim
+cd ~/.skim
+cargo install --locked --path .
+# Make sure to add cargo's binary install path to your $PATH
+```
 
 You will then have access to:
-
-- The man page, which you can either write to the correct path or run `man --local-file <(sk --man)`
-- The shell completions (and optional keybinds), using `source <(sk --shell \<shell> \[--shell-bindings])`, see below for details
 
 # Usage
 
