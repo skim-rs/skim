@@ -204,7 +204,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
                     &result.current,
                     &result.query,
                     &result.cmd,
-                    true
+                    false
                 ),
                 bin_options.output_ending
             )?;

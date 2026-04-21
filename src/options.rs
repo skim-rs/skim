@@ -173,10 +173,15 @@ pub struct SkimOptions {
 
     /// Fuzzy matching algorithm
     ///
-    /// arinae (ari) Latest algorithm
-    /// `skim_v2` Legacy skim algorithm
-    /// clangd  Used in clangd for keyword completion
-    /// fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
+    /// - arinae (ari) Latest algorithm
+    ///
+    /// - `skim_v2` Legacy skim algorithm
+    ///
+    /// - clangd  Used in clangd for keyword completion
+    ///
+    /// - fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
+    ///
+    /// - frizbee Algorithm used in the blink.cmp neovim plugin, supported on aarch64 and x86 only
     #[cfg_attr(
         feature = "cli",
         arg(

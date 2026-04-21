@@ -7,7 +7,7 @@
 pub mod arinae;
 /// Clangd fuzzy matching algorithm
 pub mod clangd;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(frizbee)]
 pub mod frizbee;
 /// Fzy fuzzy matching algorithm
 pub mod fzy;
