@@ -93,6 +93,6 @@ impl Display for dyn SkimItem {
 }
 impl Debug for dyn SkimItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("SkimItem {{ text: {} }}", self.text(),))
+        f.write_fmt(format_args!("SkimItem {{ text: {} }}", self.text()))
     }
 }
