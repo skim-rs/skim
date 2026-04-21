@@ -18,8 +18,7 @@ fn middle_coord(size: Size, var: &str) -> Size {
         Size::Percent(p) => Size::Percent(100u16.saturating_sub(p) / 2),
         Size::Fixed(cells) => Size::Fixed(
             std::env::var(var)
-                .map(|s| s.parse().unwrap_or(80))
-                .unwrap_or(80u16)
+                .map_or(80u16, |s| s.parse().unwrap_or(80))
                 .saturating_sub(cells)
                 / 2,
         ),
@@ -32,8 +31,7 @@ fn align_end_coord(size: Size, var: &str) -> Size {
         Size::Percent(p) => Size::Percent(100 - p),
         Size::Fixed(cols) => Size::Fixed(
             std::env::var(var)
-                .map(|s| s.parse().unwrap_or(80))
-                .unwrap_or(80u16)
+                .map_or(80u16, |s| s.parse().unwrap_or(80))
                 .saturating_sub(cols),
         ),
         Size::Neg(cells) => Size::Fixed(cells),

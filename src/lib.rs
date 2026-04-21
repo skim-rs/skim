@@ -20,10 +20,12 @@
 //!     ).unwrap();
 //! ```
 
-#![warn(missing_docs)]
-#![warn(clippy::pedantic)]
-#![warn(clippy::incompatible_msrv)]
-#![allow(clippy::default_trait_access, clippy::struct_excessive_bools)]
+#![warn(clippy::pedantic, missing_docs, clippy::incompatible_msrv)]
+#![allow(
+    clippy::default_trait_access,
+    clippy::struct_excessive_bools,
+    clippy::collapsible_match
+)]
 
 #[macro_use]
 extern crate log;
@@ -91,8 +93,13 @@ fn shell_cmd(cmd: &str) -> Command {
 }
 #[cfg(windows)]
 fn shell_cmd(cmd: &str) -> Command {
+    use std::os::windows::process::CommandExt as _;
+    // `cmd.exe` does not parse its command line using MSVC rules, so the default
+    // `Command::arg` escaping (quoting/backslash-escaping) corrupts shell
+    // metacharacters like `|`, `&`, `>` and embedded quotes. Pass the command
+    // string verbatim via `raw_arg` so cmd.exe sees exactly what the user wrote.
     let mut c = Command::new("cmd");
-    c.arg("/c").arg(cmd);
+    c.arg("/c").raw_arg(cmd);
     c
 }
 

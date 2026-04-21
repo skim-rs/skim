@@ -3,7 +3,7 @@ use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::arinae::ArinaeMatcher;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(frizbee)]
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use crate::fuzzy_matcher::{FuzzyMatcher, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2};
 
@@ -17,19 +17,19 @@ use crate::{MatchRange, MatchResult, SkimItem};
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
-    /// Improved skim fuzzy matching algorithm (v2)
-    SkimV2,
+    /// Arinae: typo-resistant & natural algorithm, default
+    #[cfg_attr(feature = "cli", clap(alias = "ari"))]
+    #[default]
+    Arinae,
     /// Clangd fuzzy matching algorithm
     Clangd,
     /// Fzy matching algorithm (<https://github.com/jhawthorn/fzy>)
     Fzy,
     /// Frizbee matching algorithm, typo resistant (`x86_64` and `aarch64` only)
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    #[cfg(frizbee)]
     Frizbee,
-    /// Arinae: typo-resistant & natural algorithm, default
-    #[cfg_attr(feature = "cli", clap(alias = "ari"))]
-    #[default]
-    Arinae,
+    /// Previous skim fuzzy matching algorithm (v2)
+    SkimV2,
 }
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
@@ -127,7 +127,7 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
-            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+            #[cfg(frizbee)]
             FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher::default().case(self.case).max_typos(max_typos)),
             FuzzyAlgorithm::Fzy => {
                 let matcher = FzyMatcher::default().max_typos(max_typos);
