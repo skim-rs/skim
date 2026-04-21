@@ -1,43 +1,12 @@
 {
   "nodes": {
-    "mdbook-ts": {
-      "inputs": {
-        "nixpkgs": "nixpkgs"
-      },
-      "locked": {
-        "lastModified": 1776459435,
-        "narHash": "sha256-CSzNERvCXdlE24Re98EspbHhgLNDqaOppV5WKyOQ68I=",
-        "owner": "LoricAndre",
-        "repo": "mdbook-treesitter",
-        "rev": "fdff4a17a5e511a13975003c2483dbd4377a2cf7",
-        "type": "github"
-      },
-      "original": {
-        "owner": "LoricAndre",
-        "repo": "mdbook-treesitter",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1776255774,
-        "narHash": "sha256-bo9Hbl5yPjDRldsn1Stnbsmn/nPF0cVlowuLSGHduuA=",
-        "rev": "566acc07c54dc807f91625bb286cb9b321b5f42a",
+        "lastModified": 1775549110,
+        "narHash": "sha256-rFByy+vYdvd2IZ7GYibTcc4fuJKj5+g/YkJxqxvt2+o=",
+        "rev": "a3db02183b5da6fbf728203492a5d1b9d109b7f9",
         "type": "tarball",
-        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.05pre980800.566acc07c54d/nixexprs.tar.xz?lastModified=1776255774&rev=566acc07c54dc807f91625bb286cb9b321b5f42a"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz"
-      }
-    },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1776255774,
-        "narHash": "sha256-bo9Hbl5yPjDRldsn1Stnbsmn/nPF0cVlowuLSGHduuA=",
-        "rev": "566acc07c54dc807f91625bb286cb9b321b5f42a",
-        "type": "tarball",
-        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.05pre980800.566acc07c54d/nixexprs.tar.xz?lastModified=1776255774&rev=566acc07c54dc807f91625bb286cb9b321b5f42a"
+        "url": "https://releases.nixos.org/nixpkgs/nixpkgs-26.05pre976537.a3db02183b5d/nixexprs.tar.xz?lastModified=1775549110&rev=a3db02183b5da6fbf728203492a5d1b9d109b7f9"
       },
       "original": {
         "type": "tarball",
@@ -46,8 +15,7 @@
     },
     "root": {
       "inputs": {
-        "mdbook-ts": "mdbook-ts",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs"
       }
     }
   },
