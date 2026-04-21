@@ -7,6 +7,11 @@ updates:
     commit-message:
       prefix: chore(deps)
       prefix-development: chore(dev-deps)
+    groups:
+      cargo-prod:
+        dependency-type: production
+      cargo-dev:
+        dependency-type: development
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -16,3 +21,8 @@ updates:
       prefix-development: chore(dev-deps)
     exclude-paths:
       - .github/workflows/release.yml
+    groups:
+      gha-prod:
+        dependency-type: production
+      gha-dev:
+        dependency-type: development
