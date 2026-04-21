@@ -90,9 +90,11 @@ fn shell_cmd(cmd: &str) -> Command {
     c
 }
 #[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
 fn shell_cmd(cmd: &str) -> Command {
     let mut c = Command::new("cmd");
-    c.arg("/c").arg(cmd);
+    c.arg("/c").raw_arg(cmd);
     c
 }
 
