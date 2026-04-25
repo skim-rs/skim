@@ -13,11 +13,24 @@ edition = "2024"
 rust-version = "1.91"
 default-run = "sk"
 
-[package.metadata.wix]
-upgrade-guid = "6DDAED06-EBE2-41C4-94F5-CB03F2A4B92E"
-path-guid = "05D1A327-19E0-4C82-B5EC-6B28E40C691B"
-license = false
-eula = false
+[lib]
+name = "skim"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sk"
+path = "src/bin/main.rs"
+required-features = ["cli"]
+
+[features]
+# Default is destined to the CLI, not to library usage.
+default = ["cli", "frizbee"]
+# Everyting needed to use skim as a cli (argument parsing, shell integrations...). This should not be needed for most libraries.
+cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
+# Include frizbee as a matching algorithm
+frizbee = ["dep:frizbee"]
+# Enable gungraun (Valgrind-based) benchmarks
+gungraun = ["dep:gungraun"]
 
 [profile.release]
 lto = true
@@ -34,64 +47,51 @@ inherits = "release"
 debug = true
 strip = false
 
-
-[lib]
-name = "skim"
-path = "src/lib.rs"
-
-[[bin]]
-name = "sk"
-path = "src/bin/main.rs"
-required-features = ["cli"]
-
 [dependencies]
 ansi-to-tui = "8.0.1"
-assert_enum_variants = "=0.1.2"
-clap = { version = "4.6.0" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
+assert_enum_variants = "0.1.2"
+clap = { version = "4.6.1" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { version = "4.6.0", optional = true }
 clap_complete_nushell = "4.6.0"
-clap_mangen = { version = "=0.3.0", optional = true }
-color-eyre = "=0.6.5"
+clap_mangen = { version = "0.3.0", optional = true }
+color-eyre = "0.6.5"
+# Crossterm's version is selected by ratatui
 crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
-derive_builder = "=0.20.2"
+derive_builder = "0.20.2"
 derive_more = { version = "2.1.1", features = ["debug", "eq"] }
 env_logger = { version = "0.11.10", optional = true, features = ["humantime"] }
-futures = "=0.3.32"
+futures = "0.3.32"
 gungraun = { version = "0.18.1", optional = true }
 indexmap = "2.13.1"
-interprocess = { version = "2.4.0", features = ["tokio"] }
-kanal = "=0.1.1"
+interprocess = { version = "2.4.2", features = ["tokio"] }
+kanal = "0.1.1"
 log = "0.4.29"
 memchr = "2.8.0"
 mimalloc = { version = "0.1.48", features = ["v3"] }
 nix = { version = "0.31.2", features = ["fs", "poll"] }
-portable-pty = "=0.9.0"
+portable-pty = "0.9.0"
 ratatui = "0.30.0"
 regex = "1.12.3"
 roff = "1.1.1"
-ron = "=0.12.1"
+ron = "0.12.1"
 serde = { version = "1.0.228", features = ["derive"] }
-shell-quote = "=0.7.2"
-shlex = { version = "=1.3.0", optional = true }
+shell-quote = "0.7.2"
+shlex = { version = "1.3.0", optional = true }
 tempfile = "3.27.0"
 thiserror = "2.0.18"
 thread_local = "1.1.9"
-tokio = { version = "1.51.0", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
-tokio-util = "=0.7.18"
-tui-term = "=0.3.4"
-unicode-display-width = "=0.3.0"
-unicode-normalization = "=0.1.25"
+tokio = { version = "1.52.1", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
+tokio-util = "0.7.18"
+tui-term = "0.3.4"
+unicode-display-width = "0.3.0"
+unicode-normalization = "0.1.25"
 which = "8.0.2"
 
 [target.'cfg(any(target_arch = "x86_64", target_arch = "aarch64"))'.dependencies]
-frizbee = { version = "=0.9.0" }
+frizbee = { version = "=0.9.0", optional = true }
 
-[features]
-default = ["cli"]
-# Everyting needed to use skim as a cli (argument parsing, shell integrations...)
-cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
-# Enable gungraun (Valgrind-based) benchmarks
-gungraun = ["dep:gungraun"]
+[build-dependencies]
+cfg_aliases = "0.2.1"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["async_tokio"] }
@@ -129,3 +129,9 @@ required-features = ["gungraun"]
 name = "cli"
 harness = false
 bench = false
+
+[package.metadata.wix]
+upgrade-guid = "6DDAED06-EBE2-41C4-94F5-CB03F2A4B92E"
+path-guid = "05D1A327-19E0-4C82-B5EC-6B28E40C691B"
+license = false
+eula = false

@@ -32,3 +32,6 @@ __pycache__/
 
 # Vagrant
 .vagrant/
+
+.envrc.local
+/public
