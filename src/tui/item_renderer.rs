@@ -11,6 +11,7 @@ struct SubLineState {
     is_current: bool,
     is_selected: bool,
     is_first: bool,
+    is_first_sub_line: bool,
     needs_ellipsis: bool,
 }
 
@@ -107,6 +108,7 @@ impl<'a> ItemRenderer<'a> {
                     is_current,
                     is_selected,
                     is_first,
+                    is_first_sub_line: sub_idx == 0,
                     needs_ellipsis: is_top_cutoff || is_bottom_cutoff,
                 },
                 match_start_char,
@@ -241,7 +243,7 @@ impl<'a> ItemRenderer<'a> {
         match_start_char: usize,
         match_end_char: usize,
     ) -> Line<'static> {
-        if state.is_first {
+        if state.is_first_sub_line {
             self.first_sub_line_content(item, sub_lines[0], state.is_current, match_start_char, match_end_char)
         } else {
             self.continuation_sub_line_content(sub_text, state.is_current)
@@ -289,11 +291,12 @@ impl<'a> ItemRenderer<'a> {
 
     fn continuation_sub_line_content(&self, sub_text: &str, is_current: bool) -> Line<'static> {
         let sub_str = sub_text.to_string();
-        let (shift, full_width, _, _) = self.calc_hscroll(&sub_str, 0, 0);
         let raw: Line<'static> = Line::from(vec![Span::styled(sub_str, self.base_style(is_current))]);
         if self.wrap {
             raw
         } else {
+            let text = raw.spans.first().map_or("", |span| span.content.as_ref());
+            let (shift, full_width, _, _) = self.calc_hscroll(text, 0, 0);
             let scrolled = self.apply_hscroll(raw, shift, full_width);
             Self::into_static_line(scrolled)
         }
@@ -435,11 +438,7 @@ impl<'a> ItemRenderer<'a> {
                     found_end = true;
                     break;
                 }
-                if ch == '\t' {
-                    current_width += self.tabstop - (current_width % self.tabstop);
-                } else {
-                    current_width += char_display_width(ch);
-                }
+                current_width = self.add_char_width(current_width, ch);
             }
             if found_start && !found_end {
                 match_end_width = current_width;
@@ -546,15 +545,10 @@ impl<'a> ItemRenderer<'a> {
         let mut char_index = 0;
         for span in &line.spans {
             for ch in span.content.chars() {
-                let ch_width = if ch == '\t' {
-                    self.tabstop - (current_width % self.tabstop)
-                } else {
-                    char_display_width(ch)
-                };
                 if current_width >= target_width {
                     return char_index;
                 }
-                current_width += ch_width;
+                current_width = self.add_char_width(current_width, ch);
                 char_index += 1;
             }
         }
@@ -566,12 +560,13 @@ impl<'a> ItemRenderer<'a> {
         let mut current_width = start_width;
         for ch in text.chars() {
             if ch == '\t' {
-                let tab_width = self.tabstop - (current_width % self.tabstop);
+                let next_width = self.add_char_width(current_width, ch);
+                let tab_width = next_width - current_width;
                 result.push_str(&" ".repeat(tab_width));
-                current_width += tab_width;
+                current_width = next_width;
             } else {
                 result.push(ch);
-                current_width += char_display_width(ch);
+                current_width = self.add_char_width(current_width, ch);
             }
         }
         result
@@ -583,7 +578,10 @@ mod tests {
     use std::borrow::Cow;
     use std::sync::Arc;
 
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
     use ratatui::style::Style;
+    use ratatui::widgets::{List, Widget};
 
     use super::*;
     use crate::item::RankBuilder;
@@ -626,6 +624,14 @@ mod tests {
 
     fn spans_text(spans: &[Span<'_>]) -> String {
         spans.iter().map(|span| span.content.as_ref()).collect()
+    }
+
+    fn rendered_row_text(item: ListItem<'static>, width: u16) -> String {
+        let mut buf = Buffer::empty(Rect::new(0, 0, width, 1));
+        List::new(vec![item]).render(buf.area, &mut buf);
+        (0..width)
+            .map(|x| buf.cell((x, 0)).expect("cell should be inside buffer").symbol())
+            .collect::<String>()
     }
 
     struct DisplayLongerThanText;
@@ -708,12 +714,14 @@ mod tests {
             is_current: true,
             is_selected: true,
             is_first: true,
+            is_first_sub_line: true,
             needs_ellipsis: false,
         };
         let continuation = SubLineState {
             is_current: true,
             is_selected: true,
             is_first: false,
+            is_first_sub_line: false,
             needs_ellipsis: false,
         };
 
@@ -763,5 +771,21 @@ mod tests {
         let line = renderer.first_sub_line_content(&item, "ab", false, 0, 0);
 
         assert_eq!(line_text(&line), "abcd..");
+    }
+
+    #[test]
+    fn render_item_with_multiline_skip_starts_at_skipped_sub_line() {
+        let theme = ColorTheme::default();
+        let mut renderer = renderer(&theme);
+        renderer.multiline = Some("|");
+        renderer.container_width = 20;
+
+        let item = matched_item("first|second|third", None);
+        let mut out = Vec::new();
+
+        let added = renderer.render_item(&item, false, false, 1, 10, 0, &mut out);
+
+        assert_eq!(added, 2);
+        assert_eq!(rendered_row_text(out.remove(0), 8), "  second");
     }
 }

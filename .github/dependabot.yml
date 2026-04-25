@@ -23,6 +23,5 @@ updates:
       - .github/workflows/release.yml
     groups:
       gha-prod:
-        dependency-type: production
-      gha-dev:
-        dependency-type: development
+        patterns:
+          - "*"
