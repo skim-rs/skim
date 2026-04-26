@@ -103,7 +103,6 @@ impl<'a> ItemRenderer<'a> {
             let list_item = self.render_sub_line(
                 item,
                 sub_text,
-                &sub_lines,
                 &SubLineState {
                     is_current,
                     is_selected,
@@ -158,13 +157,12 @@ impl<'a> ItemRenderer<'a> {
         &self,
         item: &MatchedItem,
         sub_text: &str,
-        sub_lines: &[&str],
         state: &SubLineState,
         match_start_char: usize,
         match_end_char: usize,
     ) -> ListItem<'static> {
         let mut all_spans = self.prefix_spans(item, state);
-        let content_line = self.content_line(item, sub_text, sub_lines, state, match_start_char, match_end_char);
+        let content_line = self.content_line(item, sub_text, state, match_start_char, match_end_char);
 
         if state.needs_ellipsis {
             all_spans.extend(self.trim_with_ellipsis(content_line, state.is_current));
@@ -238,13 +236,12 @@ impl<'a> ItemRenderer<'a> {
         &self,
         item: &MatchedItem,
         sub_text: &str,
-        sub_lines: &[&str],
         state: &SubLineState,
         match_start_char: usize,
         match_end_char: usize,
     ) -> Line<'static> {
-        if state.is_first_sub_line {
-            self.first_sub_line_content(item, sub_lines[0], state.is_current, match_start_char, match_end_char)
+        if state.is_first && state.is_first_sub_line {
+            self.first_sub_line_content(item, sub_text, state.is_current, match_start_char, match_end_char)
         } else {
             self.continuation_sub_line_content(sub_text, state.is_current)
         }
@@ -295,8 +292,7 @@ impl<'a> ItemRenderer<'a> {
         if self.wrap {
             raw
         } else {
-            let text = raw.spans.first().map_or("", |span| span.content.as_ref());
-            let (shift, full_width, _, _) = self.calc_hscroll(text, 0, 0);
+            let (shift, full_width, _, _) = self.calc_hscroll(sub_text, 0, 0);
             let scrolled = self.apply_hscroll(raw, shift, full_width);
             Self::into_static_line(scrolled)
         }
