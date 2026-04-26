@@ -14,11 +14,11 @@ pathname\t''
 complete -c sk -s n -l nth -d 'Fields to be matched' -r
 complete -c sk -l with-nth -d 'Fields to be transformed' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
-complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v2\t'Improved skim fuzzy matching algorithm (v2)'
+complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "arinae\t'Arinae: typo-resistant & natural algorithm, default'
 clangd\t'Clangd fuzzy matching algorithm'
 fzy\t'Fzy matching algorithm (https://github.com/jhawthorn/fzy)'
 frizbee\t'Frizbee matching algorithm, typo resistant (x86_64 and aarch64 only)'
-arinae\t'Arinae: typo-resistant & natural algorithm, default'"
+skim_v2\t'Previous skim fuzzy matching algorithm (v2)'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"

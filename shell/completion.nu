@@ -5,7 +5,7 @@ module completions {
   }
 
   def "nu-complete sk algorithm" [] {
-    [ "skim_v2" "clangd" "fzy" "frizbee" "arinae" ]
+    [ "arinae" "clangd" "fzy" "frizbee" "skim_v2" ]
   }
 
   def "nu-complete sk case" [] {
