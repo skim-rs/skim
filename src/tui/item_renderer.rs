@@ -8,9 +8,13 @@ use crate::tui::util::{char_display_width, clip_line_to_chars, wrap_text};
 use crate::{DisplayContext, MatchRange, item::MatchedItem, theme::ColorTheme};
 
 struct SubLineState {
+    /// Current item
     is_current: bool,
+    /// Selected (in multi-select)
     is_selected: bool,
+    /// First item on the screen
     is_first: bool,
+    /// First line of the item
     is_first_sub_line: bool,
     needs_ellipsis: bool,
 }
@@ -783,5 +787,7 @@ mod tests {
 
         assert_eq!(added, 2);
         assert_eq!(rendered_row_text(out.remove(0), 8), "  second");
+        assert_eq!(rendered_row_text(out.remove(0), 8), "  third ");
+        assert!(out.is_empty());
     }
 }
