@@ -253,6 +253,7 @@ impl Drop for RawMode {
     }
 }
 
+/// Get cursor position, 1-based
 #[cfg(unix)]
 pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
     let _guard = RawMode::new()?;
@@ -309,10 +310,11 @@ pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
     Ok((cx, cy))
 }
 
+/// Get cursor position, 1-based
 #[cfg(windows)]
 pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
     let _guard = RawMode::new()?;
-    crossterm::cursor::position()
+    crossterm::cursor::position().map(|(x, y)| (x + 1, y + 1))
 }
 
 #[cfg(test)]
