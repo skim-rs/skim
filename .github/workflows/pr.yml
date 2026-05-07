@@ -5,17 +5,14 @@ jobs:
   check-title:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate mock changelog entry
-        id: git-cliff
-        uses: orhun/git-cliff-action@v4
+      - name: Create git-cliff mock context
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
           CONTEXT: >
             [
               {
                 "commits": [{
                   "id": "foo",
-                  "message": "${{ github.event.pull_request.title }}",
+                  "message": $msg,
                   "links": [],
                   "author": {
                     "name": "",
@@ -55,9 +52,14 @@ jobs:
                 "submodule_commits": {}
               }
             ]
+        run: |
+          jq -nc --arg msg "${{ github.event.pull_request.title }}" "$CONTEXT" > git-cliff-context.json
+      - name: Generate mock changelog entry
+        id: git-cliff
+        uses: orhun/git-cliff-action@v4
         with:
           args: >
-            --from-context "$CONTEXT" -s all
+            --from-context git-cliff-context.json -s all
       - name: Check generated entry
         run: |
           echo "Generated:"
