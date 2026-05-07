@@ -1439,7 +1439,7 @@ fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Erro
     fg.set_multiplot_layout(2, 2).set_title("Benchmark Results");
 
     // Shared label options: text in TEXT colour.
-    let lbl = &[TextColor(TEXT)];
+    let lbl = &[TextColor(gnuplot::RGBString(TEXT))];
 
     // ── Panel 0: Total Time — log x, log y ───────────────────────────────────
     {
@@ -1450,7 +1450,7 @@ fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Erro
         axes.set_title("Total Time", lbl)
             .set_x_label("Items", lbl)
             .set_y_label("Time (s)", lbl)
-            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(gnuplot::RGBString(SURFACE))])
             .set_x_log(Some(10.0))
             .set_y_log(Some(10.0))
             .set_x_range(Fix(x_lo), Fix(x_hi))
@@ -1475,7 +1475,7 @@ fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Erro
         axes.set_title("Peak CPU", lbl)
             .set_x_label("Items", lbl)
             .set_y_label("CPU (%)", lbl)
-            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(gnuplot::RGBString(SURFACE))])
             .set_x_log(Some(10.0))
             .set_x_range(Fix(x_lo), Fix(x_hi))
             .set_y_range(Fix(0.0), Fix(y_hi))
@@ -1498,7 +1498,7 @@ fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Erro
         axes.set_title("Peak Memory", lbl)
             .set_x_label("Items", lbl)
             .set_y_label("Memory (MB)", lbl)
-            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(gnuplot::RGBString(SURFACE))])
             .set_x_log(Some(10.0))
             .set_x_range(Fix(x_lo), Fix(x_hi))
             .set_y_range(Fix(0.0), Fix(y_hi))
@@ -1521,7 +1521,7 @@ fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Erro
         axes.set_title("Startup Time", lbl)
             .set_x_label("Items", lbl)
             .set_y_label("Time (s)", lbl)
-            .set_border(true, &[Bottom, Left, Top, Right], &[Color(SURFACE)])
+            .set_border(true, &[Bottom, Left, Top, Right], &[Color(gnuplot::RGBString(SURFACE))])
             .set_x_log(Some(10.0))
             .set_x_range(Fix(x_lo), Fix(x_hi))
             .set_y_range(Fix(0.0), Fix(y_hi))

@@ -1,0 +1,104 @@
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+
+jobs:
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create git-cliff mock context
+        env:
+          CONTEXT: >
+            [
+              {
+                "commits": [{
+                  "id": "foo",
+                  "message": $msg,
+                  "links": [],
+                  "author": {
+                    "name": "",
+                    "timestamp": 1
+                  },
+                  "committer": {
+                    "name": "",
+                    "timestamp": 1
+                  },
+                  "merge_commit": false,
+                  "github": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "gitlab": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "gitea": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "bitbucket": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "azure_devops": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                }],
+                "github": { "contributors": [] },
+                "gitlab": { "contributors": [] },
+                "gitea": { "contributors": [] },
+                "bitbucket": { "contributors": [] },
+                "azure_devops": { "contributors": [] },
+                "submodule_commits": {}
+              }
+            ]
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          jq -nc --arg msg "$PR_TITLE" "$CONTEXT" | tee git-cliff-context.json
+      - name: Generate mock changelog entry
+        id: git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: >
+            --from-context git-cliff-context.json -s all
+      - name: Check generated entry
+        run: |
+          echo "Generated:"
+          cat "${{ steps.git-cliff.outputs.changelog }}"
+          echo "Checking..."
+          cat "${{ steps.git-cliff.outputs.changelog }}" | grep -Ev '^(## \[unreleased\]|)$' | grep -q '^.\+$'
+  check-generated-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
+          add-job-id-key: "false"
+          add-rust-environment-hash-key: "false"
+          env-vars: "____"
+          cache-on-failure: "true"
+          cache-all-crates: "true"
+      - name: Generate files
+        run: |
+          cargo run -- --man > ./man/man1/sk.1
+          cargo run -- --shell bash > ./shell/completion.bash
+          cargo run -- --shell zsh > ./shell/completion.zsh
+          cargo run -- --shell fish > ./shell/completion.fish
+          cargo run -- --shell nushell > ./shell/completion.nu
+      - name: Check diff
+        run: |
+          if git diff --exit-code; then
+            echo "No changes to generated files found, PR is safe to merge"
+            exit 0
+          else
+            echo "Found changes to generated files, regenerate them locally and push them using 'just generate-files'"
+            exit 1
+          fi

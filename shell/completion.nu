@@ -46,7 +46,7 @@ module completions {
     --algo: string@"nu-complete sk algorithm" # Fuzzy matching algorithm
     --case: string@"nu-complete sk case" # Case sensitivity
     --typos: string           # Enable typo-tolerant matching
-    --no-typos                # Disable typo-resistant matching
+    --no-typos                # Disable typo-tolerant matching
     --normalize               # Normalize unicode characters
     --split-match: string     # Enable split matching and set delimiter
     --last-match              # Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
@@ -78,7 +78,7 @@ module completions {
     --prompt(-p): string      # Set prompt
     --cmd-prompt: string      # Set prompt in command mode
     --selector: string        # Set selected item icon
-    --multi-selector: string  # Set selected item icon
+    --multi-selector: string  # Set multi-selected item icon
     --ansi                    # Parse ANSI color codes in input strings
     --tabstop: string         # Number of spaces that make up a tab
     --ellipsis: string        # The characters used to display truncated lines
