@@ -90,3 +90,4 @@ jobs:
           git diff --exit-code || code=$?
           if [ -ne $code 0 ]; then
             echo "Found changes to generated files, regenerate them locally and push them using `just generate-files`"
+          fi
