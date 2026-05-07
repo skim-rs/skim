@@ -53,7 +53,7 @@ jobs:
               }
             ]
         run: |
-          jq -nc --arg msg "${{ github.event.pull_request.title }}" "$CONTEXT" > git-cliff-context.json
+          jq -nc --arg msg "${{ github.event.pull_request.title }}" "$CONTEXT" | tee git-cliff-context.json
       - name: Generate mock changelog entry
         id: git-cliff
         uses: orhun/git-cliff-action@v4
@@ -90,6 +90,8 @@ jobs:
       - name: Check diff
         run: |
           code=0
-          if ! git diff --exit-code; then
+          if git diff --exit-code; then
+            echo "No changes to generated files found, PR is safe to merge"
+          else
             echo "Found changes to generated files, regenerate them locally and push them using `just generate-files`"
           fi
