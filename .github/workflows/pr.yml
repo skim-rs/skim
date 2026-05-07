@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@v6
       - name: Cache
         uses: Swatinem/rust-cache@v2
-        with: &cache-with
+        with:
           key: ${{ runner.os }}
           add-job-id-key: "false"
           add-rust-environment-hash-key: "false"
@@ -89,7 +89,7 @@ jobs:
           cargo run -- --shell nushell > ./shell/completion.nu
       - name: Check diff
         run: |
-          git diff --exit-code || code=$?
-          if [ -ne $code 0 ]; then
+          code=0
+          if ! git diff --exit-code; then
             echo "Found changes to generated files, regenerate them locally and push them using `just generate-files`"
           fi
