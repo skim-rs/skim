@@ -53,7 +53,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--prompt=[Set prompt]:PROMPT:_default' \
 '--cmd-prompt=[Set prompt in command mode]:CMD_PROMPT:_default' \
 '--selector=[Set selected item icon]:SELECTOR_ICON:_default' \
-'--multi-selector=[Set selected item icon]:MULTI_SELECT_ICON:_default' \
+'--multi-selector=[Set multi-selected item icon]:MULTI_SELECT_ICON:_default' \
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
 '--ellipsis=[The characters used to display truncated lines]:ELLIPSIS:_default' \
 '--info=[Set matching result count display position]:INFO:_default' \
@@ -102,7 +102,7 @@ zsh\:"Zsh"))' \
 '--popup=[Run in a tmux or zellij popup]::POPUP:_default' \
 '--log-level=[Set the log level]:LOG_LEVEL:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
-'*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
+'*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on Linux"
 show-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"
 show-index\:"Display the item'\''s index before its value in the item list"
 single-reader\:"Limit the reader thread pool to a single thread"
@@ -147,7 +147,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '-e[Run in exact mode]' \
 '--exact[Run in exact mode]' \
 '--regex[Start in regex mode instead of fuzzy-match]' \
-'--no-typos[Disable typo-resistant matching]' \
+'--no-typos[Disable typo-tolerant matching]' \
 '--normalize[Normalize unicode characters]' \
 '--last-match[Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts]' \
 '-m[Enable multiple selection]' \

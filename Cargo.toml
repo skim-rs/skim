@@ -25,7 +25,7 @@ required-features = ["cli"]
 [features]
 # Default is destined to the CLI, not to library usage.
 default = ["cli", "frizbee"]
-# Everyting needed to use skim as a cli (argument parsing, shell integrations...). This should not be needed for most libraries.
+# Everything needed to use skim as a cli (argument parsing, shell integrations...). This should not be needed for most libraries.
 cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
 # Include frizbee as a matching algorithm
 frizbee = ["dep:frizbee"]
