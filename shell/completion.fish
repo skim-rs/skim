@@ -41,7 +41,7 @@ complete -c sk -l margin -d 'Screen margin' -r
 complete -c sk -s p -l prompt -d 'Set prompt' -r
 complete -c sk -l cmd-prompt -d 'Set prompt in command mode' -r
 complete -c sk -l selector -d 'Set selected item icon' -r
-complete -c sk -l multi-selector -d 'Set selected item icon' -r
+complete -c sk -l multi-selector -d 'Set multi-selected item icon' -r
 complete -c sk -l tabstop -d 'Number of spaces that make up a tab' -r
 complete -c sk -l ellipsis -d 'The characters used to display truncated lines' -r
 complete -c sk -l info -d 'Set matching result count display position' -r
@@ -88,7 +88,7 @@ complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (
 complete -c sk -l popup -d 'Run in a tmux or zellij popup' -r
 complete -c sk -l log-level -d 'Set the log level' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
-complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'
+complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on Linux'
 show-score\t'Display the item\'s match score before its value in the item list (for matcher debugging)'
 show-index\t'Display the item\'s index before its value in the item list'
 single-reader\t'Limit the reader thread pool to a single thread'
@@ -132,7 +132,7 @@ complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
 complete -c sk -s e -l exact -d 'Run in exact mode'
 complete -c sk -l regex -d 'Start in regex mode instead of fuzzy-match'
-complete -c sk -l no-typos -d 'Disable typo-resistant matching'
+complete -c sk -l no-typos -d 'Disable typo-tolerant matching'
 complete -c sk -l normalize -d 'Normalize unicode characters'
 complete -c sk -l last-match -d 'Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts'
 complete -c sk -s m -l multi -d 'Enable multiple selection'
