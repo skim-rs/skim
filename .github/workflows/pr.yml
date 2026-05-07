@@ -95,9 +95,10 @@ jobs:
           cargo run -- --shell nushell > ./shell/completion.nu
       - name: Check diff
         run: |
-          code=0
           if git diff --exit-code; then
             echo "No changes to generated files found, PR is safe to merge"
+            exit 0
           else
             echo "Found changes to generated files, regenerate them locally and push them using `just generate-files`"
+            exit 1
           fi
