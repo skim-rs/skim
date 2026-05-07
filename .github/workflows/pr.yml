@@ -1,5 +1,10 @@
 on:
-  pull_request: {}
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
 
 jobs:
   check-title:
@@ -52,8 +57,9 @@ jobs:
                 "submodule_commits": {}
               }
             ]
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          jq -nc --arg msg "${{ github.event.pull_request.title }}" "$CONTEXT" | tee git-cliff-context.json
+          jq -nc --arg msg "$PR_TITLE" "$CONTEXT" | tee git-cliff-context.json
       - name: Generate mock changelog entry
         id: git-cliff
         uses: orhun/git-cliff-action@v4
