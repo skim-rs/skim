@@ -165,12 +165,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
-name = "bincode"
-version = "1.3.3"
+name = "bincode-next"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+checksum = "dbe9e7e6d14aeb39557f226bff158a30e367fac279d0e69b8b42fb41999f9a86"
 dependencies = [
  "serde",
+ "unty-next",
 ]
 
 [[package]]
@@ -269,7 +270,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d16d90359e986641506914ba71350897565610e87ce0ad9e6f28569db3dd5c6d"
 dependencies = [
  "find-msvc-tools",
- "shlex",
+ "shlex 1.3.0",
 ]
 
 [[package]]
@@ -352,9 +353,9 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.6.3"
+version = "4.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "660c0520455b1013b9bcb0393d5f643d7e4454fb69c915b8d6d2aa0e9a45acc3"
+checksum = "e0a7a9bfdb35811f9e59832f0f05975114d2251b415fb534108e6f34060fd772"
 dependencies = [
  "clap",
 ]
@@ -1055,11 +1056,11 @@ dependencies = [
 
 [[package]]
 name = "gungraun"
-version = "0.18.2"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bfa183cef2c88324b20de9727befd262c35592d9885ffd93b8b102536a81cf2"
+checksum = "a710656785d3ed71a73a1007956874d6ebfdbc2f8660c492bb8d838c91e3f085"
 dependencies = [
- "bincode",
+ "bincode-next",
  "derive_more",
  "gungraun-macros",
  "gungraun-runner",
@@ -1067,9 +1068,9 @@ dependencies = [
 
 [[package]]
 name = "gungraun-macros"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e35c7fb6133421db1cf752b7a2838d9277a26810ccaeeca7aa449f96ad7c2b01"
+checksum = "4cc6269e89921872ec32af29af3a992618b9bd2ef47cbf3704af476066cb7182"
 dependencies = [
  "derive_more",
  "proc-macro-error2",
@@ -1083,9 +1084,9 @@ dependencies = [
 
 [[package]]
 name = "gungraun-runner"
-version = "0.18.2"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ebdac6d5fe0aa9d9623d690fbfdb759e0ed44115e0685b9abc4568fe47db364"
+checksum = "12016920cc6ba0a8aefe276c8f19421a3bf7a125385e25697658b9dd66bde024"
 dependencies = [
  "serde",
 ]
@@ -1478,9 +1479,9 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.31.2"
+version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6d0705320c1e6ba1d912b5e37cf18071b6c2e9b7fa8215a1e8a7651966f5d3"
+checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
 dependencies = [
  "bitflags 2.11.1",
  "cfg-if",
@@ -2279,6 +2280,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
+name = "shlex"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
 name = "signal-hook"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2355,7 +2362,7 @@ dependencies = [
  "log",
  "memchr",
  "mimalloc",
- "nix 0.31.2",
+ "nix 0.31.3",
  "portable-pty",
  "rand 0.10.1",
  "ratatui",
@@ -2366,7 +2373,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "shell-quote",
- "shlex",
+ "shlex 2.0.1",
  "tempfile",
  "thiserror 2.0.18",
  "thread_local",
@@ -2628,9 +2635,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.52.2"
+version = "1.52.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "110a78583f19d5cdb2c5ccf321d1290344e71313c6c37d43520d386027d18386"
+checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
 dependencies = [
  "bytes",
  "libc",
@@ -2793,6 +2800,12 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
+
+[[package]]
+name = "unty-next"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fa66022bbd1ab992fad72bdedcfd07a0023b6f5ecc83d50121e39e3a3caed41"
 
 [[package]]
 name = "utf8parse"
