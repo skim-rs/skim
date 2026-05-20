@@ -40,6 +40,7 @@ where
     pub cancellation_token: CancellationToken,
     /// Whether running in fullscreen mode
     pub is_fullscreen: bool,
+    enable_mouse: bool,
 }
 
 impl Tui {
@@ -51,6 +52,12 @@ impl Tui {
     pub fn new_with_height(height: Size) -> Result<Self> {
         let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
         Self::new_with_height_and_backend(backend, height)
+    }
+    /// Disable mouse handling.
+    /// Needs to be called before enter.
+    pub fn disable_mouse(&mut self) -> &mut Self {
+        self.enable_mouse = false;
+        self
     }
 }
 
@@ -107,6 +114,7 @@ where
             tick_rate: f64::from(TICK_RATE),
             cancellation_token: CancellationToken::default(),
             is_fullscreen: lines.is_none(),
+            enable_mouse: true,
         })
     }
 
@@ -121,7 +129,11 @@ where
         // performs terminal cleanup instead of killing the process abruptly.
         #[cfg(windows)]
         super::windows::install_ctrl_c_handler()?;
-        crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
+
+        crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
+        if self.enable_mouse {
+            crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+        }
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
