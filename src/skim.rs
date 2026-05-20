@@ -121,7 +121,11 @@ impl Skim {
     ///
     /// Returns an error if the TUI backend cannot be initialized.
     pub fn init_tui(&mut self) -> Result<()> {
-        self.tui = Some(Tui::new_with_height(self.height)?);
+        let mut tui = Tui::new_with_height(self.height)?;
+        if self.app.options.no_mouse {
+            tui.disable_mouse();
+        }
+        self.tui = Some(tui);
         Ok(())
     }
 }
