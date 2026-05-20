@@ -174,30 +174,26 @@ impl MatchEngine for FuzzyEngine {
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
 
-        // Always use fuzzy_match_range which returns (score, begin, end)
-        // without computing per-character match indices.  This avoids an
-        // O(pattern_len) Vec allocation per matched item and skips the full
-        // traceback in the DP.  The renderer handles ByteRange directly for
-        // both horizontal scrolling and match highlighting.
-        let mut best: Option<(i64, usize, usize)> = None;
+        let mut best: Option<(i64, Vec<usize>)> = None;
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
             let start = min(start, item_text.len());
             let end = min(end, item_text.len());
 
             let result = if self.query.is_empty() {
-                Some((0i64, 0, 0))
+                Some((0i64, vec![]))
             } else if item_text[start..end].is_empty() {
                 None
             } else {
                 self.matcher
-                    .fuzzy_match_range(&item_text[start..end], &self.query)
-                    .map(|(s, b, e)| {
+                    .fuzzy_indices(&item_text[start..end], &self.query)
+                    .map(|(s, indices)| {
                         let offset = if start != 0 {
                             item_text[..start].chars().count()
                         } else {
                             0
                         };
-                        (s, b + offset, e + offset)
+                        let indices = indices.into_iter().map(|i| i + offset).collect();
+                        (s, indices)
                     })
             };
 
@@ -207,26 +203,14 @@ impl MatchEngine for FuzzyEngine {
             }
         }
 
-        let (score, begin, end) = best?;
-        // `fuzzy_match_range` returns `end` as the inclusive index of the last
-        // matched character.  Convert to exclusive upper bound for CharRange.
-        let end_excl = if self.query.is_empty() { end } else { end + 1 };
+        let (score, indices) = best?;
+        let begin = indices.first().copied().unwrap_or(0);
+        let end_excl = indices.last().map_or(0, |&i| i + 1);
 
-        // When the span length equals the query length, the match is
-        // contiguous and CharRange is a perfect representation (no gaps).
-        // When the span is wider than the query, there are gaps between
-        // matched characters; fall back to fuzzy_indices for accurate
-        // per-character highlighting (only ~25 visible items need this).
-        let query_len = self.query.chars().count();
-        let matched_range = if end_excl - begin == query_len {
-            // Contiguous match — CharRange is exact.
-            MatchRange::CharRange(begin, end_excl)
+        let matched_range = if indices.is_empty() {
+            MatchRange::CharRange(0, 0)
         } else {
-            // Non-contiguous match — compute exact indices for correct highlighting.
-            match self.matcher.fuzzy_indices(&item_text, &self.query) {
-                Some((_s, indices)) => MatchRange::Chars(indices),
-                None => MatchRange::CharRange(begin, end_excl),
-            }
+            MatchRange::Chars(indices)
         };
 
         Some(MatchResult {
