@@ -53,8 +53,8 @@ impl Tui {
         let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
         Self::new_with_height_and_backend(backend, height)
     }
-    /// Disable mouse handling
-    /// Needs to be called before enter
+    /// Disable mouse handling.
+    /// Needs to be called before enter.
     pub fn disable_mouse(&mut self) -> &mut Self {
         self.enable_mouse = false;
         self
