@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 //! Microbenchmark that isolates the fuzzy matcher DP from all other overhead
 //! (I/O, threading, sorting).
 

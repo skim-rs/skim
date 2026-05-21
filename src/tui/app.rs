@@ -43,6 +43,7 @@ const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
 
 /// Application state for skim's TUI
+#[allow(clippy::struct_excessive_bools)]
 pub struct App {
     /// Pool of items to be filtered
     pub item_pool: Arc<ItemPool>,

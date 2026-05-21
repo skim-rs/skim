@@ -62,7 +62,7 @@ fn init_logger(opts: &SkimOptions) {
             .target(target)
             .format(format)
             .init();
-    };
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -127,6 +127,7 @@ fn main() -> Result<()> {
 
 /// Returns `None` if the popup should not open, otherwise run the popup and return the result
 #[cfg(unix)]
+#[allow(clippy::option_option)]
 fn check_and_run_popup(opts: &SkimOptions) -> Option<Option<SkimOutput>> {
     if opts.popup.is_some() && popup::check_env() {
         Some(crate::popup::run_with(opts))
@@ -135,6 +136,7 @@ fn check_and_run_popup(opts: &SkimOptions) -> Option<Option<SkimOutput>> {
     }
 }
 #[cfg(not(unix))]
+#[allow(clippy::option_option)]
 fn check_and_run_popup(_opts: &SkimOptions) -> Option<Option<SkimOutput>> {
     None
 }
@@ -152,18 +154,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     let history_size = opts.history_size;
     let history_file = opts.history_file.clone();
     //------------------------------------------------------------------------------
-    let bin_options = BinOptions {
-        print_query: opts.print_query,
-        print_cmd: opts.print_cmd,
-        print_score: opts.print_score,
-        print_header: opts.print_header,
-        print_current: opts.print_current,
-        output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
-        strip_ansi: opts.ansi && !opts.no_strip_ansi,
-        output_format: opts.output_format.clone(),
-        delimiter: opts.delimiter.clone(),
-        replstr: opts.replstr.clone(),
-    };
+    let bin_options = BinOptions::from_opts(&opts);
 
     //------------------------------------------------------------------------------
     // output
@@ -295,7 +286,7 @@ fn write_history_to_file(
 
 /// Options specific to the binary/CLI mode
 #[derive(Builder)]
-#[allow(missing_docs)]
+#[allow(missing_docs, clippy::struct_excessive_bools)]
 pub struct BinOptions {
     output_ending: String,
     print_query: bool,
@@ -307,4 +298,20 @@ pub struct BinOptions {
     output_format: Option<String>,
     delimiter: regex::Regex,
     replstr: String,
+}
+impl BinOptions {
+    fn from_opts(opts: &SkimOptions) -> Self {
+        Self {
+            print_query: opts.print_query,
+            print_cmd: opts.print_cmd,
+            print_score: opts.print_score,
+            print_header: opts.print_header,
+            print_current: opts.print_current,
+            output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
+            strip_ansi: opts.ansi && !opts.no_strip_ansi,
+            output_format: opts.output_format.clone(),
+            delimiter: opts.delimiter.clone(),
+            replstr: opts.replstr.clone(),
+        }
+    }
 }

@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use cfg_aliases::cfg_aliases;
 
 fn main() {

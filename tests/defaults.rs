@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 #[allow(dead_code)]
 #[macro_use]
 mod common;

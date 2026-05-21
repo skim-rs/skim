@@ -1,3 +1,5 @@
+//! Demonstrates using a custom item type with skim.
+
 extern crate skim;
 use skim::prelude::*;
 
@@ -47,7 +49,7 @@ fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 }

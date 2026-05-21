@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 use gungraun::{library_benchmark, library_benchmark_group, main};
 use std::fs;
 use std::hint::black_box;

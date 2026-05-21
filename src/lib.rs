@@ -20,13 +20,6 @@
 //!     ).unwrap();
 //! ```
 
-#![warn(clippy::pedantic, missing_docs, clippy::incompatible_msrv)]
-#![allow(
-    clippy::default_trait_access,
-    clippy::struct_excessive_bools,
-    clippy::collapsible_match
-)]
-
 #[macro_use]
 extern crate log;
 

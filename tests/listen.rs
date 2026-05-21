@@ -1,5 +1,6 @@
 // TODO: automate listen tests on windows
 // Maybe using smaller tests ? actions processing is already tested, only the IPC part needs testing
+#![allow(missing_docs, clippy::pedantic)]
 #![cfg(unix)]
 #[allow(dead_code)]
 #[macro_use]

@@ -1,3 +1,5 @@
+//! Sends multiple batches of items through a skim item receiver.
+
 use std::sync::Arc;
 
 use skim::prelude::*;

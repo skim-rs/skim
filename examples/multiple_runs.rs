@@ -1,3 +1,5 @@
+//! Runs skim repeatedly to check that runs clean up their worker threads.
+
 use skim::{Skim, prelude::SkimOptionsBuilder};
 
 // Hint: use `ps -T -p $(pgrep -f target/debug/examples/multiple_runs)` to watch threads while the

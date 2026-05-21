@@ -1,3 +1,5 @@
+//! Demonstrates basic item selection with inline status information.
+
 use skim::{prelude::*, tui::statusline::InfoDisplay};
 
 fn main() -> color_eyre::Result<()> {
