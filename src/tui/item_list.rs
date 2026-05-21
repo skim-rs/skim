@@ -112,7 +112,12 @@ impl ItemList {
     /// Returns the currently selected item, if any
     #[must_use]
     pub fn selected(&self) -> Option<MatchedItem> {
-        self.items.get(self.cursor()).cloned()
+        let item = self.items.get(self.cursor());
+        if item.is_some_and(|i| !i.item.disabled()) {
+            item.cloned()
+        } else {
+            None
+        }
     }
 
     /// Appends new matched items to the list
@@ -154,12 +159,16 @@ impl ItemList {
     /// Add row to selection
     pub fn select_row(&mut self, index: usize) {
         let item = self.items[index].clone();
-        self.selection.insert(item);
+        if !item.disabled() {
+            self.selection.insert(item);
+        }
     }
     /// Selects all items
     pub fn select_all(&mut self) {
         for item in self.items.clone() {
-            self.selection.insert(item.clone());
+            if !item.disabled() {
+                self.selection.insert(item.clone());
+            }
         }
     }
     /// Clears all selections
@@ -210,16 +219,14 @@ impl ItemList {
         if self.reserved >= self.items.len() {
             return;
         }
-        let reserved = i32::try_from(self.reserved).unwrap_or(i32::MAX);
+        let reserved = i32::try_from(self.reserved).unwrap_or(0);
         let total = i32::try_from(self.items.len()).unwrap_or(i32::MAX);
-        let mut new = i32::try_from(self.current).unwrap_or(i32::MAX) + offset;
+        let mut new = i32::try_from(self.current).unwrap_or(0) + offset;
         if self.cycle {
             let n = total - reserved;
             new = reserved + (new + n - reserved) % n;
         } else {
-            new = new
-                .min(i32::try_from(self.items.len()).unwrap_or(i32::MAX) - 1)
-                .max(i32::try_from(self.reserved).unwrap_or(i32::MAX));
+            new = new.min(total - 1).max(reserved);
         }
         self.current = new.max(0).unsigned_abs() as usize;
         debug!("Scrolled to {}", self.current);
@@ -623,7 +630,7 @@ impl SkimWidget for ItemList {
 fn toggle_item(sel: &mut IndexSet<MatchedItem>, item: &MatchedItem) {
     if sel.contains(item) {
         sel.shift_remove(item);
-    } else {
+    } else if !item.disabled() {
         sel.insert(item.clone());
     }
 }

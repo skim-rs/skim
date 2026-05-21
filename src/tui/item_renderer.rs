@@ -176,6 +176,12 @@ impl<'a> ItemRenderer<'a> {
             all_spans.extend(content_line.spans);
         }
 
+        if item.item.disabled() {
+            for span in &mut all_spans {
+                span.style = span.style.dim();
+            }
+        }
+
         self.list_item_from_spans(all_spans, state.is_current)
     }
 

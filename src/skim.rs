@@ -378,7 +378,16 @@ where
                 std::thread::sleep(Duration::from_millis(1));
                 app.restart_matcher(false);
             }
-            app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
+            app.item_list.items = app
+                .item_list
+                .processed_items
+                .lock()
+                .take()
+                .unwrap_or_default()
+                .items
+                .into_iter()
+                .filter(|i| !i.item.disabled())
+                .collect();
             debug!("filter mode: matched {} items", app.item_list.items.len());
             return false;
         }

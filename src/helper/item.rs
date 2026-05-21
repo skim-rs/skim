@@ -29,7 +29,7 @@ pub struct DefaultSkimItem {
 }
 
 /// Additional metadata for a `SkimItem`
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DefaultSkimItemMetadata {
     /// The text that will be output when user press `enter`
     /// `Some(..)` => the original input is transformed, could not output `text` directly
@@ -45,8 +45,11 @@ pub struct DefaultSkimItemMetadata {
     /// Will be empty if ansi is disabled.
     ansi_info: Option<Vec<(usize, usize)>>,
 
-    // The ranges on which to perform matching
+    /// The ranges on which to perform matching
     matching_ranges: Option<Vec<(usize, usize)>>,
+
+    /// Whether the item should be disabled or not
+    disabled: bool,
 }
 
 impl DefaultSkimItem {
@@ -159,6 +162,7 @@ impl DefaultSkimItem {
                     stripped_text: stripped_text.map(std::string::String::into_boxed_str),
                     ansi_info,
                     matching_ranges,
+                    disabled: false,
                 }))
             } else {
                 None
@@ -172,6 +176,11 @@ impl DefaultSkimItem {
 
     fn contains_ansi_escape(s: &str) -> bool {
         memchr::memchr(b'\x1b', s.as_bytes()).is_some()
+    }
+
+    /// Mark the item as disabled
+    pub fn disable(&mut self) {
+        self.metadata.get_or_insert_default().disabled = true;
     }
 
     /// Getter for `stripped_text` stored in the metadata
@@ -441,6 +450,10 @@ impl SkimItem for DefaultSkimItem {
             // No ANSI mapping needed, use text as-is
             context.to_line(Cow::Borrowed(&self.text))
         }
+    }
+
+    fn disabled(&self) -> bool {
+        self.metadata.as_ref().is_some_and(|x| x.disabled)
     }
 }
 

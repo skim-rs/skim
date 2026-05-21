@@ -259,6 +259,30 @@ sk_test!(opt_accept_arg, "a\\nb", &["--bind", "ctrl-a:accept:hello"], {
   @output[1] trim().eq("a");
 });
 
+sk_test!(opt_disable_pattern_control, "foo\\nbar", &["--disable-pattern", "foo", "--query bar"], {
+    @capture[0] starts_with("> bar");
+    @capture[2] starts_with("> bar");
+    @keys Enter;
+    @output[0] trim().eq("bar");
+});
+sk_test!(opt_disable_pattern, "foo\\nbar", &["--disable-pattern", "foo", "--query foo"], {
+    @capture[0] starts_with("> foo");
+    @capture[2] starts_with("> foo");
+    @keys Enter;
+    @output[0] trim().eq("");
+});
+sk_test!(opt_disable_pattern_multi, "foo a\\nbar\\nfoo b", &["--disable-pattern", "foo", "--multi", "-q", "a"], {
+    @capture[0] starts_with("> a");
+    @lines |l| (l.len() == 4);
+    @capture[2] starts_with("> foo a");
+    @capture[3] starts_with("bar");
+    @keys BTab, BTab;
+    @capture[2] trim().eq("foo a");
+    @capture[3] trim().eq(">>bar");
+    @keys Enter;
+    @output[0] trim().eq("bar");
+});
+
 // Bind tests that require output capture
 
 sk_test!(bind_execute_0_results, "", &["--bind", "'ctrl-f:execute(echo foo{})'"], {

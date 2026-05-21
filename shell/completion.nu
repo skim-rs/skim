@@ -69,6 +69,7 @@ module completions {
     --show-cmd-error          # Show error message if command fails
     --cycle                   # Cycle the results by wrapping around when scrolling
     --disabled                # Disable matching entirely
+    --disable-pattern: string # Disable items based on this regex pattern
     --layout: string@"nu-complete sk layout" # Set layout
     --reverse                 # Shorthand for reverse layout
     --height: string          # Height of skim's window
