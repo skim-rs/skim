@@ -410,3 +410,29 @@ fn no_use_last_match_prefers_first_occurrence() {
     let (_, got) = m.fuzzy_indices("man/man1/sk.1", "man").expect("should match");
     assert_eq!(got, vec![0, 1, 2], "expected second 'man' (indices 0,1,2), got {got:?}");
 }
+
+#[test]
+fn first_match_inside_brackets_is_highlighted() {
+    // Regression test for skim-rs/skim#1075. `[paste] some paste` queried with
+    // `paste` should highlight the first occurrence (inside the brackets), not
+    // the second. Before treating brackets as word separators the second
+    // occurrence scored higher because it followed a space.
+    let m = ArinaeMatcher::default();
+    let (_, got) = m.fuzzy_indices("[paste] some paste", "paste").expect("should match");
+    assert_eq!(
+        got,
+        vec![1, 2, 3, 4, 5],
+        "expected first 'paste' inside brackets, got {got:?}"
+    );
+
+    // Same expectation for the other bracket and paren variants now treated
+    // as separators.
+    for choice in ["(paste) some paste", "{paste} some paste"] {
+        let (_, got) = m.fuzzy_indices(choice, "paste").expect("should match");
+        assert_eq!(
+            got,
+            vec![1, 2, 3, 4, 5],
+            "expected first 'paste' for {choice:?}, got {got:?}"
+        );
+    }
+}
