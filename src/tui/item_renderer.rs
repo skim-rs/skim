@@ -7,6 +7,7 @@ use crate::tui::item_list::ItemList;
 use crate::tui::util::{char_display_width, clip_line_to_chars, wrap_text};
 use crate::{DisplayContext, MatchRange, item::MatchedItem, theme::ColorTheme};
 
+#[allow(clippy::struct_excessive_bools)]
 struct SubLineState {
     /// Current item
     is_current: bool,
@@ -20,6 +21,7 @@ struct SubLineState {
 }
 
 /// Rendering parameters that are constant across all items in one render pass.
+#[allow(clippy::struct_excessive_bools)]
 pub(crate) struct ItemRenderer<'a> {
     pub theme: &'a ColorTheme,
     pub selector_icon: &'a str,

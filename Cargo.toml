@@ -47,6 +47,15 @@ inherits = "release"
 debug = true
 strip = false
 
+[lints.rust]
+missing_docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage, coverage_nightly)'] }
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+incompatible_msrv = "warn"
+collapsible_match = "allow"
+default_trait_access = "allow"
+
 [dependencies]
 ansi-to-tui = "8.0.1"
 assert_enum_variants = "0.1.2"
@@ -100,9 +109,6 @@ insta = "1.47"
 rand = "0.10.0"
 serde_json = { version = "=1.0.149" }
 serial_test = "=3.4.0"
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage, coverage_nightly)'] }
 
 [[bench]]
 name = "read_and_match"

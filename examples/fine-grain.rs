@@ -1,9 +1,11 @@
+//! Demonstrates fine-grained control over skim lifecycle events.
+
 extern crate skim;
 use color_eyre::Result;
 use skim::prelude::*;
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn main() -> Result<()> {
+async fn main() -> Result<()> {
     let options = SkimOptionsBuilder::default().height("50%").multi(true).build()?;
 
     let (tx_item, rx_item): (SkimItemSender, SkimItemReceiver) = unbounded();
@@ -26,7 +28,7 @@ pub async fn main() -> Result<()> {
         })
         .await?;
 
-    for item in output.selected_items.iter() {
+    for item in &output.selected_items {
         println!("{}", item.output());
     }
 

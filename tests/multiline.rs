@@ -6,6 +6,8 @@
 //! Existing basic multiline tests (navigation, scrolling, custom `|` separator)
 //! live in `tests/options.rs`; this file focuses on combinatorial coverage.
 
+#![allow(missing_docs, clippy::pedantic)]
+
 #[allow(dead_code)]
 #[macro_use]
 mod common;

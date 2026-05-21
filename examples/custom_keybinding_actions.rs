@@ -1,3 +1,5 @@
+//! Demonstrates binding custom key combinations to custom actions.
+
 extern crate skim;
 use crossterm::event::{KeyCode, KeyModifiers};
 use skim::prelude::*;
@@ -27,11 +29,11 @@ fn main() {
         match (out.final_key.code, out.final_key.modifiers) {
             // Delete each selected item
             (KeyCode::Backspace, KeyModifiers::NONE) => {
-                out.selected_items.iter().for_each(|i| fake_delete_item(&i.text()))
+                out.selected_items.iter().for_each(|i| fake_delete_item(&i.text()));
             }
             // Create a new item based on the query
             (KeyCode::Enter, KeyModifiers::NONE) => fake_create_item(out.query.as_ref()),
             _ => (),
         }
-    };
+    }
 }

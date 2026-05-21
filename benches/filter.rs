@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 use std::fs;
 
 use criterion::{Criterion, criterion_group, criterion_main};

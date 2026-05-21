@@ -65,7 +65,7 @@ pub enum MatchScheme {
 /// sk - fuzzy finder in Rust
 ///
 /// sk is a general purpose command-line fuzzy finder.
-#[allow(missing_docs)] // derive_builder seems to have issues with doc comments ?
+#[allow(missing_docs, clippy::struct_excessive_bools)] // derive_builder seems to have issues with doc comments ?
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"), setter(into, strip_option))]
 #[builder(default)]

@@ -47,6 +47,7 @@ impl Default for ProcessedItems {
 }
 
 /// Widget for displaying and managing the list of filtered items
+#[allow(clippy::struct_excessive_bools)]
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: IndexSet<MatchedItem>,

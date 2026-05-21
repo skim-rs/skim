@@ -1,3 +1,4 @@
+#![allow(missing_docs, clippy::pedantic)]
 #![cfg(unix)]
 #[allow(dead_code)]
 mod common;

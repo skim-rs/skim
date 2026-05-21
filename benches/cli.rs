@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 //! Interactive benchmark binary for skim.
 //!
 //! Measures ingestion + matching rate by running sk (or any compatible binary)

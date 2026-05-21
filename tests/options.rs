@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 use crate::common::SK;
 use std::process::Command;
 

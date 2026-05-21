@@ -1,3 +1,5 @@
+//! Runs skim from an async Tokio entry point.
+
 use skim::{Skim, prelude::SkimOptionsBuilder};
 
 #[tokio::main]
