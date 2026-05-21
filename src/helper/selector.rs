@@ -47,6 +47,9 @@ impl DefaultSkimSelector {
 
 impl Selector for DefaultSkimSelector {
     fn should_select(&self, index: usize, item: &dyn SkimItem) -> bool {
+        if item.disabled() {
+            return false;
+        }
         if self.first_n > index {
             return true;
         }
