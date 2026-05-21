@@ -395,6 +395,10 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub disabled: bool,
 
+    /// Disable items based on this regex pattern
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
+    pub disable_pattern: Option<Regex>,
+
     //  --- Layout ---
     /// Set layout
     ///
@@ -1024,6 +1028,7 @@ impl Default for SkimOptions {
             print_header: false,
             print_current: false,
             disabled: false,
+            disable_pattern: None,
             tac: Default::default(),
             min_query_length: Default::default(),
             no_sort: Default::default(),

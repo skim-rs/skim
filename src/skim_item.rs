@@ -75,6 +75,12 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
     fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
         None
     }
+
+    /// Returns true if the item should be disabled
+    /// Disabled items cannot be selected
+    fn disabled(&self) -> bool {
+        false
+    }
 }
 
 //------------------------------------------------------------------------------
