@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.0] - 2026-05-21
+
+### 🚀 Features
+
+- Add `--disable-pattern` option to selectively disable items (#1077)
+
+### 🐛 Bug Fixes
+
+- *(ari)* Tweak previous char bonuses
+
+### ⚙️ Miscellaneous Tasks
+
+- Crate-level lints
+
 ## [4.6.3] - 2026-05-20
 
 ### 🐛 Bug Fixes
