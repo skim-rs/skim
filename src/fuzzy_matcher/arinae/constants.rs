@@ -51,5 +51,16 @@ pub(super) const SEPARATOR_TABLE: [Score; 128] = {
     t[b'/' as usize] = 16; // forward slash (path separator — higher bonus)
     t[b'\\' as usize] = 16; // backslash (Windows path separator — higher bonus)
     t[b'_' as usize] = 12; // underscore / snake_case
+    // Brackets / parens / braces delimit tokens just like spaces do, so a
+    // match immediately inside them should not be penalised relative to a
+    // match after whitespace. Without these entries `[paste] some paste`
+    // queried with `paste` scored the second occurrence higher than the
+    // first and highlighted the wrong one.
+    t[b'[' as usize] = 16;
+    t[b']' as usize] = 16;
+    t[b'(' as usize] = 16;
+    t[b')' as usize] = 16;
+    t[b'{' as usize] = 16;
+    t[b'}' as usize] = 16;
     t
 };
