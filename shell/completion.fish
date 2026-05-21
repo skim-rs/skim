@@ -32,6 +32,7 @@ complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode
 complete -c sk -s I -d 'Replace replstr with the selected item in commands' -r
 complete -c sk -l color -d 'Set color theme' -r
 complete -c sk -l skip-to-pattern -d 'Show the matched pattern at the line start' -r
+complete -c sk -l disable-pattern -d 'Disable items based on this regex pattern' -r
 complete -c sk -l layout -d 'Set layout' -r -f -a "default\t'Display from the bottom of the screen'
 reverse\t'Display from the top of the screen'
 reverse-list\t'Display from the top of the screen, prompt at the bottom'"

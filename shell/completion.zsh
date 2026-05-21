@@ -43,6 +43,7 @@ history\:"History scheme\: will force index as the first tiebreak"))' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
 '--color=[Set color theme]:COLOR:_default' \
 '--skip-to-pattern=[Show the matched pattern at the line start]:SKIP_TO_PATTERN:_default' \
+'--disable-pattern=[Disable items based on this regex pattern]:DISABLE_PATTERN:_default' \
 '--layout=[Set layout]:LAYOUT:((default\:"Display from the bottom of the screen"
 reverse\:"Display from the top of the screen"
 reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
