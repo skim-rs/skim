@@ -7,6 +7,7 @@ use std::time::Duration;
 use color_eyre::eyre::Result;
 use color_eyre::eyre::{self, OptionExt};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui_image::picker::Picker;
 use tokio::{runtime::Handle, select, task::block_in_place};
 
 use crate::reader::{Reader, ReaderControl};
@@ -347,11 +348,33 @@ where
     #[allow(clippy::unused_async)]
     pub async fn enter(&mut self) -> Result<()> {
         debug!("Entering TUI");
+        let tui = self
+            .tui
+            .as_mut()
+            .expect("TUI needs to be initialized using Skim::init_tui before entering");
+
+        tui.enter_terminal()?;
+        if self.app.options.image {
+            if !tui.is_fullscreen {
+                crossterm::execute!(std::io::stderr(), crossterm::terminal::EnterAlternateScreen)?;
+            }
+            let picker = Picker::from_query_stdio().unwrap_or_else(|err| {
+                warn!("failed to query terminal image protocol: {err:?}");
+                Picker::halfblocks()
+            });
+            if !tui.is_fullscreen {
+                crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen)?;
+            }
+            self.app.options.image_picker = Some(picker.clone());
+            self.app.preview.set_image_picker(Some(picker));
+        }
+
         self.init_listener()?;
         self.tui
             .as_mut()
-            .expect("TUI needs to be initialized using Skim::init_tui before entering")
-            .enter()
+            .expect("TUI needs to be initialized using Skim::init_tui before starting")
+            .start();
+        Ok(())
     }
 
     /// Checks read-0 select-1, filter, and sync to wait and returns whether or not we should enter

@@ -68,6 +68,7 @@
           default = mkShell base "";
           tests = mkShell (base ++ tests) "";
           utils = mkShell (base ++ utils) "";
+          dev = mkShell (base ++ tests ++ utils) "";
           gungraun = mkShell (base ++ gungraun) gungraunHook;
           vagrant = mkShell (base ++ vagrantDeps) vagrantHook;
           full = mkShell (base ++ tests ++ utils ++ gungraun ++ vagrantDeps) (gungraunHook + vagrantHook);

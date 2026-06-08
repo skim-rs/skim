@@ -124,6 +124,20 @@ where
     ///
     /// Returns an error if enabling raw mode or mouse capture fails.
     pub fn enter(&mut self) -> Result<()> {
+        self.enter_terminal()?;
+        self.start();
+        Ok(())
+    }
+
+    /// Enables terminal modes and enters the alternate screen without starting event polling.
+    ///
+    /// This lets callers run terminal queries after alternate-screen entry but
+    /// before the event stream starts reading terminal input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if enabling raw mode or terminal features fails.
+    pub fn enter_terminal(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
         // On Windows, install a console ctrl handler so that CTRL_C_EVENT
         // performs terminal cleanup instead of killing the process abruptly.
@@ -137,7 +151,6 @@ where
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
-        self.start();
         Ok(())
     }
 
