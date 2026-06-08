@@ -465,14 +465,15 @@ impl App {
                 preview,
                 ItemPreview::Global | ItemPreview::Command(_) | ItemPreview::CommandWithPos(_, _)
             );
+            let quote_cmd = !self.options.image;
             match preview {
-                ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?,
+                ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, quote_cmd))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                     self.preview.content(&t.bytes().collect::<Vec<_>>())?;
                 }
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
-                    self.preview.spawn(tui, &self.expand_cmd(&cmd, true))?;
+                    self.preview.spawn(tui, &self.expand_cmd(&cmd, quote_cmd))?;
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -510,9 +511,7 @@ impl App {
                 ItemPreview::TextWithPos(t, preview_position) | ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(&t.bytes().collect::<Vec<_>>(), preview_position)?,
-                ItemPreview::Global => self
-                    .preview
-                    .spawn(tui, &self.expand_cmd(preview_opt, !self.options.image))?,
+                ItemPreview::Global => self.preview.spawn(tui, &self.expand_cmd(preview_opt, quote_cmd))?,
             }
             if preview_ready {
                 let _ = tui.event_tx.try_send(Event::PreviewReady);

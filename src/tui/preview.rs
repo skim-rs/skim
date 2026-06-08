@@ -464,7 +464,8 @@ impl Preview {
 
                 let try_out = shell_cmd.output();
                 if try_out.is_err() {
-                    println!("Shell cmd in error: {try_out:?}");
+                    log::info!("Shell cmd in error: {try_out:?}");
+                    let _ = event_tx_clone.blocking_send(Event::PreviewReady);
                     return;
                 }
 
