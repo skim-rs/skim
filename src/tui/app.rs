@@ -750,7 +750,7 @@ impl App {
             }
             CopyToClipboard(expr) => {
                 let text = self.expand_cmd(expr, false);
-                log::debug!("Copying {text} to clipboard");
+                debug!("Copying {text} to clipboard");
                 crossterm::execute!(
                     std::io::stderr(),
                     crossterm::clipboard::CopyToClipboard::to_clipboard_from(text)
