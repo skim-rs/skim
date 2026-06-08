@@ -121,6 +121,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL), vec![Action::UnixWordRubout]);
     ret.insert(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL), vec![Action::Yank]);
 
+    ret.insert(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL | KeyModifiers::SHIFT), vec![Action::CopyToClipboard(String::from("{}"))]);
 
     ret.insert(KeyEvent::new(KeyCode::Backspace, KeyModifiers::ALT), vec![Action::BackwardKillWord]);
 

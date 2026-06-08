@@ -177,6 +177,9 @@ pub enum Action {
     Cancel,
     /// Clear the screen
     ClearScreen,
+    /// Copy to the primary clipboard. If provided, the arg will be expanded. If not, defaults to
+    /// the currrent item (`{}`)
+    CopyToClipboard(String),
     /// Delete character under cursor
     DeleteChar,
     /// Delete character or exit if empty
@@ -366,6 +369,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "beginning-of-line" => Some(BeginningOfLine),
                 "cancel" => Some(Cancel),
                 "clear-screen" => Some(ClearScreen),
+                "copy-to-clipboard" => Some(CopyToClipboard(arg.unwrap_or(String::from("{}")))),
                 "delete-char" => Some(DeleteChar),
                 "delete-char/eof" => Some(DeleteCharEof),
                 "deselect-all" => Some(DeselectAll),

@@ -65,7 +65,7 @@ clap_complete_nushell = "4.6.0"
 clap_mangen = { version = "0.3.0", optional = true }
 color-eyre = "0.6.5"
 # Crossterm's version is selected by ratatui
-crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc"] }
+crossterm = { version = ">=0.0.0", features = ["event-stream", "use-dev-tty", "libc", "osc52"] }
 derive_builder = "0.20.2"
 derive_more = { version = "2.1.1", features = ["debug", "eq"] }
 env_logger = { version = "0.11.10", optional = true, features = ["humantime"] }

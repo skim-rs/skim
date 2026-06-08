@@ -3,9 +3,11 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
 use color_eyre::eyre::Result;
-use crossterm::event::KeyEventKind;
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::event::{
+    KeyEventKind, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};
@@ -131,6 +133,12 @@ where
         super::windows::install_ctrl_c_handler()?;
 
         crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
+        if crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false) {
+            crossterm::execute!(
+                std::io::stderr(),
+                PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::all())
+            )?;
+        }
         if self.enable_mouse {
             crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
         }
@@ -282,8 +290,10 @@ pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
         DisableMouseCapture,
         DisableBracketedPaste,
         LeaveAlternateScreen,
-        cursor::Show
+        cursor::Show,
+        PopKeyboardEnhancementFlags
     )?;
+
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
 }
