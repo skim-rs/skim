@@ -177,8 +177,8 @@ pub enum Action {
     Cancel,
     /// Clear the screen
     ClearScreen,
-    /// Copy to the primary clipboard. If provided, the arg will be expanded. If not, defaults to
-    /// the currrent item (`{}`)
+    /// Copy to the system clipboard. If provided, the arg will be expanded. If not, defaults to
+    /// the current item (`{}`)
     CopyToClipboard(String),
     /// Delete character under cursor
     DeleteChar,
