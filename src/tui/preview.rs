@@ -8,6 +8,8 @@ use ratatui::{
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
+use ratatui_image::picker::Picker;
+use ratatui_image::protocol::Protocol as ImageProtocol;
 use tui_term::vt100;
 use tui_term::widget::PseudoTerminal;
 
@@ -28,12 +30,18 @@ pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Sen
 const PREVIEW_MAX_BYTES: usize = 1024 * 1024;
 const VT_SCROLLBACK: usize = 100_000;
 
-/// Preview content can be either parsed text or a terminal screen
+/// Preview content options
 pub(crate) enum PreviewContent {
     /// Simple text content (for non-PTY previews and callbacks)
     Text(Text<'static>),
     /// Terminal screen (for PTY previews with cursor positioning)
     Terminal(Arc<RwLock<vt100::Parser>>),
+    /// Image
+    Image {
+        source: image::DynamicImage,
+        protocol: Option<ImageProtocol>,
+        size: ratatui::layout::Size,
+    },
 }
 
 impl Default for PreviewContent {
@@ -82,6 +90,8 @@ pub struct Preview {
     pub wrap: bool,
     pty: Option<PtyPair>,
     pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+    image: bool,
+    image_picker: Option<Picker>,
     pub total_lines: u16,
 }
 
@@ -92,6 +102,25 @@ impl Default for Preview {
 }
 
 impl Preview {
+    fn image_protocol(
+        picker: Option<&Picker>,
+        source: image::DynamicImage,
+        size: ratatui::layout::Size,
+    ) -> std::result::Result<ImageProtocol, ratatui_image::errors::Errors> {
+        let fallback;
+        let picker = if let Some(picker) = picker {
+            picker
+        } else {
+            fallback = Picker::halfblocks();
+            &fallback
+        };
+        picker.new_protocol(source, size, ratatui_image::Resize::Fit(None))
+    }
+
+    pub(crate) fn set_image_picker(&mut self, picker: Option<Picker>) {
+        self.image_picker = picker;
+    }
+
     /// Convert a Size value to an actual offset based on preview dimensions
     fn size_to_offset(&self, size: super::Size, is_vertical: bool) -> u16 {
         match size {
@@ -270,6 +299,28 @@ impl Preview {
 
         let event_tx_clone = tui.event_tx.clone();
         let content = self.content.clone();
+
+        if self.image {
+            let cmd = self.cmd.clone();
+            self.thread_handle = Some(std::thread::spawn(move || {
+                let res: PreviewContent;
+                if let Ok(Ok(decoded)) = image::ImageReader::open(&cmd).map(image::ImageReader::decode) {
+                    res = PreviewContent::Image {
+                        source: decoded,
+                        protocol: None,
+                        size: ratatui::layout::Size::default(),
+                    };
+                } else {
+                    res = PreviewContent::Text(Text::raw(format!("Failed to open {cmd} as image")));
+                }
+                if let Ok(mut c) = content.write() {
+                    *c = res;
+                    let _ = event_tx_clone.blocking_send(Event::PreviewReady);
+                }
+            }));
+
+            return Ok(());
+        }
 
         if let Some(pty) = self.pty.take() {
             // Ensure the PTY has the correct display dimensions before spawning.
@@ -454,6 +505,8 @@ impl SkimWidget for Preview {
             interrupt_tx: None,
             pty: None,
             pty_child: None,
+            image: options.image,
+            image_picker: options.image_picker.clone(),
             total_lines: 0,
         };
         #[cfg(target_os = "linux")]
@@ -475,7 +528,7 @@ impl SkimWidget for Preview {
                 })
             });
         }
-        let Ok(content) = self.content.try_read() else {
+        let Ok(mut content) = self.content.try_write() else {
             return SkimRender::default();
         };
 
@@ -496,7 +549,7 @@ impl SkimWidget for Preview {
 
         Clear.render(area, buf);
 
-        match &*content {
+        match &mut *content {
             PreviewContent::Text(text) => {
                 // Calculate total lines in content
                 self.total_lines = text.lines.len().try_into().unwrap();
@@ -562,6 +615,26 @@ impl SkimWidget for Preview {
                     && let Ok(mut parser_guard) = parser.try_write()
                 {
                     parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
+                }
+            }
+            PreviewContent::Image { source, protocol, size } => {
+                let inner = block.inner(area);
+                block.render(area, buf);
+                let image_size = ratatui::layout::Size::new(inner.width, inner.height);
+                if image_size.width > 0 && image_size.height > 0 && (protocol.is_none() || *size != image_size) {
+                    match Self::image_protocol(self.image_picker.as_ref(), source.clone(), image_size) {
+                        Ok(new_protocol) => {
+                            *protocol = Some(new_protocol);
+                            *size = image_size;
+                        }
+                        Err(err) => {
+                            warn!("failed to render image preview: {err:?}");
+                        }
+                    }
+                }
+                if let Some(protocol) = protocol {
+                    let image = ratatui_image::Image::new(protocol).allow_clipping(true);
+                    image.render(inner, buf);
                 }
             }
         }

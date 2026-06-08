@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
+use ratatui_image::picker::Picker;
 use regex::Regex;
 
 use crate::binds::KeyMap;
@@ -689,6 +690,23 @@ pub struct SkimOptions {
     )]
     pub preview_window: PreviewLayout,
 
+    /// Enable image preview
+    ///
+    /// This will render the preview argument as an image instead of running it as a command.
+    ///
+    /// It will try to detect the available image backends at startup, which will add a small
+    /// delay before the first render.
+    ///
+    /// Note: the backend detection **will not** work when piping data into skim, use
+    /// `SKIM_DEFAULT_COMMAND="find . -type f" sk --image` instead of `find . -type f | sk --image`
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Preview"))]
+    pub image: bool,
+    /// Terminal image protocol picker, queried after entering the alternate screen.
+    #[cfg_attr(feature = "cli", clap(skip))]
+    #[builder(setter(skip))]
+    #[debug(skip)]
+    pub image_picker: Option<Picker>,
+
     //  --- Scripting ---
     /// Initial query
     #[cfg_attr(feature = "cli", arg(long, short, help_heading = "Scripting"))]
@@ -1082,6 +1100,8 @@ impl Default for SkimOptions {
             cmd_history_size: 1000,
             preview: Default::default(),
             preview_window: PreviewLayout::default(),
+            image: false,
+            image_picker: None,
             query: Default::default(),
             cmd_query: Default::default(),
             read0: Default::default(),

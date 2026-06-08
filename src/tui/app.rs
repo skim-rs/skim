@@ -510,7 +510,9 @@ impl App {
                 ItemPreview::TextWithPos(t, preview_position) | ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(&t.bytes().collect::<Vec<_>>(), preview_position)?,
-                ItemPreview::Global => self.preview.spawn(tui, &self.expand_cmd(preview_opt, true))?,
+                ItemPreview::Global => self
+                    .preview
+                    .spawn(tui, &self.expand_cmd(preview_opt, !self.options.image))?,
             }
             if preview_ready {
                 let _ = tui.event_tx.try_send(Event::PreviewReady);
