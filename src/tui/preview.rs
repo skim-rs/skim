@@ -16,8 +16,10 @@ use tui_term::widget::PseudoTerminal;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use std::time::Instant;
 use std::{env, io::Read};
 
+use super::statusline::spinner_char;
 use super::util::{find_csi_end, find_osc_end, handle_csi_query, handle_osc_query};
 use super::widget::{SkimRender, SkimWidget};
 use super::{BorderType, Direction, Event, Tui};
@@ -93,6 +95,8 @@ pub struct Preview {
     image: bool,
     image_picker: Option<Picker>,
     pub total_lines: u16,
+    loading: bool,
+    spinner_start: Instant,
 }
 
 impl Default for Preview {
@@ -202,7 +206,16 @@ impl Preview {
         *content = PreviewContent::Text(text);
         self.scroll_y = 0;
         self.scroll_x = 0;
+        self.loading = false;
         Ok(())
+    }
+
+    pub(crate) fn is_loading(&self) -> bool {
+        self.loading
+    }
+
+    pub(crate) fn mark_ready(&mut self) {
+        self.loading = false;
     }
 
     pub fn content_with_position(&mut self, content: &[u8], position: crate::PreviewPosition) -> Result<()> {
@@ -292,6 +305,7 @@ impl Preview {
     {
         self.kill();
         self.cmd = cmd.to_string();
+        self.loading = true;
 
         // Reset scroll position and manual_scroll flag for new preview
         self.scroll_y = 0;
@@ -475,6 +489,120 @@ impl Preview {
         }
         Ok(())
     }
+
+    fn render_text(
+        &self,
+        mut outer: Block,
+        area: ratatui::layout::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        text: &Text,
+    ) -> u16 {
+        // Calculate total lines in content
+        let total_lines: u16 = text.lines.len().try_into().unwrap();
+
+        // Create paragraph with optional block
+        let mut paragraph = Paragraph::new(text.clone()).scroll((self.scroll_y, self.scroll_x));
+
+        // Enable wrapping if wrap is true
+        if self.wrap {
+            paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });
+        }
+
+        // Add scroll position indicator at top-right if scrolled
+        if self.scroll_y > 0 && self.total_lines > 0 {
+            let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
+            let title = format!("{}/{}", current_line, self.total_lines);
+
+            outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
+        }
+
+        paragraph = paragraph.block(outer);
+        paragraph.render(area, buf);
+        total_lines
+    }
+
+    fn render_pty(
+        &self,
+        mut outer: Block,
+        area: ratatui::layout::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        parser: &std::sync::RwLock<tui_term::vt100::Parser>,
+    ) -> u16 {
+        let mut total_lines = 0u16;
+        // For terminal content, manipulate scrollback to implement scrolling
+        if let Ok(mut parser_guard) = parser.try_write() {
+            let scrollback_len = parser_guard.screen().scrollback();
+            // Reset scrollback to its full size first
+            parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
+            // If the scrollback is not empty, we seem to be off by one
+            total_lines = (scrollback_len.saturating_sub(1) + parser_guard.screen().contents().lines().count())
+                .try_into()
+                .unwrap();
+            if self.scroll_y > 0 {
+                trace!("scrolling in vt buffer: {}/{}", self.scroll_y, total_lines);
+                // Reduce scrollback by scroll_y to show earlier content
+                parser_guard
+                    .screen_mut()
+                    .set_scrollback(scrollback_len.saturating_sub(self.scroll_y.into()));
+            }
+        }
+
+        // Render using PseudoTerminal widget for proper terminal emulation
+        if let Ok(parser_guard) = parser.try_read() {
+            let screen = parser_guard.screen();
+
+            // Add scroll position indicator if scrolled
+            if self.scroll_y > 0 && total_lines > 0 {
+                let title = format!("{}/{}", self.scroll_y + 1, total_lines);
+                outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
+            }
+
+            // Use PseudoTerminal widget to render the vt100 screen
+            let pseudo_term = PseudoTerminal::new(screen)
+                .cursor(tui_term::widget::Cursor::default().visibility(false))
+                .block(outer);
+            pseudo_term.render(area, buf);
+        }
+
+        // Reset scrollback after rendering
+        if self.scroll_y > 0
+            && let Ok(mut parser_guard) = parser.try_write()
+        {
+            parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
+        }
+        total_lines
+    }
+    fn render_image(
+        &self,
+        mut outer: Block,
+        area: ratatui::layout::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+        source: &image::DynamicImage,
+        protocol: &mut Option<ImageProtocol>,
+        size: &mut ratatui::layout::Size,
+    ) {
+        let title = format!("{}x{}", source.width(), source.height());
+        outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
+
+        let inner = outer.inner(area);
+        outer.render(area, buf);
+        let image_size = ratatui::layout::Size::new(inner.width, inner.height);
+        if image_size.width > 0 && image_size.height > 0 && (protocol.is_none() || *size != image_size) {
+            match Self::image_protocol(self.image_picker.as_ref(), source.clone(), image_size) {
+                Ok(new_protocol) => {
+                    *protocol = Some(new_protocol);
+                    *size = image_size;
+                }
+                Err(err) => {
+                    warn!("failed to render image preview: {err:?}");
+                }
+            }
+        }
+        if let Some(protocol) = protocol {
+            let image = ratatui_image::Image::new(protocol).allow_clipping(true);
+            image.render(inner, buf);
+        }
+    }
 }
 
 impl Drop for Preview {
@@ -508,6 +636,8 @@ impl SkimWidget for Preview {
             image: options.image,
             image_picker: options.image_picker.clone(),
             total_lines: 0,
+            loading: false,
+            spinner_start: Instant::now(),
         };
         #[cfg(target_os = "linux")]
         if options.preview_window.pty {
@@ -548,95 +678,20 @@ impl SkimWidget for Preview {
         }
 
         Clear.render(area, buf);
+        let spinner_area = block.inner(area);
 
         match &mut *content {
-            PreviewContent::Text(text) => {
-                // Calculate total lines in content
-                self.total_lines = text.lines.len().try_into().unwrap();
-
-                // Create paragraph with optional block
-                let mut paragraph = Paragraph::new(text.clone()).scroll((self.scroll_y, self.scroll_x));
-
-                // Enable wrapping if wrap is true
-                if self.wrap {
-                    paragraph = paragraph.wrap(ratatui::widgets::Wrap { trim: false });
-                }
-
-                // Add scroll position indicator at top-right if scrolled
-                if self.scroll_y > 0 && self.total_lines > 0 {
-                    let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
-                    let title = format!("{}/{}", current_line, self.total_lines);
-
-                    block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
-                }
-
-                paragraph = paragraph.block(block);
-                paragraph.render(area, buf);
-            }
-            PreviewContent::Terminal(parser) => {
-                // For terminal content, manipulate scrollback to implement scrolling
-                if let Ok(mut parser_guard) = parser.try_write() {
-                    let scrollback_len = parser_guard.screen().scrollback();
-                    // Reset scrollback to its full size first
-                    parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
-                    // If the scrollback is not empty, we seem to be off by one
-                    self.total_lines = (scrollback_len.saturating_sub(1)
-                        + parser_guard.screen().contents().lines().count())
-                    .try_into()
-                    .unwrap();
-                    if self.scroll_y > 0 {
-                        trace!("scrolling in vt buffer: {}/{}", self.scroll_y, self.total_lines);
-                        // Reduce scrollback by scroll_y to show earlier content
-                        parser_guard
-                            .screen_mut()
-                            .set_scrollback(scrollback_len.saturating_sub(self.scroll_y.into()));
-                    }
-                }
-
-                // Render using PseudoTerminal widget for proper terminal emulation
-                if let Ok(parser_guard) = parser.try_read() {
-                    let screen = parser_guard.screen();
-
-                    // Add scroll position indicator if scrolled
-                    if self.scroll_y > 0 && self.total_lines > 0 {
-                        let title = format!("{}/{}", self.scroll_y + 1, self.total_lines);
-                        block = block.title_top(Line::from(title).alignment(Alignment::Right).reversed());
-                    }
-
-                    // Use PseudoTerminal widget to render the vt100 screen
-                    let pseudo_term = PseudoTerminal::new(screen)
-                        .cursor(tui_term::widget::Cursor::default().visibility(false))
-                        .block(block);
-                    pseudo_term.render(area, buf);
-                }
-
-                // Reset scrollback after rendering
-                if self.scroll_y > 0
-                    && let Ok(mut parser_guard) = parser.try_write()
-                {
-                    parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
-                }
-            }
+            PreviewContent::Text(text) => self.total_lines = self.render_text(block, area, buf, text),
+            PreviewContent::Terminal(parser) => self.total_lines = self.render_pty(block, area, buf, parser.as_ref()),
             PreviewContent::Image { source, protocol, size } => {
-                let inner = block.inner(area);
-                block.render(area, buf);
-                let image_size = ratatui::layout::Size::new(inner.width, inner.height);
-                if image_size.width > 0 && image_size.height > 0 && (protocol.is_none() || *size != image_size) {
-                    match Self::image_protocol(self.image_picker.as_ref(), source.clone(), image_size) {
-                        Ok(new_protocol) => {
-                            *protocol = Some(new_protocol);
-                            *size = image_size;
-                        }
-                        Err(err) => {
-                            warn!("failed to render image preview: {err:?}");
-                        }
-                    }
-                }
-                if let Some(protocol) = protocol {
-                    let image = ratatui_image::Image::new(protocol).allow_clipping(true);
-                    image.render(inner, buf);
-                }
+                self.render_image(block, area, buf, source, protocol, size);
             }
+        }
+
+        if self.loading && spinner_area.width > 0 && spinner_area.height > 0 {
+            let x = spinner_area.x + spinner_area.width.saturating_sub(1);
+            let y = spinner_area.y + spinner_area.height.saturating_sub(1);
+            buf.set_string(x, y, spinner_char(self.spinner_start).to_string(), self.theme.spinner);
         }
 
         SkimRender::default()

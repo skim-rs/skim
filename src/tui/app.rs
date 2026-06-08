@@ -553,6 +553,9 @@ impl App {
             Event::Heartbeat | Event::Tick => {
                 // Heartbeat is used for periodic UI updates
                 self.update_spinner();
+                if self.preview.is_loading() {
+                    self.needs_render.store(true, Ordering::Relaxed);
+                }
 
                 if self.pending_matcher_restart {
                     self.restart_matcher(true);
@@ -586,6 +589,7 @@ impl App {
                 self.should_quit = true;
             }
             Event::PreviewReady => {
+                self.preview.mark_ready();
                 // Apply preview offset if configured
                 if let Some(offset_expr) = &self.options.preview_window.offset {
                     let offset = self.calculate_preview_offset(offset_expr);
