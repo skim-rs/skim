@@ -100,6 +100,7 @@ module completions {
     --cmd-history-size: string # Maximum number of query history entries to keep
     --preview: string         # Preview command
     --preview-window: string  # Preview window layout
+    --image                   # Enable image preview
     --query(-q): string       # Initial query
     --cmd-query: string       # Initial query in interactive mode
     --read0                   # Read input delimited by ASCII NUL(\0) characters
