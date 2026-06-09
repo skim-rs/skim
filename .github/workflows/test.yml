@@ -141,7 +141,7 @@ jobs:
       - run: rustup toolchain install
       - uses: taiki-e/install-action@v2
         with:
-          tool: msrv@0.19
+          tool: cargo-msrv@0.19
       - name: MSRV Verify
         run: cargo msrv verify
 
