@@ -73,10 +73,12 @@ pub mod manpage;
 #[cfg(feature = "cli")]
 pub mod shell;
 
+/// Skim's default command when no `--cmd` flag is passed and `$SKIM_DEFAULT_COMMAND` is unset
 #[cfg(unix)]
-const SKIM_DEFAULT_COMMAND: &str = "find .";
+pub const SKIM_DEFAULT_COMMAND: &str = "find .";
+/// Skim's default command when no `--cmd` flag is passed and `$SKIM_DEFAULT_COMMAND` is unset
 #[cfg(windows)]
-const SKIM_DEFAULT_COMMAND: &str = "dir /s /b /A:-D";
+pub const SKIM_DEFAULT_COMMAND: &str = "dir /s /b /A:-D";
 
 #[cfg(unix)]
 fn shell_cmd(cmd: &str) -> Command {

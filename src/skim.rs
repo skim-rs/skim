@@ -1,5 +1,4 @@
 //! Module containing skim's entry point
-use std::env;
 use std::io::{BufWriter, Stderr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -147,11 +146,7 @@ where
         // Initialize theme from options
         let theme = Arc::new(crate::theme::ColorTheme::init_from_options(&options));
         let mut reader = Reader::from_options(&options).source(source);
-        let default_command = String::from(match env::var("SKIM_DEFAULT_COMMAND").as_deref() {
-            Err(_) | Ok("") => crate::SKIM_DEFAULT_COMMAND,
-            Ok(v) => v,
-        });
-        let cmd = options.cmd.clone().unwrap_or(default_command);
+        let cmd = options.cmd.clone().unwrap_or_default();
 
         let app = App::from_options(options, theme.clone(), cmd.clone());
 
