@@ -131,6 +131,8 @@ const ACTIONS_SS: &str = "
 * backward-word: alt-b   shift-left
 * beginning-of-line: ctrl-a  home
 * clear-screen: ctrl-l
+* copy-to-clipboard(...): ctrl-shift-y *arg will be expanded, see COMMAND EXPANSION for the rules.
+    If empty, it defaults to `{}` which copies the current item
 * delete-char: del
 * delete-char/eof: ctrl-d
 * deselect-all
