@@ -180,13 +180,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Always add all --print-xxx flags to the child sk command so that the output
     // is fully structured and can be parsed unconditionally below, regardless of
     // which flags the user originally passed.
-    for flag in &[
-        "--print-query",
-        "--print-cmd",
-        "--print-header",
-        "--print-current",
-        "--print-score",
-    ] {
+    for flag in &["--print-query", "--print-header", "--print-current", "--print-score"] {
         let _ = write!(stripped_shell_cmd, " {flag}");
     }
 
@@ -233,12 +227,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // The child sk process always runs with --print-query, --print-cmd, --print-header,
     // and --print-score, so we always read those lines unconditionally.
     let query_str = if status.success() {
-        stdout.next().unwrap_or_default()
-    } else {
-        ""
-    };
-
-    let command_str = if status.success() {
         stdout.next().unwrap_or_default()
     } else {
         ""
@@ -300,7 +288,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         // popup process. Only the output text is captured. Use --expect with --bind to capture
         // specific accept keys in the output if needed.
         query: query_str.to_string(),
-        cmd: command_str.to_string(),
+        cmd: opts.cmd.clone().unwrap_or_default(),
         selected_items: output_lines,
         current,
         header,
