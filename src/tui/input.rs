@@ -9,14 +9,11 @@ use unicode_display_width::width as display_width;
 use crate::helper::item::strip_ansi;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
-use crate::tui::statusline::{Info, InfoDisplay};
+use crate::tui::statusline::{Info, InfoDisplay, spinner_char};
 use crate::tui::util::style_line;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimOptions, theme::ColorTheme};
 use std::sync::Arc;
-
-const SPINNER_DURATION: u32 = 200;
-const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /// Status information to display in the input widget's title
 #[derive(Clone, Default)]
@@ -55,10 +52,7 @@ impl StatusInfo {
         if self.show_spinner
             && let Some(start) = self.start
         {
-            let spinner_elapsed_ms = start.elapsed().as_millis();
-            let index =
-                ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
-            parts.push(SPINNERS_UNICODE[index]);
+            parts.push(spinner_char(start));
             parts.push(' ');
         } else {
             parts.push_str("  ");
@@ -92,12 +86,9 @@ impl StatusInfo {
         if self.show_spinner
             && let Some(start) = self.start
         {
-            let spinner_elapsed_ms = start.elapsed().as_millis();
-            let index =
-                ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
             format!(
                 "{}{}",
-                SPINNERS_UNICODE[index],
+                spinner_char(start),
                 " ".repeat(display_width(&self.inline_separator).try_into().unwrap())
             )
         } else {

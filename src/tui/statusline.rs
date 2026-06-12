@@ -1,5 +1,15 @@
+use std::time::Instant;
+
 /// Default inline info separator
 pub const DEFAULT_SEPARATOR: &str = "  < ";
+pub(crate) const SPINNER_DURATION: u32 = 200;
+pub(crate) const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+pub(crate) fn spinner_char(start: Instant) -> char {
+    let spinner_elapsed_ms = start.elapsed().as_millis();
+    let index = ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
+    SPINNERS_UNICODE[index]
+}
 
 /// Simplified display mode for the info/status line
 #[derive(Debug, Clone, Default, Eq, PartialEq)]

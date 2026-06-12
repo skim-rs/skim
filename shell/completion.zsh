@@ -174,6 +174,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--no-border[Disables all borders, including in tmux/zellij popups]' \
 '--wrap[Wrap items in the item list]' \
 '--no-scrollbar[Disable the scrollbar in the item list]' \
+'--image[Enable image preview]' \
 '--read0[Read input delimited by ASCII NUL(\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\0) characters]' \
 '--print-query[Print the query as the first line]' \
