@@ -37,11 +37,13 @@
             hyperfine
             cargo-edit
             cargo-public-api
+            cargo-msrv
             git-cliff
             cargo-dist
             cargo-cross
             cargo-xwin
             gnuplot
+            llvm
           ];
           gungraun = with pkgs; [
             valgrind

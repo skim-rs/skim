@@ -1337,7 +1337,12 @@ impl SkimOptions {
             args.push(arg);
         }
 
-        Self::try_parse_from(args)
+        Self::try_parse_from(args).map(|mut opts| {
+            opts.cmd.get_or_insert(
+                std::env::var("SKIM_DEFAULT_COMMAND").unwrap_or(crate::SKIM_DEFAULT_COMMAND.to_string()),
+            );
+            opts
+        })
     }
 }
 

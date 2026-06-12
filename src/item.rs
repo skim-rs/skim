@@ -481,19 +481,7 @@ impl ItemPool {
             // Header items are always in input order, regardless of tac
             header_items.extend(items);
 
-            if self.tac {
-                // For --tac, prepend non-header items (newest items go to front)
-                for item in remaining {
-                    pool.insert(0, item);
-                }
-            } else {
-                pool.extend(remaining);
-            }
-        } else if self.tac {
-            // For --tac, prepend items (newest items go to front)
-            for item in items {
-                pool.insert(0, item);
-            }
+            pool.extend(remaining);
         } else {
             pool.extend(items);
         }
@@ -515,7 +503,10 @@ impl ItemPool {
         let guard = self.pool.lock();
         let taken = self.taken.swap(guard.len(), Ordering::SeqCst);
         // Copy the new items out so we can release the lock immediately
-        let items = guard[taken..].to_vec();
+        let mut items = guard[taken..].to_vec();
+        if self.tac {
+            items.reverse();
+        }
         drop(guard); // Explicitly release lock
         items
     }

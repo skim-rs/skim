@@ -132,9 +132,15 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                     Ok(0) => break,
                     Ok(n) => {
                         debug!("Read {n} bytes from stdin");
-                        stdin_writer.write_all(&buf).unwrap();
+                        if let Err(e) = stdin_writer.write_all(&buf) {
+                            debug!("Exit error (silent): failed to write bytes: {e}");
+                            break;
+                        }
                     }
-                    Err(e) => panic!("Failed to read from stdin: {e}"),
+                    Err(e) => {
+                        error!("Failed to read from stdin: {e}");
+                        break;
+                    }
                 }
             }
             // Ensure all buffered data is written to the file
@@ -167,6 +173,9 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         } else if arg.starts_with("--tmux") || arg.starts_with("--popup") {
             debug!("Found equal popup arg, skipping");
             continue;
+        } else if arg == "--print-cmd" {
+            debug!("Found print cmd arg, skipping");
+            continue;
         } else if arg == "--output-format" {
             debug!("Found output format arg, skipping this and the next");
             prev_is_output_format_flag = true;
@@ -180,13 +189,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Always add all --print-xxx flags to the child sk command so that the output
     // is fully structured and can be parsed unconditionally below, regardless of
     // which flags the user originally passed.
-    for flag in &[
-        "--print-query",
-        "--print-cmd",
-        "--print-header",
-        "--print-current",
-        "--print-score",
-    ] {
+    for flag in &["--print-query", "--print-header", "--print-current", "--print-score"] {
         let _ = write!(stripped_shell_cmd, " {flag}");
     }
 
@@ -233,12 +236,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // The child sk process always runs with --print-query, --print-cmd, --print-header,
     // and --print-score, so we always read those lines unconditionally.
     let query_str = if status.success() {
-        stdout.next().unwrap_or_default()
-    } else {
-        ""
-    };
-
-    let command_str = if status.success() {
         stdout.next().unwrap_or_default()
     } else {
         ""
@@ -300,7 +297,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         // popup process. Only the output text is captured. Use --expect with --bind to capture
         // specific accept keys in the output if needed.
         query: query_str.to_string(),
-        cmd: command_str.to_string(),
+        cmd: opts.cmd.clone().unwrap_or_default(),
         selected_items: output_lines,
         current,
         header,

@@ -131,6 +131,20 @@ jobs:
         run: |
           cargo fmt --all -- --check
 
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - run: rustup toolchain install
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-msrv@0.19
+      - name: MSRV Verify
+        run: cargo msrv verify
+
   build-no-default-features:
     runs-on: ubuntu-latest
     steps:
