@@ -193,50 +193,54 @@ sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
   }
 });
 
-sk_test!(opt_multiple_flags_basic, "a\\nb", &[], tmux => {
-  let basic_flags = [
-      "--bind=ctrl-a:cancel --bind ctrl-b:cancel",
-      "--tiebreak=begin --tiebreak=score",
-      "--cmd asdf --cmd find",
-      "--query asdf -q xyz",
-      "--delimiter , --delimiter . -d ,",
-      "--nth 1,2 --nth=1,3 -n 1,3",
-      "--with-nth 1,2 --with-nth=1,3",
-      "-I {} -I XX",
-      "--color base --color light",
-      "--margin 30% --margin 0",
-      "--min-height 30% --min-height 10",
-      "--preview 'ls {}' --preview 'cat {}'",
-      "--preview-window up --preview-window down",
-      "--multi -m",
-      "--no-multi --no-multi",
-      "--tac --tac",
-      "--ansi --ansi",
-      "--exact -e",
-      "--regex --regex",
-      "--literal --literal",
-      "--no-mouse --no-mouse",
-      "--cycle --cycle",
-      "--no-hscroll --no-hscroll",
-      "--filepath-word --filepath-word",
-      "--inline-info --inline-info",
-      "--no-bold --no-bold",
-      "--print-query --print-query",
-      "--print-cmd --print-cmd",
-      "--print0 --print0",
-      "--sync --sync",
-      "--extended --extended",
-      "--no-sort --no-sort",
-      "--select-1 --select-1",
-      "--exit-0 --exit-0",
-  ];
+macro_rules! test_opt_multiple_flags {
+    ($idx: ident, $flags:literal) => {
+        mod $idx {
+            use super::*;
+            sk_test!(opt_multiple_flags_basic, "", &[], tmux => {
+                  let mut tmux = TmuxController::new()?;
+                  tmux.start_sk(Some("echo -n -e 'a\\nb\\nc'"), &[ $flags ])?;
+                  tmux.until(|l| !l.is_empty())?;
+                  tmux.until(|l| l[0].starts_with(">"))?;
+            });
+        }
+    };
+}
 
-  for cmd_flags in basic_flags {
-      let mut tmux = TmuxController::new()?;
-      tmux.start_sk(None, &[cmd_flags])?;
-      tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
-  }
-});
+test_opt_multiple_flags!(bind, "--bind=ctrl-a:cancel --bind ctrl-b:cancel");
+test_opt_multiple_flags!(tiebreak, "--tiebreak=begin --tiebreak=score");
+test_opt_multiple_flags!(cmd, "--cmd asdf --cmd find");
+test_opt_multiple_flags!(query, "--query asdf -q xyz");
+test_opt_multiple_flags!(delimiter, "--delimiter , --delimiter . -d ,");
+test_opt_multiple_flags!(nth, "--nth 1,2 --nth=1,3 -n 1,3");
+test_opt_multiple_flags!(with_nth, "--with-nth 1,2 --with-nth=1,3");
+test_opt_multiple_flags!(replstr, "-I {} -I XX");
+test_opt_multiple_flags!(color, "--color base --color light");
+test_opt_multiple_flags!(margin, "--margin 30% --margin 0");
+test_opt_multiple_flags!(min_height, "--min-height 30% --min-height 10");
+test_opt_multiple_flags!(preview, "--preview 'ls {}' --preview 'cat {}'");
+test_opt_multiple_flags!(preview_window, "--preview-window up --preview-window down");
+test_opt_multiple_flags!(multi, "--multi -m");
+test_opt_multiple_flags!(no_multi, "--no-multi --no-multi");
+test_opt_multiple_flags!(tac, "--tac --tac");
+test_opt_multiple_flags!(ansi, "--ansi --ansi");
+test_opt_multiple_flags!(exact, "--exact -e");
+test_opt_multiple_flags!(regex, "--regex --regex");
+test_opt_multiple_flags!(literal, "--literal --literal");
+test_opt_multiple_flags!(no_mouse, "--no-mouse --no-mouse");
+test_opt_multiple_flags!(cycle, "--cycle --cycle");
+test_opt_multiple_flags!(no_hscroll, "--no-hscroll --no-hscroll");
+test_opt_multiple_flags!(filepath_word, "--filepath-word --filepath-word");
+test_opt_multiple_flags!(inline_info, "--inline-info --inline-info");
+test_opt_multiple_flags!(no_bold, "--no-bold --no-bold");
+test_opt_multiple_flags!(print_query, "--print-query --print-query");
+test_opt_multiple_flags!(print_cmd, "--print-cmd --print-cmd");
+test_opt_multiple_flags!(print0, "--print0 --print0");
+test_opt_multiple_flags!(sync, "--sync --sync");
+test_opt_multiple_flags!(extended, "--extended --extended");
+test_opt_multiple_flags!(no_sort, "--no-sort --no-sort");
+test_opt_multiple_flags!(select_1, "--select-1 --select-1");
+test_opt_multiple_flags!(exit_0, "--exit-0 --exit-0");
 
 use std::io::Write;
 use tempfile::NamedTempFile;

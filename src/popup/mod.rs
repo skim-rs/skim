@@ -167,6 +167,9 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         } else if arg.starts_with("--tmux") || arg.starts_with("--popup") {
             debug!("Found equal popup arg, skipping");
             continue;
+        } else if arg == "--print-cmd" {
+            debug!("Found print cmd arg, skipping");
+            continue;
         } else if arg == "--output-format" {
             debug!("Found output format arg, skipping this and the next");
             prev_is_output_format_flag = true;
