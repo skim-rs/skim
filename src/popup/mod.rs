@@ -132,7 +132,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                     Ok(0) => break,
                     Ok(n) => {
                         debug!("Read {n} bytes from stdin");
-                        stdin_writer.write_all(&buf).unwrap();
+                        let _ = stdin_writer.write_all(&buf);
                     }
                     Err(e) => panic!("Failed to read from stdin: {e}"),
                 }
