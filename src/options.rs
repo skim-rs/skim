@@ -10,6 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
 use regex::Regex;
 
+use crate::SKIM_DEFAULT_COMMAND;
 use crate::binds::KeyMap;
 use crate::item::RankCriteria;
 use crate::prelude::SkimItemReader;
@@ -1337,7 +1338,11 @@ impl SkimOptions {
             args.push(arg);
         }
 
-        Self::try_parse_from(args)
+        Self::try_parse_from(args).map(|mut opts| {
+            opts.cmd
+                .get_or_insert(std::env::var("SKIM_DEFAULT_COMMAND").unwrap_or(SKIM_DEFAULT_COMMAND.to_string()));
+            opts
+        })
     }
 }
 

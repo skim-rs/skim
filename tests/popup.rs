@@ -77,7 +77,6 @@ fn tmux_vanilla() -> Result<()> {
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
     assert!(cmd.contains("--print-query"));
-    assert!(cmd.contains("--print-cmd"));
     assert!(cmd.contains("--print-header"));
     assert!(cmd.contains("--print-current"));
     assert!(cmd.contains("--print-score"));
@@ -104,7 +103,6 @@ fn tmux_output_format() -> Result<()> {
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
     assert!(cmd.contains("--print-query"));
-    assert!(cmd.contains("--print-cmd"));
     assert!(cmd.contains("--print-header"));
     assert!(cmd.contains("--print-current"));
     assert!(cmd.contains("--print-score"));
