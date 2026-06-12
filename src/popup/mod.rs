@@ -132,9 +132,15 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                     Ok(0) => break,
                     Ok(n) => {
                         debug!("Read {n} bytes from stdin");
-                        let _ = stdin_writer.write_all(&buf);
+                        if let Err(e) = stdin_writer.write_all(&buf) {
+                            debug!("Exit error (silent): failed to write bytes: {e}");
+                            break;
+                        }
                     }
-                    Err(e) => panic!("Failed to read from stdin: {e}"),
+                    Err(e) => {
+                        error!("Failed to read from stdin: {e}");
+                        break;
+                    }
                 }
             }
             // Ensure all buffered data is written to the file
