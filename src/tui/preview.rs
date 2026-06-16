@@ -644,7 +644,7 @@ impl SkimWidget for Preview {
             interrupt_tx: None,
             pty: None,
             pty_child: None,
-            image: options.image,
+            image: options.image.is_some(),
             image_picker: options.image_picker.clone(),
             total_lines: 0,
             loading: false,

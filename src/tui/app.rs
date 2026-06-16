@@ -465,7 +465,7 @@ impl App {
                 preview,
                 ItemPreview::Global | ItemPreview::Command(_) | ItemPreview::CommandWithPos(_, _)
             );
-            let quote_cmd = !self.options.image;
+            let quote_cmd = self.options.image.is_none();
             match preview {
                 ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, quote_cmd))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {

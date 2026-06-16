@@ -63,6 +63,17 @@ pub enum MatchScheme {
     History,
 }
 
+/// Image rendering protocols
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub enum ImageProtocol {
+    /// Default: automatically detect the available backend at startup
+    #[default]
+    Detect,
+    /// Force halfblocks if you want blurry previews but a faster startup or if the detection fails
+    Halfblocks,
+}
+
 /// sk - fuzzy finder in Rust
 ///
 /// sk is a general purpose command-line fuzzy finder.
@@ -694,14 +705,20 @@ pub struct SkimOptions {
     ///
     /// This will render the preview argument as an image instead of running it as a command.
     ///
-    /// It will try to detect the available image backends at startup, which will add a small
+    /// If set to `detect` or if no value is passed, it will try to detect the available image backends at startup, which will add a small
     /// delay before the first render.
+    /// If set to `halfblocks`, it will always use the `halfblocks` rendering method
     ///
     /// Note: the backend detection **will not** work when piping data into skim, use
     /// `SKIM_DEFAULT_COMMAND="find . -type f" sk --image` instead of `find . -type f | sk --image`
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Preview"))]
-    pub image: bool,
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Preview", value_enum, default_missing_value = "detect", num_args=0..)
+    )]
+    pub image: Option<ImageProtocol>,
+
     /// Terminal image protocol picker, queried after entering the alternate screen.
+    /// Built from `options.image` and an stdio detection if needed
     #[cfg_attr(feature = "cli", clap(skip))]
     #[builder(setter(skip))]
     #[debug(skip)]
@@ -1100,7 +1117,7 @@ impl Default for SkimOptions {
             cmd_history_size: 1000,
             preview: Default::default(),
             preview_window: PreviewLayout::default(),
-            image: false,
+            image: None,
             image_picker: None,
             query: Default::default(),
             cmd_query: Default::default(),

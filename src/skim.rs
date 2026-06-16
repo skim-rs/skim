@@ -349,7 +349,7 @@ where
             .expect("TUI needs to be initialized using Skim::init_tui before entering");
 
         tui.enter_terminal()?;
-        if self.app.options.image {
+        if self.app.options.image == Some(crate::options::ImageProtocol::Detect) {
             if !tui.is_fullscreen {
                 crossterm::execute!(std::io::stderr(), crossterm::terminal::EnterAlternateScreen)?;
             }
@@ -360,6 +360,10 @@ where
             if !tui.is_fullscreen {
                 crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen)?;
             }
+            self.app.options.image_picker = Some(picker.clone());
+            self.app.preview.set_image_picker(Some(picker));
+        } else if self.app.options.image == Some(crate::options::ImageProtocol::Halfblocks) {
+            let picker = Picker::halfblocks();
             self.app.options.image_picker = Some(picker.clone());
             self.app.preview.set_image_picker(Some(picker));
         }
