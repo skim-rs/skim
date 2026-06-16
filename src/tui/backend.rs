@@ -6,7 +6,7 @@ use color_eyre::eyre::Result;
 use crossterm::event::KeyEventKind;
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
-use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
@@ -155,9 +155,13 @@ where
         // When using the inline layout, we want to remove all previous output
         //  -> reset cursor at the top of the drawing area
         if !self.is_fullscreen {
-            self.clear()?;
             let area = self.get_frame().area();
             let orig = ratatui::layout::Position { x: area.x, y: area.y };
+            crossterm::execute!(
+                std::io::stderr(),
+                cursor::MoveTo(orig.x, orig.y),
+                Clear(ClearType::FromCursorDown)
+            )?;
             self.set_cursor_position(orig)?;
         }
         Ok(())

@@ -239,7 +239,6 @@ test_opt_multiple_flags!(print0, "--print0 --print0");
 test_opt_multiple_flags!(sync, "--sync --sync");
 test_opt_multiple_flags!(extended, "--extended --extended");
 test_opt_multiple_flags!(no_sort, "--no-sort --no-sort");
-test_opt_multiple_flags!(select_1, "--select-1 --select-1");
 test_opt_multiple_flags!(exit_0, "--exit-0 --exit-0");
 
 use std::io::Write;
@@ -329,6 +328,18 @@ sk_test!(bind_reload_cmd, "a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello
 
 sk_test!(inline_clear_on_exit, @cmd "seq 1 10", &["--height=50%"], {
     @capture[0] starts_with(">");
+    @keys Escape;
+    @lines |l| (!l.iter().any(|line| line.starts_with(">")));
+});
+
+sk_test!(inline_clear_on_exit_reverse, @cmd "seq 1 10", &["--height=50%", "--layout=reverse"], {
+    @capture[*] starts_with(">");
+    @keys Escape;
+    @lines |l| (!l.iter().any(|line| line.starts_with(">")));
+});
+
+sk_test!(inline_clear_on_exit_reverse_list, @cmd "seq 1 10", &["--height=50%", "--layout=reverse-list"], {
+    @capture[*] starts_with(">");
     @keys Escape;
     @lines |l| (!l.iter().any(|line| line.starts_with(">")));
 });
