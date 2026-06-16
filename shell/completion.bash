@@ -205,6 +205,10 @@ _sk() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image)
+                    COMPREPLY=($(compgen -W "detect halfblocks" -- "${cur}"))
+                    return 0
+                    ;;
                 --query)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0

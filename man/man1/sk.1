@@ -537,14 +537,24 @@ Examples:
                     \-\-preview\-window +{2}\-/2
 
 .TP
-\fB\-\-image\fR
+\fB\-\-image\fR [\fI<IMAGE>...\fR]
 Enable image preview
 
 This will render the preview argument as an image instead of running it as a command.
 
-It will try to detect the available image backends at startup, which will add a small delay before the first render.
+If set to detect or if no value is passed, it will try to detect the available image backends at startup, which will add a small delay before the first render. If set to halfblocks, it will always use the halfblocks rendering method
 
 Note: the backend detection will not work when piping data into skim, use SKIM_DEFAULT_COMMAND="find . \-type f" sk \-\-image instead of find . \-type f | sk \-\-image
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+detect: Default: automatically detect the available backend at startup
+.IP \(bu 2
+halfblocks: Force halfblocks if you want blurry previews but a faster startup or if the detection fails
+.RE
 .SH SCRIPTING
 .TP
 \fB\-q\fR, \fB\-\-query\fR \fI<QUERY>\fR
@@ -834,10 +844,6 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 * beginning\-of\-line: ctrl\-a  home
 .br
 * clear\-screen: ctrl\-l
-.br
-* copy\-to\-clipboard(...): ctrl\-shift\-y *arg will be expanded, see COMMAND EXPANSION for the rules.
-.br
-    If empty, it defaults to `{}` which copies the current item
 .br
 * delete\-char: del
 .br

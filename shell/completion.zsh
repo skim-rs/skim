@@ -82,6 +82,8 @@ quadrant-outside\:""))' \
 '--cmd-history-size=[Maximum number of query history entries to keep]:CMD_HISTORY_SIZE:_default' \
 '--preview=[Preview command]:PREVIEW:_default' \
 '--preview-window=[Preview window layout]:PREVIEW_WINDOW:_default' \
+'--image=[Enable image preview]::IMAGE:((detect\:"Default\: automatically detect the available backend at startup"
+halfblocks\:"Force halfblocks if you want blurry previews but a faster startup or if the detection fails"))' \
 '-q+[Initial query]:QUERY:_default' \
 '--query=[Initial query]:QUERY:_default' \
 '--cmd-query=[Initial query in interactive mode]:CMD_QUERY:_default' \
@@ -174,7 +176,6 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--no-border[Disables all borders, including in tmux/zellij popups]' \
 '--wrap[Wrap items in the item list]' \
 '--no-scrollbar[Disable the scrollbar in the item list]' \
-'--image[Enable image preview]' \
 '--read0[Read input delimited by ASCII NUL(\\0) characters]' \
 '--print0[Print output delimited by ASCII NUL(\\0) characters]' \
 '--print-query[Print the query as the first line]' \
