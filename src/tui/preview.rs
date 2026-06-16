@@ -316,6 +316,10 @@ impl Preview {
 
         if self.image {
             let cmd = self.cmd.clone();
+
+            let (interrupt_tx, interrupt_rx) = mpsc::channel();
+            self.interrupt_tx = Some(interrupt_tx);
+
             self.thread_handle = Some(std::thread::spawn(move || {
                 let res: PreviewContent;
                 if let Ok(Ok(decoded)) = image::ImageReader::open(&cmd).map(image::ImageReader::decode) {
@@ -327,6 +331,12 @@ impl Preview {
                 } else {
                     res = PreviewContent::Text(Text::raw(format!("Failed to open {cmd} as image")));
                 }
+
+                if interrupt_rx.try_recv().is_ok() {
+                    trace!("interrupt signal received, exiting");
+                    return;
+                }
+
                 if let Ok(mut c) = content.write() {
                     *c = res;
                     let _ = event_tx_clone.blocking_send(Event::PreviewReady);
@@ -510,9 +520,9 @@ impl Preview {
         }
 
         // Add scroll position indicator at top-right if scrolled
-        if self.scroll_y > 0 && self.total_lines > 0 {
+        if self.scroll_y > 0 && total_lines > 0 {
             let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
-            let title = format!("{}/{}", current_line, self.total_lines);
+            let title = format!("{current_line}/{total_lines}");
 
             outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
         }

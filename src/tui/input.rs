@@ -1,5 +1,6 @@
 use std::fmt::Write as _;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 use std::time::Instant;
 
 use ansi_to_tui::IntoText;
@@ -13,7 +14,6 @@ use crate::tui::statusline::{Info, InfoDisplay, spinner_char};
 use crate::tui::util::style_line;
 use crate::tui::widget::{SkimRender, SkimWidget};
 use crate::{SkimOptions, theme::ColorTheme};
-use std::sync::Arc;
 
 /// Status information to display in the input widget's title
 #[derive(Clone, Default)]
