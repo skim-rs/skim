@@ -132,13 +132,11 @@ where
         #[cfg(windows)]
         super::windows::install_ctrl_c_handler()?;
 
-        crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
-        if crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false) {
-            crossterm::execute!(
-                std::io::stderr(),
-                PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::all())
-            )?;
-        }
+        crossterm::execute!(
+            std::io::stderr(),
+            EnableBracketedPaste,
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::all())
+        )?;
         if self.enable_mouse {
             crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
         }
