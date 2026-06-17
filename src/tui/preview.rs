@@ -450,6 +450,12 @@ impl Preview {
                     }
                 }
 
+                // Last check, I promise
+                if interrupt_rx.try_recv().is_ok() {
+                    trace!("interrupt signal received, exiting");
+                    return;
+                }
+
                 trace!("read complete");
                 let _ = event_tx_clone.blocking_send(Event::PreviewReady);
             }));
