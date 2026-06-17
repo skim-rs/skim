@@ -137,7 +137,7 @@ skim/                  ← workspace root
 │   │   ├── selector.rs      ← DefaultSkimSelector (pre-selection)
 │   │   └── macros.rs        ← helper macros
 │   └── tui/            ← terminal UI
-│       ├── mod.rs            ← Size, Direction, BorderType, re-exports
+│       ├── mod.rs            ← Size (fixed/percent/negative), Direction, BorderType, re-exports
 │       ├── app.rs            ← App struct + render + event dispatch (central state machine)
 │       ├── backend.rs        ← Tui<B> (ratatui terminal wrapper + crossterm event pump)
 │       ├── event.rs          ← Event enum, Action enum, ActionCallback, parse_action
@@ -145,9 +145,9 @@ skim/                  ← workspace root
 │       ├── input.rs          ← Input widget (query box + cursor + status info)
 │       ├── item_list.rs      ← ItemList widget (scrollable match result list)
 │       ├── item_renderer.rs  ← ItemRenderer (per-item ANSI/highlight rendering)
-│       ├── preview.rs        ← Preview widget (PTY or plain text preview pane)
+│       ├── preview.rs        ← Preview widget (plain text, PTY, or image preview pane)
 │       ├── header.rs         ← Header widget (--header / --header-lines)
-│       ├── statusline.rs     ← InfoDisplay enum (status bar mode)
+│       ├── statusline.rs     ← Info / InfoDisplay status bar modes
 │       ├── layout.rs         ← LayoutTemplate + AppLayout (pre-computed areas)
 │       ├── options.rs        ← TuiLayout enum, PreviewLayout struct
 │       └── util.rs           ← cursor helpers, style merging
@@ -207,7 +207,9 @@ Two public entry points exist on `Skim`:
 | `Skim::run_with(options, source)` | Takes a `SkimItemReceiver` channel (or `None` to use the configured command collector). The canonical entry point. |
 | `Skim::run_items(options, items)` | Convenience wrapper: accepts any `IntoIterator<Item: SkimItem>`, batches them through a bounded channel, and calls `run_with`. |
 
-Both return `Result<SkimOutput>`.
+Advanced embedders and tests can also drive the lifecycle manually: `Skim::init`, `start`, `init_tui` / `init_tui_with`, `enter`, `run`, `output`, plus accessors such as `app`, `app_mut`, `tui_ref`, `tui_mut`, `app_and_tui`, and `event_sender`.
+
+The two high-level helpers return `Result<SkimOutput>`.
 
 ---
 
@@ -241,7 +243,7 @@ Skim::run_with(options, source)
   │
   ├─ if should_enter:
   │     ├─ Skim::init_tui()  → Tui::new_with_height(height)
-  │     ├─ Skim::enter()     → tui.enter() [raw mode + mouse + event task]
+  │     ├─ Skim::enter()     → tui.enter_terminal(); resolve image picker; listener; event task
   │     └─ Skim::run()       → async event loop (tick())
   │
   └─ Skim::output()         ← collect results + kill reader
@@ -362,13 +364,13 @@ When `--popup [direction[,size[,size]]]` (alias `--tmux`) is set, the binary cal
 The popup flow:
 1. Creates a temp directory for IPC (`/tmp/sk-popup-XXXXXXXX/`).
 2. If stdin is piped, creates a named FIFO (`tmp_stdin`) and spawns a thread to relay stdin into it incrementally so the child can stream-read.
-3. Reconstructs the `sk` command line from `std::env::args()`, stripping `--popup`/`--tmux` and `--output-format`, then appending `--print-query --print-cmd --print-header --print-current --print-score`.
+3. Reconstructs the `sk` command line from `std::env::args()`, shell-quotes every retained argument, strips `--popup`/`--tmux`, `--output-format`, and `--print-cmd`, then appends `--print-query --print-header --print-current --print-score`.
 4. Forwards all `SKIM_*`, `RUST*`, and `PATH` environment variables to the child via the multiplexer's `-e` flag, **plus `_SKIM_POPUP=1`** to prevent re-entry.
 5. Launches the popup via the appropriate backend:
    - **tmux**: `tmux display-popup -E … sh -c <cmd> > stdout_file`
    - **Zellij**: `zellij action new-floating-pane … -- sh -c <cmd> > stdout_file`
 6. Waits for the popup process to exit.
-7. Parses the structured stdout file (`query\ncmd\nheader\ncurrent_item\nitem1\nscore1\n…`) into a synthetic `SkimOutput`.
+7. Parses the structured stdout file (`query\nheader\ncurrent_item\nitem1\nscore1\n…`) into a synthetic `SkimOutput`; `cmd` is reconstructed from the parent options because `--print-cmd` is deliberately stripped.
 
 The internal `SkimPopup` trait abstracts the two multiplexer backends:
 
@@ -382,7 +384,7 @@ trait SkimPopup {
 
 `TmuxPopup` and `ZellijPopup` each implement this trait. The active backend is selected at runtime: Zellij takes priority if both are available.
 
-The child `sk` process runs fully independently inside the popup. The parent reads back a synthetic `SkimOutput` from the captured file. Because `_SKIM_POPUP=1` is set in the child's environment, `check_env()` returns `false` in the child, so it runs as a normal interactive skim session regardless of what `SKIM_DEFAULT_OPTIONS` contains.
+The child `sk` process runs fully independently inside the popup. The parent reads back a synthetic `SkimOutput` from the captured file. Because `_SKIM_POPUP=1` is set in the child's environment, `check_env()` returns `false` in the child, so it runs as a normal interactive skim session regardless of what `SKIM_DEFAULT_OPTIONS` contains. The stdin relay thread stops when the popup exits, avoiding broken-pipe noise if the child closes its FIFO early.
 
 **Key files:** `src/popup/mod.rs` (`run_with`, `check_env`), `src/popup/tmux.rs` (`TmuxPopup`), `src/popup/zellij.rs` (`ZellijPopup`), `src/bin/main.rs` (`check_and_run_popup`)
 
@@ -542,7 +544,7 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 
 ### Ranking & Sorting
 
-`MatchedItem` implements `Ord` through a lazy sort key computed by `Rank::sort_key(criteria)`.
+`MatchedItem` implements `Ord` through a lazy sort key computed by `Rank::sort_key(criteria)`. Items can also be disabled: `SkimItem::disabled()` returns `false` by default, and `--disable-pattern <regex>` marks matching items as disabled in the default item type. Disabled items stay visible but are dimmed by `ItemRenderer` and cannot be selected.
 
 `Rank` fields:
 | Field | Description |
@@ -578,7 +580,11 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 
 **Viewport selection** (`Tui::new_with_height_and_backend()`):
 - `Size::Percent(100)` → `Viewport::Fullscreen` (enters alternate screen).
-- Any other size → `Viewport::Fixed(Rect)` at the current cursor position; scrolls the terminal if needed to make room.
+- `Size::Fixed(lines)` → `Viewport::Fixed(Rect)` with that many rows.
+- `Size::Percent(p)` → fixed viewport with `terminal_height * p / 100` rows.
+- `Size::Neg(lines)` → fixed viewport with `terminal_height - lines` rows, saturating at zero.
+
+Any fixed viewport is anchored at the current cursor position; the terminal is scrolled if needed to make room.
 
 The default backend is `CrosstermBackend<BufWriter<Stderr>>`. Skim always draws to **stderr** so stdout remains clean for piped output.
 
@@ -599,6 +605,8 @@ Tui::exit()
 ```
 
 A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_terminal()` runs even on panics.
+
+Image preview protocol detection is owned by `Skim::enter()`, not `Tui::enter_terminal()`: `--image=detect` temporarily ensures an alternate screen is active, queries `ratatui_image::picker::Picker::from_query_stdio()`, falls back to `Picker::halfblocks()` on failure, then stores the picker in both `SkimOptions.image_picker` and the `Preview` widget. `--image=halfblocks` skips detection and installs `Picker::halfblocks()` directly.
 
 ### Event Loop
 
@@ -721,7 +729,7 @@ Layout is rebuilt on `Event::Resize`, when the header height changes (multiline 
 
 **Preview placement** is parsed from `--preview-window`:
 - Direction: `left` / `right` / `up` / `down`
-- Size: `50%` (default) or fixed cells
+- Size: `50%` (default), fixed cells, or negative cells (`-N`, meaning the non-preview side keeps `N` cells)
 - Modifiers: `hidden`, `wrap`, `pty`, `+offset`
 
 ---
@@ -775,27 +783,35 @@ Pre-selection is applied when items first appear: `DefaultSkimSelector::should_s
 
 1. **Selector icon rendering** — `>` (single-select cursor) or configurable icon.
 2. **Multi-select icon** — space / `>` or configurable icon per selection state.
-3. **Match highlight** — calls `item.display(DisplayContext)` which converts `MatchRange` into styled `Line<'_>` spans.
+3. **Match highlight** — builds a `DisplayContext` (`score`, `Matches`, width, base style, highlight style) and calls `item.display(context)` so custom items can render their own styled `Line<'_>`.
 4. **Horizontal scroll** — `calc_hscroll()` finds the first matched character and auto-scrolls to show it; `apply_hscroll()` clips spans accordingly.
 5. **Tab expansion** — `expand_tabs()` replaces `\t` with spaces at configurable width.
 6. **Ellipsis truncation** — replaces overflowing content with `…` (or custom `--ellipsis`).
 7. **Multiline items** — when `--multiline <sep>` is set, splits item text on the separator and renders sub-lines.
 8. **Score / index display** — when feature flags `ShowScore` / `ShowIndex` are set.
+9. **Disabled state** — dims all spans when `item.disabled()` is true.
 
 ### Preview Widget
 
-`Preview` (`src/tui/preview.rs`) renders a side/top/bottom pane showing expanded information about the focused item. It supports two modes:
+`Preview` (`src/tui/preview.rs`) renders a side/top/bottom pane showing expanded information about the focused item. Its stored content is one of three variants:
 
-**Plain text mode** (no `pty`): spawns `sh -c <cmd>` as a child process, captures stdout (capped at `PREVIEW_MAX_BYTES`), parses it with `ansi_to_tui::IntoText`, stores as `PreviewContent::Text`. The child writes to `content: Arc<RwLock<PreviewContent>>` and sends `Event::PreviewReady`.
+**Plain text mode** (no `pty`): spawns `sh -c <cmd>` on Unix or `cmd /c <cmd>` on Windows. On Windows, `Command::raw_arg` is used so `cmd.exe` receives shell metacharacters exactly as written. The child captures stdout (capped at `PREVIEW_MAX_BYTES`), parses it with `ansi_to_tui::IntoText`, stores as `PreviewContent::Text`, and sends `Event::PreviewReady`.
 
 **PTY mode** (`--preview-window pty`): creates a real pseudo-terminal pair via `portable_pty`. The child process sees a properly sized terminal (via `ROWS`/`COLUMNS` env and PTY dimensions). Output is parsed by a `vt100::Parser` with a scrollback buffer, stored as `PreviewContent::Terminal(Arc<RwLock<vt100::Parser>>)`. This enables interactive preview programs (e.g. `bat`, `delta`).
+
+**Image mode** (`--image[=detect|halfblocks]`): treats the expanded preview command as an image path instead of executing it. A worker thread decodes the image with the `image` crate and stores `PreviewContent::Image { source, protocol, size }`. Rendering uses `ratatui_image`; `detect` builds an image protocol picker after entering the alternate screen, while `halfblocks` skips terminal capability detection and uses the portable half-block renderer. The protocol is rebuilt when the preview area changes so the image keeps its aspect ratio within the pane.
 
 `Preview::spawn()`:
 ```
 kill() ← kill any running preview
 reset scroll_y / scroll_x
 
-if pty mode:
+if image mode:
+  decode <cmd> as image path
+  thread: content.write() = PreviewContent::Image or failure text
+          → Event::PreviewReady
+
+else if pty mode:
   init_pty()  ← create PtyPair
   resize PTY to current (rows, cols)
   spawn sh -c <cmd> in slave
@@ -808,7 +824,7 @@ else:
           → Event::PreviewReady
 ```
 
-Scroll state: `scroll_y`, `scroll_x` (in lines/columns). `page_up/down`, `scroll_up/down/left/right` modify these. When `PreviewReady` fires, an optional offset expression (from `--preview-window +expr`) is evaluated to auto-scroll to the matched line.
+Scroll state: `scroll_y`, `scroll_x` (in lines/columns). `page_up/down`, `scroll_up/down/left/right` modify these. `PreviewPosition` supports fixed, percentage, and negative offsets. When `PreviewReady` fires, an optional offset expression (from `--preview-window +expr`) is evaluated to auto-scroll to the matched line.
 
 ### Header Widget
 
@@ -828,9 +844,10 @@ Inline sep: " < " (when inline_info)
 Right side: multi-select count when multi mode
 ```
 
-`InfoDisplay` has three modes:
+`InfoDisplay` has four modes:
 - `Default` — separate line above the prompt
 - `Inline` — inside the prompt line (after the query text)
+- `InlineRight` — inside the prompt line, right-aligned
 - `Hidden` — not shown
 
 ---
@@ -1027,6 +1044,12 @@ Built-in palettes: `none`, `bw`, `default16`, `dark256`, `molokai256`, `light256
 
 Selected via `--color base_theme[,component:color[:modifier]]`. Individual component overrides use CSS-style RGB hex (`#RRGGBB`), ANSI 256-color indices, or named modifiers (`bold`, `italic`, `underline`, `dim`, `reverse`).
 
+`BorderType` mirrors Ratatui's border styles but adds two internal no-border states:
+- `None` is the default `--border=none`; widgets do not draw boxes, but preview separators may still be drawn between panes.
+- `ForceOff` is set by `--no-border`; it disables all borders, including tmux/zellij popup borders.
+
+Passing `--border` without a value means `plain`. Passing a value accepts Ratatui styles such as `rounded`, `double`, `thick`, dashed variants, and quadrant variants.
+
 ---
 
 ## History
@@ -1085,7 +1108,7 @@ Reader threads (OS threads, per-invocation):
        kills child process when either fires
 
 Preview thread (OS thread, per preview spawn):
-  └─ reads PTY/child stdout → vt100::Parser or content Arc<RwLock>
+  └─ reads PTY/child stdout or decodes image path → PreviewContent Arc<RwLock>
       → sends Event::PreviewReady
 
 IPC handler task (Tokio, per connection):
@@ -1111,46 +1134,49 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 
 | Call site | File | What it does |
 |---|---|---|
-| `Skim::run_with` | `src/skim.rs:56` | Top-level library entry point |
-| `Skim::run_items` | `src/skim.rs:98` | Convenience wrapper for iterator inputs |
-| `Skim::init` | `src/skim.rs:137` | Constructs all subsystems from options |
-| `Skim::start` | `src/skim.rs:178` | Starts reader + initial matcher pass |
-| `Skim::should_enter` | `src/skim.rs:346` | Filter/select-1/exit-0/sync gate |
-| `Skim::tick` | `src/skim.rs:505` | Single async event loop iteration |
-| `Skim::handle_reload` | `src/skim.rs:188` | Kills reader, clears pool, restarts |
-| `Skim::output` | `src/skim.rs:440` | Collect & return SkimOutput |
-| `App::from_options` | `src/tui/app.rs:250` | Build all widgets from options |
-| `App::handle_event` | `src/tui/app.rs:511` | Dispatch all Event variants |
-| `App::handle_action` | `src/tui/app.rs:658` | Dispatch all Action variants |
-| `App::restart_matcher` | `src/tui/app.rs:1154` | Kill old match pass, start new one |
-| `App::run_preview` | `src/tui/app.rs:394` | Expand cmd, debounce, call Preview::spawn |
-| `App::expand_cmd` | `src/tui/app.rs:1227` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `Skim::run_with` | `src/skim.rs:58` | Top-level library entry point |
+| `Skim::run_items` | `src/skim.rs:100` | Convenience wrapper for iterator inputs |
+| `Skim::init_tui` | `src/skim.rs:124` | Initialize default crossterm TUI backend |
+| `Skim::init` | `src/skim.rs:143` | Constructs all subsystems from options |
+| `Skim::start` | `src/skim.rs:185` | Starts reader + initial matcher pass |
+| `Skim::handle_reload` | `src/skim.rs:195` | Kills reader, clears pool, restarts |
+| `Skim::init_tui_with` | `src/skim.rs:258` | Install a caller-provided TUI backend |
+| `Skim::enter` | `src/skim.rs:345` | Enter terminal, resolve image picker, start listener/event pump |
+| `Skim::should_enter` | `src/skim.rs:385` | Filter/select-1/exit-0/sync gate |
+| `Skim::output` | `src/skim.rs:488` | Collect & return SkimOutput |
+| `Skim::tick` | `src/skim.rs:569` | Single async event loop iteration |
+| `App::from_options` | `src/tui/app.rs:260` | Build all widgets from options |
+| `App::run_preview` | `src/tui/app.rs:414` | Expand cmd, debounce, call Preview::spawn |
+| `App::handle_event` | `src/tui/app.rs:536` | Dispatch all Event variants |
+| `App::handle_action` | `src/tui/app.rs:687` | Dispatch all Action variants |
+| `App::restart_matcher` | `src/tui/app.rs:1183` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1256` | Substitute `{}`, `{q}`, `{n}` etc. |
 | `Widget::render (App)` | `src/tui/app.rs:128` | Root render; calls all sub-widgets |
-| `Matcher::run` | `src/matcher.rs:~200` | Parallel match dispatch |
+| `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
-| `ItemPool::append` | `src/item.rs:467` | Add items, notify matcher |
-| `ItemPool::take` | `src/item.rs:512` | Take un-matched items for matcher |
-| `DefaultSkimItem::new` | `src/helper/item.rs:55` | ANSI strip, field transform, ranges |
-| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:260` | Unified parallel pipeline (all inputs) |
-| `spawn_io_reader` | `src/helper/item_reader.rs:352` | I/O reader thread: chunk reads + line splitting |
-| `spawn_reorder_thread` | `src/helper/item_reader.rs:452` | Reorder thread: ordered output + pipeline-done signal |
-| `Preview::spawn` | `src/tui/preview.rs:272` | Start PTY or plain child process |
-| `Tui::new_with_height_and_backend` | `src/tui/backend.rs:68` | Terminal init + viewport sizing |
-| `Tui::enter` | `src/tui/backend.rs:130` | Enable raw mode + start event pump |
-| `Tui::start` | `src/tui/backend.rs:163` | Spawn crossterm EventStream task |
-| `popup::run_with` | `src/popup/mod.rs:91` | Delegate to multiplexer popup + parse output |
-| `popup::check_env` | `src/popup/mod.rs:78` | Guard: multiplexer present and not already in popup |
-| `check_and_run_popup` | `src/bin/main.rs:130` | Check popup conditions, dispatch to popup::run_with |
-| `sk_main` | `src/bin/main.rs:142` | CLI orchestration + output printing |
-| `parse_key` | `src/binds.rs:130` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_chain` | `src/binds.rs:214` | `"down+select"` → `Vec<Action>` |
-| `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:~140` | Build engine factory chain from options |
+| `ItemPool::append` | `src/item.rs:469` | Add items, notify matcher |
+| `ItemPool::take` | `src/item.rs:502` | Take un-matched items for matcher |
+| `DefaultSkimItem::new` | `src/helper/item.rs:58` | ANSI strip, field transform, ranges, disable pattern |
+| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:263` | Unified parallel pipeline (all inputs) |
+| `spawn_io_reader` | `src/helper/item_reader.rs:354` | I/O reader thread: chunk reads + line splitting |
+| `spawn_reorder_thread` | `src/helper/item_reader.rs:458` | Reorder thread: ordered output + pipeline-done signal |
+| `Preview::spawn` | `src/tui/preview.rs:319` | Start image, PTY, or plain preview worker |
+| `Tui::new_with_height_and_backend` | `src/tui/backend.rs:77` | Terminal init + viewport sizing |
+| `Tui::enter` | `src/tui/backend.rs:126` | Enable raw mode + terminal setup |
+| `Tui::start` | `src/tui/backend.rs:192` | Spawn crossterm EventStream task |
+| `popup::run_with` | `src/popup/mod.rs:86` | Delegate to multiplexer popup + parse output |
+| `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
+| `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
+| `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
+| `parse_key` | `src/binds.rs:139` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_chain` | `src/binds.rs:211` | `"down+select"` → `Vec<Action>` |
+| `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |
-| `AndOrEngineFactory::parse_andor` | `src/engine/factory.rs:166` | Split query into AND/OR tree |
-| `FuzzyEngine::match_item` | `src/engine/fuzzy.rs:~180` | Fuzzy match a single item |
+| `AndOrEngineFactory::parse_andor` | `src/engine/factory.rs:176` | Split query into AND/OR tree |
+| `FuzzyEngine::match_item` | `src/engine/fuzzy.rs:175` | Fuzzy match a single item |
 | `LayoutTemplate::from_options` | `src/tui/layout.rs:76` | Compute widget constraint tree |
-| `LayoutTemplate::apply` | `src/tui/layout.rs:164` | Split Rect into AppLayout |
-| `ItemRenderer::render_item` | `src/tui/item_renderer.rs:69` | Full per-item render pipeline |
+| `LayoutTemplate::apply` | `src/tui/layout.rs:165` | Split Rect into AppLayout |
+| `ItemRenderer::render_item` | `src/tui/item_renderer.rs:84` | Full per-item render pipeline |
 | `ColorTheme::init_from_options` | `src/theme.rs:56` | Parse `--color` spec |
 
 ---
@@ -1192,17 +1218,25 @@ if !output.is_abort {
 struct MyItem { id: u32, label: String }
 
 impl SkimItem for MyItem {
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.label)   // used for matching
     }
-    fn output(&self) -> Cow<str> {
+    fn display(&self, context: DisplayContext) -> ratatui::text::Line<'_> {
+        context.to_line(self.text()) // default implementation; override for custom styling
+    }
+    fn output(&self) -> Cow<'_, str> {
         Cow::Owned(self.id.to_string())   // printed on accept
     }
-    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+    fn preview(&self, _ctx: PreviewContext<'_>) -> ItemPreview {
         ItemPreview::Text(format!("ID: {}\nLabel: {}", self.id, self.label))
+    }
+    fn disabled(&self) -> bool {
+        false // disabled items are visible but cannot be selected
     }
 }
 ```
+
+`DisplayContext` exposes the current score, match spans (`Matches::CharIndices`, `CharRange`, `ByteRange`, or `None`), container width, and base/highlight styles. `PreviewContext` exposes the current query, command query, preview dimensions, current index/selection, and multi-selection lists.
 
 **Custom `ActionCallback`** for inline async logic:
 
