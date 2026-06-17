@@ -44,10 +44,8 @@ use self::constants::{CAMEL_CASE_BONUS, START_OF_STRING_BONUS};
 use self::prefilter::cheap_typo_prefilter;
 
 use self::matrix::{CELL_ZERO, Cell, Dir, SWMatrix};
-use crate::{
-    CaseMatching,
-    fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType},
-};
+use crate::CaseMatching;
+use crate::fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType};
 
 type Score = i16;
 

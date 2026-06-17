@@ -6,27 +6,22 @@
 mod tmux;
 mod zellij;
 
-use std::{
-    borrow::Cow,
-    fmt::Write as FmtWrite,
-    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
-    process::ExitStatus,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread,
-};
+use std::borrow::Cow;
+use std::fmt::Write as FmtWrite;
+use std::io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _};
+use std::process::ExitStatus;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nix::sys::stat::Mode;
 use nix::unistd::mkfifo;
 
-use crate::{
-    Rank, SkimItem, SkimOptions, SkimOutput,
-    item::{MatchedItem, RankBuilder},
-    tui::{Event, event::Action},
-};
+use crate::item::{MatchedItem, RankBuilder};
+use crate::tui::Event;
+use crate::tui::event::Action;
+use crate::{Rank, SkimItem, SkimOptions, SkimOutput};
 
 use tmux::TmuxPopup;
 use zellij::ZellijPopup;

@@ -1,10 +1,9 @@
 //! Matcher using <https://crates.io/crates/frizbee>
-use frizbee::{Scoring, smith_waterman::SmithWatermanMatcher};
+use frizbee::Scoring;
+use frizbee::smith_waterman::SmithWatermanMatcher;
 
-use crate::{
-    CaseMatching,
-    fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType},
-};
+use crate::CaseMatching;
+use crate::fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType};
 
 const RESPECT_CASE_BONUS: u16 = 10000;
 

@@ -3,9 +3,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{ListDirection, ListItem};
 use unicode_display_width::width as display_width;
 
+use crate::item::MatchedItem;
+use crate::theme::ColorTheme;
 use crate::tui::item_list::ItemList;
 use crate::tui::util::{char_display_width, clip_line_to_chars, wrap_text};
-use crate::{DisplayContext, MatchRange, item::MatchedItem, theme::ColorTheme};
+use crate::{DisplayContext, MatchRange};
 
 #[allow(clippy::struct_excessive_bools)]
 struct SubLineState {

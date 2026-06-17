@@ -1,8 +1,6 @@
 use crossterm::terminal;
-use ratatui::{
-    style::Style,
-    text::{Line, Span, Text},
-};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span, Text};
 use std::io::{self, Write};
 #[cfg(unix)]
 use std::{
@@ -556,7 +554,8 @@ mod tests {
 
     #[test]
     fn test_merge_styles() {
-        use ratatui::style::{Color::*, Modifier};
+        use ratatui::style::Color::*;
+        use ratatui::style::Modifier;
         let input = "before \x1b[1;34mline1\x1b[0m nocol";
         let styled = input.into_text().unwrap().lines[0].clone();
         let red = Style::new().red();
@@ -581,7 +580,8 @@ mod tests {
 
     #[test]
     fn test_style_text() {
-        use ratatui::style::{Color::*, Modifier};
+        use ratatui::style::Color::*;
+        use ratatui::style::Modifier;
         let input = "before \x1b[1;34mline1\x1b[0m nocol";
         let mut styled = input.into_text().unwrap();
         let red = Style::new().red();

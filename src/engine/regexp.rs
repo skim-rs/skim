@@ -5,8 +5,7 @@ use regex::Regex;
 
 use crate::engine::util::regex_match;
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine};
-use crate::{MatchRange, MatchResult, SkimItem};
+use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, SkimItem};
 use std::cmp::min;
 
 //------------------------------------------------------------------------------

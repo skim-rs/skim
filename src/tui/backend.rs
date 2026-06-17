@@ -3,9 +3,9 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
 use color_eyre::eyre::Result;
-use crossterm::event::KeyEventKind;
-use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::event::{
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
+};
 use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};

@@ -6,8 +6,9 @@
 use std::borrow::Cow;
 use std::fmt::{Display, Error, Formatter};
 
-use crate::engine::util::{map_byte_range_to_original, map_char_indices_to_original};
-use crate::engine::util::{normalize_with_byte_mapping, normalize_with_char_mapping};
+use crate::engine::util::{
+    map_byte_range_to_original, map_char_indices_to_original, normalize_with_byte_mapping, normalize_with_char_mapping,
+};
 use crate::{CaseMatching, MatchEngine, MatchEngineFactory, MatchRange, MatchResult, SkimItem};
 
 /// Engine that normalizes text before matching

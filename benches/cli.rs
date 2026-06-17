@@ -1310,10 +1310,12 @@ where
 }
 
 fn cmd_plot(args: &PlotArgs) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    use gnuplot::{
-        AlignType::*, AutoOption::Fix, AxesCommon, BorderLocation2D::*, Caption, Color, Figure, FillAlpha,
-        LabelOption::TextColor, LegendOption::Placement, LineWidth,
-    };
+    use gnuplot::AlignType::*;
+    use gnuplot::AutoOption::Fix;
+    use gnuplot::BorderLocation2D::*;
+    use gnuplot::LabelOption::TextColor;
+    use gnuplot::LegendOption::Placement;
+    use gnuplot::{AxesCommon, Caption, Color, Figure, FillAlpha, LineWidth};
 
     // ── Catppuccin Mocha dark palette ─────────────────────────────────────────
     // Colours are referenced as HTML hex strings throughout.

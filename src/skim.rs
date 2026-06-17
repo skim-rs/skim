@@ -3,15 +3,16 @@ use std::io::{BufWriter, Stderr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use color_eyre::eyre::Result;
-use color_eyre::eyre::{self, OptionExt};
+use color_eyre::eyre::{self, OptionExt, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui_image::picker::Picker;
-use tokio::{runtime::Handle, select, task::block_in_place};
+use tokio::runtime::Handle;
+use tokio::select;
+use tokio::task::block_in_place;
 
 use crate::reader::{Reader, ReaderControl};
-use crate::tui::TICK_RATE;
-use crate::tui::{App, Event, Size, Tui, event::Action};
+use crate::tui::event::Action;
+use crate::tui::{App, Event, Size, TICK_RATE, Tui};
 use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
 
 /// Main entry point for running skim

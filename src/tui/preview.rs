@@ -1,23 +1,21 @@
 use ansi_to_tui::IntoText;
 use color_eyre::eyre::{Result, eyre};
 use portable_pty::{PtyPair, PtySize, native_pty_system};
-use ratatui::{
-    layout::Alignment,
-    prelude::Backend,
-    style::Stylize,
-    text::{Line, Text},
-    widgets::{Block, Borders, Clear, Paragraph, Widget},
-};
+use ratatui::layout::Alignment;
+use ratatui::prelude::Backend;
+use ratatui::style::Stylize;
+use ratatui::text::{Line, Text};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use ratatui_image::picker::Picker;
 use ratatui_image::protocol::Protocol as ImageProtocol;
 use tui_term::vt100;
 use tui_term::widget::PseudoTerminal;
 
-use std::sync::mpsc;
-use std::sync::{Arc, RwLock};
+use std::env;
+use std::io::Read;
+use std::sync::{Arc, RwLock, mpsc};
 use std::thread::JoinHandle;
 use std::time::Instant;
-use std::{env, io::Read};
 
 use super::statusline::spinner_char;
 use super::util::{find_csi_end, find_osc_end, handle_csi_query, handle_osc_query};

@@ -1,24 +1,18 @@
 //! Header display widget for skim's TUI.
 //!
 //! This module provides the header widget that displays static text above the item list.
-use crate::DisplayContext;
-use crate::SkimItem;
-use crate::SkimOptions;
 use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
-use crate::tui::util::char_display_width;
-use crate::tui::util::clip_line_to_chars;
-use crate::tui::util::style_line;
-use crate::tui::util::style_text;
+use crate::tui::util::{char_display_width, clip_line_to_chars, style_line, style_text};
 use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::{DisplayContext, SkimItem, SkimOptions};
 
 use ansi_to_tui::IntoText;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::Widget;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use std::cmp::max;
 use std::sync::Arc;
 

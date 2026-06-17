@@ -1,5 +1,5 @@
 set -xeuo pipefail
 
-cargo fmt --check --all
+cargo +nightly fmt --check --all
 cargo clippy --all-targets -- -Dwarnings
 cargo check --no-default-features

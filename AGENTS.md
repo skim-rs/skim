@@ -11,7 +11,7 @@
   1. Build: `RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests -Zbuild-std --target x86_64-unknown-linux-gnu`
   2. Run: `TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --target x86_64-unknown-linux-gnu`
 - Lint: `cargo clippy`
-- Format: `cargo fmt` (check only: `cargo fmt --check`)
+- Format: `cargo +nightly fmt` (check only: `cargo +nightly fmt --check`)
 
 ## Code Style
 - Format with 120 char line width (defined in .rustfmt.toml)

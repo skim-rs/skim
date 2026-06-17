@@ -1,4 +1,5 @@
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
+use std::sync::Arc;
 
 use indexmap::IndexSet;
 use ratatui::widgets::{
@@ -7,17 +8,15 @@ use ratatui::widgets::{
 };
 use regex::Regex;
 
+use crate::item::MatchedItem;
 use crate::options::feature_flag;
-use crate::{
-    Selector, SkimOptions,
-    item::MatchedItem,
-    spinlock::SpinLock,
-    theme::ColorTheme,
-    tui::BorderType,
-    tui::item_renderer::ItemRenderer,
-    tui::options::TuiLayout,
-    tui::widget::{SkimRender, SkimWidget},
-};
+use crate::spinlock::SpinLock;
+use crate::theme::ColorTheme;
+use crate::tui::BorderType;
+use crate::tui::item_renderer::ItemRenderer;
+use crate::tui::options::TuiLayout;
+use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::{Selector, SkimOptions};
 
 /// How to apply processed items to the display list
 #[derive(Default, Clone, Copy)]

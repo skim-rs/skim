@@ -4,10 +4,8 @@
 //! fields from text based on delimiters.
 
 use regex::Regex;
-use std::{
-    cmp::{max, min},
-    sync::LazyLock,
-};
+use std::cmp::{max, min};
+use std::sync::LazyLock;
 
 static FIELD_RANGE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?P<left>-?\d+)?(?P<sep>\.\.)?(?P<right>-?\d+)?$").unwrap());

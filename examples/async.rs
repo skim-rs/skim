@@ -1,6 +1,7 @@
 //! Runs skim from an async Tokio entry point.
 
-use skim::{Skim, prelude::SkimOptionsBuilder};
+use skim::Skim;
+use skim::prelude::SkimOptionsBuilder;
 
 #[tokio::main]
 async fn main() {

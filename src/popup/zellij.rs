@@ -1,5 +1,6 @@
 use super::{PopupWindowDir, SkimPopup};
-use crate::{SkimOptions, tui::Size};
+use crate::SkimOptions;
+use crate::tui::Size;
 
 use std::fmt::Write as _;
 use std::process::{Command, ExitStatus, Stdio};

@@ -1,12 +1,10 @@
-use std::{
-    fmt::{Display, Formatter},
-    fs::File,
-    io::{BufReader, ErrorKind, Read, Result},
-    path::Path,
-    process::Command,
-    thread::sleep,
-    time::Duration,
-};
+use std::fmt::{Display, Formatter};
+use std::fs::File;
+use std::io::{BufReader, ErrorKind, Read, Result};
+use std::path::Path;
+use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
 
 use rand::RngExt as _;
 use rand::distr::Alphanumeric;

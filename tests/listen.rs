@@ -7,11 +7,10 @@
 mod common;
 
 use common::tmux::Keys::*;
-use rand::{RngExt as _, distr::Alphabetic};
-use std::{
-    io::{Result, Write as _},
-    process::{Child, Command, Stdio},
-};
+use rand::RngExt as _;
+use rand::distr::Alphabetic;
+use std::io::{Result, Write as _};
+use std::process::{Child, Command, Stdio};
 
 use common::tmux::TmuxController;
 

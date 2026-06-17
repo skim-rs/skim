@@ -1,7 +1,8 @@
 //! Demonstrates selecting ANSI-colored command output.
 
 extern crate skim;
-use skim::{prelude::*, reader::CommandCollector};
+use skim::prelude::*;
+use skim::reader::CommandCollector;
 
 fn main() {
     env_logger::init();

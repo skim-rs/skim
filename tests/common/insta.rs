@@ -4,11 +4,10 @@ use clap::Parser;
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
-use skim::{
-    Skim, SkimItemReceiver,
-    prelude::*,
-    tui::{Event, Size, Tui, event::Action},
-};
+use skim::prelude::*;
+use skim::tui::event::Action;
+use skim::tui::{Event, Size, Tui};
+use skim::{Skim, SkimItemReceiver};
 
 /// A test harness for running skim TUI tests with insta snapshots.
 ///

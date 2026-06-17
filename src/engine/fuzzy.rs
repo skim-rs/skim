@@ -2,14 +2,16 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
+use crate::fuzzy_matcher::FuzzyMatcher;
 use crate::fuzzy_matcher::arinae::ArinaeMatcher;
+use crate::fuzzy_matcher::clangd::ClangdMatcher;
 #[cfg(frizbee)]
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use crate::fuzzy_matcher::{FuzzyMatcher, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2};
+use crate::fuzzy_matcher::fzy::FzyMatcher;
+use crate::fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine, Typos};
-use crate::{MatchRange, MatchResult, SkimItem};
+use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, SkimItem, Typos};
 
 //------------------------------------------------------------------------------
 /// Fuzzy matching algorithm to use

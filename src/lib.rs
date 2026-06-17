@@ -33,10 +33,8 @@ use std::process::Command;
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::MatchIndices;
-use ratatui::{
-    style::Style,
-    text::{Line, Span},
-};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
 
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;

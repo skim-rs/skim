@@ -12,15 +12,12 @@ use crate::tui::options::TuiLayout;
 use crate::tui::statusline::InfoDisplay;
 use crate::tui::widget::SkimWidget;
 use crate::tui::{SkimRender, TICK_RATE};
-use crate::{ItemPreview, PreviewContext, SkimItem, SkimOptions};
-use crate::{Rank, util};
+use crate::{ItemPreview, PreviewContext, Rank, SkimItem, SkimOptions, util};
 
-use super::Event;
-use super::Tui;
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
-use super::{input, preview};
+use super::{Event, Tui, input, preview};
 use crate::thread_pool::{self, ThreadPool};
 use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};

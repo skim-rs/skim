@@ -4,16 +4,18 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use ansi_to_tui::IntoText;
-use ratatui::{prelude::*, widgets::Widget};
+use ratatui::prelude::*;
+use ratatui::widgets::Widget;
 use unicode_display_width::width as display_width;
 
+use crate::SkimOptions;
 use crate::helper::item::strip_ansi;
+use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
 use crate::tui::statusline::{Info, InfoDisplay, spinner_char};
 use crate::tui::util::style_line;
 use crate::tui::widget::{SkimRender, SkimWidget};
-use crate::{SkimOptions, theme::ColorTheme};
 
 /// Status information to display in the input widget's title
 #[derive(Clone, Default)]
@@ -434,8 +436,7 @@ impl SkimWidget for Input {
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
         use ratatui::layout::Alignment;
         use ratatui::text::{Line, Span};
-        use ratatui::widgets::Paragraph;
-        use ratatui::widgets::{Block, Borders};
+        use ratatui::widgets::{Block, Borders, Paragraph};
 
         let mut line = self.prompt.into_text().map_or_else(
             |_| Line::from(self.prompt.as_str()),

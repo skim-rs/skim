@@ -1,5 +1,4 @@
-use crate::field::FieldRange;
-use crate::field::get_string_by_field;
+use crate::field::{FieldRange, get_string_by_field};
 use crate::helper::item::strip_ansi;
 use crate::item::MatchedItem;
 use regex::Regex;

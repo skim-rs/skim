@@ -6,9 +6,7 @@ mod common;
 use common::tmux::Keys::*;
 use common::tmux::TmuxController;
 use std::fs::File;
-use std::io::Read;
-use std::io::Result;
-use std::io::Write;
+use std::io::{Read, Result, Write};
 use std::path::Path;
 
 #[test]

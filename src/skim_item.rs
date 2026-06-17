@@ -1,8 +1,6 @@
 use ratatui::text::Line;
-use std::{
-    borrow::Cow,
-    fmt::{Debug, Display},
-};
+use std::borrow::Cow;
+use std::fmt::{Debug, Display};
 
 use crate::{AsAny, DisplayContext, ItemPreview, PreviewContext};
 

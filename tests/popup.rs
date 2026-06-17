@@ -5,11 +5,8 @@ mod common;
 
 use common::tmux::Keys::*;
 use common::tmux::TmuxController;
-use std::fs::File;
-use std::fs::Permissions;
-use std::io::Read;
-use std::io::Result;
-use std::io::Write;
+use std::fs::{File, Permissions};
+use std::io::{Read, Result, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
