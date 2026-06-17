@@ -118,7 +118,26 @@ impl Preview {
             fallback = Picker::halfblocks();
             &fallback
         };
-        picker.new_protocol(source, size, ratatui_image::Resize::Fit(None))
+
+        let font_size = picker.font_size();
+        let max_pixel_width = u128::from(size.width) * u128::from(font_size.width);
+        let max_pixel_height = u128::from(size.height) * u128::from(font_size.height);
+        let image_width = u128::from(source.width());
+        let image_height = u128::from(source.height());
+
+        let size = if image_height * max_pixel_width <= max_pixel_height * image_width {
+            let pixel_height = image_height * max_pixel_width / image_width;
+            let height = pixel_height.div_ceil(u128::from(font_size.height));
+
+            ratatui::layout::Size::new(size.width, u16::try_from(height).unwrap_or(u16::MAX).max(1))
+        } else {
+            let pixel_width = image_width * max_pixel_height / image_height;
+            let width = pixel_width.div_ceil(u128::from(font_size.width));
+
+            ratatui::layout::Size::new(u16::try_from(width).unwrap_or(u16::MAX).max(1), size.height)
+        };
+
+        picker.new_protocol(source, size, ratatui_image::Resize::Scale(None))
     }
 
     pub(crate) fn set_image_picker(&mut self, picker: Option<Picker>) {
@@ -712,5 +731,50 @@ impl SkimWidget for Preview {
         }
 
         SkimRender::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use image::{DynamicImage, RgbaImage};
+    use ratatui::layout::Size;
+    use ratatui_image::picker::Picker;
+
+    use super::Preview;
+
+    fn image(width: u32, height: u32) -> DynamicImage {
+        DynamicImage::ImageRgba8(RgbaImage::new(width, height))
+    }
+
+    #[test]
+    fn image_protocol_constrains_by_width() {
+        let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(400, 200), Size::new(20, 10))
+            .expect("halfblocks protocol should be created");
+
+        assert_eq!(protocol.size(), Size::new(20, 5));
+    }
+
+    #[test]
+    fn image_protocol_constrains_by_height() {
+        let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(200, 400), Size::new(20, 10))
+            .expect("halfblocks protocol should be created");
+
+        assert_eq!(protocol.size(), Size::new(10, 10));
+    }
+
+    #[test]
+    fn image_protocol_keeps_at_least_one_cell() {
+        let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(1000, 1), Size::new(1, 1))
+            .expect("halfblocks protocol should be created");
+
+        assert_eq!(protocol.size(), Size::new(1, 1));
+    }
+
+    #[test]
+    fn image_protocol_uses_halfblocks_picker_when_none_is_provided() {
+        let protocol = Preview::image_protocol(None, image(400, 200), Size::new(20, 10))
+            .expect("fallback halfblocks protocol should be created");
+
+        assert_eq!(protocol.size(), Size::new(20, 5));
     }
 }
