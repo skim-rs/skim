@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
+use ratatui_image::picker::Picker;
 use regex::Regex;
 
 use crate::binds::KeyMap;
@@ -60,6 +61,17 @@ pub enum MatchScheme {
     Path,
     /// History scheme: will force `index` as the first tiebreak
     History,
+}
+
+/// Image rendering protocols
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub enum ImageProtocol {
+    /// Default: automatically detect the available backend at startup
+    #[default]
+    Detect,
+    /// Force halfblocks if you want blurry previews but a faster startup or if the detection fails
+    Halfblocks,
 }
 
 /// sk - fuzzy finder in Rust
@@ -689,6 +701,29 @@ pub struct SkimOptions {
     )]
     pub preview_window: PreviewLayout,
 
+    /// Enable image preview
+    ///
+    /// This will render the preview argument as an image instead of running it as a command.
+    ///
+    /// If set to `detect` or if no value is passed, it will try to detect the available image backends at startup, which will add a small
+    /// delay before the first render.
+    /// If set to `halfblocks`, it will always use the `halfblocks` rendering method
+    ///
+    /// Note: the backend detection **will not** work when piping data into skim, use
+    /// `SKIM_DEFAULT_COMMAND="find . -type f" sk --image` instead of `find . -type f | sk --image`
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Preview", value_enum, default_missing_value = "detect", num_args=0..)
+    )]
+    pub image: Option<ImageProtocol>,
+
+    /// Terminal image protocol picker, queried after entering the alternate screen.
+    /// Built from `options.image` and an stdio detection if needed
+    #[cfg_attr(feature = "cli", clap(skip))]
+    #[builder(setter(skip))]
+    #[debug(skip)]
+    pub image_picker: Option<Picker>,
+
     //  --- Scripting ---
     /// Initial query
     #[cfg_attr(feature = "cli", arg(long, short, help_heading = "Scripting"))]
@@ -1082,6 +1117,8 @@ impl Default for SkimOptions {
             cmd_history_size: 1000,
             preview: Default::default(),
             preview_window: PreviewLayout::default(),
+            image: None,
+            image_picker: None,
             query: Default::default(),
             cmd_query: Default::default(),
             read0: Default::default(),

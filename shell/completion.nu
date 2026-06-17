@@ -24,6 +24,10 @@ module completions {
     [ "force-off" "none" "plain" "rounded" "double" "thick" "light-double-dashed" "heavy-double-dashed" "light-triple-dashed" "heavy-triple-dashed" "light-quadruple-dashed" "heavy-quadruple-dashed" "quadrant-inside" "quadrant-outside" ]
   }
 
+  def "nu-complete sk image" [] {
+    [ "detect" "halfblocks" ]
+  }
+
   def "nu-complete sk shell" [] {
     [ "bash" "elvish" "fish" "nushell" "power-shell" "zsh" ]
   }
@@ -100,6 +104,7 @@ module completions {
     --cmd-history-size: string # Maximum number of query history entries to keep
     --preview: string         # Preview command
     --preview-window: string  # Preview window layout
+    --image: string@"nu-complete sk image" # Enable image preview
     --query(-q): string       # Initial query
     --cmd-query: string       # Initial query in interactive mode
     --read0                   # Read input delimited by ASCII NUL(\0) characters

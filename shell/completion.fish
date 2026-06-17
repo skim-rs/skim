@@ -70,6 +70,8 @@ complete -c sk -l cmd-history -d 'Command history file' -r
 complete -c sk -l cmd-history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l preview -d 'Preview command' -r
 complete -c sk -l preview-window -d 'Preview window layout' -r
+complete -c sk -l image -d 'Enable image preview' -r -f -a "detect\t'Default: automatically detect the available backend at startup'
+halfblocks\t'Force halfblocks if you want blurry previews but a faster startup or if the detection fails'"
 complete -c sk -s q -l query -d 'Initial query' -r
 complete -c sk -l cmd-query -d 'Initial query in interactive mode' -r
 complete -c sk -l output-format -d 'Set the output format If set, overrides all print_ options Will be expanded the same way as preview or commands' -r
