@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-06-17
+
+### 🚀 Features
+
+- Add image preview support & preview spinner while loading (#1081)
+
+### 🐛 Bug Fixes
+
+- Multiline popup cmd misread (#1088)
+- Tmux sigpipe (#1090)
+
+### 📚 Documentation
+
+- Update ARCHITECTURE.md
+
+### ⚡ Performance
+
+- Optimize --tac pipeline (#1089)
+
+### ⚙️ Miscellaneous Tasks
+
+- Add msrv checks (#1083)
+- Add image tests & examples
+- Format imports
+
 ## [4.7.0] - 2026-05-21
 
 ### 🚀 Features
