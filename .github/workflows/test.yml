@@ -19,6 +19,9 @@ concurrency:
 jobs:
   nextest:
     runs-on: ${{matrix.os}}
+    permissions:
+      contents: read
+      code-quality: write
     strategy:
       matrix:
         build: [linux, macos, windows]
@@ -92,6 +95,7 @@ jobs:
         shell: bash
       - name: Upload coverage report
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        # fail-on-error: false
         uses: actions/upload-code-coverage@v1
         with:
           file: coverage.xml
