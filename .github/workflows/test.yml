@@ -19,6 +19,9 @@ concurrency:
 jobs:
   nextest:
     runs-on: ${{matrix.os}}
+    permissions:
+      contents: read
+      code-quality: write
     strategy:
       matrix:
         build: [linux, macos, windows]
@@ -71,11 +74,10 @@ jobs:
         run: cargo test --doc
       - name: Run tests
         # Do not use `--all-targets` to avoid running benches
-        run: cargo llvm-cov nextest --release --profile ci --bins --lib --examples --tests --codecov --output-path codecov.json
+        run: cargo llvm-cov nextest --release --profile ci --bins --lib --examples --tests --cobertura --output-path coverage.xml --failure-mode all
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
-          INSTA_UPDATE: new
       - name: Show snapshot diffs on failure
         if: failure()
         run: |
@@ -91,21 +93,14 @@ jobs:
             fi
           done
         shell: bash
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v6
+      - name: Upload coverage report
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        # fail-on-error: false
+        uses: actions/upload-code-coverage@v1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
-          fail_ci_if_error: false
-        continue-on-error: true
-      - name: Upload test results to Codecov
-        uses: codecov/codecov-action@v6
-        with:
-          report_type: test_results
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/nextest/ci/junit.xml
-          fail_ci_if_error: false
-        continue-on-error: true
+          file: coverage.xml
+          language: Rust
+          label: ${{ runner.os }}
 
   clippy:
     runs-on: ubuntu-latest
