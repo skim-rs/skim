@@ -23,3 +23,5 @@ plan-jobs = ["./test"]
 publish-jobs = ["./publish"]
 # Whether to publish prereleases to package managers
 publish-prereleases = true
+
+github-custom-job-permissions = { "test" = { code-quality = "write" } }
