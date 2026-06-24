@@ -17,11 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  nextest: &job
+  nextest:
     runs-on: ${{matrix.os}}
-    permissions:
-      contents: read
-      code-quality: write
     strategy:
       matrix:
         build: [linux, macos, windows]
@@ -35,6 +32,9 @@ jobs:
           - build: windows
             os: windows-latest
             target: x86_64-pc-windows-msvc
+    permissions:
+      contents: read
+      code-quality: write
     steps:
       - name: "[linux] Install dependencies"
         run: |
@@ -145,7 +145,20 @@ jobs:
         uses: actions/deploy-pages@v4
 
   clippy:
-    <<: *job
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        build: [linux, macos, windows]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - build: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - build: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -159,7 +172,20 @@ jobs:
         run: cargo clippy
 
   rustfmt:
-    <<: *job
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        build: [linux, macos, windows]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - build: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - build: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -169,7 +195,20 @@ jobs:
           cargo fmt --all -- --check
 
   build-no-default-features:
-    <<: *job
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        build: [linux, macos, windows]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - build: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - build: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
