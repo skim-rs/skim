@@ -102,3 +102,42 @@ impl MatchEngineFactory for NormalizedEngineFactory {
         Box::new(NormalizedEngine::new(inner_engine))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::exact::{ExactEngine, ExactMatchingParam};
+    use crate::prelude::ExactOrFuzzyEngineFactory;
+
+    #[test]
+    fn matches_through_diacritics() {
+        // Inner exact engine searches for the ASCII form; the normalized engine
+        // strips the accent from the item text before matching.
+        let inner = Box::new(ExactEngine::builder("cafe", ExactMatchingParam::default()).build());
+        let engine = NormalizedEngine::new(inner);
+        let result = engine.match_item(&"café".to_string());
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        let inner = Box::new(ExactEngine::builder("zzz", ExactMatchingParam::default()).build());
+        let engine = NormalizedEngine::new(inner);
+        assert!(engine.match_item(&"café".to_string()).is_none());
+    }
+
+    #[test]
+    fn display_includes_inner_engine() {
+        let inner = Box::new(ExactEngine::builder("x", ExactMatchingParam::default()).build());
+        let engine = NormalizedEngine::new(inner);
+        assert!(format!("{engine}").starts_with("(Normalized:"));
+    }
+
+    #[test]
+    fn factory_creates_normalized_engine() {
+        let factory = NormalizedEngineFactory::new(ExactOrFuzzyEngineFactory::builder().build());
+        let engine = factory.create_engine_with_case("cafe", CaseMatching::Smart);
+        // The accented item should match the normalized query.
+        assert!(engine.match_item(&"café".to_string()).is_some());
+    }
+}

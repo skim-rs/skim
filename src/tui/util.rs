@@ -593,4 +593,142 @@ mod tests {
         assert_eq!(line.spans[1].style.add_modifier, Modifier::BOLD);
         assert_eq!(line.spans[2].style.fg, Some(Red));
     }
+
+    #[test]
+    fn test_char_display_width() {
+        assert_eq!(char_display_width('a'), 1);
+        // Variation selector forces double width.
+        assert_eq!(char_display_width('\u{FE0F}'), 2);
+        // Wide CJK character.
+        assert_eq!(char_display_width('日'), 2);
+    }
+
+    #[test]
+    fn test_find_osc_end_bel_terminator() {
+        // ESC ] ... BEL  (BEL at index 9, end is one past it)
+        let data = b"\x1b]0;title\x07rest";
+        assert_eq!(find_osc_end(data), Some(10));
+    }
+
+    #[test]
+    fn test_find_osc_end_st_terminator() {
+        // ESC ] ... ESC \  (ESC at 9, backslash at 10, end is one past it)
+        let data = b"\x1b]0;title\x1b\\rest";
+        assert_eq!(find_osc_end(data), Some(11));
+    }
+
+    #[test]
+    fn test_find_osc_end_unterminated() {
+        let data = b"\x1b]0;title";
+        assert_eq!(find_osc_end(data), None);
+    }
+
+    #[test]
+    fn test_find_csi_end() {
+        // ESC [ 6 n  -> terminator 'n' at index 3
+        let data = b"\x1b[6n";
+        assert_eq!(find_csi_end(data), Some(4));
+        // Unterminated parameter bytes only.
+        assert_eq!(find_csi_end(b"\x1b[12;34"), None);
+    }
+
+    /// A `Send` writer that captures everything written for assertions.
+    #[derive(Clone)]
+    struct SharedBuf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl SharedBuf {
+        fn new() -> Self {
+            Self(std::sync::Arc::new(std::sync::Mutex::new(Vec::new())))
+        }
+        fn contents(&self) -> Vec<u8> {
+            self.0.lock().unwrap().clone()
+        }
+    }
+
+    impl std::io::Write for SharedBuf {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_handle_osc_query_foreground() {
+        let buf = SharedBuf::new();
+        let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+        handle_osc_query(b"\x1b]10;?\x07", &mut writer);
+        assert!(buf.contents().starts_with(b"\x1b]10;rgb:"));
+    }
+
+    #[test]
+    fn test_handle_osc_query_background() {
+        let buf = SharedBuf::new();
+        let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+        handle_osc_query(b"\x1b]11;?\x07", &mut writer);
+        assert!(buf.contents().starts_with(b"\x1b]11;rgb:"));
+    }
+
+    #[test]
+    fn test_handle_osc_query_palette() {
+        let buf = SharedBuf::new();
+        let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+        handle_osc_query(b"\x1b]4;1;?\x07", &mut writer);
+        let out = buf.contents();
+        assert!(out.starts_with(b"\x1b]4;1;rgb:"));
+    }
+
+    #[test]
+    fn test_handle_osc_query_ignores_non_query() {
+        let buf = SharedBuf::new();
+        let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+        handle_osc_query(b"\x1b]0;just a title\x07", &mut writer);
+        assert!(buf.contents().is_empty());
+    }
+
+    #[test]
+    fn test_handle_csi_query_device_attributes() {
+        for (query, expected_prefix) in [
+            (&b"\x1b[c"[..], &b"\x1b[?1;2c"[..]),
+            (&b"\x1b[>c"[..], &b"\x1b[>0;0;0c"[..]),
+            (&b"\x1b[5n"[..], &b"\x1b[0n"[..]),
+            (&b"\x1b[6n"[..], &b"\x1b[1;1R"[..]),
+        ] {
+            let buf = SharedBuf::new();
+            let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+            assert!(handle_csi_query(query, &mut writer));
+            assert_eq!(buf.contents(), expected_prefix);
+        }
+    }
+
+    #[test]
+    fn test_handle_csi_query_extended_cursor_report() {
+        let buf = SharedBuf::new();
+        let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+        assert!(handle_csi_query(b"\x1b[?6n", &mut writer));
+        assert_eq!(buf.contents(), b"\x1b[?1;1;1R");
+    }
+
+    #[test]
+    fn test_handle_csi_query_non_query_returns_false() {
+        let buf = SharedBuf::new();
+        let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
+        assert!(!handle_csi_query(b"\x1b[1;2H", &mut writer));
+        assert!(buf.contents().is_empty());
+    }
+
+    #[test]
+    fn test_style_span_and_line() {
+        use ratatui::style::Color;
+        let red = Style::default().fg(Color::Red);
+        let mut span = Span::raw("hi");
+        style_span(&mut span, red);
+        assert_eq!(span.style.fg, Some(Color::Red));
+
+        let mut line = Line::from(vec![Span::raw("a"), Span::raw("b")]);
+        style_line(&mut line, red);
+        assert!(line.spans.iter().all(|s| s.style.fg == Some(Color::Red)));
+    }
 }

@@ -687,4 +687,50 @@ mod tests {
         let theme = ColorTheme::from_options("dark,bg+:-1");
         assert_eq!(theme.current.bg, Some(Color::Reset));
     }
+
+    #[test]
+    fn test_catppuccin_themes_have_colors() {
+        for theme in [
+            ColorTheme::catppuccin_mocha(),
+            ColorTheme::catppuccin_macchiato(),
+            ColorTheme::catppuccin_latte(),
+            ColorTheme::catppuccin_frappe(),
+        ] {
+            assert!(theme.matched.fg.is_some());
+            assert!(theme.current.bg.is_some());
+        }
+    }
+
+    #[test]
+    fn test_from_options_catppuccin_aliases() {
+        // Both underscore and hyphen spellings must resolve to a populated theme.
+        for name in [
+            "catppuccin_mocha",
+            "catppuccin-mocha",
+            "catppuccin_macchiato",
+            "catppuccin-macchiato",
+            "catppuccin_latte",
+            "catppuccin-latte",
+            "catppuccin_frappe",
+            "catppuccin-frappe",
+        ] {
+            let theme = ColorTheme::from_options(name);
+            assert!(theme.matched.fg.is_some(), "theme {name} should have a matched fg");
+        }
+    }
+
+    #[test]
+    fn test_from_options_default_and_empty_aliases() {
+        let default = ColorTheme::from_options("default");
+        assert_eq!(default.matched.fg, ColorTheme::dark256().matched.fg);
+
+        let empty = ColorTheme::from_options("empty");
+        assert!(empty.spinner.add_modifier.contains(Modifier::BOLD));
+    }
+
+    #[test]
+    fn test_from_options_unknown_falls_back_to_dark() {
+        let unknown = ColorTheme::from_options("this-is-not-a-real-theme");
+        assert_eq!(unknown.matched.fg, ColorTheme::dark256().matched.fg);
+    }
 }

@@ -88,3 +88,43 @@ impl FuzzyMatcher for FrizbeeMatcher {
             .map(ScoreType::from)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fuzzy_matcher::FuzzyMatcher;
+
+    #[test]
+    fn matches_subsequence() {
+        let m = FrizbeeMatcher::default();
+        assert!(m.fuzzy_match("foobar", "foo").is_some());
+        assert!(m.fuzzy_indices("foobar", "foo").is_some());
+    }
+
+    #[test]
+    fn respect_case_variant() {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Respect);
+        assert!(m.fuzzy_indices("FooBar", "Foo").is_some());
+    }
+
+    #[test]
+    fn smart_case_variant() {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Smart);
+        // Uppercase pattern triggers the case bonus branch.
+        assert!(m.fuzzy_indices("FooBar", "Foo").is_some());
+        // Lowercase pattern -> no bonus.
+        assert!(m.fuzzy_indices("foobar", "foo").is_some());
+    }
+
+    #[test]
+    fn ignore_case_variant() {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Ignore);
+        assert!(m.fuzzy_match("FOOBAR", "foo").is_some());
+    }
+
+    #[test]
+    fn max_typos_tolerates_mismatch() {
+        let m = FrizbeeMatcher::default().max_typos(Some(1));
+        assert!(m.fuzzy_match("foobar", "fxo").is_some());
+    }
+}

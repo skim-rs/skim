@@ -1413,3 +1413,7 @@ macro_rules! feature_flag {
 }
 #[allow(unused_imports)]
 pub(crate) use feature_flag;
+
+#[cfg(test)]
+#[path = "options_tests.rs"]
+mod tests;

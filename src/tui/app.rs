@@ -14,6 +14,10 @@ use crate::tui::widget::SkimWidget;
 use crate::tui::{SkimRender, TICK_RATE};
 use crate::{ItemPreview, PreviewContext, Rank, SkimItem, SkimOptions, util};
 
+#[cfg(test)]
+#[path = "app_tests.rs"]
+mod tests;
+
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;

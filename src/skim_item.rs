@@ -100,3 +100,27 @@ impl Debug for dyn SkimItem {
         f.write_fmt(format_args!("SkimItem {{ text: {} }}", self.text()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn blanket_impl_default_methods() {
+        let item = "hello".to_string();
+        assert_eq!(item.text(), "hello");
+        // `output` defaults to `text`.
+        assert_eq!(item.output(), "hello");
+        assert!(item.get_matching_ranges().is_none());
+        assert!(!item.disabled());
+    }
+
+    #[test]
+    fn display_and_debug_for_trait_object() {
+        let item: Arc<dyn SkimItem> = Arc::new("world".to_string());
+        let as_dyn: &dyn SkimItem = &*item;
+        assert_eq!(format!("{as_dyn}"), "world");
+        assert!(format!("{as_dyn:?}").contains("world"));
+    }
+}
