@@ -27,3 +27,5 @@ publish-prereleases = true
 [dist.github-custom-job-permissions.test]
 code-quality = "write"
 contents = "read"
+pages = "write"
+id-token = "write"
