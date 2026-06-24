@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{matrix.os}}
     permissions:
       contents: read
-      code-quality: write
+      # code-quality: write
     strategy:
       matrix:
         build: [linux, macos, windows]
