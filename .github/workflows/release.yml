@@ -90,6 +90,9 @@ jobs:
   custom-test:
     uses: ./.github/workflows/test.yml
     secrets: inherit
+    permissions:
+      "code-quality": "write"
+      "contents": "read"
 
   # Build and packages all the platform-specific things
   build-local-artifacts:

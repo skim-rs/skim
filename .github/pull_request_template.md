@@ -8,4 +8,4 @@
 
 ## Description of the changes
 
-_Note_: [codecov](https://codecov.io) runs on the PR on this repo, but feel free to ignore it.
+
