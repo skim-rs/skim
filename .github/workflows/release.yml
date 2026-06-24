@@ -93,6 +93,8 @@ jobs:
     permissions:
       "code-quality": "write"
       "contents": "read"
+      "id-token": "write"
+      "pages": "write"
 
   # Build and packages all the platform-specific things
   build-local-artifacts:

@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  nextest:
+  nextest: &job
     runs-on: ${{matrix.os}}
     permissions:
       contents: read
@@ -50,6 +50,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -70,11 +71,24 @@ jobs:
           env-vars: "____"
           cache-on-failure: "true"
           cache-all-crates: "true"
+
       - name: Run doctests
         run: cargo test --doc
-      - name: Run tests
+      - name: "[linux] Run tests with coverage"
+        if: runner.os == 'Linux'
         # Do not use `--all-targets` to avoid running benches
-        run: cargo llvm-cov nextest --release --profile ci --bins --lib --examples --tests --cobertura --output-path coverage.xml --failure-mode all
+        run: |
+          cargo llvm-cov nextest --release --profile ci --bins --lib --examples --tests --no-report
+          cargo llvm-cov report --cobertura --output-path coverage.xml
+          cargo llvm-cov report --html
+          echo "COVERAGE_PERCENT=$(cargo llvm-cov report | tail -n1 | awk '{ print $4 }')" >> $GITHUB_ENV
+        env:
+          LC_ALL: en_US.UTF-8
+          TERM: xterm-256color
+      - name: "[macos/windows] Run tests"
+        if: runner.os != 'Linux'
+        # Do not use `--all-targets` to avoid running benches
+        run: cargo nextest run --release --profile ci --bins --lib --examples --tests
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
@@ -93,17 +107,45 @@ jobs:
             fi
           done
         shell: bash
-      - name: Upload coverage report
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        # fail-on-error: false
+      - name: "[linux] Upload coverage report"
+        if: runner.os == 'Linux' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
         uses: actions/upload-code-coverage@v1
         with:
           file: coverage.xml
           language: Rust
           label: ${{ runner.os }}
+      - name: "[linux] Generate coverage badge"
+        if: &if-linux-master runner.os == 'Linux' # TODO && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: emibcn/badge-action@v2.0.2
+        with:
+          label: 'Coverage'
+          status: ${{ env.COVERAGE_PERCENT }}
+          color: 'blue'
+          path: 'target/llvm-cov/html/coverage.svg'
+      - name: "[linux] Upload default branch results to gh pages"
+        if: *if-linux-master
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/llvm-cov/html
+
+  deploy-coverage-page:
+    needs: nextest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: "[linux] Deploy gh pages"
+        id: deployment
+        if: *if-linux-master
+        uses: actions/deploy-pages@v4
 
   clippy:
-    runs-on: ubuntu-latest
+    <<: *job
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -117,7 +159,7 @@ jobs:
         run: cargo clippy
 
   rustfmt:
-    runs-on: ubuntu-latest
+    <<: *job
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -125,6 +167,20 @@ jobs:
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
+
+  build-no-default-features:
+    <<: *job
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - run: rustup toolchain install
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with: *cache-with
+      - name: Build without any feature
+        run: |
+          cargo build --no-default-features
+
 
   msrv:
     runs-on: ubuntu-latest
@@ -139,16 +195,3 @@ jobs:
           tool: cargo-msrv@0.19
       - name: MSRV Verify
         run: cargo msrv verify
-
-  build-no-default-features:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - run: rustup toolchain install
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with: *cache-with
-      - name: Build without any feature
-        run: |
-          cargo build --no-default-features
