@@ -44,7 +44,9 @@ pub fn generate_completions(sh: &Shell, output: &mut impl Write) {
 }
 
 /// Generate the key-bindings script and write it to the given writer
-pub fn generate_key_bindings(sh: &Shell, output: &mut impl Write) {
+/// # Errors
+/// This errors if it fails to write the bytes to the output
+pub fn generate_key_bindings(sh: &Shell, output: &mut impl Write) -> std::io::Result<()> {
     use Shell::{Bash, Fish, Zsh};
     let binds_script = match sh {
         Bash => include_str!("../shell/key-bindings.bash"),
@@ -53,8 +55,9 @@ pub fn generate_key_bindings(sh: &Shell, output: &mut impl Write) {
         _ => "",
     };
     if !binds_script.is_empty() {
-        let _ = output.write_all(binds_script.as_bytes());
+        output.write_all(binds_script.as_bytes())?;
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -113,7 +116,7 @@ mod tests {
 
     fn key_bindings_for(sh: &Shell) -> String {
         let mut buf = Vec::new();
-        generate_key_bindings(sh, &mut buf);
+        generate_key_bindings(sh, &mut buf).expect("key-bindings generation failed");
         String::from_utf8(buf).expect("key-bindings output is valid UTF-8")
     }
 
