@@ -86,3 +86,6 @@ pr-review id="":
 
     just generate-files
     (git add man/ shell/ && git commit -m 'chore: generate-files' && git push) || echo "Nothing to do"
+
+coverage args="":
+    cargo llvm-cov nextest --lib --bins --examples --tests {{ args }}

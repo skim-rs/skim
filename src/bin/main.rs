@@ -80,9 +80,9 @@ fn main() -> Result<()> {
     // Shell completion scripts
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
-        skim::shell::generate_completions(&shell);
+        skim::shell::generate_completions(&shell, &mut std::io::stdout());
         if opts.shell_bindings {
-            skim::shell::generate_key_bindings(&shell);
+            skim::shell::generate_key_bindings(&shell, &mut std::io::stdout());
         }
         return Ok(());
     }
