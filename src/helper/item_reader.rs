@@ -520,3 +520,7 @@ fn get_command_output(cmd: &str, send_error: bool) -> Result<CommandOutput, Box<
 
     Ok((command.spawn().ok(), Box::new(BufReader::new(reader))))
 }
+
+#[cfg(test)]
+#[path = "item_reader_tests.rs"]
+mod tests;

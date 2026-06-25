@@ -263,6 +263,7 @@ impl MatchEngineFactory for RegexEngineFactory {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod test {
     #[test]
     fn test_engine_factory() {
@@ -309,5 +310,16 @@ mod test {
             format!("{x}"),
             "(And: (Fuzzy: readme), (Or: (Exact|(?i)\\.md$), (Exact|(?i)\\.markdown$)))"
         );
+    }
+
+    #[test]
+    fn regex_factory_with_rank_builder() {
+        use super::*;
+        // Exercise the `rank_builder` and `build` chaining on RegexEngineFactory.
+        let factory = RegexEngineFactory::builder()
+            .rank_builder(Arc::new(RankBuilder::default()))
+            .build();
+        let engine = factory.create_engine("ab.");
+        assert_eq!(format!("{engine}"), "(Regex: ab.)");
     }
 }

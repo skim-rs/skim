@@ -88,3 +88,56 @@ impl SWMatrix {
         self.cols = cols;
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cell_packs_score_and_direction() {
+        let cell = Cell::new(42, Dir::Diag);
+        assert_eq!(cell.score(), 42);
+        assert_eq!(cell.dir(), Dir::Diag);
+        assert!(cell.is_diag());
+
+        // Negative scores round-trip through the i16 bitcast.
+        let neg = Cell::new(-7, Dir::Up);
+        assert_eq!(neg.score(), -7);
+        assert_eq!(neg.dir(), Dir::Up);
+        assert!(!neg.is_diag());
+    }
+
+    #[test]
+    fn cell_zero_is_none_direction() {
+        assert_eq!(CELL_ZERO.score(), 0);
+        assert_eq!(CELL_ZERO.dir(), Dir::None);
+    }
+
+    #[test]
+    fn cell_debug_shows_score_and_dir() {
+        let s = format!("{:?}", Cell::new(5, Dir::Left));
+        assert!(s.contains("Cell"));
+        assert!(s.contains("score"));
+        assert!(s.contains("Left"));
+    }
+
+    #[test]
+    fn matrix_zero_and_resize_grow() {
+        let mut m = SWMatrix::zero(2, 3);
+        assert_eq!(m.rows, 2);
+        assert_eq!(m.cols, 3);
+        assert!(m.data.len() >= 6);
+
+        // Growing increases the backing storage.
+        m.resize(4, 4);
+        assert_eq!(m.rows, 4);
+        assert_eq!(m.cols, 4);
+        assert!(m.data.len() >= 16);
+
+        // Shrinking keeps the (larger) allocation but updates dims.
+        m.resize(1, 1);
+        assert_eq!(m.rows, 1);
+        assert_eq!(m.cols, 1);
+    }
+}

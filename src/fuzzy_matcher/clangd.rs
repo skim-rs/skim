@@ -467,6 +467,7 @@ fn print_dp(line: &str, pattern: &str, dp: &[Vec<Score>]) {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use crate::fuzzy_matcher::util::{assert_order, wrap_matches};
@@ -518,5 +519,44 @@ mod tests {
         assert_order(&matcher, "ast", &["ast", "AST", "INT_FAST16_MAX"]);
         // score(PRINT) > kMinScore
         assert_order(&matcher, "Int", &["int", "INT", "PRINT"]);
+    }
+
+    #[test]
+    fn respect_case_is_sensitive() {
+        let matcher = ClangdMatcher::default().respect_case();
+        assert!(matcher.fuzzy_match("Foo", "Fo").is_some());
+        assert!(matcher.fuzzy_match("foo", "Fo").is_none());
+    }
+
+    #[test]
+    fn ignore_case_is_insensitive() {
+        let matcher = ClangdMatcher::default().ignore_case();
+        assert!(matcher.fuzzy_match("FOO", "foo").is_some());
+        assert!(matcher.fuzzy_match("foo", "FOO").is_some());
+    }
+
+    #[test]
+    fn smart_case_uppercase_pattern_is_sensitive() {
+        let matcher = ClangdMatcher::default().smart_case();
+        // Uppercase in the pattern makes matching case-sensitive.
+        assert!(matcher.fuzzy_match("Foo", "Fo").is_some());
+        assert!(matcher.fuzzy_match("foo", "Fo").is_none());
+        // All-lowercase pattern matches case-insensitively.
+        assert!(matcher.fuzzy_match("FOO", "fo").is_some());
+    }
+
+    #[test]
+    fn use_cache_toggle_is_chainable() {
+        // Enabling the cache explicitly still produces matches.
+        let matcher = ClangdMatcher::default().use_cache(true);
+        assert!(matcher.fuzzy_indices("foobar", "fb").is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_range_spans_match() {
+        let matcher = ClangdMatcher::default().ignore_case();
+        let (_score, begin, end) = matcher.fuzzy_match_range("foobar", "fb").unwrap();
+        assert!(begin <= end);
+        assert!(matcher.fuzzy_match_range("foobar", "zzz").is_none());
     }
 }

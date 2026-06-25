@@ -229,3 +229,68 @@ impl Display for FuzzyEngine {
         write!(f, "(Fuzzy: {})", self.query)
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn effective_max_typos_per_variant() {
+        let disabled = FuzzyEngine::builder().query("hello").typos(Typos::Disabled);
+        assert_eq!(disabled.effective_max_typos(), None);
+
+        let smart = FuzzyEngine::builder().query("hello").typos(Typos::Smart);
+        assert_eq!(smart.effective_max_typos(), Some(1)); // 5 / 4 = 1
+
+        let fixed = FuzzyEngine::builder().query("hello").typos(Typos::Fixed(3));
+        assert_eq!(fixed.effective_max_typos(), Some(3));
+    }
+
+    /// Every algorithm × case combination should build and match a basic query.
+    #[test]
+    fn builds_every_algorithm_and_case() {
+        let algorithms = [
+            FuzzyAlgorithm::SkimV2,
+            FuzzyAlgorithm::Clangd,
+            FuzzyAlgorithm::Fzy,
+            FuzzyAlgorithm::Arinae,
+        ];
+        let cases = [CaseMatching::Respect, CaseMatching::Ignore, CaseMatching::Smart];
+        for algo in algorithms {
+            for case in cases {
+                let engine = FuzzyEngine::builder().query("foo").algorithm(algo).case(case).build();
+                assert!(
+                    engine.match_item(&"foobar".to_string()).is_some(),
+                    "algo {algo:?} case {case:?} should match"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn empty_query_yields_empty_char_range() {
+        let engine = FuzzyEngine::builder().query("").build();
+        let result = engine.match_item(&"anything".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::CharRange(0, 0));
+    }
+
+    #[test]
+    fn matching_query_yields_char_indices() {
+        let engine = FuzzyEngine::builder().query("fb").build();
+        let result = engine.match_item(&"foobar".to_string()).unwrap();
+        assert!(matches!(result.matched_range, MatchRange::Chars(_)));
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        let engine = FuzzyEngine::builder().query("zzz").build();
+        assert!(engine.match_item(&"foobar".to_string()).is_none());
+    }
+
+    #[test]
+    fn display_shows_query() {
+        let engine = FuzzyEngine::builder().query("foo").build();
+        assert_eq!(format!("{engine}"), "(Fuzzy: foo)");
+    }
+}

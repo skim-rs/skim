@@ -633,3 +633,7 @@ fn toggle_item(sel: &mut IndexSet<MatchedItem>, item: &MatchedItem) {
         sel.insert(item.clone());
     }
 }
+
+#[cfg(test)]
+#[path = "item_list_tests.rs"]
+mod tests;

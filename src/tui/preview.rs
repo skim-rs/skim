@@ -733,46 +733,5 @@ impl SkimWidget for Preview {
 }
 
 #[cfg(test)]
-mod tests {
-    use image::{DynamicImage, RgbaImage};
-    use ratatui::layout::Size;
-    use ratatui_image::picker::Picker;
-
-    use super::Preview;
-
-    fn image(width: u32, height: u32) -> DynamicImage {
-        DynamicImage::ImageRgba8(RgbaImage::new(width, height))
-    }
-
-    #[test]
-    fn image_protocol_constrains_by_width() {
-        let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(400, 200), Size::new(20, 10))
-            .expect("halfblocks protocol should be created");
-
-        assert_eq!(protocol.size(), Size::new(20, 5));
-    }
-
-    #[test]
-    fn image_protocol_constrains_by_height() {
-        let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(200, 400), Size::new(20, 10))
-            .expect("halfblocks protocol should be created");
-
-        assert_eq!(protocol.size(), Size::new(10, 10));
-    }
-
-    #[test]
-    fn image_protocol_keeps_at_least_one_cell() {
-        let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(1000, 1), Size::new(1, 1))
-            .expect("halfblocks protocol should be created");
-
-        assert_eq!(protocol.size(), Size::new(1, 1));
-    }
-
-    #[test]
-    fn image_protocol_uses_halfblocks_picker_when_none_is_provided() {
-        let protocol = Preview::image_protocol(None, image(400, 200), Size::new(20, 10))
-            .expect("fallback halfblocks protocol should be created");
-
-        assert_eq!(protocol.size(), Size::new(20, 5));
-    }
-}
+#[path = "preview_tests.rs"]
+mod tests;

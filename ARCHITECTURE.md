@@ -94,7 +94,7 @@ skim/                  ← workspace root
 │   ├── lib.rs         ← library root; re-exports public types
 │   ├── skim.rs        ← Skim<Backend> orchestrator
 │   ├── options.rs     ← SkimOptions (all CLI / library options)
-│   ├── output.rs      ← SkimOutput (returned to callers)
+│   ├── output.rs      ← SkimOutput (returned to callers) + BinOptions/write_output (CLI serialization)
 │   ├── reader.rs      ← Reader + ReaderControl + CommandCollector trait
 │   ├── matcher.rs     ← Matcher + MatcherControl (parallel worker dispatcher)
 │   ├── item.rs        ← ItemPool, MatchedItem, Rank, RankBuilder
@@ -981,14 +981,14 @@ pub struct SkimOutput {
 }
 ```
 
-In the CLI binary, the output phase (`sk_main` after `Skim::run_with`):
-1. Prints `query` if `--print-query`
-2. Prints `cmd` if `--print-cmd`
-3. Prints `header` if `--print-header`
-4. Prints current item text if `--print-current`
-5. Prints `accept_key` if `--expect` matched
+The output phase is `SkimOutput::write_output(&mut out, &BinOptions)` (`src/output.rs`), called by the CLI binary with a buffered stdout. `BinOptions` (also in `src/output.rs`, built via `BinOptions::from_opts`) captures the output-related flags. Keeping the serialization independent of stdout lets it be unit-tested by passing a `Vec<u8>`. It writes, in order:
+1. `query` if `--print-query`
+2. `cmd` if `--print-cmd`
+3. `header` if `--print-header`
+4. current item text if `--print-current`
+5. `accept_key` if `--expect` matched
 6. For each selected item: strips ANSI if `--ansi && !--no-strip-ansi`, prints text + score if `--print-score`
-7. If `--output-format <template>`: uses `printf()` to expand a format string with placeholders
+7. If `--output-format <template>`: uses `printf()` to expand a format string with placeholders (this path is exclusive — it replaces steps 1–6)
 
 Exit codes: `0` = items selected, `1` = no items selected, `130` = abort, `135` = tmux launch failed.
 

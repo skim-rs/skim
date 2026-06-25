@@ -118,3 +118,7 @@ impl Display for ExactEngine {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "exact_tests.rs"]
+mod tests;
