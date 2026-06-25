@@ -161,6 +161,61 @@ impl TestHarness {
         self.skim.tui_ref().backend().to_string()
     }
 
+    /// Get a representation of the buffer's *styling* for snapshot testing.
+    ///
+    /// `buffer_view()` only captures cell text, so it cannot verify color. This
+    /// view instead lists every run of consecutive cells that share a
+    /// non-default style, as `(row, start..end) "text" fg=… bg=… mod=…`. Cells
+    /// with the default style (`fg=Reset bg=Reset`, no modifier) are omitted so
+    /// the snapshot stays focused on what is actually colored.
+    pub fn color_view(&self) -> String {
+        use ratatui::style::{Color, Modifier};
+
+        let buffer = self.skim.tui_ref().backend().buffer();
+        let area = buffer.area;
+        let cell_at = |x: u16, y: u16| buffer.cell((x, y)).expect("cell within buffer area");
+        let is_default = |fg: Color, bg: Color, md: Modifier| fg == Color::Reset && bg == Color::Reset && md.is_empty();
+
+        let mut out = String::new();
+        for y in 0..area.height {
+            let mut x = 0;
+            while x < area.width {
+                let cell = cell_at(x, y);
+                let (fg, bg, md) = (cell.fg, cell.bg, cell.modifier);
+                if is_default(fg, bg, md) {
+                    x += 1;
+                    continue;
+                }
+                // Merge the run of cells sharing this exact style.
+                let start = x;
+                let mut text = String::new();
+                while x < area.width {
+                    let c = cell_at(x, y);
+                    if c.fg != fg || c.bg != bg || c.modifier != md {
+                        break;
+                    }
+                    text.push_str(c.symbol());
+                    x += 1;
+                }
+                let mut attrs = Vec::new();
+                if fg != Color::Reset {
+                    attrs.push(format!("fg={fg:?}"));
+                }
+                if bg != Color::Reset {
+                    attrs.push(format!("bg={bg:?}"));
+                }
+                if !md.is_empty() {
+                    attrs.push(format!("mod={md:?}"));
+                }
+                out.push_str(&format!("({y}, {start}..{x}) {text:?} {}\n", attrs.join(" ")));
+            }
+        }
+        if out.is_empty() {
+            out.push_str("(no styled cells)\n");
+        }
+        out
+    }
+
     /// Prepare for taking a snapshot by waiting for preview and processing heartbeat.
     ///
     /// This ensures the state is up-to-date before taking a snapshot.
@@ -532,6 +587,32 @@ macro_rules! snap {
     };
 }
 
+/// Like [`snap!`], but snapshots the buffer's *styling* (via
+/// [`TestHarness::color_view`]) instead of its text. Color snapshots live in
+/// their own files (`{test}@color{NNN}.snap`) so they never collide with the
+/// text snapshots taken by `snap!` / `@snap`.
+#[macro_export]
+macro_rules! snap_color {
+    ($harness:ident, $desc:expr, $count:expr) => {{
+        $harness.prepare_snap()?;
+        let __cv = $harness.color_view();
+        insta::with_settings!({
+            description => $desc,
+            snapshot_suffix => format!("color{:03}", $count),
+            omit_expression => true,
+        }, {
+            insta::assert_snapshot!(__cv);
+        });
+    }};
+    ($harness:ident, $desc:expr) => {{
+        $harness.prepare_snap()?;
+        let __cv = $harness.color_view();
+        insta::with_settings!({ description => $desc, omit_expression => true }, {
+            insta::assert_snapshot!(__cv);
+        });
+    }};
+}
+
 /// Macro for writing compact insta snapshot tests.
 ///
 /// # Usage
@@ -727,6 +808,22 @@ macro_rules! insta_test {
             };
             $crate::snap!($h, &__snap_desc, $count);
             $cmds.clear();
+        }
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
+    };
+
+    // @snap_color - like @snap, but captures cell styling (color) into its own
+    // snapshot file. Shares the snapshot counter with @snap; the description is
+    // NOT cleared so a following @snap reflects the same since-last-snap commands.
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @snap_color; $($rest:tt)*) => {
+        {
+            $count += 1;
+            let __snap_desc = if $cmds.is_empty() {
+                $base.clone()
+            } else {
+                format!("{}\nafter:\n  {}", $base, $cmds.join("\n  "))
+            };
+            $crate::snap_color!($h, &__snap_desc, $count);
         }
         insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };

@@ -3,82 +3,15 @@
 #[allow(dead_code)]
 #[macro_use]
 mod common;
-use common::tmux::{Keys, TmuxController, sk};
-use std::io::Result;
+use common::tmux::Keys::*;
 
-sk_test!(vanilla_basic_tmux, "1\n2\n3", &[], {
-  @capture[0] eq(">");
-  @capture[1] trim().starts_with("3/3");
-  @capture[1] ends_with("0/0");
-  @capture[2] eq("> 1");
-  @capture[3] eq("  2");
-});
-
-#[test]
-fn default_command() -> Result<()> {
-    let tmux = TmuxController::new()?;
-
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_COMMAND=", "SKIM_DEFAULT_COMMAND='echo hello'");
-    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
-    tmux.until(|l| l[0].starts_with(">"))?;
-    tmux.until(|l| l.len() > 1 && l[1].starts_with("  1/1"))?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> hello")?;
-
-    tmux.send_keys(&[Keys::Enter])?;
-    tmux.until(|l| !l[0].starts_with(">"))?;
-
-    let output = tmux.output_from(&outfile)?;
-
-    assert_eq!(output[0], "hello");
-
-    Ok(())
-}
-
-#[test]
-fn default_options() -> Result<()> {
-    let tmux = TmuxController::new()?;
-
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &[]).replace("SKIM_DEFAULT_OPTIONS=", "SKIM_DEFAULT_OPTIONS='--prompt \"XXX \"'");
-    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
-    tmux.until(|l| l[0].starts_with("XXX"))?;
-
-    Ok(())
-}
-
-#[test]
-fn options_file() -> Result<()> {
-    let tmux = TmuxController::new()?;
-
-    // Create options file with content from manpage example
-    let mut options_file = NamedTempFile::new()?;
-    options_file.write_all(
-        b"# Preview\n\
---preview 'echo {}'\n\
---preview-window 'left:30%' # Preview window\n\
---prompt '## '\n",
-    )?;
-
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &[]).replace(
-        "SKIM_OPTIONS_FILE=",
-        &format!("SKIM_OPTIONS_FILE='{}'", options_file.path().to_str().unwrap()),
-    );
-    tmux.send_keys(&[Keys::Str(&format!("echo a | {sk_cmd}")), Keys::Enter])?;
-    tmux.until(|l| l.len() > 2)?;
-    tmux.until(|l| l[0].ends_with("│#"))?;
-    tmux.until(|l| l[2].trim().ends_with("│> a"))?;
-    tmux.until(|l| l[l.len() - 1].starts_with('a'))?;
-
-    tmux.send_keys(&[Keys::Enter])?;
-
-    let output = tmux.output_from(&outfile)?;
-
-    assert_eq!(output[0], "a");
-
-    Ok(())
-}
+// NOTE: many former tmux tests have been migrated off this file:
+//   - display / NUL / pre-select / flag-parsing -> tests/options.rs (in-process)
+//   - SKIM_DEFAULT_COMMAND / SKIM_DEFAULT_OPTIONS / SKIM_OPTIONS_FILE ->
+//     `SkimOptions::merge_args_and_parse` unit tests in src/options_tests.rs
+//   - output serialization (--print-*) -> `SkimOutput::write_output` unit tests
+// Only tests that need a real process/terminal (shell execute/reload, height
+// clear-on-exit, the binary's own stdout) remain here.
 
 sk_test!(tmux_version_long, "", &["--version"], {
   @output[0] starts_with("sk ");
@@ -87,180 +20,15 @@ sk_test!(tmux_version_short, "", &["-V"], {
   @output[0] starts_with("sk ");
 });
 
-sk_test!(opt_read0, "a\\0b\\0c", &["--read0"], {
-  @capture[1] starts_with("  3/3");
-  @capture[2] starts_with("> a");
-  @capture[3] ends_with("b");
-  @capture[4] ends_with("c");
-});
-
-sk_test!(opt_print0, "a\\nb\\nc", &["-m", "--print0"], {
-  @lines |l| (l.len() > 4);
-  @keys BTab, BTab, Enter;
-  @lines |l| (!l.is_empty() && !l[0].starts_with(">"));
-  @output[0] trim().eq("a\0b\0");
-});
-
-sk_test!(opt_print_query, "10\\n20\\n30", &["-q", "2", "--print-query"], {
-  @capture[2] trim().eq("> 20");
-  @keys Enter;
-  @capture[0] ne("> 2");
-
-  @dbg;
-  @output[0] trim().eq("2");
-  @output[1] trim().eq("20");
-});
-
-sk_test!(opt_print_cmd, "1\\n2\\n3", &["--cmd-query", "cmd", "--print-cmd"], {
-  @lines |l| (l.len() > 4);
-  @capture[0] starts_with(">");
-  @capture[2] trim().eq("> 1");
-  @keys Enter;
-  @output[0] trim().eq("cmd");
-  @output[1] trim().eq("1");
-});
-
-sk_test!(opt_print_cmd_and_query, "10\\n20\\n30", &["--cmd-query", "cmd", "--print-cmd", "-q", "2", "--print-query"], {
-  @capture[0] starts_with("> 2");
-  @capture[2] trim().eq("> 20");
-  @keys Enter;
-  @output[0] trim().eq("2");
-  @output[1] trim().eq("cmd");
-  @output[2] trim().eq("20");
-});
-
-sk_test!(opt_print_header, "x", &["--header", "foo", "--print-header"], {
-    @capture[0] starts_with(">");
-    @capture[2] starts_with("  foo");
-    @capture[3] starts_with("> x");
-    @keys Enter;
-    @output[0] trim().eq("foo");
-    @output[1] trim().eq("x");
-});
-
-sk_test!(opt_print_score, "x\\nyx\\nyz", &["--print-score"], {
-    @capture[0] starts_with(">");
-    @keys Key('x');
-    @capture[0] starts_with("> x");
-    @capture[1] trim().starts_with("2/3");
-    @keys Enter;
-    @output[0] trim().eq("x");
-    @output[1] trim().eq("50");
-});
-
-sk_test!(opt_print_score_multi, "x\\nyx\\nyz", &["--print-score", "-m"], {
-    @capture[0] starts_with(">");
-    @keys Key('x');
-    @capture[0] starts_with("> x");
-    @capture[1] trim().starts_with("2/3");
-    @keys BTab;
-    @capture[2] trim().eq(">x");
-    @capture[3] trim().eq("> yx");
-    @keys BTab;
-    @capture[3] trim().eq(">>yx");
-    @keys Enter;
-    @output[0] trim().eq("x");
-    @output[1] trim().eq("50");
-    @output[2] trim().eq("yx");
-    @output[3] trim().eq("18");
-});
-
-sk_test!(opt_ansi_null, "a\\0b", &["--ansi"], {
-  @capture[1] trim().starts_with("1/1");
-  @keys Enter;
-  @output[0] contains("\0");
-});
-
-use common::tmux::Keys::*;
-
-sk_test!(opt_reserved_options, "a\\nb", &[], tmux => {
-  let reserved_options = [
-      "--extended",
-      "--literal",
-      "--no-mouse",
-      "--hscroll-off=10",
-      "--filepath-word",
-      "--jump-labels=CHARS",
-      "--no-bold",
-      "--history-size=10",
-  ];
-
-  for option in reserved_options {
-      println!("Starting sk with opt {}", option);
-      let mut tmux = TmuxController::new()?;
-      tmux.start_sk(None, &[option])?;
-      tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
-  }
-});
-
-macro_rules! test_opt_multiple_flags {
-    ($idx: ident, $flags:literal) => {
-        mod $idx {
-            use super::*;
-            sk_test!(opt_multiple_flags_basic, "", &[], tmux => {
-                  let mut tmux = TmuxController::new()?;
-                  tmux.start_sk(Some("echo -n -e 'a\\nb\\nc'"), &[ $flags ])?;
-                  tmux.until(|l| !l.is_empty())?;
-                  tmux.until(|l| l[0].starts_with(">"))?;
-            });
-        }
-    };
-}
-
-test_opt_multiple_flags!(bind, "--bind=ctrl-a:cancel --bind ctrl-b:cancel");
-test_opt_multiple_flags!(tiebreak, "--tiebreak=begin --tiebreak=score");
-test_opt_multiple_flags!(cmd, "--cmd asdf --cmd find");
-test_opt_multiple_flags!(query, "--query asdf -q xyz");
-test_opt_multiple_flags!(delimiter, "--delimiter , --delimiter . -d ,");
-test_opt_multiple_flags!(nth, "--nth 1,2 --nth=1,3 -n 1,3");
-test_opt_multiple_flags!(with_nth, "--with-nth 1,2 --with-nth=1,3");
-test_opt_multiple_flags!(replstr, "-I {} -I XX");
-test_opt_multiple_flags!(color, "--color base --color light");
-test_opt_multiple_flags!(margin, "--margin 30% --margin 0");
-test_opt_multiple_flags!(min_height, "--min-height 30% --min-height 10");
-test_opt_multiple_flags!(preview, "--preview 'ls {}' --preview 'cat {}'");
-test_opt_multiple_flags!(preview_window, "--preview-window up --preview-window down");
-test_opt_multiple_flags!(multi, "--multi -m");
-test_opt_multiple_flags!(no_multi, "--no-multi --no-multi");
-test_opt_multiple_flags!(tac, "--tac --tac");
-test_opt_multiple_flags!(ansi, "--ansi --ansi");
-test_opt_multiple_flags!(exact, "--exact -e");
-test_opt_multiple_flags!(regex, "--regex --regex");
-test_opt_multiple_flags!(literal, "--literal --literal");
-test_opt_multiple_flags!(no_mouse, "--no-mouse --no-mouse");
-test_opt_multiple_flags!(cycle, "--cycle --cycle");
-test_opt_multiple_flags!(no_hscroll, "--no-hscroll --no-hscroll");
-test_opt_multiple_flags!(filepath_word, "--filepath-word --filepath-word");
-test_opt_multiple_flags!(inline_info, "--inline-info --inline-info");
-test_opt_multiple_flags!(no_bold, "--no-bold --no-bold");
-test_opt_multiple_flags!(print_query, "--print-query --print-query");
-test_opt_multiple_flags!(print_cmd, "--print-cmd --print-cmd");
-test_opt_multiple_flags!(print0, "--print0 --print0");
-test_opt_multiple_flags!(sync, "--sync --sync");
-test_opt_multiple_flags!(extended, "--extended --extended");
-test_opt_multiple_flags!(no_sort, "--no-sort --no-sort");
-test_opt_multiple_flags!(exit_0, "--exit-0 --exit-0");
-
-use std::io::Write;
-use tempfile::NamedTempFile;
-
-sk_test!(opt_pre_select_file, "a\\nb\\nc", &[], tmux => {
-  let mut pre_select_file = NamedTempFile::new()?;
-  pre_select_file.write_all(b"b\nc")?;
-  let mut tmux = TmuxController::new()?;
-  tmux.start_sk(
-      Some("echo -n -e 'a\\nb\\nc'"),
-      &["-m", "--pre-select-file", pre_select_file.path().to_str().unwrap()],
-  )?;
-  tmux.until(|l| l.len() > 4 && l[2] == "> a" && l[3].trim() == ">b" && l[4].trim() == ">c")?;
-});
-
-sk_test!(opt_accept_arg, "a\\nb", &["--bind", "ctrl-a:accept:hello"], {
-  @capture[1] trim().starts_with("2/2");
-  @keys Ctrl(&Key('a'));
-  @output[0] trim().eq("hello");
-  @output[1] trim().eq("a");
-});
+// NOTE: the --print-query / --print-cmd / --print-header / --print-score /
+// --print0 tests moved to unit/integration coverage that does not need tmux:
+//   - serialization: `SkimOutput::write_output` unit tests (src/output.rs)
+//   - the real binary's --print-* output: tests/cli.rs (filter / select-1 mode)
+//   - interactive multi-select -> output: the `multi_selection_flows_into_output`
+//     unit test in src/skim_tests.rs
+//   - NUL passthrough (--ansi "a\0b"): write_output `strip_ansi_keeps_nul_*` unit
+//   - accept-with-arg (ctrl-a:accept:hello): binds_tests parse +
+//     write_output `accept_key_is_written_before_items` unit
 
 sk_test!(opt_disable_pattern_control, "foo\\nbar", &["--disable-pattern", "foo", "--query bar"], {
     @capture[0] starts_with("> bar");
@@ -286,45 +54,10 @@ sk_test!(opt_disable_pattern_multi, "foo a\\nbar\\nfoo b", &["--disable-pattern"
     @output[0] trim().eq("bar");
 });
 
-// Bind tests that require output capture
-
-sk_test!(bind_execute_0_results, "", &["--bind", "'ctrl-f:execute(echo foo{})'"], {
-  @capture[0] eq(">");
-  @keys Ctrl(&Key('f')), Enter;
-  @capture[0] ne(">");
-
-  @output[0] eq("foo");
-});
-
-sk_test!(bind_execute_0_results_noref, "", &["--bind", "'ctrl-f:execute(echo foo)'"], {
-  @capture[0] eq(">");
-  @keys Ctrl(&Key('f')), Enter;
-  @capture[0] ne(">");
-
-  @output[0] eq("foo");
-});
-
-#[test]
-fn bind_reload_no_arg() -> Result<()> {
-    let tmux = TmuxController::new()?;
-
-    let outfile = tmux.tempfile()?;
-    let sk_cmd = sk(&outfile, &["--bind", "'ctrl-a:reload'"])
-        .replace("SKIM_DEFAULT_COMMAND=", "SKIM_DEFAULT_COMMAND='echo hello'");
-    tmux.send_keys(&[Keys::Str(&sk_cmd), Keys::Enter])?;
-    tmux.until(|l| l[0].starts_with(">"))?;
-
-    tmux.send_keys(&[Keys::Ctrl(&Keys::Key('a'))])?;
-    tmux.until(|l| l.len() > 2 && l[2] == "> hello")?;
-
-    Ok(())
-}
-
-sk_test!(bind_reload_cmd, "a\\n\\nb\\nc", &["--bind", "'ctrl-a:reload(echo hello)'"], {
-  @capture[2] eq("> a");
-  @keys Ctrl(&Key('a'));
-  @capture[2] eq("> hello");
-});
+// NOTE: bind execute/reload (ctrl-f:execute(...), ctrl-a:reload[(...)]) moved to
+// cross-platform coverage: bind parsing in src/binds_tests.rs, action dispatch in
+// src/tui/app_tests.rs (execute_action_runs_command, execute_silent_spawns_*,
+// reload_actions_emit_reload, refresh_cmd_reloads_in_interactive_mode).
 
 sk_test!(inline_clear_on_exit, @cmd "seq 1 10", &["--height=50%"], {
     @capture[0] starts_with(">");
@@ -342,21 +75,6 @@ sk_test!(inline_clear_on_exit_reverse_list, @cmd "seq 1 10", &["--height=50%", "
     @capture[*] starts_with(">");
     @keys Escape;
     @lines |l| (!l.iter().any(|line| line.starts_with(">")));
-});
-
-sk_test!(issue_xxx_null_delimiter_with_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", "--with-nth", "2"], {
-  @capture[0] starts_with(">");
-  @capture[2] starts_with("> b");
-});
-
-sk_test!(issue_xxx_null_delimiter_nth, "a\\0b\\0c", &["--delimiter", "'\\x00'", "--nth", "2"], {
-  @capture[0] starts_with(">");
-  @keys Key('c');
-  @capture[0] starts_with("> c");
-  @capture[1] contains("0/1");
-  @keys BSpace, Key('b');
-  @capture[0] starts_with("> b");
-  @capture[2] starts_with("> abc");
 });
 
 sk_test!(issue_1120_height_mode_clears_on_exit, @cmd "seq 1 10", &["--height=50%"], {

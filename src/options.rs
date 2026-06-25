@@ -1316,19 +1316,49 @@ impl SkimOptions {
     ///
     /// Panics if the process was invoked with no arguments (which should never happen in practice).
     pub fn from_env() -> Result<Self, clap::Error> {
-        use clap::Parser;
         use std::env;
 
-        let mut args = Vec::new();
+        let prog = env::args()
+            .next()
+            .expect("there should be at least one arg: the application name");
+        let options_file_content = env::var("SKIM_OPTIONS_FILE").ok().and_then(|f| std::fs::read(f).ok());
+        let default_options = env::var("SKIM_DEFAULT_OPTIONS").ok();
+        let default_command = env::var("SKIM_DEFAULT_COMMAND").ok();
 
-        args.push(
-            env::args()
-                .next()
-                .expect("there should be at least one arg: the application name"),
-        );
-        if let Ok(opts_file) = env::var("SKIM_OPTIONS_FILE")
-            && let Ok(content) = std::fs::read(opts_file)
-        {
+        Self::merge_args_and_parse(
+            prog,
+            options_file_content.as_deref(),
+            default_options.as_deref(),
+            env::args().skip(1),
+            default_command,
+        )
+    }
+
+    /// Build [`SkimOptions`] from explicitly provided sources, mirroring how
+    /// [`from_env`](Self::from_env) assembles them but without touching the
+    /// process environment — which makes it unit-testable and platform-agnostic.
+    ///
+    /// Precedence (lowest to highest): `SKIM_OPTIONS_FILE` contents, then
+    /// `SKIM_DEFAULT_OPTIONS`, then the real CLI args. `default_command`
+    /// (`SKIM_DEFAULT_COMMAND`) only fills `cmd` when no `--cmd` was given,
+    /// falling back to [`crate::SKIM_DEFAULT_COMMAND`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`clap::Error`] if argument parsing fails.
+    #[cfg(feature = "cli")]
+    pub(crate) fn merge_args_and_parse(
+        prog: String,
+        options_file_content: Option<&[u8]>,
+        default_options: Option<&str>,
+        cli_args: impl IntoIterator<Item = String>,
+        default_command: Option<String>,
+    ) -> Result<Self, clap::Error> {
+        use clap::Parser;
+
+        let mut args = vec![prog];
+
+        if let Some(content) = options_file_content {
             let mut in_comment = false;
             let mut pending_comment = false;
             let without_comments = content
@@ -1362,20 +1392,14 @@ impl SkimOptions {
             let parsed = String::from_utf8_lossy(&without_comments);
             args.extend(shlex::split(&parsed).unwrap_or_default());
         }
-        args.extend(
-            env::var("SKIM_DEFAULT_OPTIONS")
-                .ok()
-                .and_then(|val| shlex::split(&val))
-                .unwrap_or_default(),
-        );
-        for arg in env::args().skip(1) {
-            args.push(arg);
-        }
+
+        args.extend(default_options.and_then(shlex::split).unwrap_or_default());
+        args.extend(cli_args);
 
         Self::try_parse_from(args).map(|mut opts| {
-            opts.cmd.get_or_insert(
-                std::env::var("SKIM_DEFAULT_COMMAND").unwrap_or(crate::SKIM_DEFAULT_COMMAND.to_string()),
-            );
+            if opts.cmd.is_none() {
+                opts.cmd = Some(default_command.unwrap_or_else(|| crate::SKIM_DEFAULT_COMMAND.to_string()));
+            }
             opts
         })
     }

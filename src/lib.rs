@@ -40,7 +40,7 @@ use ratatui::text::{Line, Span};
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
-pub use crate::output::SkimOutput;
+pub use crate::output::{BinOptions, SkimOutput};
 pub use crate::skim::*;
 pub use crate::skim_item::SkimItem;
 use crate::tui::Size;

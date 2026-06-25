@@ -76,17 +76,31 @@ fn from_options_maps_read0_and_ansi() {
 
 #[test]
 fn invoke_runs_a_command() {
+    // The command runs through `shell_cmd` (`sh -c` / `cmd /c`); pick syntax that
+    // emits two newline-separated lines on each platform. The reader strips a
+    // trailing `\r`, so cmd.exe's CRLF output still yields bare "x"/"y".
+    let cmd = if cfg!(windows) {
+        "echo x& echo y"
+    } else {
+        "printf 'x\\ny\\n'"
+    };
     let mut reader = SkimItemReader::default();
-    let (rx, _tx) = reader.invoke("printf 'x\\ny\\n'", Arc::new(AtomicUsize::new(0)));
+    let (rx, _tx) = reader.invoke(cmd, Arc::new(AtomicUsize::new(0)));
     assert_eq!(drain(rx), vec!["x", "y"]);
 }
 
 #[test]
 fn invoke_with_show_error_redirects_stderr() {
-    // show_error routes the child's stderr into the item stream.
+    // show_error routes the child's stderr into the item stream. On cmd.exe the
+    // redirect is written first so `echo` does not capture a trailing space.
+    let cmd = if cfg!(windows) {
+        "1>&2 echo oops"
+    } else {
+        "printf 'oops\\n' 1>&2"
+    };
     let opt = SkimItemReaderOption::default().show_error(true).build();
     let mut reader = SkimItemReader::new(opt);
-    let (rx, _tx) = reader.invoke("printf 'oops\\n' 1>&2", Arc::new(AtomicUsize::new(0)));
+    let (rx, _tx) = reader.invoke(cmd, Arc::new(AtomicUsize::new(0)));
     assert_eq!(drain(rx), vec!["oops"]);
 }
 

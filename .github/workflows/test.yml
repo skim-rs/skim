@@ -20,7 +20,7 @@ jobs:
   nextest:
     runs-on: ${{matrix.os}}
     strategy:
-      matrix:
+      matrix: &matrix
         build: [linux, macos, windows]
         include:
           - build: linux
@@ -34,9 +34,9 @@ jobs:
             target: x86_64-pc-windows-msvc
     permissions:
       contents: read
-      code-quality: write
     steps:
-      - name: "[linux] Install dependencies"
+      - &linux-deps
+        name: "[linux] Install dependencies"
         run: |
           sudo apt-get install tmux
           tmux -V
@@ -51,42 +51,25 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
 
-      - name: Checkout repository
+      - &checkout
+        name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - run: rustup toolchain install
-      - uses: taiki-e/install-action@v2
+      - &toolchain
+        name: Install rust toolchain
+        run: rustup toolchain install
+      - &nextest-install
+        name: Install nextest
+        uses: taiki-e/install-action@v2
         with:
           tool: nextest@0.9
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov@0.8
-      - name: Cache
+      - &cache
+        name: Setup cargo cache
         uses: Swatinem/rust-cache@v2
-        with: &cache-with
-          key: ${{ runner.os }}
-          add-job-id-key: "false"
-          add-rust-environment-hash-key: "false"
-          env-vars: "____"
-          cache-on-failure: "true"
-          cache-all-crates: "true"
-
       - name: Run doctests
         run: cargo test --doc
-      - name: "[linux] Run tests with coverage"
-        if: runner.os == 'Linux'
-        # Do not use `--all-targets` to avoid running benches
-        run: |
-          cargo +nightly llvm-cov nextest --release --profile ci --branch --bins --lib --examples --tests --no-report
-          cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
-          cargo +nightly llvm-cov report --release --html
-          echo "COVERAGE_PERCENT=$(cargo llvm-cov report --release | tail -n1 | awk '{ print $4 }')" | tee --append $GITHUB_ENV
-        env:
-          LC_ALL: en_US.UTF-8
-          TERM: xterm-256color
-      - name: "[macos/windows] Run tests"
-        if: runner.os != 'Linux'
+      - name: "Run tests"
         # Do not use `--all-targets` to avoid running benches
         run: cargo nextest run --release --profile ci --bins --lib --examples --tests
         env:
@@ -107,89 +90,86 @@ jobs:
             fi
           done
         shell: bash
-      - name: "[linux] Upload coverage report"
-        if: runner.os == 'Linux' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+
+  coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      code-quality: write
+    steps:
+      - *linux-deps
+      - *checkout
+      - *toolchain
+      - *nextest-install
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.8
+      - *cache
+      - name: "Run tests with coverage"
+        # Do not use `--all-targets` to avoid running benches
+        run: |
+          cargo +nightly llvm-cov nextest --release --profile ci --branch --bins --lib --examples --tests --no-report
+          cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
+          cargo +nightly llvm-cov report --release --html
+          echo "COVERAGE_PERCENT=$(cargo +nightly llvm-cov report --release | tail -n1 | awk '{ print $13 }')" | tee --append $GITHUB_ENV
+        env:
+          LC_ALL: en_US.UTF-8
+          TERM: xterm-256color
+      - name: "Upload coverage report"
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         uses: actions/upload-code-coverage@v1
         with:
           file: coverage.xml
           language: Rust
           label: ${{ runner.os }}
-      - name: "[linux] Generate coverage badge"
-        if: &if-linux-master runner.os == 'Linux' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+
+      - name: "Generate coverage badge"
+        if: &if-master github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: emibcn/badge-action@v2.0.2
         with:
           label: 'Coverage'
           status: ${{ env.COVERAGE_PERCENT }}
           color: 'blue'
           path: 'target/llvm-cov/html/coverage.svg'
-      - name: "[linux] Upload default branch results to gh pages"
-        if: *if-linux-master
+      - name: "Upload default branch results to gh pages"
+        if: *if-master
         uses: actions/upload-pages-artifact@v3
         with:
           path: target/llvm-cov/html
 
   deploy-coverage-page:
-    needs: nextest
+    needs: coverage
+    runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
     steps:
-      - name: "[linux] Deploy gh pages"
+      - name: "Deploy gh pages"
         id: deployment
-        if: *if-linux-master
+        if: *if-master
         uses: actions/deploy-pages@v4
 
   clippy:
     runs-on: ${{matrix.os}}
     strategy:
-      matrix:
-        build: [linux, macos, windows]
-        include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
-          - build: windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+      matrix: *matrix
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-      - run: rustup toolchain install
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with: *cache-with
+      - *checkout
+      - *toolchain
+      - *cache
       - name: Clippy
         run: cargo clippy
 
   rustfmt:
     runs-on: ${{matrix.os}}
     strategy:
-      matrix:
-        build: [linux, macos, windows]
-        include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
-          - build: windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+      matrix: *matrix
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - run: rustup toolchain install
+      - *checkout
+      - *toolchain
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
@@ -197,25 +177,11 @@ jobs:
   build-no-default-features:
     runs-on: ${{matrix.os}}
     strategy:
-      matrix:
-        build: [linux, macos, windows]
-        include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
-          - build: windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+      matrix: *matrix
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - run: rustup toolchain install
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with: *cache-with
+      - *checkout
+      - *toolchain
+      - *cache
       - name: Build without any feature
         run: |
           cargo build --no-default-features
@@ -224,11 +190,8 @@ jobs:
   msrv:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-      - run: rustup toolchain install
+      - *checkout
+      - *toolchain
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-msrv@0.19

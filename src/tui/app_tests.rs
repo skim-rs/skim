@@ -502,9 +502,11 @@ fn next_history_at_most_recent_is_noop() {
 #[test]
 fn execute_action_runs_command() {
     // Execute spawns a foreground command (toggling raw mode / alt screen) and
-    // returns a Redraw event.
+    // returns a Redraw event. Use a no-op that exists in each platform's shell:
+    // `true` for `sh`, `rem` (a comment builtin) for `cmd`.
+    let noop = if cfg!(windows) { "rem" } else { "true" };
     let mut app = App::default();
-    let events = act(&mut app, Action::Execute("true".to_string()));
+    let events = act(&mut app, Action::Execute(noop.to_string()));
     assert!(events.iter().any(|e| matches!(e, Event::Redraw)));
 }
 

@@ -4,65 +4,48 @@
 #[macro_use]
 mod common;
 
-#[cfg(unix)]
-use common::tmux::Keys::*;
-
-#[cfg(unix)]
-sk_test!(test_ansi_flag_enabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &["--ansi", "--color", "current_match_bg:1,current_bg:2"], {
-    @capture[0] starts_with(">");
-    @lines |l| (l.len() >= 3 && l.iter().any(|line| line.contains("plain")));
-
-    @keys Key('d');
-    @capture[2] starts_with("> red");
-
-    @capture_colored[*] contains("mre\u{1b}");
-    @keys Enter;
-    @output[*] trim().eq("red");
-
+// With --ansi the colored input is interpreted: the items render with their
+// ANSI colors and the matched query characters are highlighted. `@snap_color`
+// captures the per-cell styling so this actually verifies color, while
+// `--color current_match_bg:1,current_bg:2` exercises the themed selection.
+insta_test!(test_ansi_flag_enabled, @bytes b"plain\n\x1b[31mred\x1b[0m\n\x1b[32mgreen\x1b[0m\n", &["--ansi", "--color", "current_match_bg:1,current_bg:2"], {
+    @type "d";
+    @snap;
+    @snap_color;
 });
 
-#[cfg(unix)]
-sk_test!(test_ansi_flag_disabled, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &[], {
-    @capture[0] starts_with(">");
-    @capture[*] contains("plain");
-
-    @keys Str("red");
-
-    @capture[2] eq("> ?[31mred?[0m");
-
-    @keys Enter;
+// Without --ansi, the escape sequences are not interpreted: they are matched
+// and displayed as literal text, and the items carry no color. `@snap_color`
+// asserts the absence of ANSI-derived styling on the item rows.
+insta_test!(test_ansi_flag_disabled, @bytes b"plain\n\x1b[31mred\x1b[0m\n\x1b[32mgreen\x1b[0m\n", &[], {
+    @type "red";
+    @snap;
+    @snap_color;
 });
 
-#[cfg(unix)]
-sk_test!(test_ansi_matching_on_stripped_text, @cmd "echo -e '\\x1b[32mgreen\\x1b[0m text\\n\\x1b[31mred\\x1b[0m text\\nplain text'", &["--ansi"], {
-    @capture[0] starts_with(">");
-    @lines |l| (l.len() >= 3 && l.iter().any(|line| line.contains("plain")));
-    @keys Str("text");
-    // Tiebreak will reorder items
-    @capture[2] contains("red text");
-    @capture[3] contains("green text");
-    @capture[4] contains("plain text");
-
-
-    @keys Ctrl(&Key('u')), Str("green");
-    @capture[2] contains("green");
-
-    @lines |l| (l.len() == 3);
+// With --ansi, matching happens on the ANSI-stripped text and the tiebreak
+// reorders the matches. The color snapshot confirms each item keeps its own
+// (red / green) foreground after matching.
+insta_test!(test_ansi_matching_on_stripped_text, @bytes b"\x1b[32mgreen\x1b[0m text\n\x1b[31mred\x1b[0m text\nplain text\n", &["--ansi"], {
+    @type "text";
+    @snap;
+    @snap_color;
+    @ctrl 'u';
+    @type "green";
+    @snap;
 });
 
-#[cfg(unix)]
-sk_test!(test_ansi_flag_no_strip, @cmd "echo -e 'plain\\n\\x1b[31mred\\x1b[0m\\n\\x1b[32mgreen\\x1b[0m'", &["--ansi", "--no-strip-ansi", "--color", "current_match_bg:1,current_bg:2"], {
-    @capture[0] starts_with(">");
-    @lines |l| (l.len() >= 3 && l.iter().any(|line| line.contains("plain")));
-
-    @keys Key('d');
-    @capture[2] starts_with("> red");
-
-    @capture_colored[*] contains("mre\u{1b}");
-    @keys Enter;
-    @output[*] contains("mred\u{1b}");
+// --no-strip-ansi only affects the *output* (the accepted text keeps its
+// escape sequences — covered by the `no_strip_ansi_*` unit test in
+// src/output.rs); on screen it renders identically to --ansi. This verifies the
+// flag does not disturb rendering or the themed colors.
+insta_test!(test_ansi_flag_no_strip, @bytes b"plain\n\x1b[31mred\x1b[0m\n\x1b[32mgreen\x1b[0m\n", &["--ansi", "--no-strip-ansi", "--color", "current_match_bg:1,current_bg:2"], {
+    @type "d";
+    @snap;
+    @snap_color;
 });
 
 insta_test!(test_prompt_ansi, ["a"], &["--prompt", "\x1b[1;34mprompt\x1b[0m nocol"], {
     @snap;
+    @snap_color;
 });

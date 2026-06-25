@@ -1,0 +1,11 @@
+---
+source: tests/ansi.rs
+description: "input: items [\"a\"]\noptions: --prompt \u001b[1;34mprompt\u001b[0m nocol"
+---
+(21, 0..1) ">" fg=Indexed(161)
+(21, 1..2) " " fg=Indexed(168)
+(21, 2..3) "a" bg=Indexed(236)
+(22, 0..5) "  1/1" fg=Indexed(144)
+(22, 77..80) "0/0" fg=Indexed(144)
+(23, 0..6) "prompt" fg=Blue mod=BOLD
+(23, 6..12) " nocol" fg=Indexed(110)

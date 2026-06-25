@@ -159,3 +159,22 @@ fn parse_keymaps_collects_iterator() {
 fn parse_action_chain_unknown_is_error() {
     assert!(parse_action_chain("not-a-real-action").is_err());
 }
+
+#[test]
+fn parse_action_chain_accept_execute_reload_with_args() {
+    // Cross-platform coverage for the bind forms the tmux execute/reload/accept
+    // integration tests used: `accept:hello`, `execute(...)`, `reload(...)`.
+    assert_eq!(
+        parse_action_chain("accept:hello").unwrap(),
+        vec![Accept(Some("hello".into()))]
+    );
+    assert_eq!(
+        parse_action_chain("execute(echo foo)").unwrap(),
+        vec![Execute("echo foo".into())]
+    );
+    assert_eq!(
+        parse_action_chain("reload(echo hello)").unwrap(),
+        vec![Reload(Some("echo hello".into()))]
+    );
+    assert_eq!(parse_action_chain("reload").unwrap(), vec![Reload(None)]);
+}

@@ -5,6 +5,93 @@ use super::*;
 use crate::item::RankCriteria;
 use crate::tui::statusline::InfoDisplay;
 
+/// Helper: invoke the env-free arg merger with `prog = "sk"` and no real CLI args.
+fn merge(
+    options_file_content: Option<&[u8]>,
+    default_options: Option<&str>,
+    default_command: Option<&str>,
+) -> SkimOptions {
+    SkimOptions::merge_args_and_parse(
+        "sk".to_string(),
+        options_file_content,
+        default_options,
+        std::iter::empty(),
+        default_command.map(str::to_string),
+    )
+    .expect("options should parse")
+}
+
+#[test]
+fn merge_uses_skim_default_command_when_no_cmd_flag() {
+    // SKIM_DEFAULT_COMMAND fills `cmd` when neither --cmd nor a pipe is given.
+    let opts = merge(None, None, Some("echo hello"));
+    assert_eq!(opts.cmd.as_deref(), Some("echo hello"));
+}
+
+#[test]
+fn merge_falls_back_to_builtin_default_command() {
+    // With SKIM_DEFAULT_COMMAND unset, the built-in default is used.
+    let opts = merge(None, None, None);
+    assert_eq!(opts.cmd.as_deref(), Some(crate::SKIM_DEFAULT_COMMAND));
+}
+
+#[test]
+fn merge_explicit_cmd_flag_overrides_default_command() {
+    // An explicit --cmd wins over SKIM_DEFAULT_COMMAND.
+    let opts = SkimOptions::merge_args_and_parse(
+        "sk".to_string(),
+        None,
+        Some("--cmd 'echo flag'"),
+        std::iter::empty(),
+        Some("echo env".to_string()),
+    )
+    .expect("options should parse");
+    assert_eq!(opts.cmd.as_deref(), Some("echo flag"));
+}
+
+#[test]
+fn merge_applies_skim_default_options() {
+    // SKIM_DEFAULT_OPTIONS is shlex-split and merged into the args.
+    let opts = merge(None, Some("--prompt 'XXX '"), None);
+    assert_eq!(opts.prompt, "XXX ");
+}
+
+#[test]
+fn merge_applies_options_file_and_strips_comments() {
+    // A full-line `# Preview` comment and a trailing `# Preview window` comment
+    // are removed; the surviving flags must still parse cleanly.
+    let content = b"# Preview\n\
+--preview 'echo {}'\n\
+--preview-window 'left:30%' # Preview window\n\
+--prompt '>> '\n";
+    let opts = merge(Some(content), None, None);
+    assert_eq!(opts.preview.as_deref(), Some("echo {}"));
+    assert_eq!(opts.prompt, ">> ");
+}
+
+#[test]
+fn merge_options_file_comment_stripper_is_not_quote_aware() {
+    // Known limitation (matches historical behavior): the `#` stripper runs
+    // before shlex and does not understand quotes, so a `#` inside a quoted
+    // value starts a comment. `'## '` therefore collapses to `'# '`.
+    let opts = merge(Some(b"--prompt '## '\n"), None, None);
+    assert_eq!(opts.prompt, "# ");
+}
+
+#[test]
+fn merge_precedence_cli_args_override_default_options() {
+    // CLI args come last, so they win over SKIM_DEFAULT_OPTIONS.
+    let opts = SkimOptions::merge_args_and_parse(
+        "sk".to_string(),
+        None,
+        Some("--prompt 'from-env '"),
+        ["--prompt".to_string(), "from-cli ".to_string()],
+        None,
+    )
+    .expect("options should parse");
+    assert_eq!(opts.prompt, "from-cli ");
+}
+
 #[test]
 fn build_no_height_forces_full_height() {
     let opts = SkimOptions {
