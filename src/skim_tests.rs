@@ -190,7 +190,8 @@ fn try_flush_render_emits_render_when_due() {
 
     // Mark a render as needed and age the frame-rate gate so it is due.
     skim.app.needs_render.store(true, Ordering::Relaxed);
-    skim.app.last_render_timer = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    let now = Instant::now();
+    skim.app.last_render_timer = now.checked_sub(Duration::from_secs(1)).unwrap_or(now);
     skim.try_flush_render();
 
     // The render flag is cleared and a Render event is queued on the TUI.
