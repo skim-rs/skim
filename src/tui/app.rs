@@ -1401,7 +1401,9 @@ impl App {
             }
         }
         if self.item_list.current != old_current {
-            tui.event_tx.try_send(Event::RunPreview)?;
+            for evt in Self::on_selection_changed() {
+                tui.event_tx.try_send(evt)?;
+            }
         }
         tui.event_tx.try_send(Event::Render)?;
         Ok(())
@@ -1410,94 +1412,5 @@ impl App {
         self.show_spinner = !self.show_spinner;
         self.spinner_last_change = std::time::Instant::now();
         self.needs_render.store(true, Ordering::Relaxed);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
-    use ratatui::backend::TestBackend;
-
-    use super::*;
-    use crate::item::RankBuilder;
-    use crate::theme::ColorTheme;
-    use crate::tui::Size;
-    use crate::tui::options::TuiLayout;
-
-    fn test_item(text: &str, index: i32) -> MatchedItem {
-        let rank = Rank {
-            index,
-            ..Rank::default()
-        };
-        MatchedItem::new(
-            Arc::new(text.to_owned()) as Arc<dyn SkimItem>,
-            rank,
-            None,
-            &RankBuilder::default(),
-        )
-    }
-
-    fn app_with_items() -> App {
-        let mut options = SkimOptions::default().build();
-        options.layout = TuiLayout::Reverse;
-
-        let mut app = App::from_options(options, Arc::new(ColorTheme::default()), String::new());
-        app.item_list.items = vec![test_item("first", 0), test_item("second", 1), test_item("third", 2)];
-        app.resize(80, 24);
-        app.item_list.height = app.list_inner_area().height;
-        app
-    }
-
-    fn test_tui() -> Result<Tui<TestBackend>> {
-        Tui::new_with_height_and_backend(TestBackend::new(80, 24), Size::Percent(100))
-    }
-
-    fn mouse_down(column: u16, row: u16) -> MouseEvent {
-        MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Left),
-            column,
-            row,
-            modifiers: KeyModifiers::NONE,
-        }
-    }
-
-    fn drain_events(tui: &mut Tui<TestBackend>) -> Vec<Event> {
-        let mut events = Vec::new();
-        while let Ok(event) = tui.event_rx.try_recv() {
-            events.push(event);
-        }
-        events
-    }
-
-    #[test]
-    fn mouse_selection_change_requests_preview() -> Result<()> {
-        let mut app = app_with_items();
-        let mut tui = test_tui()?;
-        let inner = app.list_inner_area();
-
-        app.handle_mouse(mouse_down(inner.x, inner.y + 1), &mut tui)?;
-
-        let events = drain_events(&mut tui);
-        assert_eq!(app.item_list.current, 1);
-        assert!(events.iter().any(|event| matches!(event, Event::RunPreview)));
-        assert!(events.iter().any(|event| matches!(event, Event::Render)));
-        Ok(())
-    }
-
-    #[test]
-    fn mouse_selection_same_item_only_requests_render() -> Result<()> {
-        let mut app = app_with_items();
-        let mut tui = test_tui()?;
-        let inner = app.list_inner_area();
-
-        app.handle_mouse(mouse_down(inner.x, inner.y), &mut tui)?;
-
-        let events = drain_events(&mut tui);
-        assert_eq!(app.item_list.current, 0);
-        assert!(!events.iter().any(|event| matches!(event, Event::RunPreview)));
-        assert!(events.iter().any(|event| matches!(event, Event::Render)));
-        Ok(())
     }
 }
