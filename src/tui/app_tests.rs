@@ -1133,7 +1133,7 @@ fn mouse_scroll_up_and_down_move_selection() {
     app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollUp, 1, 1)))
         .unwrap();
     // A Render event is queued after handling a mouse event.
-    assert!(drain_events(&mut tui).iter().any(|e| matches!(e, Event::Render)));
+    assert!(app.needs_render.load(Ordering::Relaxed));
 }
 
 #[test]
@@ -1198,6 +1198,46 @@ fn mouse_scroll_over_preview_area_scrolls_preview() {
         // The scroll-down advanced the preview viewport.
         assert!(app.preview.scroll_y > 0);
     }
+}
+
+/// A left mouse-button press at the given cell.
+fn mouse_down(col: u16, row: u16) -> MouseEvent {
+    mouse(MouseEventKind::Down(MouseButton::Left), col, row)
+}
+
+#[test]
+fn mouse_selection_change_requests_preview() -> Result<()> {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f"]);
+    let _ = render(&mut app, 40, 6);
+    let inner = app.list_inner_area();
+
+    // The default layout is bottom-to-top, so the current item (0) sits on the
+    // bottom row; item 1 occupies the row just above it.
+    let item_one_row = inner.y + inner.height - 2;
+    // Clicking a different row moves the cursor and asks for a fresh preview.
+    let events = app.handle_mouse(mouse_down(inner.x, item_one_row))?;
+
+    assert_eq!(app.item_list.current, 1);
+    assert!(events.iter().any(|event| matches!(event, Event::RunPreview)));
+    assert!(app.needs_render.load(Ordering::Relaxed));
+    Ok(())
+}
+
+#[test]
+fn mouse_selection_same_item_only_requests_render() -> Result<()> {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f"]);
+    let _ = render(&mut app, 40, 6);
+    let inner = app.list_inner_area();
+
+    // Bottom-to-top layout: the current item (0) renders on the bottom row.
+    let current_row = inner.y + inner.height - 1;
+    // Clicking the already-current row only redraws; no preview is requested.
+    let events = app.handle_mouse(mouse_down(inner.x, current_row))?;
+
+    assert_eq!(app.item_list.current, 0);
+    assert!(!events.iter().any(|event| matches!(event, Event::RunPreview)));
+    assert!(app.needs_render.load(Ordering::Relaxed));
+    Ok(())
 }
 
 #[test]
