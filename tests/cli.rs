@@ -14,15 +14,13 @@
 #[allow(dead_code)]
 mod common;
 
-use common::SK;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-/// The bare binary path, derived from the shell-prefixed `SK` constant by
-/// dropping the leading `SKIM_*= …` env assignments (which we now apply via
-/// `env_remove` instead). On Windows `SK` has no prefix, so this is a no-op.
+use common::SK;
+
 fn sk_bin() -> &'static str {
-    SK.rsplit(' ').next().unwrap_or(SK)
+    SK
 }
 
 /// Spawn the binary with explicit argv and env, feeding `pipe_input` on stdin.

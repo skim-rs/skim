@@ -33,7 +33,8 @@ fn spawn_runs_closure() {
         flag2.store(42, Ordering::SeqCst);
         let _ = tx.send(());
     });
-    rx.recv().expect("closure did not complete");
+    rx.recv_timeout(std::time::Duration::from_secs(5))
+        .expect("closure did not complete");
     assert_eq!(flag.load(Ordering::SeqCst), 42);
 }
 
@@ -55,7 +56,8 @@ fn spawn_batch_runs_all() {
         .collect();
     pool.spawn_batch(jobs);
     for _ in 0..10 {
-        rx.recv().expect("job did not complete");
+        rx.recv_timeout(std::time::Duration::from_secs(5))
+            .expect("job did not complete");
     }
     assert_eq!(counter.load(Ordering::SeqCst), 10);
 }
