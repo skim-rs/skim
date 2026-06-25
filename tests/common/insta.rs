@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use clap::Parser;
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
 use ratatui::backend::TestBackend;
 use skim::prelude::*;
 use skim::tui::event::Action;
@@ -126,6 +126,12 @@ impl TestHarness {
         self.tick()?;
         self.wait_for_completion()?;
         Ok(())
+    }
+
+    /// Send a mouse event and process any resulting events immediately.
+    pub fn mouse(&mut self, mouse: MouseEvent) -> Result<()> {
+        self.send(Event::Mouse(mouse))?;
+        self.handle_remaining_events()
     }
 
     /// Wait for any in-flight reader and matcher to complete.
@@ -321,6 +327,18 @@ impl TestHarness {
     pub fn handle_remaining_events(&mut self) -> Result<()> {
         // Process any queued events first (including RunPreview)
         self.tick()?;
+
+        let debounce_timeout = std::time::Duration::from_secs(2);
+        let debounce_start = std::time::Instant::now();
+        while self.skim.app().pending_preview_run {
+            if debounce_start.elapsed() > debounce_timeout {
+                return Err(color_eyre::eyre::eyre!("Timeout waiting for debounced preview to run"));
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            self.send(Event::Heartbeat)?;
+            self.tick()?;
+        }
 
         // If there's no preview task running, nothing to wait for
         let has_pending = match self.skim.app().preview.thread_handle {
@@ -633,6 +651,7 @@ macro_rules! snap_color {
 ///     @snap;              // Take snapshot
 ///     @char 'f';          // Send single character
 ///     @type "foo";        // Type string
+///     @mouse(|h| mouse_down(h, 1)); // Send mouse event
 ///     @action Down(1);    // Send action
 ///     @key Enter;         // Send special key
 ///     @exited 0;          // Assert command exited with status code 0
@@ -853,6 +872,14 @@ macro_rules! insta_test {
     (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @action $action:ident ($($args:tt)*) ; $($rest:tt)*) => {
         $cmds.push(concat!("@action ", stringify!($action), "(", stringify!($($args)*), ")"));
         $h.action(skim::tui::event::Action::$action($($args)*))?;
+        insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
+    };
+
+    // @mouse - build and send a mouse event from the current harness state
+    (@expand $h:ident, $base:ident, $cmds:ident, $count:ident; @mouse ( $mouse:expr ) ; $($rest:tt)*) => {
+        $cmds.push(concat!("@mouse(", stringify!($mouse), ")"));
+        let __mouse = ($mouse)(&$h);
+        $h.mouse(__mouse)?;
         insta_test!(@expand $h, $base, $cmds, $count; $($rest)*);
     };
 
