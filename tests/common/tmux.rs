@@ -11,11 +11,12 @@ use rand::distr::Alphanumeric;
 use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
-use crate::common::SK;
+use crate::common::{SK, SKIM_SHELL_ENV_CLEAR};
 
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
-        "{} {} > {}.part; mv {}.part {}",
+        "{}{} {} > {}.part; mv {}.part {}",
+        SKIM_SHELL_ENV_CLEAR,
         SK,
         opts.join(" "),
         outfile,

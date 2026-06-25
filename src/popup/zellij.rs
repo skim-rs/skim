@@ -41,9 +41,10 @@ fn align_end_coord(size: Size, var: &str) -> Size {
 
 impl ZellijPopup {
     fn build(options: &SkimOptions) -> Self {
-        let mut cmd = Command::new(
-            which::which("zellij").expect("zellij not found in path. This should have been caught by is_available"),
-        );
+        // `is_available` already guarantees zellij is on PATH before we reach
+        // here in production; fall back to the bare name so arg-building (and
+        // tests) work even when the binary cannot be resolved.
+        let mut cmd = Command::new(which::which("zellij").unwrap_or_else(|_| "zellij".into()));
         cmd.arg("run")
             .arg("--floating")
             .arg("--block-until-exit")
@@ -116,7 +117,7 @@ impl SkimPopup for ZellijPopup {
         let _ = write!(
             self.env,
             " {key}={}",
-            &String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value))
+            String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value))
         );
     }
 
@@ -136,160 +137,5 @@ impl SkimPopup for ZellijPopup {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::options::SkimOptionsBuilder;
-
-    /// Skip the test if `zellij` is not in PATH (CI environments without zellij).
-    macro_rules! require_zellij {
-        () => {
-            if which::which("zellij").is_err() {
-                return;
-            }
-        };
-    }
-
-    fn opts(popup: &str) -> crate::SkimOptions {
-        SkimOptionsBuilder::default()
-            .popup(popup)
-            .build()
-            .expect("valid options")
-    }
-
-    fn args(popup: &ZellijPopup) -> Vec<String> {
-        popup.cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect()
-    }
-
-    fn get_flag<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
-        args.windows(2).find(|w| w[0] == flag).map(|w| w[1].as_str())
-    }
-
-    // ── middle_coord ────────────────────────────────────────────────────────
-    // Tests that mutate COLUMNS are annotated with #[serial] so they never run
-    // concurrently. `set_var`/`remove_var` are `unsafe fn` in Rust ≥ 1.81
-    // (edition 2024); the SAFETY invariant holds because #[serial] serialises
-    // access so no other thread reads the var while it is being written.
-
-    #[test]
-    fn middle_coord_percent() {
-        // 50% wide in a 100% viewport → offset should be 25%
-        assert_eq!(middle_coord(Size::Percent(50), "COLUMNS"), Size::Percent(25));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn middle_coord_fixed_uses_env_var() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
-        unsafe { std::env::set_var("COLUMNS", "80") };
-        // 20 cols wide → offset = (80 - 20) / 2 = 30
-        assert_eq!(middle_coord(Size::Fixed(20), "COLUMNS"), Size::Fixed(30));
-        unsafe { std::env::remove_var("COLUMNS") };
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn middle_coord_fixed_fallback() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
-        unsafe { std::env::remove_var("COLUMNS") };
-        // fallback width = 80; (80 - 20) / 2 = 30
-        assert_eq!(middle_coord(Size::Fixed(20), "COLUMNS"), Size::Fixed(30));
-    }
-
-    // ── align_end_coord ──────────────────────────────────────────────────────
-
-    #[test]
-    fn align_end_coord_percent() {
-        // 30% → end offset = 70%
-        assert_eq!(align_end_coord(Size::Percent(30), "COLUMNS"), Size::Percent(70));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn align_end_coord_fixed_uses_env_var() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
-        unsafe { std::env::set_var("COLUMNS", "80") };
-        // 20 cols wide → end offset = 80 - 20 = 60
-        assert_eq!(align_end_coord(Size::Fixed(20), "COLUMNS"), Size::Fixed(60));
-        unsafe { std::env::remove_var("COLUMNS") };
-    }
-
-    // ── from_options / build ─────────────────────────────────────────────────
-
-    #[test]
-    fn center_default_size() {
-        require_zellij!();
-        let popup = ZellijPopup::build(&opts("center"));
-        let a = args(&popup);
-        assert_eq!(get_flag(&a, "--height"), Some("50%"));
-        assert_eq!(get_flag(&a, "--width"), Some("50%"));
-    }
-
-    #[test]
-    fn top_direction() {
-        require_zellij!();
-        let popup = ZellijPopup::build(&opts("top,40%"));
-        let a = args(&popup);
-        assert_eq!(get_flag(&a, "--height"), Some("40%"));
-        assert_eq!(get_flag(&a, "--width"), Some("100%"));
-        assert_eq!(get_flag(&a, "-y"), Some("0"));
-    }
-
-    #[test]
-    fn left_direction() {
-        require_zellij!();
-        let popup = ZellijPopup::build(&opts("left,30%"));
-        let a = args(&popup);
-        assert_eq!(get_flag(&a, "--width"), Some("30%"));
-        assert_eq!(get_flag(&a, "-x"), Some("0"));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn right_direction() {
-        require_zellij!();
-        // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
-        unsafe { std::env::set_var("COLUMNS", "80") };
-        let popup = ZellijPopup::build(&opts("right,25%"));
-        let a = args(&popup);
-        // width = 25%, x = align_end_coord(25%, "COLUMNS") = 75%
-        assert_eq!(get_flag(&a, "--width"), Some("25%"));
-        assert_eq!(get_flag(&a, "-x"), Some("75%"));
-        unsafe { std::env::remove_var("COLUMNS") };
-    }
-
-    #[test]
-    fn borderless_when_no_border_option() {
-        require_zellij!();
-        let popup = ZellijPopup::build(
-            &SkimOptionsBuilder::default()
-                .popup("center")
-                .no_border(true)
-                .build()
-                .unwrap(),
-        );
-        let a = args(&popup);
-        assert!(a.contains(&"--borderless".to_string()));
-    }
-
-    #[test]
-    fn no_borderless_when_border_set() {
-        require_zellij!();
-        let opts = SkimOptionsBuilder::default()
-            .popup("center")
-            .border(crate::tui::BorderType::Plain)
-            .build()
-            .expect("valid options");
-        let popup = ZellijPopup::build(&opts);
-        let a = args(&popup);
-        assert!(!a.contains(&"--borderless".to_string()));
-    }
-
-    #[test]
-    fn add_env_appends_to_env_string() {
-        require_zellij!();
-        let mut popup = ZellijPopup::build(&opts("center"));
-        popup.add_env("FOO", "bar");
-        popup.add_env("BAZ", "qux");
-        assert_eq!(popup.env, " FOO=bar BAZ=qux");
-    }
-}
+#[path = "zellij_tests.rs"]
+mod tests;

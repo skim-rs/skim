@@ -138,3 +138,7 @@ impl Display for AndEngine {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "andor_tests.rs"]
+mod tests;

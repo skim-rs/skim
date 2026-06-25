@@ -1,0 +1,19 @@
+---
+source: tests/ansi.rs
+description: "input: bytes b\"\\x1b[32mgreen\\x1b[0m text\\n\\x1b[31mred\\x1b[0m text\\nplain text\\n\"\noptions: --ansi"
+---
+(19, 0..1) " " fg=Indexed(161)
+(19, 1..2) " " fg=Indexed(168)
+(19, 8..12) "text" fg=Indexed(108) bg=Indexed(0)
+(20, 0..1) " " fg=Indexed(161)
+(20, 1..2) " " fg=Indexed(168)
+(20, 2..7) "green" fg=Green
+(20, 8..12) "text" fg=Indexed(108) bg=Indexed(0)
+(21, 0..1) ">" fg=Indexed(161)
+(21, 1..2) " " fg=Indexed(168)
+(21, 2..5) "red" fg=Red bg=Indexed(236)
+(21, 5..6) " " bg=Indexed(236)
+(21, 6..10) "text" fg=Indexed(151) bg=Indexed(236)
+(22, 0..5) "  3/3" fg=Indexed(144)
+(22, 77..80) "0/0" fg=Indexed(144)
+(23, 0..2) "> " fg=Indexed(110)

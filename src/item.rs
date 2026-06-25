@@ -604,3 +604,8 @@ impl ValueEnum for RankCriteria {
         })
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::field_reassign_with_default)]
+#[path = "item_tests.rs"]
+mod tests;

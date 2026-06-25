@@ -42,3 +42,30 @@ impl Display for MatchAllEngine {
         write!(f, "Noop")
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matches_every_item_with_empty_range() {
+        let engine = MatchAllEngine::builder().build();
+        let result = engine.match_item(&"anything".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::ByteRange(0, 0));
+    }
+
+    #[test]
+    fn rank_builder_override_is_used() {
+        let engine = MatchAllEngine::builder()
+            .rank_builder(Arc::new(RankBuilder::default()))
+            .build();
+        assert!(engine.match_item(&"x".to_string()).is_some());
+    }
+
+    #[test]
+    fn display_is_noop() {
+        let engine = MatchAllEngine::builder().build();
+        assert_eq!(format!("{engine}"), "Noop");
+    }
+}

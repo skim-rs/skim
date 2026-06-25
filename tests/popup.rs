@@ -46,13 +46,8 @@ fn get_tmux_cmd(outfile: &str) -> Result<String> {
 fn tmux_via_skim_default_options() -> Result<()> {
     let tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
-    // Run sk with SKIM_DEFAULT_OPTIONS=--tmux inline (bypassing the SK constant
-    // which always clears SKIM_DEFAULT_OPTIONS).
-    let sk_bin = crate::common::SK
-        .split_whitespace()
-        .last()
-        .expect("SK must have a binary path");
-    let cmd = format!("SKIM_DEFAULT_OPTIONS='--tmux' {sk_bin}");
+    // Run sk with SKIM_DEFAULT_OPTIONS=--tmux set inline so the popup path is exercised.
+    let cmd = format!("SKIM_DEFAULT_OPTIONS='--tmux' {}", crate::common::SK);
     tmux.send_keys(&[Str(&cmd), Enter])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;

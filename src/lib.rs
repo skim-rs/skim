@@ -19,6 +19,7 @@
 //!         ["awk", "bash", "csh", "dash", "fish", "ksh", "zsh"]
 //!     ).unwrap();
 //! ```
+#![cfg_attr(coverage, feature(coverage_attribute))]
 
 #[macro_use]
 extern crate log;
@@ -39,7 +40,7 @@ use ratatui::text::{Line, Span};
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
-pub use crate::output::SkimOutput;
+pub use crate::output::{BinOptions, SkimOutput};
 pub use crate::skim::*;
 pub use crate::skim_item::SkimItem;
 use crate::tui::Size;
@@ -412,3 +413,7 @@ pub trait Selector {
 pub type SkimItemSender = kanal::Sender<Vec<Arc<dyn SkimItem>>>;
 /// Receiver for streaming items to skim
 pub type SkimItemReceiver = kanal::Receiver<Vec<Arc<dyn SkimItem>>>;
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;
