@@ -283,9 +283,14 @@ mod tests {
     fn run_without_source_invokes_command() {
         // With no preset source, `run` falls back to invoking the command via
         // the command collector.
+        #[cfg(unix)]
+        let cmd = "printf 'a\\nb\\n'";
+        #[cfg(windows)]
+        let cmd = "echo a & echo b";
+
         let (tx, rx) = kanal::unbounded::<Vec<Arc<dyn SkimItem>>>();
         let mut reader = Reader::default();
-        let control = reader.run(tx, "printf 'a\\nb\\n'");
+        let control = reader.run(tx, cmd);
         wait_until(|| control.is_done());
 
         let mut count = 0;
@@ -299,9 +304,14 @@ mod tests {
     #[test]
     fn collect_without_source_invokes_command() {
         // Same command-invoking fallback for the pool-collecting path.
+        #[cfg(unix)]
+        let cmd = "printf 'x\\ny\\nz\\n'";
+        #[cfg(windows)]
+        let cmd = "echo x & echo y & echo z";
+
         let pool = Arc::new(ItemPool::new());
         let mut reader = Reader::default();
-        let control = reader.collect(pool.clone(), "printf 'x\\ny\\nz\\n'");
+        let control = reader.collect(pool.clone(), cmd);
         wait_until(|| pool.len() == 3);
         assert_eq!(pool.len(), 3);
         drop(control);

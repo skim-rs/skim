@@ -134,11 +134,10 @@ fn output_uses_cmd_query_when_set() {
 
 #[test]
 fn multi_selection_flows_into_output_and_serializes() {
-    // In process: multi-select -> SkimOutput -> CLI serialization. Mirrors what
-    // the interactive `--multi --print0` tmux test checked, without a terminal.
-    // (The reader -> matcher half is covered by `reader_and_matcher_complete`;
-    // the matcher only fills the visible list on render, so we populate it
-    // directly here and exercise selection + output + serialization.)
+    // multi-select -> SkimOutput -> CLI serialization. The matcher only fills the
+    // visible list on render, so we populate it directly and exercise selection +
+    // output + serialization. (The reader -> matcher half is covered by
+    // `reader_and_matcher_complete`.)
     use crate::Rank;
     use crate::item::{MatchedItem, RankBuilder};
 

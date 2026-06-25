@@ -28,6 +28,48 @@ fn list(n: usize) -> ItemList {
 }
 
 #[test]
+fn selection_and_selected_skip_disabled_items() {
+    use std::borrow::Cow;
+
+    // An item flagged disabled (as `--disable-pattern` does) cannot become the
+    // selection, so accepting it yields no output.
+    struct Disabled(&'static str);
+    impl crate::SkimItem for Disabled {
+        fn text(&self) -> Cow<'_, str> {
+            Cow::Borrowed(self.0)
+        }
+        fn disabled(&self) -> bool {
+            true
+        }
+    }
+
+    let rb = RankBuilder::default();
+    let disabled = MatchedItem::new(
+        std::sync::Arc::new(Disabled("foo")) as std::sync::Arc<dyn crate::SkimItem>,
+        Rank::default(),
+        None,
+        &rb,
+    );
+    let mut il = ItemList::default();
+    il.append(&mut vec![disabled, matched("bar", 1)]);
+    il.height = 10;
+
+    // Cursor on the disabled row: `selected()` returns nothing.
+    il.select_row(0); // no-op for a disabled item
+    assert!(il.selected().is_none());
+    assert!(il.selection.is_empty());
+
+    // Toggling the disabled row also adds nothing.
+    il.toggle_at(0);
+    assert!(il.selection.is_empty());
+
+    // The enabled row behaves normally.
+    il.toggle_at(1);
+    assert_eq!(il.selection.len(), 1);
+    assert_eq!(il.selection[0].text(), "bar");
+}
+
+#[test]
 fn scroll_by_clamps_within_bounds() {
     let mut il = list(5);
     il.scroll_by(2);

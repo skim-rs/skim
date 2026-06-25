@@ -382,26 +382,48 @@ fn test_unknown_component_name_is_noop() {
     assert_eq!(theme.matched.fg, ColorTheme::dark256().matched.fg);
 }
 
+struct EnvGuard {
+    key: &'static str,
+    prior: Option<std::ffi::OsString>,
+}
+
+impl EnvGuard {
+    fn set(key: &'static str, value: &str) -> Self {
+        let prior = std::env::var_os(key);
+        // SAFETY: caller must hold a serial lock so no other thread reads this var.
+        unsafe { std::env::set_var(key, value) };
+        Self { key, prior }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        // SAFETY: same serial-lock guarantee as set().
+        unsafe {
+            match &self.prior {
+                Some(v) => std::env::set_var(self.key, v),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+}
+
 #[test]
 #[serial_test::serial]
 fn test_init_from_options_respects_no_color() {
-    // SAFETY: serialised by #[serial]; no concurrent reads of NO_COLOR.
-    unsafe { std::env::set_var("NO_COLOR", "1") };
+    let _guard = EnvGuard::set("NO_COLOR", "1");
     let opts = crate::options::SkimOptionsBuilder::default().build().unwrap();
     let theme = ColorTheme::init_from_options(&opts);
     // NO_COLOR yields the `none` theme, matching the bare none() palette.
     assert_eq!(theme.matched.fg, ColorTheme::none().matched.fg);
-    unsafe { std::env::remove_var("NO_COLOR") };
 }
 
 #[test]
 #[serial_test::serial]
 fn test_init_from_options_empty_no_color_uses_default() {
-    // SAFETY: serialised by #[serial]; no concurrent reads of NO_COLOR.
-    unsafe { std::env::set_var("NO_COLOR", "") };
+    let _guard = EnvGuard::set("NO_COLOR", "");
     let opts = crate::options::SkimOptionsBuilder::default().build().unwrap();
     let theme = ColorTheme::init_from_options(&opts);
     // An empty NO_COLOR is ignored, so the dark256 default applies.
     assert_eq!(theme.matched.fg, ColorTheme::dark256().matched.fg);
-    unsafe { std::env::remove_var("NO_COLOR") };
 }

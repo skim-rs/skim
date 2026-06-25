@@ -193,7 +193,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     }
     let _ = write!(stripped_shell_cmd, " >{}", tmp_stdout.display());
 
-    debug!("build cmd {}", &stripped_shell_cmd);
+    debug!("build cmd {stripped_shell_cmd}");
 
     // Run downstream sk in tmux
     let mut popup: Box<dyn SkimPopup> = if zellij::is_available() {

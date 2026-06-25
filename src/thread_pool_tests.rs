@@ -28,11 +28,12 @@ fn spawn_runs_closure() {
     let pool = ThreadPool::new(2);
     let flag = Arc::new(AtomicUsize::new(0));
     let flag2 = Arc::clone(&flag);
+    let (tx, rx) = std::sync::mpsc::channel();
     pool.spawn(move || {
         flag2.store(42, Ordering::SeqCst);
+        let _ = tx.send(());
     });
-    // Give it a moment.
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    rx.recv().expect("closure did not complete");
     assert_eq!(flag.load(Ordering::SeqCst), 42);
 }
 
@@ -40,17 +41,22 @@ fn spawn_runs_closure() {
 fn spawn_batch_runs_all() {
     let pool = ThreadPool::new(4);
     let counter = Arc::new(AtomicUsize::new(0));
+    let (tx, rx) = std::sync::mpsc::channel();
     let jobs: Vec<Box<dyn FnOnce() + Send + 'static>> = (0..10)
         .map(|_| {
             let c = Arc::clone(&counter);
+            let tx = tx.clone();
             let job: Box<dyn FnOnce() + Send + 'static> = Box::new(move || {
                 c.fetch_add(1, Ordering::SeqCst);
+                let _ = tx.send(());
             });
             job
         })
         .collect();
     pool.spawn_batch(jobs);
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    for _ in 0..10 {
+        rx.recv().expect("job did not complete");
+    }
     assert_eq!(counter.load(Ordering::SeqCst), 10);
 }
 

@@ -20,6 +20,12 @@ use crate::tui::statusline::InfoDisplay;
 use crate::{Rank, SkimItem};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+fn past_instant(dur: std::time::Duration) -> std::time::Instant {
+    std::time::Instant::now()
+        .checked_sub(dur)
+        .unwrap_or_else(std::time::Instant::now)
+}
+
 fn matched(text: &str, index: i32) -> MatchedItem {
     let item: Arc<dyn SkimItem> = Arc::new(text.to_string());
     MatchedItem::new(
@@ -872,12 +878,12 @@ fn toggle_spinner_flips_flag() {
 
 #[test]
 fn update_spinner_hides_after_grace_period() {
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     let mut app = App::default();
     // Spinner is on but nothing is being read (pool drained).
     app.show_spinner = true;
     // Force the grace period to have elapsed so the spinner can turn off.
-    app.spinner_last_change = Instant::now().checked_sub(Duration::from_secs(10)).unwrap();
+    app.spinner_last_change = past_instant(Duration::from_secs(10));
     app.update_spinner();
     assert!(!app.show_spinner);
 }
@@ -895,7 +901,7 @@ fn run_preview_callback_multi_selection() {
     act(&mut app, Action::Select);
     act(&mut app, Action::Down(1));
     act(&mut app, Action::Select);
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     app.run_preview(&mut tui).unwrap();
@@ -910,7 +916,7 @@ fn run_preview_callback_with_no_items() {
     app.options.preview_fn = Some(PreviewCallback::from(|items: Vec<Arc<dyn SkimItem>>| {
         vec![format!("count={}", items.len())]
     }));
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     // No selection and nothing selected → empty selection vector branch.
@@ -1339,7 +1345,7 @@ fn run_preview_renders_inline_text() {
     let mut app = app_with_one(Arc::new(TextPreviewItem));
     app.options.preview = Some("ignored".to_string());
     // Defeat the debounce window.
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     app.run_preview(&mut tui).unwrap();
@@ -1357,7 +1363,7 @@ fn run_preview_uses_preview_callback() {
     app.options.preview_fn = Some(PreviewCallback::from(|_items: Vec<Arc<dyn SkimItem>>| {
         vec!["callback line".to_string()]
     }));
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     app.run_preview(&mut tui).unwrap();
@@ -1416,7 +1422,7 @@ fn run_preview_renders_positioned_text() {
     app.options.preview = Some("ignored".to_string());
     app.preview.rows = 100;
     app.preview.cols = 100;
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     app.run_preview(&mut tui).unwrap();
@@ -1453,7 +1459,7 @@ fn run_preview_positioned_text_neg_and_percent_offsets() {
     app.options.preview = Some("ignored".to_string());
     app.preview.rows = 40;
     app.preview.cols = 40;
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     // Exercises the Neg (v_scroll/h_scroll) and Percent (v_offset/h_offset) arms.
@@ -1479,7 +1485,7 @@ impl SkimItem for CommandPreviewItem {
 fn run_preview_spawns_command() {
     let mut app = app_with_one(Arc::new(CommandPreviewItem));
     app.options.preview = Some("ignored".to_string());
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     // The Command preview spawns a PTY child without error.
@@ -1515,7 +1521,7 @@ fn run_preview_spawns_command_with_position() {
     app.options.preview = Some("ignored".to_string());
     app.preview.rows = 40;
     app.preview.cols = 40;
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     // Exercises the CommandWithPos position-offset arithmetic (Percent/Neg/Fixed).
@@ -1556,7 +1562,7 @@ fn run_preview_command_with_position_neg_and_percent() {
     app.options.preview = Some("ignored".to_string());
     app.preview.rows = 40;
     app.preview.cols = 40;
-    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+    app.last_preview_spawn = past_instant(Duration::from_secs(1));
 
     let mut tui = test_tui();
     // Covers the Neg v_scroll/h_scroll, Percent v_offset, and Neg h_offset arms.

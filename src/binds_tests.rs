@@ -162,8 +162,7 @@ fn parse_action_chain_unknown_is_error() {
 
 #[test]
 fn parse_action_chain_accept_execute_reload_with_args() {
-    // Cross-platform coverage for the bind forms the tmux execute/reload/accept
-    // integration tests used: `accept:hello`, `execute(...)`, `reload(...)`.
+    // `accept:hello`, `execute(...)` and `reload(...)` parse to the expected actions.
     assert_eq!(
         parse_action_chain("accept:hello").unwrap(),
         vec![Accept(Some("hello".into()))]

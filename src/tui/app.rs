@@ -793,27 +793,34 @@ impl App {
                 self.input.move_to_end();
             }
             Execute(cmd) => {
+                use std::io::IsTerminal as _;
+
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {expanded_cmd}");
                 let mut command = crate::shell_cmd(&expanded_cmd);
-                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled()?;
-                if in_raw_mode {
-                    crossterm::terminal::disable_raw_mode()?;
+                let has_tty = std::io::stderr().is_terminal();
+                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+                if has_tty {
+                    if in_raw_mode {
+                        crossterm::terminal::disable_raw_mode()?;
+                    }
+                    crossterm::execute!(
+                        std::io::stderr(),
+                        crossterm::terminal::LeaveAlternateScreen,
+                        crossterm::event::DisableMouseCapture
+                    )?;
                 }
-                crossterm::execute!(
-                    std::io::stderr(),
-                    crossterm::terminal::LeaveAlternateScreen,
-                    crossterm::event::DisableMouseCapture
-                )?;
                 let _ = command.spawn().and_then(|mut c| c.wait());
-                if in_raw_mode {
-                    crossterm::terminal::enable_raw_mode()?;
+                if has_tty {
+                    if in_raw_mode {
+                        crossterm::terminal::enable_raw_mode()?;
+                    }
+                    crossterm::execute!(
+                        std::io::stderr(),
+                        crossterm::terminal::EnterAlternateScreen,
+                        crossterm::event::EnableMouseCapture
+                    )?;
                 }
-                crossterm::execute!(
-                    std::io::stderr(),
-                    crossterm::terminal::EnterAlternateScreen,
-                    crossterm::event::EnableMouseCapture
-                )?;
                 return Ok(vec![Event::Redraw]);
             }
             ExecuteSilent(cmd) => {

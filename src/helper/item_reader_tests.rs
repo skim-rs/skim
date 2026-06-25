@@ -17,6 +17,25 @@ fn drain(rx: SkimItemReceiver) -> Vec<String> {
 }
 
 #[test]
+fn of_bufread_disables_items_matching_disable_pattern() {
+    // `--disable-pattern` flags items whose text matches the regex; the reader
+    // sets `disabled()` on them (they later become unselectable).
+    let mut opts = crate::SkimOptions::default();
+    opts.disable_pattern = Some(regex::Regex::new("foo").unwrap());
+    let reader = SkimItemReader::new(SkimItemReaderOption::from_options(&opts));
+    let rx = reader.of_bufread(Cursor::new("foo\nbar\n"));
+
+    let mut disabled_by_text = std::collections::HashMap::new();
+    while let Ok(batch) = rx.recv() {
+        for item in batch {
+            disabled_by_text.insert(item.text().into_owned(), item.disabled());
+        }
+    }
+    assert_eq!(disabled_by_text.get("foo"), Some(&true));
+    assert_eq!(disabled_by_text.get("bar"), Some(&false));
+}
+
+#[test]
 fn of_bufread_reads_newline_separated_items() {
     let reader = SkimItemReader::default();
     let rx = reader.of_bufread(Cursor::new(b"a\nb\nc\n".to_vec()));

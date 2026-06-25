@@ -65,7 +65,7 @@ impl StatusInfo {
 
         // Matcher mode
         if !self.matcher_mode.is_empty() {
-            let _ = write!(parts, "/{}", &self.matcher_mode);
+            let _ = write!(parts, "/{}", self.matcher_mode);
         }
 
         // Progress percentage
@@ -108,7 +108,7 @@ impl StatusInfo {
 
         // Matcher mode
         if !self.matcher_mode.is_empty() {
-            let _ = write!(parts, "/{}", &self.matcher_mode);
+            let _ = write!(parts, "/{}", self.matcher_mode);
         }
 
         // Progress percentage

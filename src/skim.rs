@@ -341,7 +341,7 @@ where
     ///
     /// This will call `init_listener`, which requires a tokio runtime
     /// Though it is not technically async code, this is a good hint.
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn enter(&mut self) -> Result<()> {
         debug!("Entering TUI");
         let tui = self

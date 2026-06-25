@@ -117,7 +117,7 @@ impl SkimPopup for ZellijPopup {
         let _ = write!(
             self.env,
             " {key}={}",
-            &String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value))
+            String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value))
         );
     }
 

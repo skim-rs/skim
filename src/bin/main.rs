@@ -1,7 +1,7 @@
 //! Command-line interface for skim fuzzy finder.
 //!
 //! This binary provides the `sk` command-line tool for fuzzy finding and filtering.
-#![cfg_attr(coverage, feature(coverage_attribute))]
+#![cfg_attr(coverage, allow(unused_features), feature(coverage_attribute))]
 
 extern crate clap;
 extern crate env_logger;

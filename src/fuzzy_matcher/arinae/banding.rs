@@ -81,12 +81,10 @@ fn compute_first_match_cols<C: Atom>(pat: &[C], cho: &[C], respect_case: bool) -
     let mut start = 0usize; // search from this choice index onward
     for i in 0..n {
         let found = cho[start..].iter().position(|&c| pat[i].eq(c, respect_case));
-        match found {
-            Some(pos) => {
-                first[i] = start + pos + 1; // 1-indexed column
-                start = start + pos + 1; // next char must be strictly after
-            }
-            None => return None,
+        {
+            let pos = found?;
+            first[i] = start + pos + 1; // 1-indexed column
+            start = start + pos + 1; // next char must be strictly after
         }
     }
     Some(first)

@@ -35,10 +35,8 @@ insta_test!(test_ansi_matching_on_stripped_text, @bytes b"\x1b[32mgreen\x1b[0m t
     @snap;
 });
 
-// --no-strip-ansi only affects the *output* (the accepted text keeps its
-// escape sequences — covered by the `no_strip_ansi_*` unit test in
-// src/output.rs); on screen it renders identically to --ansi. This verifies the
-// flag does not disturb rendering or the themed colors.
+// --no-strip-ansi only affects the accepted output (it keeps the escape
+// sequences); on screen it renders identically to --ansi.
 insta_test!(test_ansi_flag_no_strip, @bytes b"plain\n\x1b[31mred\x1b[0m\n\x1b[32mgreen\x1b[0m\n", &["--ansi", "--no-strip-ansi", "--color", "current_match_bg:1,current_bg:2"], {
     @type "d";
     @snap;

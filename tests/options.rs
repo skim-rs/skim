@@ -203,19 +203,19 @@ insta_test!(opt_nth_range_dec, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "
     @snap;
 });
 
-insta_test!(opt_hscroll_begin, [&format!("b{}", &["a"; 1000].join(""))], &["-q", "b"], {
+insta_test!(opt_hscroll_begin, [&format!("b{}", ["a"; 1000].join(""))], &["-q", "b"], {
     @snap;
 });
 
-insta_test!(opt_hscroll_middle, [&format!("{}b{}", &["a"; 1000].join(""), &["a"; 1000].join(""))], &["-q", "b"], {
+insta_test!(opt_hscroll_middle, [&format!("{}b{}", ["a"; 1000].join(""), ["a"; 1000].join(""))], &["-q", "b"], {
     @snap;
 });
 
-insta_test!(opt_hscroll_end, [&format!("{}b", &["a"; 1000].join(""))], &["-q", "b"], {
+insta_test!(opt_hscroll_end, [&format!("{}b", ["a"; 1000].join(""))], &["-q", "b"], {
     @snap;
 });
 
-insta_test!(opt_no_hscroll, [&format!("{}b", &["a"; 1000].join(""))], &["-q", "b", "--no-hscroll"], {
+insta_test!(opt_no_hscroll, [&format!("{}b", ["a"; 1000].join(""))], &["-q", "b", "--no-hscroll"], {
     @snap;
 });
 
@@ -698,12 +698,6 @@ insta_test!(opt_scrollbar_custom_thumb, SCROLLBAR_ITEMS, &["--info=hidden", "--s
 insta_test!(opt_scrollbar_reverse, SCROLLBAR_ITEMS, &["--info=hidden", "--layout=reverse"], {
     @snap;
 });
-
-// ===========================================================================
-// Migrated from tests/unix.rs (were tmux-only). These verify display, NUL
-// handling, pre-selection, and CLI parsing — none of which need a real
-// terminal — so they now run cross-platform through the in-process harness.
-// ===========================================================================
 
 // Basic rendering: prompt, counters, and the item list.
 insta_test!(vanilla_basic, ["1", "2", "3"], &[], {

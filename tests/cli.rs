@@ -5,36 +5,74 @@
 //! flags). Because the binary is the instrumented `llvm-cov-target` build under
 //! coverage, they exercise `bin/main.rs` and `skim.rs`'s non-interactive paths.
 //!
+//! The binary is spawned directly (no shell), so the tests are cross-platform.
 //! `env_clear()` is intentionally NOT used so that `LLVM_PROFILE_FILE` (set by
-//! cargo-llvm-cov) is inherited by the child and its coverage is recorded. The
-//! `SK` constant clears the `SKIM_*` env vars inline instead.
+//! cargo-llvm-cov) is inherited by the child and its coverage is recorded; only
+//! the `SKIM_*` vars are removed explicitly.
 #![allow(missing_docs, clippy::pedantic)]
-#![cfg(unix)]
 
 #[allow(dead_code)]
 mod common;
 
 use common::SK;
+use std::io::Write;
 use std::process::{Command, Stdio};
 
-/// Run `sh -c "<setup> <SK> <args>"` and return (exit_code, stdout, stderr).
-fn run_sk(pipe_input: &str, args: &str) -> (Option<i32>, String, String) {
-    let cmd = if pipe_input.is_empty() {
-        format!("{SK} {args}")
-    } else {
-        format!("printf '{pipe_input}' | {SK} {args}")
-    };
-    let out = Command::new("/bin/sh")
-        .arg("-c")
-        .arg(cmd)
-        .stdin(Stdio::null())
-        .output()
-        .expect("failed to spawn sk");
+/// The bare binary path, derived from the shell-prefixed `SK` constant by
+/// dropping the leading `SKIM_*= …` env assignments (which we now apply via
+/// `env_remove` instead). On Windows `SK` has no prefix, so this is a no-op.
+fn sk_bin() -> &'static str {
+    SK.rsplit(' ').next().unwrap_or(SK)
+}
+
+/// Spawn the binary with explicit argv and env, feeding `pipe_input` on stdin.
+/// Returns `(exit_code, stdout, stderr)`.
+fn run_sk_argv(pipe_input: &str, argv: &[&str], envs: &[(&str, &str)]) -> (Option<i32>, String, String) {
+    let mut cmd = Command::new(sk_bin());
+    cmd.args(argv)
+        .env_remove("SKIM_DEFAULT_OPTIONS")
+        .env_remove("SKIM_DEFAULT_COMMAND")
+        .env_remove("SKIM_OPTIONS_FILE")
+        .stdin(if pipe_input.is_empty() {
+            Stdio::null()
+        } else {
+            Stdio::piped()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+
+    let mut child = cmd.spawn().expect("failed to spawn sk");
+    if !pipe_input.is_empty() {
+        // The callers write escapes (`\n`) the way `printf` once interpreted them.
+        let input = pipe_input
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\0", "\0");
+        child
+            .stdin
+            .take()
+            .expect("stdin piped")
+            .write_all(input.as_bytes())
+            .expect("write stdin");
+    }
+    let out = child.wait_with_output().expect("failed to wait on sk");
     (
         out.status.code(),
         String::from_utf8_lossy(&out.stdout).into_owned(),
         String::from_utf8_lossy(&out.stderr).into_owned(),
     )
+}
+
+/// Convenience wrapper: tokenize a space-separated `args` string (shell-style)
+/// and run with no extra env. Use [`run_sk_argv`] directly when an argument may
+/// contain spaces (e.g. a temp-file path).
+fn run_sk(pipe_input: &str, args: &str) -> (Option<i32>, String, String) {
+    let argv = shlex::split(args).expect("args should tokenize");
+    let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
+    run_sk_argv(pipe_input, &refs, &[])
 }
 
 #[test]
@@ -116,7 +154,8 @@ fn select_1_writes_history_file() {
     // the real binary).
     let hist = std::env::temp_dir().join(format!("sk_hist_{}", std::process::id()));
     let hist_path = hist.to_str().unwrap();
-    let (code, _stdout, _) = run_sk("1\\n2\\n3", &format!("--select-1 -q 3 --history {hist_path}"));
+    // Pass argv explicitly: the temp path may contain spaces on some platforms.
+    let (code, _stdout, _) = run_sk_argv("1\\n2\\n3", &["--select-1", "-q", "3", "--history", hist_path], &[]);
     assert_eq!(code, Some(0));
     let mut contents = String::new();
     std::fs::File::open(&hist)
@@ -141,14 +180,12 @@ fn log_file_initializes_logger() {
     // and builder). SKIM_LOG=trace makes the run actually emit records.
     let log = std::env::temp_dir().join(format!("sk_log_{}", std::process::id()));
     let log_path = log.to_str().unwrap();
-    let cmd = format!("SKIM_LOG=trace printf '1\\n2\\n3' | {SK} --select-1 -q 3 --log-file {log_path}");
-    let out = Command::new("/bin/sh")
-        .arg("-c")
-        .arg(cmd)
-        .stdin(Stdio::null())
-        .output()
-        .expect("failed to spawn sk");
-    assert_eq!(out.status.code(), Some(0));
+    let (code, _stdout, _) = run_sk_argv(
+        "1\\n2\\n3",
+        &["--select-1", "-q", "3", "--log-file", log_path],
+        &[("SKIM_LOG", "trace")],
+    );
+    assert_eq!(code, Some(0));
     // The log file was created by the file target.
     assert!(log.exists());
     let _ = std::fs::remove_file(&log);
