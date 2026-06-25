@@ -38,6 +38,20 @@ fn empty_choice_never_matches() {
 }
 
 #[test]
+fn pattern_longer_than_max_pat_len_is_rejected() {
+    // Patterns over MAX_PAT_LEN (32) chars exceed the stack-allocated banding
+    // arrays, so the matcher rejects them gracefully rather than panicking.
+    let pattern = "a".repeat(40);
+    let choice = "a".repeat(50);
+    assert!(score(&choice, &pattern).is_none());
+    assert!(matcher().fuzzy_indices(&choice, &pattern).is_none());
+    // Also via the non-ASCII (char-buffer) path.
+    let pattern_u = "é".repeat(40);
+    let choice_u = "é".repeat(50);
+    assert!(score(&choice_u, &pattern_u).is_none());
+}
+
+#[test]
 fn exact_match_scores_positive() {
     assert!(score("hello", "hello").unwrap() > 0);
 }
@@ -412,6 +426,37 @@ fn no_use_last_match_prefers_first_occurrence() {
 }
 
 #[test]
+fn range_with_use_last_match_prefers_later_occurrence() {
+    // fuzzy_match_range with use_last_match takes the `>=` tie-break branch in
+    // range_dp, choosing the rightmost matching column.
+    let m = ArinaeMatcher {
+        use_last_match: true,
+        ..Default::default()
+    };
+    let (_score, begin, end) = m.fuzzy_match_range("man/man1/sk.1", "man").expect("should match");
+    assert_eq!(begin, 4);
+    assert_eq!(end, 6);
+}
+
+#[test]
+fn range_with_gaps_walks_traceback() {
+    // A scattered match forces gap moves during the range traceback.
+    let m = ArinaeMatcher::default();
+    let (_score, begin, end) = m.fuzzy_match_range("a_b_c_d_e", "abe").expect("should match");
+    // First matched char is 'a' at 0, last is 'e' at 8.
+    assert_eq!(begin, 0);
+    assert_eq!(end, 8);
+}
+
+#[test]
+fn range_typo_dead_rows_rejects_long_mismatch() {
+    // Typo-tolerant range matching over a choice with no viable alignment
+    // exercises the dead-row early-out in range_dp.
+    let m = ArinaeMatcher::new(crate::CaseMatching::Smart, true, false);
+    assert!(m.fuzzy_match_range("xxxxxxxxxxxxxxxx", "qwerty").is_none());
+}
+
+#[test]
 fn first_match_inside_brackets_is_highlighted() {
     // Regression test for skim-rs/skim#1075. `[paste] some paste` queried with
     // `paste` should highlight the first occurrence (inside the brackets), not
@@ -435,4 +480,49 @@ fn first_match_inside_brackets_is_highlighted() {
             "expected first 'paste' for {choice:?}, got {got:?}"
         );
     }
+}
+
+// ----- fuzzy_match_range edge cases -----
+
+/// Empty pattern / choice short-circuit the range DP.
+#[test]
+fn range_empty_inputs() {
+    let m = matcher();
+    assert_eq!(m.fuzzy_match_range("hello", ""), Some((0, 0, 0)));
+    assert_eq!(m.fuzzy_match_range("", "hello"), None);
+}
+
+/// `fuzzy_match_range` over non-ASCII text must agree with `fuzzy_indices`,
+/// exercising the `char`-buffer (non-ASCII) branch of `run_range`.
+#[test]
+fn range_non_ascii_consistent_with_indices() {
+    let cases = [
+        ("héllo wörld", "hw"),
+        ("café taverne", "café"),
+        ("naïve élégance", "néé"),
+        ("日本語テキスト", "本テ"),
+    ];
+    let matchers = [matcher(), matcher_typos()];
+    for m in &matchers {
+        for &(choice, pattern) in &cases {
+            let range = m.fuzzy_match_range(choice, pattern);
+            let full = m.fuzzy_indices(choice, pattern);
+            match (range, full) {
+                (None, None) => {}
+                (Some((rs, rb, re)), Some((fs, fidx))) => {
+                    assert_eq!(rs, fs, "score mismatch for ({choice}, {pattern})");
+                    assert_eq!(rb, fidx.first().copied().unwrap_or_default());
+                    assert_eq!(re, fidx.last().copied().unwrap_or_default());
+                }
+                _ => panic!("range/indices disagreement for ({choice}, {pattern})"),
+            }
+        }
+    }
+}
+
+/// Non-ASCII no-match returns None through the `char`-buffer range branch.
+#[test]
+fn range_non_ascii_no_match() {
+    assert_eq!(matcher().fuzzy_match_range("café", "zzz"), None);
+    assert_eq!(matcher_typos().fuzzy_match_range("日本語", "xyz"), None);
 }

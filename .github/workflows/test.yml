@@ -78,9 +78,9 @@ jobs:
         if: runner.os == 'Linux'
         # Do not use `--all-targets` to avoid running benches
         run: |
-          cargo llvm-cov nextest --release --profile ci --bins --lib --examples --tests --no-report
-          cargo llvm-cov report --release --cobertura --output-path coverage.xml
-          cargo llvm-cov report --release --html
+          cargo +nightly llvm-cov nextest --release --profile ci --branch --bins --lib --examples --tests --no-report
+          cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
+          cargo +nightly llvm-cov report --release --html
           echo "COVERAGE_PERCENT=$(cargo llvm-cov report --release | tail -n1 | awk '{ print $4 }')" | tee --append $GITHUB_ENV
         env:
           LC_ALL: en_US.UTF-8

@@ -150,3 +150,88 @@ impl MatchEngineFactory for SplitMatchEngineFactory {
         }
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use crate::engine::exact::{ExactEngine, ExactMatchingParam};
+    use crate::prelude::ExactOrFuzzyEngineFactory;
+
+    /// A stub engine that returns a fixed match range, regardless of the item.
+    struct StubEngine(MatchRange);
+
+    impl MatchEngine for StubEngine {
+        fn match_item(&self, _item: &dyn SkimItem) -> Option<MatchResult> {
+            Some(MatchResult {
+                rank: crate::Rank::default(),
+                matched_range: self.0.clone(),
+            })
+        }
+    }
+
+    impl Display for StubEngine {
+        fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+            write!(f, "Stub")
+        }
+    }
+
+    fn exact(query: &str) -> Box<dyn MatchEngine> {
+        Box::new(ExactEngine::builder(query, ExactMatchingParam::default()).build())
+    }
+
+    #[test]
+    fn no_delimiter_in_item_returns_none() {
+        let engine = SplitMatchEngine::new(exact("a"), exact("b"), ':');
+        assert!(engine.match_item(&"no delimiter here".to_string()).is_none());
+    }
+
+    #[test]
+    fn matches_both_sides_of_delimiter() {
+        let engine = SplitMatchEngine::new(exact("ab"), exact("cd"), ':');
+        let result = engine.match_item(&"ab:cd".to_string());
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn char_range_results_are_offset_and_combined() {
+        // Before matches chars 0..2 of "ab"; after matches chars 0..2 of "cd"
+        // which become 3..5 after the delimiter offset.
+        let engine = SplitMatchEngine::new(
+            Box::new(StubEngine(MatchRange::CharRange(0, 2))),
+            Box::new(StubEngine(MatchRange::CharRange(0, 2))),
+            ':',
+        );
+        let result = engine.match_item(&"ab:cd".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::Chars(vec![0, 1, 3, 4]));
+    }
+
+    #[test]
+    fn after_engine_failure_returns_none() {
+        let engine = SplitMatchEngine::new(exact("ab"), exact("zzz"), ':');
+        assert!(engine.match_item(&"ab:cd".to_string()).is_none());
+    }
+
+    #[test]
+    fn display_shows_both_engines_and_delimiter() {
+        let engine = SplitMatchEngine::new(exact("a"), exact("b"), ':');
+        let s = format!("{engine}");
+        assert!(s.starts_with("(Split[:]:"));
+    }
+
+    #[test]
+    fn factory_without_delimiter_passes_through() {
+        let factory = SplitMatchEngineFactory::new(ExactOrFuzzyEngineFactory::builder().build(), ':');
+        let engine = factory.create_engine_with_case("foo", crate::CaseMatching::Smart);
+        // Plain query, no delimiter → behaves like the inner engine.
+        assert!(engine.match_item(&"foobar".to_string()).is_some());
+    }
+
+    #[test]
+    fn factory_with_delimiter_builds_split_engine() {
+        let factory = SplitMatchEngineFactory::new(ExactOrFuzzyEngineFactory::builder().build(), ':');
+        let engine = factory.create_engine_with_case("ab:cd", crate::CaseMatching::Smart);
+        assert!(engine.match_item(&"ab:cd".to_string()).is_some());
+        assert!(engine.match_item(&"ab:xy".to_string()).is_none());
+    }
+}

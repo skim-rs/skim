@@ -72,6 +72,7 @@ impl Selector for DefaultSkimSelector {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
 
@@ -114,5 +115,17 @@ mod tests {
         assert!(selector.should_select(1, &"b"));
         assert!(selector.should_select(2, &"c"));
         assert!(!selector.should_select(3, &"d"));
+    }
+
+    #[test]
+    pub fn disabled_item_is_never_selected() {
+        use crate::helper::item::DefaultSkimItem;
+        use regex::Regex;
+
+        // A disabled item is rejected even when it would otherwise match first_n.
+        let selector = DefaultSkimSelector::default().first_n(10);
+        let mut item = DefaultSkimItem::new("anything", false, &[], &[], &Regex::new(" ").unwrap());
+        item.disable();
+        assert!(!selector.should_select(0, &item));
     }
 }

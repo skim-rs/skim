@@ -217,6 +217,7 @@ where
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use std::io::Cursor;
@@ -276,6 +277,34 @@ mod tests {
         control.kill();
         // After kill, no components remain running.
         assert!(control.is_done());
+    }
+
+    #[test]
+    fn run_without_source_invokes_command() {
+        // With no preset source, `run` falls back to invoking the command via
+        // the command collector.
+        let (tx, rx) = kanal::unbounded::<Vec<Arc<dyn SkimItem>>>();
+        let mut reader = Reader::default();
+        let control = reader.run(tx, "printf 'a\\nb\\n'");
+        wait_until(|| control.is_done());
+
+        let mut count = 0;
+        while let Ok(Some(batch)) = rx.try_recv() {
+            count += batch.len();
+        }
+        assert_eq!(count, 2);
+        drop(control);
+    }
+
+    #[test]
+    fn collect_without_source_invokes_command() {
+        // Same command-invoking fallback for the pool-collecting path.
+        let pool = Arc::new(ItemPool::new());
+        let mut reader = Reader::default();
+        let control = reader.collect(pool.clone(), "printf 'x\\ny\\nz\\n'");
+        wait_until(|| pool.len() == 3);
+        assert_eq!(pool.len(), 3);
+        drop(control);
     }
 
     #[test]

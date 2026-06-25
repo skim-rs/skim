@@ -304,3 +304,48 @@ pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+
+    fn fullscreen_tui() -> Tui<TestBackend> {
+        // Percent(100) selects the fullscreen viewport, avoiding any TTY cursor query.
+        Tui::new_with_height_and_backend(TestBackend::new(80, 24), Size::Percent(100))
+            .expect("failed to build test TUI")
+    }
+
+    #[test]
+    fn new_with_full_height_is_fullscreen() {
+        let tui = fullscreen_tui();
+        assert!(tui.is_fullscreen);
+        assert!(tui.enable_mouse);
+    }
+
+    #[test]
+    fn stop_cancels_token() {
+        let tui = fullscreen_tui();
+        assert!(!tui.cancellation_token.is_cancelled());
+        tui.stop();
+        assert!(tui.cancellation_token.is_cancelled());
+    }
+
+    #[test]
+    fn cancel_is_idempotent() {
+        let tui = fullscreen_tui();
+        tui.cancel();
+        tui.cancel();
+        assert!(tui.cancellation_token.is_cancelled());
+    }
+
+    #[test]
+    fn deref_exposes_terminal_frame() {
+        let mut tui = fullscreen_tui();
+        // Deref/DerefMut should expose the underlying ratatui terminal.
+        let area = tui.get_frame().area();
+        assert_eq!(area.width, 80);
+        assert_eq!(area.height, 24);
+    }
+}

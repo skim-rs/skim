@@ -381,6 +381,67 @@ fn restart_matcher_action() {
 }
 
 #[test]
+fn delete_actions_on_empty_query_are_noops() {
+    // With an empty query and cursor at 0, the delete actions find nothing to
+    // remove and fall through without emitting query-changed events.
+    let mut app = App::default();
+    assert!(act(&mut app, Action::DeleteChar).is_empty());
+    assert!(act(&mut app, Action::BackwardKillWord).is_empty());
+    assert!(act(&mut app, Action::UnixLineDiscard).is_empty());
+    assert!(act(&mut app, Action::UnixWordRubout).is_empty());
+}
+
+#[test]
+fn delete_char_eof_deletes_when_not_empty() {
+    let mut app = App::default();
+    app.input.value = "abc".to_string();
+    app.input.move_to_end();
+    app.input.move_cursor(-1); // cursor before 'c'
+    // Non-empty → DeleteCharEof removes the char under the cursor.
+    let events = act(&mut app, Action::DeleteCharEof);
+    assert_eq!(app.input.value, "ab");
+    assert!(!app.should_quit);
+    assert!(events.iter().any(|e| matches!(e, Event::RunPreview)));
+}
+
+#[test]
+fn backward_delete_char_eof_deletes_when_not_empty() {
+    let mut app = App::default();
+    app.input.value = "abc".to_string();
+    app.input.move_to_end();
+    // Non-empty → BackwardDeleteCharEof removes the char before the cursor.
+    let events = act(&mut app, Action::BackwardDeleteCharEof);
+    assert_eq!(app.input.value, "ab");
+    assert!(!app.should_quit);
+    assert!(events.iter().any(|e| matches!(e, Event::RunPreview)));
+}
+
+#[test]
+fn navigation_in_bottom_to_top_layout() {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e"]);
+    // BottomToTop inverts the Down/Up scroll directions.
+    app.item_list.direction = ratatui::widgets::ListDirection::BottomToTop;
+    let _ = render(&mut app, 40, 6);
+
+    act(&mut app, Action::Down(2));
+    act(&mut app, Action::Up(1));
+    // Selection stays within bounds after inverted navigation.
+    assert!(app.item_list.current < app.item_list.items.len());
+}
+
+#[test]
+fn toggle_in_out_in_bottom_to_top_layout() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.multi = true;
+    // ReverseList layout drives the item list bottom-to-top.
+    app.item_list.direction = ratatui::widgets::ListDirection::BottomToTop;
+    app.item_list.current = 1;
+    act(&mut app, Action::ToggleIn);
+    act(&mut app, Action::ToggleOut);
+    assert_eq!(app.item_list.selection.len(), 2);
+}
+
+#[test]
 fn if_query_empty_branches() {
     let mut app = App::default();
     // Query empty -> "then" branch (ignore action).
@@ -409,6 +470,42 @@ fn if_query_not_empty_branches() {
         Action::IfQueryNotEmpty("abort".to_string(), Some("ignore".to_string())),
     );
     assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+}
+
+#[test]
+fn if_query_conditions_with_no_otherwise_fall_through() {
+    // IfQueryEmpty with a non-empty query and no `otherwise` → empty (fall-through).
+    let mut app = App::default();
+    app.input.value = "x".to_string();
+    assert!(act(&mut app, Action::IfQueryEmpty("abort".to_string(), None)).is_empty());
+
+    // IfQueryNotEmpty with an empty query and no `otherwise` → empty.
+    let mut app = App::default();
+    assert!(act(&mut app, Action::IfQueryNotEmpty("abort".to_string(), None)).is_empty());
+
+    // IfNonMatched with a non-empty list and no `otherwise` → empty.
+    let mut app = app_with_items(&["a"]);
+    assert!(act(&mut app, Action::IfNonMatched("abort".to_string(), None)).is_empty());
+}
+
+#[test]
+fn next_history_at_most_recent_is_noop() {
+    // history_index starts at None (most recent / current input); NextHistory
+    // does nothing but still emits the query-changed events.
+    let mut app = App::default();
+    app.query_history = vec!["old".to_string()];
+    let events = act(&mut app, Action::NextHistory);
+    assert_eq!(app.input.value, "");
+    assert!(events.iter().any(|e| matches!(e, Event::RunPreview)));
+}
+
+#[test]
+fn execute_action_runs_command() {
+    // Execute spawns a foreground command (toggling raw mode / alt screen) and
+    // returns a Redraw event.
+    let mut app = App::default();
+    let events = act(&mut app, Action::Execute("true".to_string()));
+    assert!(events.iter().any(|e| matches!(e, Event::Redraw)));
 }
 
 #[test]
@@ -470,6 +567,46 @@ fn history_navigation_cmd_mode() {
 }
 
 #[test]
+fn paging_actions_scroll_in_default_layout() {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f", "g", "h"]);
+    app.options.layout = crate::tui::options::TuiLayout::Default;
+    let _ = render(&mut app, 40, 6);
+
+    act(&mut app, Action::PageDown(1));
+    act(&mut app, Action::PageUp(1));
+    act(&mut app, Action::HalfPageDown(1));
+    act(&mut app, Action::HalfPageUp(1));
+    // Selection stays within bounds after paging.
+    assert!(app.item_list.current < app.item_list.items.len());
+}
+
+#[test]
+fn paging_actions_scroll_in_reverse_layout() {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f", "g", "h"]);
+    // Reverse layout takes the mirrored scroll branches.
+    app.options.layout = crate::tui::options::TuiLayout::Reverse;
+    let _ = render(&mut app, 40, 6);
+
+    act(&mut app, Action::PageDown(1));
+    act(&mut app, Action::HalfPageDown(1));
+    act(&mut app, Action::PageUp(1));
+    act(&mut app, Action::HalfPageUp(1));
+    assert!(app.item_list.current < app.item_list.items.len());
+}
+
+#[test]
+fn deselect_all_clears_existing_selection() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.multi = true;
+    // Select everything, then deselect.
+    act(&mut app, Action::SelectAll);
+    assert!(!app.item_list.selection.is_empty());
+    let events = act(&mut app, Action::DeselectAll);
+    assert!(app.item_list.selection.is_empty());
+    assert!(!events.is_empty());
+}
+
+#[test]
 fn custom_action_runs_callback() {
     use crate::tui::event::ActionCallback;
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -479,6 +616,21 @@ fn custom_action_runs_callback() {
     let _guard = rt.enter();
     let mut app = App::default();
     let cb = ActionCallback::new_sync(|_app: &mut App| Ok(vec![Event::Action(Action::Abort)]));
+    let events = rt.block_on(async { app.handle_action(&Action::Custom(cb)) }).unwrap();
+    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+}
+
+#[test]
+fn custom_action_runs_async_callback() {
+    use crate::tui::event::ActionCallback;
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+    let mut app = App::default();
+    // An async callback exercises the AsyncFnWrapper::call path.
+    let cb = ActionCallback::new(|_app: &mut App| async move { Ok(vec![Event::Action(Action::Abort)]) });
     let events = rt.block_on(async { app.handle_action(&Action::Custom(cb)) }).unwrap();
     assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
 }
@@ -523,6 +675,33 @@ fn handle_key_unmapped_returns_empty() {
     let mut app = App::default();
     let events = app.handle_key(&KeyEvent::new(KeyCode::Char('c'), KeyModifiers::ALT));
     assert!(events.is_empty());
+}
+
+#[test]
+fn handle_key_ctrl_non_c_falls_through_to_empty() {
+    let mut app = App::default();
+    // Ctrl + a non-'c' character that isn't in the keymap → empty.
+    let key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL);
+    app.options.keymap.remove(&key);
+    assert!(app.handle_key(&key).is_empty());
+}
+
+#[test]
+fn handle_key_shift_non_char_falls_through_to_empty() {
+    let mut app = App::default();
+    // Shift + a non-character key with no binding → empty.
+    let key = KeyEvent::new(KeyCode::F(5), KeyModifiers::SHIFT);
+    app.options.keymap.remove(&key);
+    assert!(app.handle_key(&key).is_empty());
+}
+
+#[test]
+fn handle_key_ctrl_non_char_falls_through_to_empty() {
+    let mut app = App::default();
+    // Ctrl + a non-character key with no binding → empty.
+    let key = KeyEvent::new(KeyCode::F(6), KeyModifiers::CONTROL);
+    app.options.keymap.remove(&key);
+    assert!(app.handle_key(&key).is_empty());
 }
 
 #[test]
@@ -590,6 +769,16 @@ fn handle_items_appends_to_pool() {
     let items: Vec<Arc<dyn SkimItem>> = vec![Arc::new("x".to_string()), Arc::new("y".to_string())];
     app.handle_items(items);
     assert_eq!(app.item_pool.len(), 2);
+}
+
+#[test]
+fn restart_matcher_no_sort_uses_append_strategy() {
+    // A non-force restart with no_sort takes the Append merge-strategy branch.
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.no_sort = true;
+    app.restart_matcher(false);
+    // Restarting the matcher must not panic and leaves a live matcher control.
+    assert!(!app.should_quit);
 }
 
 // ---------------------------------------------------------------------------
@@ -680,6 +869,53 @@ fn toggle_spinner_flips_flag() {
 }
 
 #[test]
+fn update_spinner_hides_after_grace_period() {
+    use std::time::{Duration, Instant};
+    let mut app = App::default();
+    // Spinner is on but nothing is being read (pool drained).
+    app.show_spinner = true;
+    // Force the grace period to have elapsed so the spinner can turn off.
+    app.spinner_last_change = Instant::now().checked_sub(Duration::from_secs(10)).unwrap();
+    app.update_spinner();
+    assert!(!app.show_spinner);
+}
+
+#[test]
+fn run_preview_callback_multi_selection() {
+    use crate::tui::PreviewCallback;
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.preview = None;
+    app.options.multi = true;
+    app.options.preview_fn = Some(PreviewCallback::from(|items: Vec<Arc<dyn SkimItem>>| {
+        vec![format!("{} selected", items.len())]
+    }));
+    // Select two items so the multi branch collects from the selection set.
+    act(&mut app, Action::Select);
+    act(&mut app, Action::Down(1));
+    act(&mut app, Action::Select);
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    app.run_preview(&mut tui).unwrap();
+    assert!(app.preview.total_lines >= 1);
+}
+
+#[test]
+fn run_preview_callback_with_no_items() {
+    use crate::tui::PreviewCallback;
+    let mut app = App::default(); // empty item list
+    app.options.preview = None;
+    app.options.preview_fn = Some(PreviewCallback::from(|items: Vec<Arc<dyn SkimItem>>| {
+        vec![format!("count={}", items.len())]
+    }));
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    // No selection and nothing selected → empty selection vector branch.
+    app.run_preview(&mut tui).unwrap();
+}
+
+#[test]
 fn scroll_moves_current_based_on_position() {
     let mut app = app_with_items(&["a", "b", "c", "d", "e", "f", "g", "h"]);
     // Establish a concrete layout first.
@@ -706,4 +942,624 @@ fn scrollbar_column_none_when_items_fit() {
     let _ = render(&mut app, 80, 24);
     // Few items in a tall list -> no scrollbar.
     assert!(app.scrollbar_column().is_none());
+}
+
+// ---------------------------------------------------------------------------
+// handle_event dispatch (requires a backend-backed Tui for the event channel).
+// ---------------------------------------------------------------------------
+
+use crate::tui::Size;
+use crate::tui::backend::Tui;
+use ratatui::backend::TestBackend;
+
+fn test_tui() -> Tui<TestBackend> {
+    Tui::new_with_height_and_backend(TestBackend::new(40, 10), Size::Percent(100)).expect("failed to build test TUI")
+}
+
+/// Drain every event currently queued on the TUI's channel.
+fn drain_events(tui: &mut Tui<TestBackend>) -> Vec<Event> {
+    let mut out = Vec::new();
+    while let Ok(ev) = tui.event_rx.try_recv() {
+        out.push(ev);
+    }
+    out
+}
+
+#[test]
+fn handle_event_paste_strips_newlines_into_query() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::Paste("foo\nbar\r".to_string()))
+        .unwrap();
+    // Newlines/CRs are stripped; the rest is inserted into the query.
+    assert_eq!(app.input.value, "foobar");
+}
+
+#[test]
+fn handle_event_paste_only_newlines_is_noop() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::Paste("\n\r".to_string())).unwrap();
+    assert_eq!(app.input.value, "");
+}
+
+#[test]
+fn handle_event_clear_items_empties_pool() {
+    let mut app = App::default();
+    app.handle_items(vec![Arc::new("a".to_string()), Arc::new("b".to_string())]);
+    assert!(!app.item_pool.is_empty());
+
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::ClearItems).unwrap();
+    assert_eq!(app.item_pool.len(), 0);
+}
+
+#[test]
+fn handle_event_append_items_grows_pool() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    let items: Vec<Arc<dyn SkimItem>> = vec![Arc::new("x".to_string())];
+    app.handle_event(&mut tui, &Event::AppendItems(items)).unwrap();
+    assert_eq!(app.item_pool.len(), 1);
+}
+
+#[test]
+fn handle_event_action_emits_render() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::Action(Action::AddChar('z')))
+        .unwrap();
+    assert_eq!(app.input.value, "z");
+    // An Action always queues a follow-up Render event.
+    assert!(drain_events(&mut tui).iter().any(|e| matches!(e, Event::Render)));
+}
+
+#[test]
+fn handle_event_key_maps_to_action_events() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    let key = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty());
+    app.handle_event(&mut tui, &Event::Key(key)).unwrap();
+    // The plain character is dispatched as an AddChar action event.
+    assert!(
+        drain_events(&mut tui)
+            .iter()
+            .any(|e| matches!(e, Event::Action(Action::AddChar('q'))))
+    );
+}
+
+#[test]
+fn handle_event_render_draws_without_error() {
+    let mut app = app_with_items(&["alpha", "beta"]);
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::Render).unwrap();
+}
+
+#[test]
+fn handle_event_error_bails_and_exits() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    let result = app.handle_event(&mut tui, &Event::Error("boom".to_string()));
+    assert!(result.is_err());
+}
+
+#[test]
+fn handle_event_invalid_input_is_noop() {
+    let mut app = App::default();
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::InvalidInput).unwrap();
+}
+
+#[test]
+fn handle_event_heartbeat_updates_spinner_and_renders() {
+    let mut app = App::default();
+    // Pending items make the spinner want to show; force a render to be due.
+    app.handle_items(vec![Arc::new("a".to_string())]);
+    app.needs_render.store(true, Ordering::Relaxed);
+    app.last_render_timer = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::Heartbeat).unwrap();
+    // A render is queued once the frame-rate gate has elapsed.
+    assert!(drain_events(&mut tui).iter().any(|e| matches!(e, Event::Render)));
+}
+
+#[test]
+fn handle_event_run_preview_is_ok() {
+    let mut app = app_with_items(&["a"]);
+    let mut tui = test_tui();
+    // No preview configured → run_preview is a no-op but must not error.
+    app.handle_event(&mut tui, &Event::RunPreview).unwrap();
+}
+
+#[test]
+fn handle_event_preview_ready_marks_ready() {
+    let mut app = App::default();
+    app.preview.mark_ready();
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::PreviewReady).unwrap();
+    assert!(!app.preview.is_loading());
+}
+
+#[test]
+fn handle_event_clear_clears_backend() {
+    let mut app = app_with_items(&["a"]);
+    let mut tui = test_tui();
+    app.handle_event(&mut tui, &Event::Clear).unwrap();
+    app.handle_event(&mut tui, &Event::Redraw).unwrap();
+}
+
+#[test]
+fn handle_event_resize_reflows_and_reruns_preview() {
+    let mut app = app_with_items(&["a", "b"]);
+    let _ = render(&mut app, 40, 10);
+    let mut tui = test_tui();
+    // Resize updates the cached layout and triggers a preview re-run.
+    app.handle_event(&mut tui, &Event::Resize(60, 20)).unwrap();
+    assert_eq!(app.layout.list_area.width, 60);
+}
+
+// ---------------------------------------------------------------------------
+// Mouse handling via handle_event(Event::Mouse(..)).
+// ---------------------------------------------------------------------------
+
+use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+fn mouse(kind: MouseEventKind, col: u16, row: u16) -> MouseEvent {
+    MouseEvent {
+        kind,
+        column: col,
+        row,
+        modifiers: KeyModifiers::empty(),
+    }
+}
+
+#[test]
+fn mouse_scroll_up_and_down_move_selection() {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f"]);
+    let _ = render(&mut app, 40, 6);
+    let mut tui = test_tui();
+
+    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollDown, 1, 1)))
+        .unwrap();
+    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollUp, 1, 1)))
+        .unwrap();
+    // A Render event is queued after handling a mouse event.
+    assert!(drain_events(&mut tui).iter().any(|e| matches!(e, Event::Render)));
+}
+
+#[test]
+fn mouse_left_click_selects_item_row() {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f"]);
+    let _ = render(&mut app, 40, 6);
+    let inner = app.list_inner_area();
+    let mut tui = test_tui();
+
+    // Click a row inside the list area.
+    let click = mouse(MouseEventKind::Down(MouseButton::Left), inner.x, inner.y);
+    app.handle_event(&mut tui, &Event::Mouse(click)).unwrap();
+    assert!(!app.currently_scrolling);
+}
+
+#[test]
+fn mouse_drag_and_release_toggle_scrolling() {
+    let mut app = app_with_items(&["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]);
+    let _ = render(&mut app, 40, 4);
+    let mut tui = test_tui();
+
+    // Force a scrubbing session, then drag and release.
+    app.currently_scrolling = true;
+    let inner = app.list_inner_area();
+    app.handle_event(
+        &mut tui,
+        &Event::Mouse(mouse(MouseEventKind::Drag(MouseButton::Left), inner.x, inner.y + 1)),
+    )
+    .unwrap();
+    assert!(app.currently_scrolling);
+
+    app.handle_event(
+        &mut tui,
+        &Event::Mouse(mouse(MouseEventKind::Up(MouseButton::Left), inner.x, inner.y)),
+    )
+    .unwrap();
+    assert!(!app.currently_scrolling);
+}
+
+#[test]
+fn mouse_scroll_over_preview_area_scrolls_preview() {
+    let mut app = app_with_items(&["a", "b"]);
+    app.options.preview = Some("echo hi".to_string());
+    app.layout_template = LayoutTemplate::from_options(&app.options, app.header.height());
+    let _ = render(&mut app, 80, 24);
+    let mut tui = test_tui();
+
+    if let Some(preview_area) = app.layout.preview_area {
+        let pos_col = preview_area.x + preview_area.width / 2;
+        let pos_row = preview_area.y + preview_area.height / 2;
+        // Scrolling over the preview area routes to the preview, not the list.
+        app.handle_event(
+            &mut tui,
+            &Event::Mouse(mouse(MouseEventKind::ScrollUp, pos_col, pos_row)),
+        )
+        .unwrap();
+        app.handle_event(
+            &mut tui,
+            &Event::Mouse(mouse(MouseEventKind::ScrollDown, pos_col, pos_row)),
+        )
+        .unwrap();
+        // The scroll-down advanced the preview viewport.
+        assert!(app.preview.scroll_y > 0);
+    }
+}
+
+#[test]
+fn mouse_other_event_is_ignored() {
+    let mut app = app_with_items(&["a"]);
+    let _ = render(&mut app, 40, 6);
+    let mut tui = test_tui();
+    // Moving the mouse (no button) falls through to the ignore arm.
+    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::Moved, 1, 1)))
+        .unwrap();
+}
+
+/// Build a bordered list whose items overflow the visible rows, so the
+/// scrollbar is rendered and `scrollbar_column` returns `Some`.
+fn overflowing_bordered_app() -> App {
+    let items: Vec<String> = (0..30).map(|i| format!("item{i}")).collect();
+    let refs: Vec<&str> = items.iter().map(String::as_str).collect();
+    let mut app = app_with_items(&refs);
+    app.options.border = crate::tui::BorderType::Rounded;
+    // A non-empty thumb makes the scrollbar render when items overflow.
+    app.item_list.scrollbar_thumb = "│".to_string();
+    app.layout_template = LayoutTemplate::from_options(&app.options, app.header.height());
+    let _ = render(&mut app, 20, 8);
+    app
+}
+
+#[test]
+fn bordered_list_inner_area_is_inset() {
+    let app = overflowing_bordered_app();
+    let full = app.layout.list_area;
+    let inner = app.list_inner_area();
+    // The border insets the inner area by one cell on each side.
+    assert_eq!(inner.width, full.width.saturating_sub(2));
+    assert_eq!(inner.height, full.height.saturating_sub(2));
+}
+
+#[test]
+fn scrollbar_column_some_when_items_overflow() {
+    let app = overflowing_bordered_app();
+    // With a thumb set and items overflowing, the scrollbar column is reported.
+    let (inner, col) = app.scrollbar_column().expect("scrollbar should be present");
+    assert_eq!(col, inner.x + inner.width - 1);
+}
+
+#[test]
+fn mouse_click_on_scrollbar_starts_scrubbing() {
+    let mut app = overflowing_bordered_app();
+    let mut tui = test_tui();
+    let (inner, col) = app.scrollbar_column().expect("scrollbar should be present");
+    // Click exactly on the scrollbar column inside the list → scrub session.
+    let click = mouse(MouseEventKind::Down(MouseButton::Left), col, inner.y + 1);
+    app.handle_event(&mut tui, &Event::Mouse(click)).unwrap();
+    assert!(app.currently_scrolling);
+}
+
+#[test]
+fn mouse_click_in_list_body_moves_cursor() {
+    let mut app = overflowing_bordered_app();
+    let mut tui = test_tui();
+    let inner = app.list_inner_area();
+    // Click in the body (not the scrollbar column) selects that visual row.
+    let click = mouse(MouseEventKind::Down(MouseButton::Left), inner.x, inner.y + 2);
+    app.handle_event(&mut tui, &Event::Mouse(click)).unwrap();
+    assert!(!app.currently_scrolling);
+}
+
+#[test]
+fn mouse_drag_on_scrollbar_scrolls_list() {
+    let mut app = overflowing_bordered_app();
+    let mut tui = test_tui();
+    let (inner, col) = app.scrollbar_column().expect("scrollbar should be present");
+    // Begin a scrub, then drag lower down the track to move the selection.
+    let click = mouse(MouseEventKind::Down(MouseButton::Left), col, inner.y);
+    app.handle_event(&mut tui, &Event::Mouse(click)).unwrap();
+    let drag = mouse(
+        MouseEventKind::Drag(MouseButton::Left),
+        col,
+        inner.y + inner.height.saturating_sub(1),
+    );
+    app.handle_event(&mut tui, &Event::Mouse(drag)).unwrap();
+    assert!(app.item_list.current > 0);
+}
+
+// ---------------------------------------------------------------------------
+// Multi-select toggles.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn toggle_in_selects_and_steps() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.multi = true;
+    act(&mut app, Action::ToggleIn);
+    assert_eq!(app.item_list.selection.len(), 1);
+}
+
+#[test]
+fn toggle_out_selects_and_steps() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.multi = true;
+    act(&mut app, Action::ToggleOut);
+    assert_eq!(app.item_list.selection.len(), 1);
+}
+
+#[test]
+fn toggle_all_flips_every_item() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.multi = true;
+    // From an empty selection, ToggleAll selects all three.
+    act(&mut app, Action::ToggleAll);
+    assert_eq!(app.item_list.selection.len(), 3);
+    // A second ToggleAll clears them again.
+    act(&mut app, Action::ToggleAll);
+    assert!(app.item_list.selection.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// run_preview branches (text preview, callback preview, debounce).
+// ---------------------------------------------------------------------------
+
+use std::time::{Duration, Instant};
+
+/// A [`SkimItem`] whose preview is inline text, hitting the `ItemPreview::Text` arm.
+#[derive(Debug)]
+struct TextPreviewItem;
+
+impl SkimItem for TextPreviewItem {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Borrowed("item")
+    }
+    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+        ItemPreview::Text("hello preview".to_string())
+    }
+}
+
+fn app_with_one(item: Arc<dyn SkimItem>) -> App {
+    let mut app = App::default();
+    let mut matched_items = vec![MatchedItem::new(item, Rank::default(), None, &RankBuilder::default())];
+    app.item_list.append(&mut matched_items);
+    app.item_list.height = 10;
+    app
+}
+
+#[test]
+fn run_preview_renders_inline_text() {
+    let mut app = app_with_one(Arc::new(TextPreviewItem));
+    app.options.preview = Some("ignored".to_string());
+    // Defeat the debounce window.
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    app.run_preview(&mut tui).unwrap();
+    // The inline text is loaded as preview content (3 chars across one line).
+    assert!(app.preview.total_lines >= 1);
+    // A ready preview queues a PreviewReady event.
+    assert!(drain_events(&mut tui).iter().any(|e| matches!(e, Event::PreviewReady)));
+}
+
+#[test]
+fn run_preview_uses_preview_callback() {
+    use crate::tui::PreviewCallback;
+    let mut app = app_with_items(&["a", "b"]);
+    app.options.preview = None;
+    app.options.preview_fn = Some(PreviewCallback::from(|_items: Vec<Arc<dyn SkimItem>>| {
+        vec!["callback line".to_string()]
+    }));
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    app.run_preview(&mut tui).unwrap();
+    assert!(app.preview.total_lines >= 1);
+}
+
+#[test]
+fn run_preview_debounces_rapid_calls() {
+    let mut app = app_with_one(Arc::new(TextPreviewItem));
+    app.options.preview = Some("ignored".to_string());
+    // A fresh spawn timestamp triggers the debounce early-return.
+    app.last_preview_spawn = Instant::now();
+    app.pending_preview_run = false;
+
+    let mut tui = test_tui();
+    app.run_preview(&mut tui).unwrap();
+    assert!(app.pending_preview_run);
+}
+
+/// A [`SkimItem`] whose preview is positioned inline text (`TextWithPos`).
+#[derive(Debug)]
+struct PositionedTextItem;
+
+impl SkimItem for PositionedTextItem {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Borrowed("item")
+    }
+    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+        use crate::tui::Size as PreviewSize;
+        ItemPreview::TextWithPos(
+            "a\nb\nc\nd\ne\n".to_string(),
+            crate::PreviewPosition {
+                v_scroll: PreviewSize::Fixed(2),
+                v_offset: PreviewSize::Fixed(0),
+                h_scroll: PreviewSize::Fixed(1),
+                h_offset: PreviewSize::Fixed(0),
+            },
+        )
+    }
+}
+
+#[test]
+fn from_options_single_reader_and_matcher_flags() {
+    use crate::options::FeatureFlag;
+    let theme = Arc::new(crate::theme::ColorTheme::default());
+    let mut options = SkimOptions::default();
+    options.flags = vec![FeatureFlag::SingleReader, FeatureFlag::SingleMatcher];
+    // Building with the single-thread flags must not panic and yields a usable App.
+    let app = App::from_options(options, theme, String::new());
+    assert!(!app.should_quit);
+}
+
+#[test]
+fn run_preview_renders_positioned_text() {
+    let mut app = app_with_one(Arc::new(PositionedTextItem));
+    app.options.preview = Some("ignored".to_string());
+    app.preview.rows = 100;
+    app.preview.cols = 100;
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    app.run_preview(&mut tui).unwrap();
+    // The positioned text applied a vertical scroll offset.
+    assert_eq!(app.preview.scroll_y, 2);
+}
+
+/// A positioned-text preview using `Neg`/`Percent` size variants, complementing
+/// `PositionedTextItem` (Fixed) to cover the remaining position-offset arms.
+#[derive(Debug)]
+struct PositionedTextNegPercentItem;
+
+impl SkimItem for PositionedTextNegPercentItem {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Borrowed("item")
+    }
+    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+        use crate::tui::Size as PreviewSize;
+        ItemPreview::TextWithPos(
+            "a\nb\nc\n".to_string(),
+            crate::PreviewPosition {
+                v_scroll: PreviewSize::Neg(2),
+                v_offset: PreviewSize::Percent(50),
+                h_scroll: PreviewSize::Neg(3),
+                h_offset: PreviewSize::Percent(25),
+            },
+        )
+    }
+}
+
+#[test]
+fn run_preview_positioned_text_neg_and_percent_offsets() {
+    let mut app = app_with_one(Arc::new(PositionedTextNegPercentItem));
+    app.options.preview = Some("ignored".to_string());
+    app.preview.rows = 40;
+    app.preview.cols = 40;
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    // Exercises the Neg (v_scroll/h_scroll) and Percent (v_offset/h_offset) arms.
+    app.run_preview(&mut tui).unwrap();
+    // h_scroll = cols(40) - 3 = 37, plus h_offset = 25% of 40 = 10 → 47.
+    assert_eq!(app.preview.scroll_x, 47);
+}
+
+/// A [`SkimItem`] whose preview runs a shell command.
+#[derive(Debug)]
+struct CommandPreviewItem;
+
+impl SkimItem for CommandPreviewItem {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Borrowed("item")
+    }
+    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+        ItemPreview::Command("echo hi".to_string())
+    }
+}
+
+#[test]
+fn run_preview_spawns_command() {
+    let mut app = app_with_one(Arc::new(CommandPreviewItem));
+    app.options.preview = Some("ignored".to_string());
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    // The Command preview spawns a PTY child without error.
+    app.run_preview(&mut tui).unwrap();
+    app.preview.kill();
+}
+
+/// A [`SkimItem`] whose preview runs a command and applies a position.
+#[derive(Debug)]
+struct CommandWithPosPreviewItem;
+
+impl SkimItem for CommandWithPosPreviewItem {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Borrowed("item")
+    }
+    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+        use crate::tui::Size as PreviewSize;
+        ItemPreview::CommandWithPos(
+            "echo hi".to_string(),
+            crate::PreviewPosition {
+                v_scroll: PreviewSize::Percent(50),
+                v_offset: PreviewSize::Neg(1),
+                h_scroll: PreviewSize::Percent(50),
+                h_offset: PreviewSize::Fixed(2),
+            },
+        )
+    }
+}
+
+#[test]
+fn run_preview_spawns_command_with_position() {
+    let mut app = app_with_one(Arc::new(CommandWithPosPreviewItem));
+    app.options.preview = Some("ignored".to_string());
+    app.preview.rows = 40;
+    app.preview.cols = 40;
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    // Exercises the CommandWithPos position-offset arithmetic (Percent/Neg/Fixed).
+    app.run_preview(&mut tui).unwrap();
+    // v_scroll = 50% of 40 rows = 20, then v_offset (Neg(1) → 39) scrolls further.
+    assert!(app.preview.scroll_y >= 20);
+    // h_scroll(50% of 40 = 20) + h_offset(2) = 22.
+    assert_eq!(app.preview.scroll_x, 22);
+    app.preview.kill();
+}
+
+/// A command-with-position preview using the `Neg`/`Percent`/`Fixed` variants
+/// not covered by [`CommandWithPosPreviewItem`].
+#[derive(Debug)]
+struct CommandWithPosNegItem;
+
+impl SkimItem for CommandWithPosNegItem {
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::Borrowed("item")
+    }
+    fn preview(&self, _ctx: PreviewContext) -> ItemPreview {
+        use crate::tui::Size as PreviewSize;
+        ItemPreview::CommandWithPos(
+            "echo hi".to_string(),
+            crate::PreviewPosition {
+                v_scroll: PreviewSize::Neg(5),
+                v_offset: PreviewSize::Percent(50),
+                h_scroll: PreviewSize::Neg(4),
+                h_offset: PreviewSize::Neg(2),
+            },
+        )
+    }
+}
+
+#[test]
+fn run_preview_command_with_position_neg_and_percent() {
+    let mut app = app_with_one(Arc::new(CommandWithPosNegItem));
+    app.options.preview = Some("ignored".to_string());
+    app.preview.rows = 40;
+    app.preview.cols = 40;
+    app.last_preview_spawn = Instant::now().checked_sub(Duration::from_secs(1)).unwrap();
+
+    let mut tui = test_tui();
+    // Covers the Neg v_scroll/h_scroll, Percent v_offset, and Neg h_offset arms.
+    app.run_preview(&mut tui).unwrap();
+    // h_scroll = cols(40) - 4 = 36, plus h_offset = cols(40) - 2 = 38 → 74.
+    assert_eq!(app.preview.scroll_x, 74);
+    app.preview.kill();
 }

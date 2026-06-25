@@ -1,6 +1,7 @@
 //! Command-line interface for skim fuzzy finder.
 //!
 //! This binary provides the `sk` command-line tool for fuzzy finding and filtering.
+#![cfg_attr(coverage, feature(coverage_attribute))]
 
 extern crate clap;
 extern crate env_logger;
@@ -313,5 +314,81 @@ impl BinOptions {
             delimiter: opts.delimiter.clone(),
             replstr: opts.replstr.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    fn read(path: &std::path::Path) -> String {
+        std::fs::read_to_string(path).unwrap_or_default()
+    }
+
+    #[test]
+    fn write_history_appends_latest_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        write_history_to_file(&["a".to_string(), "b".to_string()], "c", 10, file_str).unwrap();
+        assert_eq!(read(&file), "a\nb\nc");
+    }
+
+    #[test]
+    fn write_history_skips_duplicate_of_last() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        // The latest equals the last entry → nothing is written, no file created.
+        write_history_to_file(&["a".to_string(), "b".to_string()], "b", 10, file_str).unwrap();
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn write_history_truncates_to_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        // limit 2 with 3 existing + 1 new keeps only the newest entries.
+        write_history_to_file(&["a".to_string(), "b".to_string(), "c".to_string()], "d", 2, file_str).unwrap();
+        assert_eq!(read(&file), "c\nd");
+    }
+
+    #[test]
+    fn write_history_empty_latest_does_not_count_towards_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        // An empty latest adds 0 to the length, so no truncation occurs at limit 3.
+        write_history_to_file(&["a".to_string(), "b".to_string(), "c".to_string()], "", 3, file_str).unwrap();
+        assert_eq!(read(&file), "a\nb\nc\n");
+    }
+
+    #[test]
+    fn bin_options_reflect_flags() {
+        let mut opts = SkimOptions::default();
+        opts.print_query = true;
+        opts.print0 = true;
+        opts.ansi = true;
+        opts.no_strip_ansi = false;
+        let bin = BinOptions::from_opts(&opts);
+        assert!(bin.print_query);
+        assert_eq!(bin.output_ending, "\0");
+        assert!(bin.strip_ansi);
+    }
+
+    #[test]
+    fn bin_options_strip_ansi_requires_ansi_and_not_no_strip() {
+        let mut opts = SkimOptions::default();
+        opts.ansi = true;
+        opts.no_strip_ansi = true;
+        assert!(!BinOptions::from_opts(&opts).strip_ansi);
+
+        opts.no_strip_ansi = false;
+        assert!(BinOptions::from_opts(&opts).strip_ansi);
+
+        opts.ansi = false;
+        assert!(!BinOptions::from_opts(&opts).strip_ansi);
     }
 }

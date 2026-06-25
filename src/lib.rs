@@ -19,6 +19,7 @@
 //!         ["awk", "bash", "csh", "dash", "fish", "ksh", "zsh"]
 //!     ).unwrap();
 //! ```
+#![cfg_attr(coverage, feature(coverage_attribute))]
 
 #[macro_use]
 extern crate log;
@@ -412,3 +413,7 @@ pub trait Selector {
 pub type SkimItemSender = kanal::Sender<Vec<Arc<dyn SkimItem>>>;
 /// Receiver for streaming items to skim
 pub type SkimItemReceiver = kanal::Receiver<Vec<Arc<dyn SkimItem>>>;
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;

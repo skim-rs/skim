@@ -244,3 +244,96 @@ fn test_typo_pattern_longer_than_haystack() {
     let matcher2 = FzyMatcher::default().ignore_case().max_typos(Some(2));
     assert!(matcher2.fuzzy_match("a", "abc").is_some());
 }
+
+#[test]
+fn test_uppercase_after_separator_bonuses() {
+    // An uppercase pattern char following a separator earns that separator's
+    // bonus (slash / dash / dot), exercising the char_class==2 bonus arms.
+    let m = FzyMatcher::default().respect_case();
+    assert!(m.fuzzy_match("foo/Bar", "B").is_some());
+    assert!(m.fuzzy_match("foo-Bar", "B").is_some());
+    assert!(m.fuzzy_match("foo.Bar", "B").is_some());
+    // camelCase: uppercase preceded by a lowercase letter.
+    assert!(m.fuzzy_match("fooBar", "B").is_some());
+    // Uppercase preceded by another uppercase earns no bonus (the `_ => 0` arm).
+    assert!(m.fuzzy_match("ABc", "B").is_some());
+}
+
+#[test]
+fn test_use_cache_setter_is_chainable() {
+    // The use_cache builder setter returns a working matcher (cache enabled).
+    let m = FzyMatcher::default().ignore_case().use_cache(true);
+    assert!(m.fuzzy_match("foobar", "fb").is_some());
+}
+
+#[test]
+fn test_exact_length_match_returns_all_indices() {
+    // When pattern and choice are the same length and fully match, fzy_score
+    // short-circuits to SCORE_MAX and returns every index.
+    let m = FzyMatcher::default().ignore_case();
+    let (_score, indices) = m.fuzzy_indices("abc", "abc").unwrap();
+    assert_eq!(indices, vec![0, 1, 2]);
+}
+
+#[test]
+fn test_case_sensitive_subsequence_scoring() {
+    // respect_case with n < m forces fzy_score's `is_match` to use the
+    // case-sensitive comparison branch (needle[i] == haystack[j]) on a real,
+    // non-degenerate match (cheap_matches passes, then the DP runs).
+    let m = FzyMatcher::default().respect_case();
+    // "abc" is a strict subsequence of "aXbYc" with matching case.
+    let (score, indices) = m.fuzzy_indices("aXbYc", "abc").unwrap();
+    assert_eq!(indices, vec![0, 2, 4]);
+    assert!(score > 0);
+    // A case mismatch in the middle must fail under respect_case.
+    assert!(m.fuzzy_match("aXBYc", "abc").is_none());
+    // Score-only path (fuzzy_match) over the same case-sensitive subsequence.
+    assert!(m.fuzzy_match("aXbYc", "abc").is_some());
+}
+
+#[test]
+fn test_dp_cell_match_at_first_haystack_char_for_later_needle() {
+    // Exercises the `i > 0 && j == 0` matched-cell edge in fzy_score: the
+    // second needle char ('b') equals the first haystack char ('b'), which the
+    // DP evaluates even though it cannot be part of an in-order match.
+    let m = FzyMatcher::default().ignore_case();
+    // "ab" is a subsequence of "bab" (a@1, b@2); the DP still visits (i=1,j=0).
+    let (_score, indices) = m.fuzzy_indices("bab", "ab").unwrap();
+    assert_eq!(indices, vec![1, 2]);
+}
+
+#[test]
+fn test_case_sensitive_typo_substitution() {
+    // respect_case + typos: the substitution path must use the case-sensitive
+    // comparison branch in both the rolling (fuzzy_match) and full
+    // (fuzzy_indices) typo DP routines.
+    let m = FzyMatcher::default().respect_case().max_typos(Some(1));
+    // 'X' substitutes for 'c' (one typo), all other chars match case exactly.
+    assert!(m.fuzzy_match("abXd", "abcd").is_some());
+    let (_score, indices) = m.fuzzy_indices("abXd", "abcd").unwrap();
+    assert_eq!(indices.len(), 4);
+    // A case-only difference still costs a typo under respect_case.
+    let strict = FzyMatcher::default().respect_case();
+    assert!(strict.fuzzy_match("abCd", "abcd").is_none());
+    assert!(m.fuzzy_match("abCd", "abcd").is_some());
+}
+
+#[test]
+fn test_typo_indices_zero_allowed_falls_back_to_none() {
+    // fuzzy_indices with max_typos(Some(0)): when the cheap subsequence check
+    // fails, the `max_t == 0` guard returns None without entering the DP.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(0));
+    assert!(m.fuzzy_indices("abc", "abx").is_none());
+    // And a clean subsequence still matches through the fast path.
+    assert!(m.fuzzy_indices("axbxc", "abc").is_some());
+}
+
+#[test]
+fn test_typo_indices_pattern_too_long_for_haystack() {
+    // fuzzy_indices typo slow-path length guard: n > m + max_t returns None.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    // pattern len 4, haystack len 2, 1 typo allowed -> 4 > 2 + 1.
+    assert!(m.fuzzy_indices("ab", "abcd").is_none());
+    // One needle deletion is enough when the gap is exactly max_t.
+    assert!(m.fuzzy_indices("abc", "abcd").is_some());
+}

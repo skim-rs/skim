@@ -90,6 +90,7 @@ impl FuzzyMatcher for FrizbeeMatcher {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use crate::fuzzy_matcher::FuzzyMatcher;
@@ -126,5 +127,30 @@ mod tests {
     fn max_typos_tolerates_mismatch() {
         let m = FrizbeeMatcher::default().max_typos(Some(1));
         assert!(m.fuzzy_match("foobar", "fxo").is_some());
+    }
+
+    #[test]
+    fn fuzzy_indices_ignore_case() {
+        // Ignore case → matching_case_bonus is 0 in fuzzy_indices.
+        let m = FrizbeeMatcher::default().case(CaseMatching::Ignore);
+        assert!(m.fuzzy_indices("FOOBAR", "foo").is_some());
+    }
+
+    #[test]
+    fn fuzzy_indices_no_match_returns_none() {
+        // A non-subsequence pattern exercises the None branch.
+        let m = FrizbeeMatcher::default();
+        assert!(m.fuzzy_indices("foobar", "zzz").is_none());
+    }
+
+    #[test]
+    fn fuzzy_match_respect_and_smart_case() {
+        // fuzzy_match (score-only) across the Respect and Smart case arms.
+        let respect = FrizbeeMatcher::default().case(CaseMatching::Respect);
+        assert!(respect.fuzzy_match("FooBar", "Foo").is_some());
+
+        let smart = FrizbeeMatcher::default().case(CaseMatching::Smart);
+        assert!(smart.fuzzy_match("FooBar", "Foo").is_some());
+        assert!(smart.fuzzy_match("foobar", "foo").is_some());
     }
 }

@@ -711,3 +711,7 @@ where
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "skim_tests.rs"]
+mod tests;

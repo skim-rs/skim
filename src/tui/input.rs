@@ -561,3 +561,7 @@ impl DerefMut for Input {
         &mut self.value
     }
 }
+
+#[cfg(test)]
+#[path = "input_tests.rs"]
+mod tests;
