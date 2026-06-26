@@ -197,4 +197,22 @@ mod tests {
         assert_eq!(wrap_matches("hello", &[0, 4]), "[h]ell[o]");
         assert_eq!(wrap_matches("hi", &[]), "hi");
     }
+
+    #[test]
+    fn assert_order_panics_on_wrong_order_and_prints_diagnostics() {
+        use crate::fuzzy_matcher::skim::SkimMatcherV2;
+
+        let matcher = SkimMatcherV2::default();
+        // Claim an order that does not match reality: "zzz" never matches "abc"
+        // and is dropped, so the sorted result is just ["abc"], which differs
+        // from the asserted slice. This drives the diagnostic block (printing a
+        // matched line and a "NO MATCH" line) and then the failing assertion.
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {})); // silence the expected panic output
+        let result = std::panic::catch_unwind(|| {
+            assert_order(&matcher, "abc", &["zzz", "abc"]);
+        });
+        std::panic::set_hook(prev_hook);
+        assert!(result.is_err(), "assert_order must panic when the order is wrong");
+    }
 }

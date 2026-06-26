@@ -859,6 +859,10 @@ impl FuzzyMatcher for FzyMatcher {
                     &mut bufs,
                 )?;
 
+                // Release the lowercase-cache borrows before optionally freeing
+                // them; `replace` would otherwise re-borrow the same RefCells.
+                drop(lower_choice);
+                drop(lower_pattern);
                 if !self.use_cache {
                     self.lc_cache.get().map(|cell| cell.replace(vec![]));
                     self.lp_cache.get().map(|cell| cell.replace(vec![]));
@@ -936,6 +940,10 @@ impl FuzzyMatcher for FzyMatcher {
                     &mut bufs,
                 )?;
 
+                // Release the lowercase-cache borrows before optionally freeing
+                // them; `replace` would otherwise re-borrow the same RefCells.
+                drop(lower_choice);
+                drop(lower_pattern);
                 if !self.use_cache {
                     self.lc_cache.get().map(|cell| cell.replace(vec![]));
                     self.lp_cache.get().map(|cell| cell.replace(vec![]));

@@ -213,6 +213,33 @@ mod tests {
     }
 
     #[test]
+    fn byte_range_results_drop_chars_outside_range() {
+        // ByteRange(1, 2) over the three-char "abc"/"def" parts covers only the
+        // middle byte: 'a'/'d' (byte 0) fail the `>= start` check, 'c'/'f'
+        // (byte 2) fail the `< end` check, so only 'b'/'e' survive.
+        let engine = SplitMatchEngine::new(
+            Box::new(StubEngine(MatchRange::ByteRange(1, 2))),
+            Box::new(StubEngine(MatchRange::ByteRange(1, 2))),
+            ':',
+        );
+        let result = engine.match_item(&"abc:def".to_string()).unwrap();
+        // before: char 1 ('b'); after: char 1 of "def" offset past "abc:" → char 5 ('e').
+        assert_eq!(result.matched_range, MatchRange::Chars(vec![1, 5]));
+    }
+
+    #[test]
+    fn byte_range_results_include_chars_within_range() {
+        // ByteRange(0, 2) covers both chars of each part, so nothing is dropped.
+        let engine = SplitMatchEngine::new(
+            Box::new(StubEngine(MatchRange::ByteRange(0, 2))),
+            Box::new(StubEngine(MatchRange::ByteRange(0, 2))),
+            ':',
+        );
+        let result = engine.match_item(&"ab:cd".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::Chars(vec![0, 1, 3, 4]));
+    }
+
+    #[test]
     fn display_shows_both_engines_and_delimiter() {
         let engine = SplitMatchEngine::new(exact("a"), exact("b"), ':');
         let s = format!("{engine}");

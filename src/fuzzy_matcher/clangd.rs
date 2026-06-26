@@ -156,6 +156,10 @@ impl FuzzyMatcher for ClangdMatcher {
             }
         }
 
+        // Release the cache borrows before (optionally) freeing their backing
+        // storage below; `replace` would otherwise re-borrow the same RefCells.
+        drop(choice_chars);
+        drop(pattern_chars);
         if !self.use_cache {
             // drop the allocated memory
             self.c_cache.get().map(|cell| cell.replace(vec![]));
@@ -195,6 +199,10 @@ impl FuzzyMatcher for ClangdMatcher {
         let cell = dp[num_pattern_chars & 1][num_choice_chars];
         let score = max(cell.hit, cell.missed);
 
+        // Release the cache borrows before (optionally) freeing their backing
+        // storage below; `replace` would otherwise re-borrow the same RefCells.
+        drop(choice_chars);
+        drop(pattern_chars);
         if !self.use_cache {
             // drop the allocated memory
             self.c_cache.get().map(|cell| cell.replace(vec![]));
@@ -550,6 +558,19 @@ mod tests {
         // Enabling the cache explicitly still produces matches.
         let matcher = ClangdMatcher::default().use_cache(true);
         assert!(matcher.fuzzy_indices("foobar", "fb").is_some());
+    }
+
+    #[test]
+    fn use_cache_disabled_drops_buffers() {
+        // With the cache disabled, both fuzzy_indices and fuzzy_match free their
+        // scratch buffers (the `!use_cache` arms) yet still return correct
+        // results, including on a repeated call after the drop.
+        let matcher = ClangdMatcher::default().ignore_case().use_cache(false);
+        let (_score, indices) = matcher.fuzzy_indices("axbycz", "abc").unwrap();
+        assert_eq!(indices, vec![0, 2, 4]);
+        assert!(matcher.fuzzy_match("axbycz", "abc").is_some());
+        // A second call still works after the first dropped the buffers.
+        assert!(matcher.fuzzy_indices("axbycz", "xyz").is_some());
     }
 
     #[test]

@@ -202,3 +202,61 @@ fn simple_match_empty_pattern_scores_zero() {
     let matcher = SkimMatcherV2::default().element_limit(1);
     assert_eq!(matcher.fuzzy_match("hello", ""), Some(0));
 }
+
+#[test]
+fn use_cache_disabled_drops_buffers_after_match() {
+    // With caching disabled the matcher frees its scratch buffers after each
+    // call (the `!use_cache` arms in fuzzy/`fuzzy_with` and the simple path),
+    // but still returns correct results across repeated calls.
+    let matcher = SkimMatcherV2::default().ignore_case().use_cache(false);
+    // Full-DP path (default element_limit) for both indices and score-only.
+    let (_score, indices) = matcher.fuzzy_indices("foobar", "fb").unwrap();
+    assert_eq!(indices, vec![0, 3]);
+    assert!(matcher.fuzzy_match("foobar", "fb").is_some());
+    // A second call must still work after the buffers were dropped.
+    assert!(matcher.fuzzy_indices("foobar", "bar").is_some());
+}
+
+#[test]
+fn simple_match_single_char_at_start_has_no_prev_char() {
+    // A one-character pattern matching the very first choice character takes the
+    // `match_idx == 0` arm (no preceding character → treated as NonWord).
+    let matcher = SkimMatcherV2::default();
+    let (score, indices) = simple_match(&matcher, "hello", "h", false, true).unwrap();
+    assert_eq!(indices, vec![0]);
+    // The same char in the middle of a word scores differently (has a prev char).
+    let (mid_score, _) = simple_match(&matcher, "ahello", "h", false, true).unwrap();
+    assert_ne!(score, mid_score, "start-of-string bonus should differ from mid-word");
+}
+
+#[test]
+fn simple_match_score_only_skips_position_tracking() {
+    // A multi-character match with with_pos = false reaches
+    // calculate_score_with_pos via the score-only path (no positions recorded).
+    let matcher = SkimMatcherV2::default();
+    let (score, positions) = simple_match(&matcher, "axbycz", "abc", false, false).unwrap();
+    assert!(score > 0);
+    assert!(positions.is_empty(), "score-only path must not collect positions");
+
+    // The position-tracking variant returns the same score with indices filled.
+    let (pos_score, positions) = simple_match(&matcher, "axbycz", "abc", false, true).unwrap();
+    assert_eq!(score, pos_score);
+    assert_eq!(positions, vec![0, 2, 4]);
+}
+
+#[test]
+fn gappy_match_traceback_skips_to_first_column() {
+    // Matches with long gaps between pattern characters force the position
+    // traceback to take Skip moves that walk the column index down to the first
+    // matched column while pattern rows remain (the `j > first_col` guard).
+    let matcher = SkimMatcherV2::default();
+    for (choice, pattern, expected) in [
+        ("a___________b", "ab", vec![0usize, 12]),
+        ("x_a_____b__c", "abc", vec![2, 8, 11]),
+        ("a_b_______c", "abc", vec![0, 2, 10]),
+    ] {
+        let (_score, indices) = matcher.fuzzy_indices(choice, pattern).expect("should match");
+        let got: Vec<usize> = indices.iter().map(|&i| i as usize).collect();
+        assert_eq!(got, expected, "choice={choice:?} pattern={pattern:?}");
+    }
+}

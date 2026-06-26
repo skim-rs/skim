@@ -337,3 +337,215 @@ fn test_typo_indices_pattern_too_long_for_haystack() {
     // One needle deletion is enough when the gap is exactly max_t.
     assert!(m.fuzzy_indices("abc", "abcd").is_some());
 }
+
+#[test]
+fn test_typo_use_cache_disabled_in_slow_path() {
+    // use_cache(false) on the typo slow path frees the lowercase caches after
+    // the DP; the match (which needs a real typo, so it skips the fast path)
+    // must still succeed, and a repeated call must work after the drop.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1)).use_cache(false);
+    assert!(m.fuzzy_match("abx", "abc").is_some()); // rolling DP (substitution)
+    assert!(m.fuzzy_indices("abx", "abc").is_some()); // full DP
+    assert!(m.fuzzy_match("abx", "abc").is_some()); // works again after drop
+}
+
+#[test]
+fn test_typo_match_at_first_haystack_char_for_later_needle() {
+    // Non-subsequence (forces the typo DP) where a later needle char equals the
+    // first haystack char: needle "ab" vs haystack "bc" — 'a' has no match, but
+    // 'b' equals haystack[0]. Exercises the matched-cell `i > 0 && j == 0` edge
+    // in both typo DPs.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    // The DP visits the (i=1, j=0) matched cell, but no in-order alignment can
+    // use it (a needle char before 'b' would need a column < 0), so the result
+    // is None even though the branch is exercised.
+    assert!(m.fuzzy_match("bc", "ab").is_none());
+    assert!(m.fuzzy_indices("bc", "ab").is_none());
+}
+
+#[test]
+fn test_typo_substitution_at_start_and_end() {
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    // Substitution at the first needle position. (A leading substitution scores
+    // identically to a leading needle-deletion, so 'a' is not assigned an index;
+    // 'b' and 'c' are.)
+    assert!(m.fuzzy_match("Xbc", "abc").is_some());
+    let (_s, idx) = m.fuzzy_indices("Xbc", "abc").unwrap();
+    assert_eq!(idx, vec![1, 2]);
+    // Substitution at the last needle position keeps all three indices.
+    assert!(m.fuzzy_match("abX", "abc").is_some());
+    let (_s, idx) = m.fuzzy_indices("abX", "abc").unwrap();
+    assert_eq!(idx, vec![0, 1, 2]);
+}
+
+#[test]
+fn test_typo_sparse_alignment_with_min_predecessors() {
+    // A non-subsequence with scattered matches makes early DP columns stay at
+    // SCORE_MIN, so later matched cells read SCORE_MIN predecessors (the
+    // `pm == SCORE_MIN` / `pv == SCORE_MIN` arms) without those cells winning.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(2));
+    // needle "abcd": 'a' and 'd' anchor at the ends, 'b','c' need substitutions.
+    assert!(m.fuzzy_match("aXYd", "abcd").is_some());
+    let (_s, idx) = m.fuzzy_indices("aXYd", "abcd").unwrap();
+    assert_eq!(idx.len(), 4);
+    // 'a' and 'd' match at the ends; 'b' and 'c' are substituted in the middle.
+    assert_eq!(idx, vec![0, 1, 2, 3]);
+}
+
+#[test]
+fn test_typo_no_alignment_returns_none_from_dp() {
+    // Passes the cheap typo prefilter (length ok, enough chars present) but the
+    // DP finds no positive alignment within the typo budget → None via the
+    // `best_score == SCORE_MIN` guard.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    // 3 substitutions needed but only 1 allowed.
+    assert!(m.fuzzy_match("abc", "xyz").is_none());
+    assert!(m.fuzzy_indices("abc", "xyz").is_none());
+}
+
+#[test]
+fn test_typo_needle_deletion_indices_and_gaps() {
+    // Needle deletions plus haystack gaps drive the backtrace's deletion and
+    // gap (j == 0) arms in the full typo DP.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(2));
+    // Delete 'c' and 'e' from the needle; 'a','b','d' align.
+    let (_s, idx) = m.fuzzy_indices("abd", "abcde").unwrap();
+    // Only the matched needle chars contribute indices.
+    assert!(idx.len() <= 3 && !idx.is_empty());
+    assert!(idx.windows(2).all(|w| w[0] < w[1]), "indices strictly increasing");
+}
+
+#[test]
+fn test_typo_pattern_too_long_even_with_typos() {
+    // n > m + max_typos short-circuits to None in the typo slow path (both
+    // fuzzy_match and fuzzy_indices).
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    assert!(m.fuzzy_match("ab", "abcde").is_none());
+    assert!(m.fuzzy_indices("ab", "abcde").is_none());
+}
+
+// ----- Non-typo fzy_score edge cases -----
+
+#[test]
+fn test_score_only_match_at_first_char_for_later_needle() {
+    // Score-only path: needle "aa" over haystack "aXa" visits (i=1, j=0) where
+    // needle[1] matches haystack[0] but j == 0 makes it a SCORE_MIN dead cell.
+    let m = FzyMatcher::default().ignore_case();
+    assert!(m.fuzzy_match("aXa", "aa").is_some());
+}
+
+#[test]
+fn test_single_char_pattern_indices() {
+    // n == 1 with the full (position) matrix uses the trailing-gap row-0 path.
+    let m = FzyMatcher::default().ignore_case();
+    let (_s, idx) = m.fuzzy_indices("help", "l").unwrap();
+    assert_eq!(idx, vec![2]); // the unique 'l'
+}
+
+#[test]
+fn test_fzy_score_pattern_longer_than_choice_returns_none() {
+    // Direct guard test: the public API rejects pattern-longer-than-choice in
+    // cheap_matches first, so exercise fzy_score's own `n > m` guard directly.
+    assert_eq!(fzy_score(&['a', 'b', 'c'], &['a'], false, None), None);
+    assert_eq!(fzy_score(&[], &['a'], false, None), None); // n == 0 guard
+}
+
+#[test]
+fn test_can_match_with_typos_length_guard() {
+    // Direct guard test: a needle longer than haystack + max_typos cannot match.
+    let pat = ['a', 'b', 'c', 'd'];
+    assert!(!can_match_with_typos(&['a'], &pat, &pat, false, 1));
+    // Within budget (one deletion) it can.
+    assert!(can_match_with_typos(&['a', 'b', 'c'], &pat, &pat, false, 1));
+}
+
+#[test]
+fn test_typo_choice_exceeds_match_max_len() {
+    // A choice longer than MATCH_MAX_LEN that is not a clean subsequence reaches
+    // the typo slow path and is rejected by the `m > MATCH_MAX_LEN` guard.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    let huge = "a".repeat(2000); // > MATCH_MAX_LEN (1024)
+    // 'z' never appears, so the cheap subsequence fails and we hit the guard.
+    assert!(m.fuzzy_match(&huge, "az").is_none());
+    assert!(m.fuzzy_indices(&huge, "az").is_none());
+}
+
+#[test]
+fn test_typo_indices_internal_gap_backtrace() {
+    // A typo match (non-subsequence) with an internal haystack gap drives the
+    // full-DP backtrace across a skipped column (its D cell is SCORE_MIN).
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    // "abd" vs "aXbc": a@0, gap at X, b@2, 'd' substituted for 'c'@3.
+    let (_score, idx) = m.fuzzy_indices("aXbc", "abd").expect("typo match with gap");
+    assert_eq!(idx, vec![0, 2, 3]);
+}
+
+#[test]
+fn test_indices_scattered_match_backtrace_scans_gaps() {
+    // A scattered (gappy) exact subsequence makes the position backtrace scan
+    // across non-matching columns where d != m before locating each match.
+    let m = FzyMatcher::default().ignore_case();
+    let (_score, idx) = m.fuzzy_indices("a_b_c_d", "abcd").expect("scattered match");
+    assert_eq!(idx, vec![0, 2, 4, 6]);
+    // A different gap pattern for additional backtrace shapes.
+    let (_score, idx) = m.fuzzy_indices("xaybzc", "abc").expect("scattered match");
+    assert_eq!(idx, vec![1, 3, 5]);
+}
+
+#[test]
+fn test_typo_fast_path_subsequence_too_long_falls_through() {
+    // A choice longer than MATCH_MAX_LEN where the pattern IS a clean
+    // subsequence: cheap_matches succeeds, but fzy_score returns None (m too
+    // long), so the fast path falls through to the (also-rejecting) slow path.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    let huge = "a".repeat(2000);
+    assert!(m.fuzzy_indices(&huge, "aa").is_none());
+    assert!(m.fuzzy_match(&huge, "aa").is_none());
+}
+
+#[test]
+fn test_indices_repeated_char_backtrace_disambiguates() {
+    // Repeated pattern characters give the backtrace multiple candidate columns
+    // per row, so it must scan past non-optimal match cells (d != m) to find the
+    // chosen alignment.
+    let m = FzyMatcher::default().ignore_case();
+    let (_s, idx) = m.fuzzy_indices("aabaa", "aba").expect("should match");
+    assert_eq!(idx.len(), 3);
+    assert!(idx.windows(2).all(|w| w[0] < w[1]));
+    let (_s, idx) = m.fuzzy_indices("banana", "aaa").expect("should match");
+    assert_eq!(idx, vec![1, 3, 5]);
+}
+
+#[test]
+fn test_indices_nonoptimal_match_cells_in_backtrace() {
+    // Inputs where a needle char can match several columns, so the backtrace
+    // encounters match cells (d != SCORE_MIN) that are not on the optimal path
+    // (d != m), and others where the scan walks toward column 0.
+    let m = FzyMatcher::default().ignore_case();
+    for (choice, pattern) in [
+        ("aXaXa", "aaa"),
+        ("aabaab", "aba"),
+        ("a.a.a", "aa"),
+        ("baba", "ba"),
+        ("xaxaxa", "aaa"),
+    ] {
+        let r = m.fuzzy_indices(choice, pattern);
+        assert!(r.is_some(), "{choice:?}/{pattern:?} should match");
+        let (_s, idx) = r.unwrap();
+        assert_eq!(idx.len(), pattern.chars().count());
+        assert!(idx.windows(2).all(|w| w[0] < w[1]), "indices increasing");
+    }
+}
+
+#[test]
+fn test_typo_indices_multiple_gaps_and_deletions() {
+    // Typo matches with multiple internal gaps and needle deletions to drive the
+    // full-DP backtrace through gap columns (d == SCORE_MIN) and deletion steps.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(2));
+    for (choice, pattern) in [("aXbYcd", "abce"), ("a_b_c", "axc"), ("foobar", "fxxr")] {
+        let _ = m.fuzzy_indices(choice, pattern);
+    }
+    // A concrete checked case: gap before a substituted tail char.
+    let (_s, idx) = m.fuzzy_indices("aXbYZ", "abc").expect("typo match");
+    assert!(!idx.is_empty() && idx.windows(2).all(|w| w[0] < w[1]));
+}
