@@ -622,7 +622,7 @@ mod kernel {
 
     use super::super::algo::{full_dp, range_dp};
     use super::super::banding::BandingInfo;
-    use super::super::constants::MAX_PAT_LEN;
+    use super::super::constants::{MATCH_BONUS, MAX_PAT_LEN};
     use super::super::helpers::{compute_last_match_cols, compute_row_col_bounds};
     use super::ArinaeMatcher;
 
@@ -781,7 +781,7 @@ mod kernel {
         // matches 'c' (col index 2) afresh, and the traceback terminates cleanly
         // at the zeroed row (Dir::None) — yielding the single-char span (2, 2)
         // with score == MATCH_BONUS rather than reading stale cells.
-        assert_eq!(res, Some((18, 2, 2)));
+        assert_eq!(res, Some((MATCH_BONUS, 2, 2)));
     }
 
     #[test]
