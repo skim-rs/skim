@@ -580,4 +580,21 @@ mod tests {
         assert!(begin <= end);
         assert!(matcher.fuzzy_match_range("foobar", "zzz").is_none());
     }
+
+    #[test]
+    fn match_bonus_in_segment_after_miss_penalty() {
+        // The DP only ever calls match_bonus with `Action::Match`, so the
+        // mid-segment-after-a-miss penalty (line_role == Tail, pat_idx > 0,
+        // last_action == Miss) is unreachable through the public API. Exercise
+        // it directly: matching 'b' in the middle of a segment ('a'→'b' is a
+        // Tail) right after a skipped character costs 30 points.
+        let prev = 'a'; // lowercase → 'b' is a Tail, not a Head
+        let after_miss = match_bonus(1, 'b', prev, 1, 'b', prev, Action::Miss);
+        let after_match = match_bonus(1, 'b', prev, 1, 'b', prev, Action::Match);
+        assert_eq!(
+            after_match - after_miss,
+            30,
+            "an in-segment match preceded by a miss must cost 30 points"
+        );
+    }
 }

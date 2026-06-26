@@ -549,3 +549,116 @@ fn test_typo_indices_multiple_gaps_and_deletions() {
     let (_s, idx) = m.fuzzy_indices("aXbYZ", "abc").expect("typo match");
     assert!(!idx.is_empty() && idx.windows(2).all(|w| w[0] < w[1]));
 }
+
+// ---------------------------------------------------------------------------
+// Callee-isolation tests: drive private helpers directly with inputs the
+// public matcher API can never produce, to thread otherwise-unreachable paths.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_internal_to_skim_score_sentinels() {
+    // SCORE_MAX and SCORE_MIN map to the saturated skim extremes; everything
+    // else scales by SCORE_TO_SKIM. The SCORE_MIN arm is unreachable through
+    // the matcher (a match never produces exactly SCORE_MIN), so test directly.
+    assert_eq!(internal_to_skim_score(SCORE_MAX), ScoreType::MAX / 2);
+    assert_eq!(internal_to_skim_score(SCORE_MIN), ScoreType::MIN / 2);
+    assert_eq!(internal_to_skim_score(100), 100 * SCORE_TO_SKIM);
+}
+
+#[test]
+fn test_typo_empty_pattern_returns_none() {
+    // An empty pattern with typos enabled flows past the (failed) fast path and
+    // is rejected by the `n == 0` arm of the slow-path length guard.
+    let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    assert_eq!(m.fuzzy_match("abc", ""), None);
+    assert_eq!(m.fuzzy_indices("abc", ""), None);
+}
+
+#[test]
+fn test_fzy_score_backtrace_falls_back_at_column_zero() {
+    // The public path only reaches fzy_score after cheap_matches confirms a
+    // subsequence. Call it directly with a needle that is NOT an in-order
+    // subsequence so the position backtrace cannot locate a match cell and
+    // walks down to the `j == 0` fallback.
+    let mut pos = Vec::new();
+    // needle "za" over haystack "abc" (n < m, so the n == m fast path is not
+    // taken): 'z' never matches and 'a' only matches haystack[0], which the DP
+    // marks SCORE_MIN at j == 0, so both rows scan down to the column-0 break.
+    let score = fzy_score(&['z', 'a'], &['a', 'b', 'c'], false, Some(&mut pos));
+    assert!(score.is_some(), "fzy_score always returns a (possibly poor) score");
+
+    // Out-of-order needle vs haystack also forces the column-0 fallback.
+    let mut pos2 = Vec::new();
+    let _ = fzy_score(&['c', 'a'], &['a', 'b', 'c'], false, Some(&mut pos2));
+}
+
+#[test]
+fn test_fzy_score_typos_full_backtrace_gaps_direct() {
+    // Drive the full typo DP directly with a non-prefiltered, gap-heavy input so
+    // the backtrace traverses skipped haystack columns (d == SCORE_MIN) and the
+    // column-0 fallback that the public prefilter would otherwise screen out.
+    let needle: Vec<char> = "ace".chars().collect();
+    let haystack: Vec<char> = "aXbYc".chars().collect();
+    let lower_needle = needle.clone();
+    let lower_haystack = haystack.clone();
+    let match_bonus = precompute_bonus(&haystack);
+    let mut bufs = TypoDpBuffers::default();
+    let mut positions = Vec::new();
+    let _ = fzy_score_typos_full(
+        &needle,
+        &haystack,
+        &lower_needle,
+        &lower_haystack,
+        &match_bonus,
+        false,
+        2,
+        &mut positions,
+        &mut bufs,
+    );
+    // Indices, if any, must be a strictly increasing subset of the haystack.
+    assert!(positions.windows(2).all(|w| w[0] < w[1]));
+}
+
+#[test]
+fn test_fzy_score_typos_full_column_zero_fallback_direct() {
+    // Drive the full typo DP directly with shapes where an aligned needle row's
+    // backtrace finds no match/deletion and walks to the column-0 fallback.
+    let cases: &[(&str, &str, usize)] = &[
+        ("ax", "abc", 1),
+        ("za", "abc", 1),
+        ("xb", "abc", 1),
+        ("ac", "aXbYc", 2),
+        ("zc", "abc", 2),
+    ];
+    for &(needle_s, hay_s, t) in cases {
+        let needle: Vec<char> = needle_s.chars().collect();
+        let haystack: Vec<char> = hay_s.chars().collect();
+        let nl = needle.clone();
+        let hl = haystack.clone();
+        let mb = precompute_bonus(&haystack);
+        let mut bufs = TypoDpBuffers::default();
+        let mut positions = Vec::new();
+        let _ = fzy_score_typos_full(&needle, &haystack, &nl, &hl, &mb, false, t, &mut positions, &mut bufs);
+        assert!(
+            positions.windows(2).all(|w| w[0] < w[1]),
+            "positions must be increasing for {needle_s:?}/{hay_s:?}"
+        );
+    }
+}
+
+#[test]
+fn test_fzy_score_backtrace_nonconsecutive_match() {
+    // Drive fzy_score directly with a gapped match so the backtrace records a
+    // match whose score did NOT come from a consecutive-match continuation
+    // (m != d[i-1][j-1] + SCORE_MATCH_CONSECUTIVE).
+    for (needle, hay) in [
+        (vec!['a', 'c'], vec!['a', 'b', 'c']),
+        (vec!['a', 'd'], vec!['a', 'b', 'c', 'd']),
+        (vec!['a', 'z'], vec!['a', 'b', 'z']),
+    ] {
+        let mut pos = Vec::new();
+        let s = fzy_score(&needle, &hay, false, Some(&mut pos));
+        assert!(s.is_some());
+        assert!(pos.windows(2).all(|w| w[0] < w[1]));
+    }
+}
