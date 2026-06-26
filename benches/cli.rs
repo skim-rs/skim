@@ -196,6 +196,14 @@ struct RunArgs {
     #[arg(short = 's', long, default_value_t = REQUIRED_STABLE_S, value_name = "SECS")]
     stable_secs: f64,
 
+    /// Only output the table
+    #[arg(long, default_value_t = true)]
+    quiet: bool,
+
+    /// Hide the header table, usually used with `quiet`
+    #[arg(long, default_value_t = false)]
+    no_header: bool,
+
     /// Pass remaining arguments to the benchmarked binary
     #[arg(last = true)]
     extra_args: Vec<String>,
@@ -942,7 +950,7 @@ fn pad_cell(s: &str, width: usize, right_align: bool) -> String {
 ///
 /// When multiple binaries are provided the first is treated as the baseline and
 /// delta (Δ) columns are added for every metric.
-fn print_markdown_table(display_names: &[String], aggregates: &[AggResult]) {
+fn print_markdown_table(display_names: &[String], aggregates: &[AggResult], no_header: bool) {
     let multi = display_names.len() > 1;
     let has_mem = aggregates.iter().any(|a| a.avg_mem.is_some());
     let has_cpu = aggregates.iter().any(|a| a.avg_cpu.is_some());
@@ -1070,24 +1078,26 @@ fn print_markdown_table(display_names: &[String], aggregates: &[AggResult]) {
     };
 
     // ---- header ------------------------------------------------------------
-    let headers: Vec<String> = col_defs.iter().map(|(h, _)| h.to_string()).collect();
-    println!("{}", render_row(&headers));
+    if !no_header {
+        let headers: Vec<String> = col_defs.iter().map(|(h, _)| h.to_string()).collect();
+        println!("{}", render_row(&headers));
 
-    // ---- separator (dashes sized to column width, alignment markers) -------
-    let seps: Vec<String> = col_defs
-        .iter()
-        .zip(&widths)
-        .map(|(&(_, right), &w)| {
-            // Each separator cell is exactly `w` chars wide so it lines up
-            // with the padded header and data cells above and below it.
-            if right {
-                format!("{}:", "-".repeat(w.saturating_sub(1)))
-            } else {
-                format!(":{}", "-".repeat(w.saturating_sub(1)))
-            }
-        })
-        .collect();
-    println!("| {} |", seps.join(" | "));
+        // ---- separator (dashes sized to column width, alignment markers) -------
+        let seps: Vec<String> = col_defs
+            .iter()
+            .zip(&widths)
+            .map(|(&(_, right), &w)| {
+                // Each separator cell is exactly `w` chars wide so it lines up
+                // with the padded header and data cells above and below it.
+                if right {
+                    format!("{}:", "-".repeat(w.saturating_sub(1)))
+                } else {
+                    format!(":{}", "-".repeat(w.saturating_sub(1)))
+                }
+            })
+            .collect();
+        println!("| {} |", seps.join(" | "));
+    }
 
     // ---- data rows ---------------------------------------------------------
     for row in &rows {
@@ -1791,23 +1801,25 @@ fn main() -> Result<()> {
     if run_args.json {
         print_json(&binaries, &display_names, &aggregates, runs);
     } else {
-        let baseline_agg = &aggregates[0];
-        for (i, (display_name, agg)) in display_names.iter().zip(&aggregates).enumerate() {
-            print_human(
-                display_name,
-                agg,
-                if binaries.len() > 1 { Some(baseline_agg) } else { None },
-                i == 0,
-            );
-        }
+        if !run_args.quiet {
+            let baseline_agg = &aggregates[0];
+            for (i, (display_name, agg)) in display_names.iter().zip(&aggregates).enumerate() {
+                print_human(
+                    display_name,
+                    agg,
+                    if binaries.len() > 1 { Some(baseline_agg) } else { None },
+                    i == 0,
+                );
+            }
 
-        // Summary table — always shown, markdown-formatted
-        if binaries.len() > 1 {
-            println!("\n## Comparison Summary (vs baseline: `{}`)\n", display_names[0]);
-        } else {
-            println!("\n## Results Summary\n");
+            // Summary table — always shown, markdown-formatted
+            if binaries.len() > 1 {
+                println!("\n## Comparison Summary (vs baseline: `{}`)\n", display_names[0]);
+            } else {
+                println!("\n## Results Summary\n");
+            }
         }
-        print_markdown_table(&display_names, &aggregates);
+        print_markdown_table(&display_names, &aggregates, run_args.no_header);
     }
 
     // ---- perf summary ------------------------------------------------------

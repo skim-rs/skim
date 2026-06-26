@@ -256,8 +256,7 @@ fn gappy_match_traceback_skips_to_first_column() {
         ("a_b_______c", "abc", vec![0, 2, 10]),
     ] {
         let (_score, indices) = matcher.fuzzy_indices(choice, pattern).expect("should match");
-        let got: Vec<usize> = indices.iter().map(|&i| i as usize).collect();
-        assert_eq!(got, expected, "choice={choice:?} pattern={pattern:?}");
+        assert_eq!(indices, expected, "choice={choice:?} pattern={pattern:?}");
     }
 }
 

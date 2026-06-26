@@ -618,7 +618,6 @@ fn full_match_traceback_consumes_pattern() {
 // stale/garbage cells.
 // ---------------------------------------------------------------------------
 mod kernel {
-    use std::cell::RefCell;
     use thread_local::ThreadLocal;
 
     use super::super::algo::{full_dp, range_dp};
@@ -894,7 +893,7 @@ mod kernel_past_end {
     }
 
     /// `range_dp` in typo mode: an off-the-end diagonal skips a row, exercising
-    /// the ALLOW_TYPOS arm of the next-row peek in the range kernel.
+    /// the `ALLOW_TYPOS` arm of the next-row peek in the range kernel.
     #[test]
     fn range_dp_typo_band_skip() {
         let full_buf = ThreadLocal::new();
