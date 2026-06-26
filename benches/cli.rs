@@ -197,7 +197,7 @@ struct RunArgs {
     stable_secs: f64,
 
     /// Only output the table
-    #[arg(long, default_value_t = true)]
+    #[arg(long, default_value_t = false)]
     quiet: bool,
 
     /// Hide the header table, usually used with `quiet`
