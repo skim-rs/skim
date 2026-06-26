@@ -202,3 +202,85 @@ fn simple_match_empty_pattern_scores_zero() {
     let matcher = SkimMatcherV2::default().element_limit(1);
     assert_eq!(matcher.fuzzy_match("hello", ""), Some(0));
 }
+
+#[test]
+fn use_cache_disabled_drops_buffers_after_match() {
+    // With caching disabled the matcher frees its scratch buffers after each
+    // call (the `!use_cache` arms in fuzzy/`fuzzy_with` and the simple path),
+    // but still returns correct results across repeated calls.
+    let matcher = SkimMatcherV2::default().ignore_case().use_cache(false);
+    // Full-DP path (default element_limit) for both indices and score-only.
+    let (_score, indices) = matcher.fuzzy_indices("foobar", "fb").unwrap();
+    assert_eq!(indices, vec![0, 3]);
+    assert!(matcher.fuzzy_match("foobar", "fb").is_some());
+    // A second call must still work after the buffers were dropped.
+    assert!(matcher.fuzzy_indices("foobar", "bar").is_some());
+}
+
+#[test]
+fn simple_match_single_char_at_start_has_no_prev_char() {
+    // A one-character pattern matching the very first choice character takes the
+    // `match_idx == 0` arm (no preceding character → treated as NonWord).
+    let matcher = SkimMatcherV2::default();
+    let (score, indices) = simple_match(&matcher, "hello", "h", false, true).unwrap();
+    assert_eq!(indices, vec![0]);
+    // The same char in the middle of a word scores differently (has a prev char).
+    let (mid_score, _) = simple_match(&matcher, "ahello", "h", false, true).unwrap();
+    assert_ne!(score, mid_score, "start-of-string bonus should differ from mid-word");
+}
+
+#[test]
+fn simple_match_score_only_skips_position_tracking() {
+    // A multi-character match with with_pos = false reaches
+    // calculate_score_with_pos via the score-only path (no positions recorded).
+    let matcher = SkimMatcherV2::default();
+    let (score, positions) = simple_match(&matcher, "axbycz", "abc", false, false).unwrap();
+    assert!(score > 0);
+    assert!(positions.is_empty(), "score-only path must not collect positions");
+
+    // The position-tracking variant returns the same score with indices filled.
+    let (pos_score, positions) = simple_match(&matcher, "axbycz", "abc", false, true).unwrap();
+    assert_eq!(score, pos_score);
+    assert_eq!(positions, vec![0, 2, 4]);
+}
+
+#[test]
+fn gappy_match_traceback_skips_to_first_column() {
+    // Matches with long gaps between pattern characters force the position
+    // traceback to take Skip moves that walk the column index down to the first
+    // matched column while pattern rows remain (the `j > first_col` guard).
+    let matcher = SkimMatcherV2::default();
+    for (choice, pattern, expected) in [
+        ("a___________b", "ab", vec![0usize, 12]),
+        ("x_a_____b__c", "abc", vec![2, 8, 11]),
+        ("a_b_______c", "abc", vec![0, 2, 10]),
+    ] {
+        let (_score, indices) = matcher.fuzzy_indices(choice, pattern).expect("should match");
+        assert_eq!(indices, expected, "choice={choice:?} pattern={pattern:?}");
+    }
+}
+
+#[test]
+fn build_in_place_bonus_short_buffer_skips_first_char_multiplier() {
+    // `b.len() > 1` is false only when the bonus buffer has room for at most the
+    // sentinel slot — i.e. an empty choice. The real caller always sizes
+    // b = choice.len()+1 with a non-empty choice, so reach the false arm by
+    // calling the helper directly with an empty choice and a length-1 buffer.
+    let matcher = SkimMatcherV2::default();
+    let mut b = [0i32];
+    matcher.build_in_place_bonus(&[], &mut b);
+    assert_eq!(b, [0], "empty choice leaves the buffer untouched (no b[1] access)");
+}
+
+#[test]
+fn calculate_score_with_pos_stops_when_pattern_exhausted_early() {
+    // The real caller sets end_idx to the last matched column, so the choice
+    // range never has trailing characters once the pattern is consumed. Call
+    // the helper directly with a wider range so the `op.is_none()` early break
+    // fires on the trailing 'c'.
+    let matcher = SkimMatcherV2::default();
+    let choice: Vec<char> = "abXc".chars().collect();
+    let pattern: Vec<char> = "ab".chars().collect();
+    let (_score, pos) = matcher.calculate_score_with_pos(&choice, &pattern, 0, 3, false, true);
+    assert_eq!(pos, vec![0, 1], "only 'a','b' match; the trailing range is ignored");
+}

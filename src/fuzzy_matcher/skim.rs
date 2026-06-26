@@ -629,60 +629,72 @@ impl SkimMatcherV2 {
             );
         }
 
-        let mut m = ScoreMatrix::new(&mut m, rows, cols);
-        self.build_score_matrix(
-            &mut m,
-            &choice_chars,
-            &pattern_chars,
-            &first_match_indices,
-            compressed,
-            case_sensitive,
-        );
-        let first_col_of_last_row = first_match_indices[first_match_indices.len() - 1];
-        let last_row = m.get_row(Self::adjust_row_idx(num_char_pattern, compressed));
-        let (pat_idx, &MatrixCell { m_score, .. }) = last_row[first_col_of_last_row..]
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, x)| x.m_score)
-            .map(|(idx, cell)| (idx + first_col_of_last_row, cell))
-            .expect("fuzzy_matcher failed to iterate over last_row");
+        // Scope the matrix so its reborrow of `m` ends before we (optionally)
+        // free the caches below; otherwise `replace` would re-borrow `m`'s
+        // RefCell while the matrix still held it and panic.
+        let (m_score, positions) = {
+            let mut matrix = ScoreMatrix::new(&mut m, rows, cols);
+            self.build_score_matrix(
+                &mut matrix,
+                &choice_chars,
+                &pattern_chars,
+                &first_match_indices,
+                compressed,
+                case_sensitive,
+            );
+            let first_col_of_last_row = first_match_indices[first_match_indices.len() - 1];
+            let last_row = matrix.get_row(Self::adjust_row_idx(num_char_pattern, compressed));
+            let (pat_idx, &MatrixCell { m_score, .. }) = last_row[first_col_of_last_row..]
+                .iter()
+                .enumerate()
+                .max_by_key(|&(_, x)| x.m_score)
+                .map(|(idx, cell)| (idx + first_col_of_last_row, cell))
+                .expect("fuzzy_matcher failed to iterate over last_row");
 
-        let mut positions = if with_pos {
-            Vec::with_capacity(num_char_pattern)
-        } else {
-            Vec::new()
-        };
-        if with_pos {
-            let mut i = m.rows - 1;
-            let mut j = pat_idx;
-            let mut track_m = true;
-            let mut current_move = Match;
-            let first_col_first_row = first_match_indices[0];
-            while i > 0 && j > first_col_first_row {
-                if current_move == Match {
-                    positions.push((j - 1) as IndexType);
+            let mut positions = if with_pos {
+                Vec::with_capacity(num_char_pattern)
+            } else {
+                Vec::new()
+            };
+            if with_pos {
+                let mut i = matrix.rows - 1;
+                let mut j = pat_idx;
+                let mut track_m = true;
+                let mut current_move = Match;
+                let first_col_first_row = first_match_indices[0];
+                while i > 0 && j > first_col_first_row {
+                    if current_move == Match {
+                        positions.push((j - 1) as IndexType);
+                    }
+
+                    let cell = &matrix[(i, j)];
+                    current_move = if track_m { cell.m_move } else { cell.p_move };
+                    if track_m {
+                        i -= 1;
+                    }
+
+                    j -= 1;
+
+                    track_m = match current_move {
+                        Match => true,
+                        Skip => false,
+                    };
                 }
-
-                let cell = &m[(i, j)];
-                current_move = if track_m { cell.m_move } else { cell.p_move };
-                if track_m {
-                    i -= 1;
-                }
-
-                j -= 1;
-
-                track_m = match current_move {
-                    Match => true,
-                    Skip => false,
-                };
+                positions.reverse();
             }
-            positions.reverse();
-        }
 
-        if self.debug {
-            println!("Matrix:\n{m:?}");
-        }
+            if self.debug {
+                println!("Matrix:\n{matrix:?}");
+            }
 
+            (m_score, positions)
+        };
+
+        // The matrix's borrow of `m` has ended; release the cache guards
+        // themselves before freeing their backing storage.
+        drop(m);
+        drop(choice_chars);
+        drop(pattern_chars);
         if !self.use_cache {
             // drop the allocated memory
             self.m_cache.get().map(|cell| cell.replace(vec![]));

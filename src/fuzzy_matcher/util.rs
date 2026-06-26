@@ -197,4 +197,13 @@ mod tests {
         assert_eq!(wrap_matches("hello", &[0, 4]), "[h]ell[o]");
         assert_eq!(wrap_matches("hi", &[]), "hi");
     }
+
+    #[test]
+    #[should_panic]
+    fn assert_order_panics_on_wrong_order() {
+        use crate::fuzzy_matcher::skim::SkimMatcherV2;
+
+        let matcher = SkimMatcherV2::default();
+        assert_order(&matcher, "abc", &["zzz", "abc"]);
+    }
 }
