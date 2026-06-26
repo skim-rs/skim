@@ -260,3 +260,28 @@ fn gappy_match_traceback_skips_to_first_column() {
         assert_eq!(got, expected, "choice={choice:?} pattern={pattern:?}");
     }
 }
+
+#[test]
+fn build_in_place_bonus_short_buffer_skips_first_char_multiplier() {
+    // `b.len() > 1` is false only when the bonus buffer has room for at most the
+    // sentinel slot — i.e. an empty choice. The real caller always sizes
+    // b = choice.len()+1 with a non-empty choice, so reach the false arm by
+    // calling the helper directly with an empty choice and a length-1 buffer.
+    let matcher = SkimMatcherV2::default();
+    let mut b = [0i32];
+    matcher.build_in_place_bonus(&[], &mut b);
+    assert_eq!(b, [0], "empty choice leaves the buffer untouched (no b[1] access)");
+}
+
+#[test]
+fn calculate_score_with_pos_stops_when_pattern_exhausted_early() {
+    // The real caller sets end_idx to the last matched column, so the choice
+    // range never has trailing characters once the pattern is consumed. Call
+    // the helper directly with a wider range so the `op.is_none()` early break
+    // fires on the trailing 'c'.
+    let matcher = SkimMatcherV2::default();
+    let choice: Vec<char> = "abXc".chars().collect();
+    let pattern: Vec<char> = "ab".chars().collect();
+    let (_score, pos) = matcher.calculate_score_with_pos(&choice, &pattern, 0, 3, false, true);
+    assert_eq!(pos, vec![0, 1], "only 'a','b' match; the trailing range is ignored");
+}
