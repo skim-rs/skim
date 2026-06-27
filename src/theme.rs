@@ -40,6 +40,8 @@ pub struct ColorTheme {
     pub header: Style,
     /// Border
     pub border: Style,
+    /// Scrollbar thumb on the item list
+    pub scrollbar: Style,
 }
 
 impl Default for ColorTheme {
@@ -81,6 +83,7 @@ impl ColorTheme {
             selected: def,
             header: def,
             border: def,
+            scrollbar: def,
         }
     }
 
@@ -107,6 +110,7 @@ impl ColorTheme {
             selected: base.selected.fg(Color::Magenta),
             header: base.header.fg(Color::Cyan),
             border: base.border.fg(Color::Black),
+            scrollbar: base.scrollbar.fg(Color::Black),
             ..base
         }
     }
@@ -124,6 +128,7 @@ impl ColorTheme {
             selected: base.selected.fg(Color::Indexed(168)),
             header: base.header.fg(Color::Indexed(109)),
             border: base.border.fg(Color::Indexed(59)),
+            scrollbar: base.scrollbar.fg(Color::Indexed(59)),
             ..base
         }
     }
@@ -141,6 +146,7 @@ impl ColorTheme {
             selected: base.selected.fg(Color::Indexed(168)),
             header: base.header.fg(Color::Indexed(109)),
             border: base.border.fg(Color::Indexed(59)),
+            scrollbar: base.scrollbar.fg(Color::Indexed(59)),
             ..base
         }
     }
@@ -158,6 +164,7 @@ impl ColorTheme {
             selected: base.selected.fg(Color::Indexed(168)),
             header: base.header.fg(Color::Indexed(31)),
             border: base.border.fg(Color::Indexed(145)),
+            scrollbar: base.scrollbar.fg(Color::Indexed(145)),
             ..base
         }
     }
@@ -187,6 +194,7 @@ impl ColorTheme {
             selected: base.selected.fg(red),
             header: base.header.fg(subtext1),
             border: base.header.fg(lavender),
+            scrollbar: base.scrollbar.fg(overlay0),
         }
     }
     #[allow(unused_variables)]
@@ -214,6 +222,7 @@ impl ColorTheme {
             selected: base.selected.fg(red),
             header: base.header.fg(subtext1),
             border: base.header.fg(lavender),
+            scrollbar: base.scrollbar.fg(overlay0),
         }
     }
     #[allow(unused_variables)]
@@ -241,6 +250,7 @@ impl ColorTheme {
             selected: base.selected.fg(red),
             header: base.header.fg(subtext1),
             border: base.header.fg(lavender),
+            scrollbar: base.scrollbar.fg(overlay0),
         }
     }
     #[allow(unused_variables)]
@@ -268,6 +278,7 @@ impl ColorTheme {
             selected: base.selected.fg(red),
             header: base.header.fg(subtext1),
             border: base.header.fg(lavender),
+            scrollbar: base.scrollbar.fg(overlay0),
         }
     }
 
@@ -322,6 +333,7 @@ impl ColorTheme {
             "selected" | "marker" => &mut self.selected,
             "header" => &mut self.header,
             "border" => &mut self.border,
+            "scrollbar" => &mut self.scrollbar,
             _ => return,
         };
 

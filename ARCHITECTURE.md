@@ -1023,7 +1023,7 @@ This enables scripted control of a running skim session.
 
 ## Theming
 
-`ColorTheme` (`src/theme.rs`) holds 12 named `ratatui::style::Style` values:
+`ColorTheme` (`src/theme.rs`) holds 13 named `ratatui::style::Style` values:
 
 | Field | Covers |
 |---|---|
@@ -1039,6 +1039,7 @@ This enables scripted control of a running skim session.
 | `selected` | Multi-selected item marker |
 | `header` | Header text |
 | `border` | Border lines |
+| `scrollbar` | Item list scrollbar thumb |
 
 Built-in palettes: `none`, `bw`, `default16`, `dark256`, `molokai256`, `light256`, `catppuccin_mocha`, `catppuccin_macchiato`, `catppuccin_latte`, `catppuccin_frappe`.
 

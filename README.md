@@ -399,6 +399,7 @@ The following UI elements can be customized:
 | `selected`         | Selected item marker color                  | `--color=selected:168`         |
 | `header`           | Header text color                           | `--color=header:109`           |
 | `border`           | Border color for preview/layout             | `--color=border:59`            |
+| `scrollbar`        | Item list scrollbar thumb color             | `--color=scrollbar:59`         |
 
 ### Examples
 

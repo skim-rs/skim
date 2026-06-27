@@ -604,8 +604,12 @@ impl SkimWidget for ItemList {
 
             // Both Default and Custom use a thumb-only style (no track/begin/end arrows).
             // Default uses ▐ (right half-block), which gives a clean minimal look.
+            // Without an explicit thumb_style the thumb inherits whatever fg/bg the
+            // row painted underneath it, so it picks up the current-line highlight as
+            // the cursor scrolls past; the themed `scrollbar` color keeps it uniform.
             let scrollbar: Scrollbar<'_> = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .thumb_symbol(&self.scrollbar_thumb)
+                .thumb_style(self.theme.scrollbar)
                 .track_symbol(None)
                 .begin_symbol(None)
                 .end_symbol(None);
