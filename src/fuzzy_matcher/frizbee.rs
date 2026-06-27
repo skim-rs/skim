@@ -88,3 +88,69 @@ impl FuzzyMatcher for FrizbeeMatcher {
             .map(ScoreType::from)
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use crate::fuzzy_matcher::FuzzyMatcher;
+
+    #[test]
+    fn matches_subsequence() {
+        let m = FrizbeeMatcher::default();
+        assert!(m.fuzzy_match("foobar", "foo").is_some());
+        assert!(m.fuzzy_indices("foobar", "foo").is_some());
+    }
+
+    #[test]
+    fn respect_case_variant() {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Respect);
+        assert!(m.fuzzy_indices("FooBar", "Foo").is_some());
+    }
+
+    #[test]
+    fn smart_case_variant() {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Smart);
+        // Uppercase pattern triggers the case bonus branch.
+        assert!(m.fuzzy_indices("FooBar", "Foo").is_some());
+        // Lowercase pattern -> no bonus.
+        assert!(m.fuzzy_indices("foobar", "foo").is_some());
+    }
+
+    #[test]
+    fn ignore_case_variant() {
+        let m = FrizbeeMatcher::default().case(CaseMatching::Ignore);
+        assert!(m.fuzzy_match("FOOBAR", "foo").is_some());
+    }
+
+    #[test]
+    fn max_typos_tolerates_mismatch() {
+        let m = FrizbeeMatcher::default().max_typos(Some(1));
+        assert!(m.fuzzy_match("foobar", "fxo").is_some());
+    }
+
+    #[test]
+    fn fuzzy_indices_ignore_case() {
+        // Ignore case → matching_case_bonus is 0 in fuzzy_indices.
+        let m = FrizbeeMatcher::default().case(CaseMatching::Ignore);
+        assert!(m.fuzzy_indices("FOOBAR", "foo").is_some());
+    }
+
+    #[test]
+    fn fuzzy_indices_no_match_returns_none() {
+        // A non-subsequence pattern exercises the None branch.
+        let m = FrizbeeMatcher::default();
+        assert!(m.fuzzy_indices("foobar", "zzz").is_none());
+    }
+
+    #[test]
+    fn fuzzy_match_respect_and_smart_case() {
+        // fuzzy_match (score-only) across the Respect and Smart case arms.
+        let respect = FrizbeeMatcher::default().case(CaseMatching::Respect);
+        assert!(respect.fuzzy_match("FooBar", "Foo").is_some());
+
+        let smart = FrizbeeMatcher::default().case(CaseMatching::Smart);
+        assert!(smart.fuzzy_match("FooBar", "Foo").is_some());
+        assert!(smart.fuzzy_match("foobar", "foo").is_some());
+    }
+}

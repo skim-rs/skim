@@ -428,3 +428,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "event_tests.rs"]
+mod tests;

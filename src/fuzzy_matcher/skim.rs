@@ -629,60 +629,72 @@ impl SkimMatcherV2 {
             );
         }
 
-        let mut m = ScoreMatrix::new(&mut m, rows, cols);
-        self.build_score_matrix(
-            &mut m,
-            &choice_chars,
-            &pattern_chars,
-            &first_match_indices,
-            compressed,
-            case_sensitive,
-        );
-        let first_col_of_last_row = first_match_indices[first_match_indices.len() - 1];
-        let last_row = m.get_row(Self::adjust_row_idx(num_char_pattern, compressed));
-        let (pat_idx, &MatrixCell { m_score, .. }) = last_row[first_col_of_last_row..]
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, x)| x.m_score)
-            .map(|(idx, cell)| (idx + first_col_of_last_row, cell))
-            .expect("fuzzy_matcher failed to iterate over last_row");
+        // Scope the matrix so its reborrow of `m` ends before we (optionally)
+        // free the caches below; otherwise `replace` would re-borrow `m`'s
+        // RefCell while the matrix still held it and panic.
+        let (m_score, positions) = {
+            let mut matrix = ScoreMatrix::new(&mut m, rows, cols);
+            self.build_score_matrix(
+                &mut matrix,
+                &choice_chars,
+                &pattern_chars,
+                &first_match_indices,
+                compressed,
+                case_sensitive,
+            );
+            let first_col_of_last_row = first_match_indices[first_match_indices.len() - 1];
+            let last_row = matrix.get_row(Self::adjust_row_idx(num_char_pattern, compressed));
+            let (pat_idx, &MatrixCell { m_score, .. }) = last_row[first_col_of_last_row..]
+                .iter()
+                .enumerate()
+                .max_by_key(|&(_, x)| x.m_score)
+                .map(|(idx, cell)| (idx + first_col_of_last_row, cell))
+                .expect("fuzzy_matcher failed to iterate over last_row");
 
-        let mut positions = if with_pos {
-            Vec::with_capacity(num_char_pattern)
-        } else {
-            Vec::new()
-        };
-        if with_pos {
-            let mut i = m.rows - 1;
-            let mut j = pat_idx;
-            let mut track_m = true;
-            let mut current_move = Match;
-            let first_col_first_row = first_match_indices[0];
-            while i > 0 && j > first_col_first_row {
-                if current_move == Match {
-                    positions.push((j - 1) as IndexType);
+            let mut positions = if with_pos {
+                Vec::with_capacity(num_char_pattern)
+            } else {
+                Vec::new()
+            };
+            if with_pos {
+                let mut i = matrix.rows - 1;
+                let mut j = pat_idx;
+                let mut track_m = true;
+                let mut current_move = Match;
+                let first_col_first_row = first_match_indices[0];
+                while i > 0 && j > first_col_first_row {
+                    if current_move == Match {
+                        positions.push((j - 1) as IndexType);
+                    }
+
+                    let cell = &matrix[(i, j)];
+                    current_move = if track_m { cell.m_move } else { cell.p_move };
+                    if track_m {
+                        i -= 1;
+                    }
+
+                    j -= 1;
+
+                    track_m = match current_move {
+                        Match => true,
+                        Skip => false,
+                    };
                 }
-
-                let cell = &m[(i, j)];
-                current_move = if track_m { cell.m_move } else { cell.p_move };
-                if track_m {
-                    i -= 1;
-                }
-
-                j -= 1;
-
-                track_m = match current_move {
-                    Match => true,
-                    Skip => false,
-                };
+                positions.reverse();
             }
-            positions.reverse();
-        }
 
-        if self.debug {
-            println!("Matrix:\n{m:?}");
-        }
+            if self.debug {
+                println!("Matrix:\n{matrix:?}");
+            }
 
+            (m_score, positions)
+        };
+
+        // The matrix's borrow of `m` has ended; release the cache guards
+        // themselves before freeing their backing storage.
+        drop(m);
+        drop(choice_chars);
+        drop(pattern_chars);
         if !self.use_cache {
             // drop the allocated memory
             self.m_cache.get().map(|cell| cell.replace(vec![]));
@@ -814,176 +826,5 @@ impl FuzzyMatcher for SkimMatcherV2 {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::fuzzy_matcher::util::{assert_order, wrap_matches};
-
-    use super::*;
-
-    fn wrap_fuzzy_match(matcher: &dyn FuzzyMatcher, line: &str, pattern: &str) -> Option<String> {
-        let (score, indices) = matcher.fuzzy_indices(line, pattern)?;
-        println!("score: {score:?}, indices: {indices:?}");
-        Some(wrap_matches(line, &indices))
-    }
-
-    #[test]
-    fn test_match_or_not() {
-        let matcher = SkimMatcherV2::default();
-        assert_eq!(Some(0), matcher.fuzzy_match("", ""));
-        assert_eq!(Some(0), matcher.fuzzy_match("abcdefaghi", ""));
-        assert_eq!(None, matcher.fuzzy_match("", "a"));
-        assert_eq!(None, matcher.fuzzy_match("abcdefaghi", "中"));
-        assert_eq!(None, matcher.fuzzy_match("abc", "abx"));
-        assert!(matcher.fuzzy_match("axbycz", "abc").is_some());
-        assert!(matcher.fuzzy_match("axbycz", "xyz").is_some());
-
-        assert_eq!("[a]x[b]y[c]z", &wrap_fuzzy_match(&matcher, "axbycz", "abc").unwrap());
-        assert_eq!("a[x]b[y]c[z]", &wrap_fuzzy_match(&matcher, "axbycz", "xyz").unwrap());
-        assert_eq!(
-            "[H]ello, [世]界",
-            &wrap_fuzzy_match(&matcher, "Hello, 世界", "H世").unwrap()
-        );
-    }
-
-    #[test]
-    fn test_match_quality() {
-        let matcher = SkimMatcherV2::default().ignore_case();
-
-        // initials
-        assert_order(&matcher, "ab", &["ab", "aoo_boo", "acb"]);
-        assert_order(&matcher, "CC", &["CamelCase", "camelCase", "camelcase"]);
-        assert_order(&matcher, "cC", &["camelCase", "CamelCase", "camelcase"]);
-        assert_order(
-            &matcher,
-            "cc",
-            &["camel case", "camelCase", "CamelCase", "camelcase", "camel ace"],
-        );
-        assert_order(
-            &matcher,
-            "Da.Te",
-            &["Data.Text", "Data.Text.Lazy", "Data.Aeson.Encoding.text"],
-        );
-        // prefix
-        assert_order(&matcher, "is", &["isIEEE", "inSuf"]);
-        // shorter
-        assert_order(&matcher, "ma", &["map", "many", "maximum"]);
-        assert_order(&matcher, "print", &["printf", "sprintf"]);
-        // score(PRINT) = kMinScore
-        assert_order(&matcher, "ast", &["ast", "AST", "INT_FAST16_MAX"]);
-        // score(PRINT) > kMinScore
-        assert_order(&matcher, "Int", &["int", "INT", "PRINT"]);
-    }
-
-    fn simple_match(
-        matcher: &SkimMatcherV2,
-        choice: &str,
-        pattern: &str,
-        case_sensitive: bool,
-        with_pos: bool,
-    ) -> Option<(ScoreType, Vec<IndexType>)> {
-        let choice: Vec<char> = choice.chars().collect();
-        let pattern: Vec<char> = pattern.chars().collect();
-        let first_match_indices = cheap_matches(&choice, &pattern, case_sensitive)?;
-        matcher.simple_match(&choice, &pattern, &first_match_indices, case_sensitive, with_pos)
-    }
-
-    #[test]
-    fn test_match_or_not_simple() {
-        let matcher = SkimMatcherV2::default();
-        assert_eq!(
-            simple_match(&matcher, "axbycz", "xyz", false, true).unwrap().1,
-            vec![1, 3, 5]
-        );
-
-        assert_eq!(simple_match(&matcher, "", "", false, false), Some((0, vec![])));
-        assert_eq!(
-            simple_match(&matcher, "abcdefaghi", "", false, false),
-            Some((0, vec![]))
-        );
-        assert_eq!(simple_match(&matcher, "", "a", false, false), None);
-        assert_eq!(simple_match(&matcher, "abcdefaghi", "中", false, false), None);
-        assert_eq!(simple_match(&matcher, "abc", "abx", false, false), None);
-        assert_eq!(
-            simple_match(&matcher, "axbycz", "abc", false, true).unwrap().1,
-            vec![0, 2, 4]
-        );
-        assert_eq!(
-            simple_match(&matcher, "axbycz", "xyz", false, true).unwrap().1,
-            vec![1, 3, 5]
-        );
-        assert_eq!(
-            simple_match(&matcher, "Hello, 世界", "H世", false, true).unwrap().1,
-            vec![0, 7]
-        );
-    }
-
-    #[test]
-    fn test_match_or_not_v2() {
-        let matcher = SkimMatcherV2::default().debug(true);
-
-        assert_eq!(matcher.fuzzy_match("", ""), Some(0));
-        assert_eq!(matcher.fuzzy_match("abcdefaghi", ""), Some(0));
-        assert_eq!(matcher.fuzzy_match("", "a"), None);
-        assert_eq!(matcher.fuzzy_match("abcdefaghi", "中"), None);
-        assert_eq!(matcher.fuzzy_match("abc", "abx"), None);
-        assert!(matcher.fuzzy_match("axbycz", "abc").is_some());
-        assert!(matcher.fuzzy_match("axbycz", "xyz").is_some());
-
-        assert_eq!(&wrap_fuzzy_match(&matcher, "axbycz", "abc").unwrap(), "[a]x[b]y[c]z");
-        assert_eq!(&wrap_fuzzy_match(&matcher, "axbycz", "xyz").unwrap(), "a[x]b[y]c[z]");
-        assert_eq!(
-            &wrap_fuzzy_match(&matcher, "Hello, 世界", "H世").unwrap(),
-            "[H]ello, [世]界"
-        );
-    }
-
-    #[test]
-    fn test_case_option_v2() {
-        let matcher = SkimMatcherV2::default().ignore_case();
-        assert!(matcher.fuzzy_match("aBc", "abc").is_some());
-        assert!(matcher.fuzzy_match("aBc", "aBc").is_some());
-        assert!(matcher.fuzzy_match("aBc", "aBC").is_some());
-
-        let matcher = SkimMatcherV2::default().respect_case();
-        assert!(matcher.fuzzy_match("aBc", "abc").is_none());
-        assert!(matcher.fuzzy_match("aBc", "aBc").is_some());
-        assert!(matcher.fuzzy_match("aBc", "aBC").is_none());
-
-        let matcher = SkimMatcherV2::default().smart_case();
-        assert!(matcher.fuzzy_match("aBc", "abc").is_some());
-        assert!(matcher.fuzzy_match("aBc", "aBc").is_some());
-        assert!(matcher.fuzzy_match("aBc", "aBC").is_none());
-    }
-
-    #[test]
-    fn test_matcher_quality_v2() {
-        let matcher = SkimMatcherV2::default();
-        assert_order(&matcher, "ab", &["ab", "aoo_boo", "acb"]);
-        assert_order(
-            &matcher,
-            "cc",
-            &["camel case", "camelCase", "CamelCase", "camelcase", "camel ace"],
-        );
-        assert_order(
-            &matcher,
-            "Da.Te",
-            &["Data.Text", "Data.Text.Lazy", "Data.Aeson.Encoding.Text"],
-        );
-        assert_order(&matcher, "is", &["isIEEE", "inSuf"]);
-        assert_order(&matcher, "ma", &["map", "many", "maximum"]);
-        assert_order(&matcher, "print", &["printf", "sprintf"]);
-        assert_order(&matcher, "ast", &["ast", "AST", "INT_FAST16_MAX"]);
-        assert_order(&matcher, "int", &["int", "INT", "PRINT"]);
-    }
-
-    #[test]
-    fn test_reuse_should_not_affect_indices() {
-        let matcher = SkimMatcherV2::default();
-        let pattern = "139";
-        for num in 0..10000 {
-            let choice = num.to_string();
-            if let Some((_score, indices)) = matcher.fuzzy_indices(&choice, pattern) {
-                assert_eq!(indices.len(), 3);
-            }
-        }
-    }
-}
+#[path = "skim_tests.rs"]
+mod tests;

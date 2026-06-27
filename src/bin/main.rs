@@ -1,6 +1,7 @@
 //! Command-line interface for skim fuzzy finder.
 //!
 //! This binary provides the `sk` command-line tool for fuzzy finding and filtering.
+#![cfg_attr(coverage, allow(unused_features), feature(coverage_attribute))]
 
 extern crate clap;
 extern crate env_logger;
@@ -8,17 +9,14 @@ extern crate log;
 extern crate shlex;
 extern crate skim;
 
-use crate::Event;
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
-use derive_builder::Builder;
 use interprocess::bound_util::RefWrite;
 use interprocess::local_socket::ToNsName as _;
 use interprocess::local_socket::traits::Stream as _;
 use log::trace;
 use skim::binds::parse_action_chain;
 use skim::reader::CommandCollector;
-use skim::tui::event::Action;
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, BufWriter, IsTerminal, Write};
@@ -80,9 +78,9 @@ fn main() -> Result<()> {
     // Shell completion scripts
     if let Some(shell) = opts.shell {
         // Generate completion script directly to stdout
-        skim::shell::generate_completions(&shell);
+        skim::shell::generate_completions(&shell, &mut std::io::stdout());
         if opts.shell_bindings {
-            skim::shell::generate_key_bindings(&shell);
+            skim::shell::generate_key_bindings(&shell, &mut std::io::stdout())?;
         }
         return Ok(());
     }
@@ -182,64 +180,7 @@ fn sk_main(mut opts: SkimOptions) -> Result<i32> {
     {
         let stdout = io::stdout();
         let mut out = BufWriter::with_capacity(1 << 20, stdout.lock());
-
-        if let Some(ref output_format) = bin_options.output_format {
-            write!(
-                out,
-                "{}{}",
-                skim::printf(
-                    output_format,
-                    &bin_options.delimiter,
-                    &bin_options.replstr,
-                    &result.selected_items.iter(),
-                    &result.current,
-                    &result.query,
-                    &result.cmd,
-                    false
-                ),
-                bin_options.output_ending
-            )?;
-        } else {
-            if bin_options.print_query {
-                write!(out, "{}{}", result.query, bin_options.output_ending)?;
-            }
-
-            if bin_options.print_cmd {
-                write!(out, "{}{}", result.cmd, bin_options.output_ending)?;
-            }
-
-            if bin_options.print_header {
-                write!(out, "{}{}", result.header, bin_options.output_ending)?;
-            }
-
-            if bin_options.print_current {
-                if let Some(ref current) = result.current {
-                    write!(out, "{}{}", current.output(), bin_options.output_ending)?;
-                } else {
-                    write!(out, "{}", bin_options.output_ending)?;
-                }
-            }
-
-            if let Event::Action(Action::Accept(Some(accept_key))) = result.final_event {
-                write!(out, "{}{}", accept_key, bin_options.output_ending)?;
-            }
-
-            for item in &result.selected_items {
-                if bin_options.strip_ansi {
-                    write!(
-                        out,
-                        "{}{}",
-                        skim::helper::item::strip_ansi(&item.output()).0,
-                        bin_options.output_ending
-                    )?;
-                } else {
-                    write!(out, "{}{}", item.output(), bin_options.output_ending)?;
-                }
-                if bin_options.print_score {
-                    write!(out, "{}{}", item.rank.score, bin_options.output_ending)?;
-                }
-            }
-        }
+        result.write_output(&mut out, &bin_options)?;
         out.flush()?;
     }
 
@@ -284,34 +225,51 @@ fn write_history_to_file(
     Ok(())
 }
 
-/// Options specific to the binary/CLI mode
-#[derive(Builder)]
-#[allow(missing_docs, clippy::struct_excessive_bools)]
-pub struct BinOptions {
-    output_ending: String,
-    print_query: bool,
-    print_cmd: bool,
-    print_score: bool,
-    print_header: bool,
-    print_current: bool,
-    strip_ansi: bool,
-    output_format: Option<String>,
-    delimiter: regex::Regex,
-    replstr: String,
-}
-impl BinOptions {
-    fn from_opts(opts: &SkimOptions) -> Self {
-        Self {
-            print_query: opts.print_query,
-            print_cmd: opts.print_cmd,
-            print_score: opts.print_score,
-            print_header: opts.print_header,
-            print_current: opts.print_current,
-            output_ending: String::from(if opts.print0 { "\0" } else { "\n" }),
-            strip_ansi: opts.ansi && !opts.no_strip_ansi,
-            output_format: opts.output_format.clone(),
-            delimiter: opts.delimiter.clone(),
-            replstr: opts.replstr.clone(),
-        }
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    fn read(path: &std::path::Path) -> String {
+        std::fs::read_to_string(path).unwrap_or_default()
+    }
+
+    #[test]
+    fn write_history_appends_latest_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        write_history_to_file(&["a".to_string(), "b".to_string()], "c", 10, file_str).unwrap();
+        assert_eq!(read(&file), "a\nb\nc");
+    }
+
+    #[test]
+    fn write_history_skips_duplicate_of_last() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        // The latest equals the last entry → nothing is written, no file created.
+        write_history_to_file(&["a".to_string(), "b".to_string()], "b", 10, file_str).unwrap();
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn write_history_truncates_to_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        // limit 2 with 3 existing + 1 new keeps only the newest entries.
+        write_history_to_file(&["a".to_string(), "b".to_string(), "c".to_string()], "d", 2, file_str).unwrap();
+        assert_eq!(read(&file), "c\nd");
+    }
+
+    #[test]
+    fn write_history_empty_latest_does_not_count_towards_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let file_str = file.to_str().unwrap();
+        // An empty latest adds 0 to the length, so no truncation occurs at limit 3.
+        write_history_to_file(&["a".to_string(), "b".to_string(), "c".to_string()], "", 3, file_str).unwrap();
+        assert_eq!(read(&file), "a\nb\nc\n");
     }
 }

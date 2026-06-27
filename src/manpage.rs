@@ -365,3 +365,41 @@ Example:
     base.render_version_section(w)?;
     Ok(())
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    fn manpage_str() -> String {
+        let mut buf = Vec::new();
+        generate(&mut buf).expect("manpage generation should not fail");
+        String::from_utf8(buf).expect("manpage output is valid UTF-8")
+    }
+
+    #[test]
+    fn manpage_contains_version() {
+        let out = manpage_str();
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(
+            out.contains(version),
+            "manpage should contain package version {version}"
+        );
+    }
+
+    #[test]
+    fn manpage_contains_key_options() {
+        let out = manpage_str();
+        for flag in ["query", "multi", "preview", "bind", "color"] {
+            assert!(out.contains(flag), "manpage should mention '--{flag}'");
+        }
+    }
+
+    #[test]
+    fn manpage_contains_sections() {
+        let out = manpage_str();
+        for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
+            assert!(out.contains(section), "manpage should contain section '{section}'");
+        }
+    }
+}

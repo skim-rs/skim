@@ -120,3 +120,70 @@ impl Atom for char {
         self.is_lowercase()
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn u8_find_first_case_sensitive() {
+        let hay = b"abcABC";
+        // Case-sensitive uses memchr directly.
+        assert_eq!(b'A'.find_first_in(hay, true), Some(3));
+        assert_eq!(b'z'.find_first_in(hay, true), None);
+    }
+
+    #[test]
+    fn u8_find_first_case_insensitive_letter() {
+        let hay = b"xxABCxx";
+        // Case-insensitive letter checks both variants and returns the earliest.
+        assert_eq!(b'a'.find_first_in(hay, false), Some(2));
+        assert_eq!(b'C'.find_first_in(hay, false), Some(4));
+    }
+
+    #[test]
+    fn u8_find_first_case_insensitive_digit() {
+        let hay = b"a1b2";
+        // Digits have no case distinction → single memchr branch.
+        assert_eq!(b'2'.find_first_in(hay, false), Some(3));
+        assert_eq!(b'9'.find_first_in(hay, false), None);
+    }
+
+    #[test]
+    fn u8_find_first_only_one_case_present() {
+        let hay = b"hello"; // only lowercase present
+        // Uppercase query, only lowercase in haystack → (Some, None) arm.
+        assert_eq!(b'L'.find_first_in(hay, false), Some(2));
+    }
+
+    #[test]
+    fn u8_find_last_case_variants() {
+        let hay = b"aAbA";
+        // Case-sensitive backward search.
+        assert_eq!(b'A'.find_last_in(hay, true), Some(3));
+        // Case-insensitive returns the rightmost across both variants.
+        assert_eq!(b'a'.find_last_in(hay, false), Some(3));
+    }
+
+    #[test]
+    fn u8_find_last_case_insensitive_digit_and_single_case() {
+        let hay = b"1a1";
+        // Digit: no case distinction.
+        assert_eq!(b'1'.find_last_in(hay, false), Some(2));
+        // Only lowercase present, uppercase query → (None, Some)/(Some, None) arm.
+        assert_eq!(b'A'.find_last_in(hay, false), Some(1));
+    }
+
+    #[test]
+    fn char_atom_eq_and_case() {
+        assert!('a'.eq('A', false));
+        assert!(!'a'.eq('A', true));
+        assert!('a'.is_lowercase());
+        assert!(!'A'.is_lowercase());
+        // Default (non-SIMD) find impls for char.
+        let hay: Vec<char> = "abAB".chars().collect();
+        assert_eq!('A'.find_first_in(&hay, true), Some(2));
+        assert_eq!('a'.find_last_in(&hay, false), Some(2));
+    }
+}

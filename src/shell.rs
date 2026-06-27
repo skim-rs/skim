@@ -1,4 +1,6 @@
 //! Provides helpers to easily generate shell completions
+use std::io::Write;
+
 use clap::CommandFactory;
 
 use crate::SkimOptions;
@@ -21,9 +23,8 @@ pub enum Shell {
 }
 
 /// Generate the completion and write it to stdout
-pub fn generate_completions(sh: &Shell) {
+pub fn generate_completions(sh: &Shell, output: &mut impl Write) {
     use Shell::{Bash, Elvish, Fish, Nushell, PowerShell, Zsh};
-    let output = &mut std::io::stdout();
     let cmd = &mut SkimOptions::command();
     let bin_name = "sk";
 
@@ -42,8 +43,10 @@ pub fn generate_completions(sh: &Shell) {
     }
 }
 
-/// Generate the key-bindings script and write it to stdout
-pub fn generate_key_bindings(sh: &Shell) {
+/// Generate the key-bindings script and write it to the given writer
+/// # Errors
+/// This errors if it fails to write the bytes to the output
+pub fn generate_key_bindings(sh: &Shell, output: &mut impl Write) -> std::io::Result<()> {
     use Shell::{Bash, Fish, Zsh};
     let binds_script = match sh {
         Bash => include_str!("../shell/key-bindings.bash"),
@@ -52,6 +55,11 @@ pub fn generate_key_bindings(sh: &Shell) {
         _ => "",
     };
     if !binds_script.is_empty() {
-        println!("{binds_script}");
+        output.write_all(binds_script.as_bytes())?;
     }
+    Ok(())
 }
+
+#[cfg(test)]
+#[path = "shell_tests.rs"]
+mod tests;

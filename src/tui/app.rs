@@ -14,6 +14,10 @@ use crate::tui::widget::SkimWidget;
 use crate::tui::{SkimRender, TICK_RATE};
 use crate::{ItemPreview, PreviewContext, Rank, SkimItem, SkimOptions, util};
 
+#[cfg(test)]
+#[path = "app_tests.rs"]
+mod tests;
+
 use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
@@ -629,7 +633,10 @@ impl App {
                 }
             }
             Event::Mouse(mouse_event) => {
-                self.handle_mouse(*mouse_event, tui)?;
+                let events = self.handle_mouse(*mouse_event)?;
+                for evt in events {
+                    tui.event_tx.try_send(evt)?;
+                }
             }
             Event::InvalidInput => {
                 warn!("Received invalid input");
@@ -789,27 +796,34 @@ impl App {
                 self.input.move_to_end();
             }
             Execute(cmd) => {
+                use std::io::IsTerminal as _;
+
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {expanded_cmd}");
                 let mut command = crate::shell_cmd(&expanded_cmd);
-                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled()?;
-                if in_raw_mode {
-                    crossterm::terminal::disable_raw_mode()?;
+                let has_tty = std::io::stderr().is_terminal();
+                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+                if has_tty {
+                    if in_raw_mode {
+                        crossterm::terminal::disable_raw_mode()?;
+                    }
+                    crossterm::execute!(
+                        std::io::stderr(),
+                        crossterm::terminal::LeaveAlternateScreen,
+                        crossterm::event::DisableMouseCapture
+                    )?;
                 }
-                crossterm::execute!(
-                    std::io::stderr(),
-                    crossterm::terminal::LeaveAlternateScreen,
-                    crossterm::event::DisableMouseCapture
-                )?;
                 let _ = command.spawn().and_then(|mut c| c.wait());
-                if in_raw_mode {
-                    crossterm::terminal::enable_raw_mode()?;
+                if has_tty {
+                    if in_raw_mode {
+                        crossterm::terminal::enable_raw_mode()?;
+                    }
+                    crossterm::execute!(
+                        std::io::stderr(),
+                        crossterm::terminal::EnterAlternateScreen,
+                        crossterm::event::EnableMouseCapture
+                    )?;
                 }
-                crossterm::execute!(
-                    std::io::stderr(),
-                    crossterm::terminal::EnterAlternateScreen,
-                    crossterm::event::EnableMouseCapture
-                )?;
                 return Ok(vec![Event::Redraw]);
             }
             ExecuteSilent(cmd) => {
@@ -1321,15 +1335,14 @@ impl App {
     }
 
     /// Handle mouse events
-    fn handle_mouse<B: Backend>(&mut self, mouse_event: MouseEvent, tui: &mut Tui<B>) -> Result<()>
-    where
-        B::Error: Send + Sync + 'static,
-    {
+    fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Result<Vec<Event>> {
         let mouse_pos = ratatui::layout::Position {
             x: mouse_event.column,
             y: mouse_event.row,
         };
         trace!("Got mouse event {mouse_event:?}");
+
+        let old_current = self.item_list.current;
 
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
@@ -1338,15 +1351,10 @@ impl App {
                     && preview_area.contains(mouse_pos)
                 {
                     // Scroll preview up
-                    for evt in self.handle_action(&Action::PreviewUp(3))? {
-                        tui.event_tx.try_send(evt)?;
-                    }
-                    return Ok(());
+                    return self.handle_action(&Action::PreviewUp(3));
                 }
                 // Otherwise scroll item list up
-                for evt in self.handle_action(&Action::Up(1))? {
-                    tui.event_tx.try_send(evt)?;
-                }
+                return self.handle_action(&Action::Up(1));
             }
             MouseEventKind::ScrollDown => {
                 // Check if mouse is over preview area
@@ -1354,15 +1362,10 @@ impl App {
                     && preview_area.contains(mouse_pos)
                 {
                     // Scroll preview down
-                    for evt in self.handle_action(&Action::PreviewDown(3))? {
-                        tui.event_tx.try_send(evt)?;
-                    }
-                    return Ok(());
+                    return self.handle_action(&Action::PreviewDown(3));
                 }
                 // Otherwise scroll item list down
-                for evt in self.handle_action(&Action::Down(1))? {
-                    tui.event_tx.try_send(evt)?;
-                }
+                return self.handle_action(&Action::Down(1));
             }
             MouseEventKind::Down(MouseButton::Left) => {
                 if let Some((inner, scrollbar_col)) = self.scrollbar_column()
@@ -1398,8 +1401,13 @@ impl App {
                 // Ignore other mouse events for now
             }
         }
-        tui.event_tx.try_send(Event::Render)?;
-        Ok(())
+
+        self.needs_render();
+
+        if self.item_list.current != old_current {
+            return Ok(Self::on_selection_changed());
+        }
+        Ok(vec![])
     }
     fn toggle_spinner(&mut self) {
         self.show_spinner = !self.show_spinner;
