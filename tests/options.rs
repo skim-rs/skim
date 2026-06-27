@@ -699,6 +699,17 @@ insta_test!(opt_scrollbar_reverse, SCROLLBAR_ITEMS, &["--info=hidden", "--layout
     @snap;
 });
 
+// Regression: the scrollbar thumb keeps a uniform style instead of inheriting the
+// fg/bg of the row it is drawn over. After Up(10) the thumb overlaps the current
+// line (`> item_11`), which --highlight-line fills with the `current` style; the
+// thumb cell in the rightmost column must still carry the themed border color
+// (fg=Indexed(59) in dark256), not the current-line highlight.
+insta_test!(opt_scrollbar_thumb_style, SCROLLBAR_ITEMS, &["--info=hidden", "--highlight-line"], {
+    @action Up(10);
+    @snap;
+    @snap_color;
+});
+
 // Basic rendering: prompt, counters, and the item list.
 insta_test!(vanilla_basic, ["1", "2", "3"], &[], {
     @snap;
