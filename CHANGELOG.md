@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.10.0] - 2026-06-28
+
+### 🚀 Features
+
+- *(theme)* Add a themeable scrollbar color for the item list (#1101)
+
+### 🧪 Testing
+
+- Improve coverage on matchers & algos (#1100)
+
+### New Contributors
+* @max-sixty made their first contribution in [#1101](https://github.com/skim-rs/skim/pull/1101)
+
 ## [4.9.0] - 2026-06-25
 
 ### 🚀 Features
