@@ -26,6 +26,13 @@ fn test_base_themes() {
     let light = ColorTheme::light256();
     assert_eq!(light.matched.fg, Some(Color::Indexed(0)));
     assert_eq!(light.matched.bg, Some(Color::Indexed(220)));
+
+    // The scrollbar thumb defaults to the theme's border color, so it reads as
+    // uniform chrome instead of inheriting the current-line highlight.
+    assert_eq!(dark.scrollbar.fg, Some(Color::Indexed(59)));
+    assert_eq!(light.scrollbar.fg, Some(Color::Indexed(145)));
+    // The colorless theme leaves it unset (NO_COLOR renders no thumb style).
+    assert_eq!(none.scrollbar.fg, None);
 }
 
 #[test]
@@ -60,6 +67,10 @@ fn test_ansi_color_parsing() {
 
     let theme = ColorTheme::from_options("prompt:25");
     assert_eq!(theme.prompt.fg, Some(Color::Indexed(25)));
+
+    // The scrollbar thumb is themeable via the `scrollbar` color key.
+    let theme = ColorTheme::from_options("scrollbar:240");
+    assert_eq!(theme.scrollbar.fg, Some(Color::Indexed(240)));
 }
 
 #[test]
@@ -234,6 +245,9 @@ fn test_all_component_names() {
 
     let theme = ColorTheme::from_options("border:119");
     assert_eq!(theme.border.fg, Some(Color::Indexed(119)));
+
+    let theme = ColorTheme::from_options("scrollbar:120");
+    assert_eq!(theme.scrollbar.fg, Some(Color::Indexed(120)));
 }
 
 #[test]

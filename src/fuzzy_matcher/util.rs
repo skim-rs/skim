@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic = "assertion `left == right` failed"]
     fn assert_order_panics_on_wrong_order() {
         use crate::fuzzy_matcher::skim::SkimMatcherV2;
 

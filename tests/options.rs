@@ -699,6 +699,26 @@ insta_test!(opt_scrollbar_reverse, SCROLLBAR_ITEMS, &["--info=hidden", "--layout
     @snap;
 });
 
+// The thumb is styled with the themed `scrollbar` color (defaulting to the border
+// color) instead of inheriting the fg/bg of the row it is drawn over. After Up(10)
+// the thumb overlaps the current line (`> item_11`), which --highlight-line fills
+// with the `current` style; the thumb cell in the rightmost column keeps
+// fg=Indexed(59) (dark256's scrollbar default), not the current-line highlight.
+insta_test!(opt_scrollbar_thumb_style, SCROLLBAR_ITEMS, &["--info=hidden", "--highlight-line"], {
+    @action Up(10);
+    @snap;
+    @snap_color;
+});
+
+// The `scrollbar` color key themes the thumb independently of the border. With
+// --color=scrollbar:208 the thumb cell renders fg=Indexed(208) on every row,
+// including the --highlight-line current line (row 12), where it keeps fg=208
+// over the current-line background rather than inheriting it.
+insta_test!(opt_scrollbar_thumb_color, SCROLLBAR_ITEMS, &["--info=hidden", "--highlight-line", "--color=scrollbar:208"], {
+    @action Up(10);
+    @snap_color;
+});
+
 // Basic rendering: prompt, counters, and the item list.
 insta_test!(vanilla_basic, ["1", "2", "3"], &[], {
     @snap;

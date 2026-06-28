@@ -90,3 +90,9 @@ pr-review id="":
 coverage *args="":
     cargo +nightly llvm-cov nextest --ignore-run-fail --branch --lib --bins --examples --tests {{ args }}
     cargo +nightly llvm-cov report --html
+
+clippy *args="":
+    cargo clippy --all-targets {{ args }}
+
+fmt *args="":
+    cargo +nightly fmt {{ args }}

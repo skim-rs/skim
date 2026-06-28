@@ -36,6 +36,7 @@ Available color names:
     * selected (or marker): selected item marker
     * header: header text
     * border: border lines
+    * scrollbar: item list scrollbar thumb
 
 Adding `-fg`, `_fg`, `-bg`, `_bg`, `-underline`, `_underline` sets the corresponding part of
 the color. For instance, `normal-fg` (or simply `fg`) will set the foreground normal color.
