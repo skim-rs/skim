@@ -169,6 +169,17 @@ The single crate exports:
 
 The `cli` feature gates `clap`, `clap_complete`, `shlex`, `env_logger`, and `clap_mangen`.
 
+The `image` feature (enabled by default) gates image preview support, including the
+`image` and `ratatui-image` dependencies, the `ImageProtocol` enum, the
+`SkimOptions::image` / `SkimOptions::image_picker` fields, and the
+`PreviewContent::Image` rendering path. With the feature off, the `--image` flag and
+its supporting code are compiled out entirely and neither image crate is pulled in.
+
+The `listen` feature (enabled by default) gates the IPC socket that lets other processes
+drive skim via `--listen` / `--remote`, including the `interprocess`, `ron`, and `serde`
+dependencies, the `SkimOptions::listen` / `SkimOptions::remote` fields, and the `serde`
+derives on `Action`. See [IPC / Listen Socket](#ipc--listen-socket).
+
 ---
 
 ## Entry Points
@@ -799,7 +810,7 @@ Pre-selection is applied when items first appear: `DefaultSkimSelector::should_s
 
 **PTY mode** (`--preview-window pty`): creates a real pseudo-terminal pair via `portable_pty`. The child process sees a properly sized terminal (via `ROWS`/`COLUMNS` env and PTY dimensions). Output is parsed by a `vt100::Parser` with a scrollback buffer, stored as `PreviewContent::Terminal(Arc<RwLock<vt100::Parser>>)`. This enables interactive preview programs (e.g. `bat`, `delta`).
 
-**Image mode** (`--image[=detect|halfblocks]`): treats the expanded preview command as an image path instead of executing it. A worker thread decodes the image with the `image` crate and stores `PreviewContent::Image { source, protocol, size }`. Rendering uses `ratatui_image`; `detect` builds an image protocol picker after entering the alternate screen, while `halfblocks` skips terminal capability detection and uses the portable half-block renderer. The protocol is rebuilt when the preview area changes so the image keeps its aspect ratio within the pane.
+**Image mode** (`--image[=detect|halfblocks]`, requires the default `image` feature): treats the expanded preview command as an image path instead of executing it. A worker thread decodes the image with the `image` crate and stores `PreviewContent::Image { source, protocol, size }`. Rendering uses `ratatui_image`; `detect` builds an image protocol picker after entering the alternate screen, while `halfblocks` skips terminal capability detection and uses the portable half-block renderer. The protocol is rebuilt when the preview area changes so the image keeps its aspect ratio within the pane.
 
 `Preview::spawn()`:
 ```
@@ -995,6 +1006,14 @@ Exit codes: `0` = items selected, `1` = no items selected, `130` = abort, `135` 
 ---
 
 ## IPC / Listen Socket
+
+This subsystem is gated behind the default `listen` Cargo feature, which also pulls in the
+`interprocess`, `ron`, and `serde` dependencies. With the feature off, the `--listen` /
+`--remote` flags, the `Skim::listener` field, the `select!` listener branch, and the
+`serde` derives on `Action` are all compiled out. The `select!` branch cannot carry a
+`#[cfg]` attribute (tokio's macro rejects it), so it stays in place but its future becomes
+a never-resolving `pending()` and its handler is unreachable (the stream type alias
+`RemoteStream` is uninhabited).
 
 When `--listen <socket_name>` is set, `Skim::init_listener()` creates an `interprocess` local socket. The main event loop's `select!` accepts connections and spawns Tokio tasks to read RON-encoded `Action` values line by line:
 

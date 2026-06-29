@@ -6,7 +6,9 @@ use ratatui::prelude::Backend;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
+#[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
+#[cfg(feature = "image")]
 use ratatui_image::protocol::Protocol as ImageProtocol;
 use tui_term::vt100;
 use tui_term::widget::PseudoTerminal;
@@ -37,6 +39,7 @@ pub(crate) enum PreviewContent {
     /// Terminal screen (for PTY previews with cursor positioning)
     Terminal(Arc<RwLock<vt100::Parser>>),
     /// Image
+    #[cfg(feature = "image")]
     Image {
         source: image::DynamicImage,
         protocol: Option<ImageProtocol>,
@@ -90,7 +93,9 @@ pub struct Preview {
     pub wrap: bool,
     pty: Option<PtyPair>,
     pty_child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+    #[cfg(feature = "image")]
     image: bool,
+    #[cfg(feature = "image")]
     image_picker: Option<Picker>,
     pub total_lines: u16,
     loading: bool,
@@ -104,6 +109,7 @@ impl Default for Preview {
 }
 
 impl Preview {
+    #[cfg(feature = "image")]
     fn image_protocol(
         picker: Option<&Picker>,
         source: image::DynamicImage,
@@ -138,6 +144,7 @@ impl Preview {
         picker.new_protocol(source, size, ratatui_image::Resize::Scale(None))
     }
 
+    #[cfg(feature = "image")]
     pub(crate) fn set_image_picker(&mut self, picker: Option<Picker>) {
         self.image_picker = picker;
     }
@@ -331,6 +338,7 @@ impl Preview {
         let event_tx_clone = tui.event_tx.clone();
         let content = self.content.clone();
 
+        #[cfg(feature = "image")]
         if self.image {
             let cmd = self.cmd.clone();
 
@@ -606,6 +614,7 @@ impl Preview {
         }
         total_lines
     }
+    #[cfg(feature = "image")]
     fn render_image(
         &self,
         mut outer: Block,
@@ -667,7 +676,9 @@ impl SkimWidget for Preview {
             interrupt_tx: None,
             pty: None,
             pty_child: None,
+            #[cfg(feature = "image")]
             image: options.image.is_some(),
+            #[cfg(feature = "image")]
             image_picker: options.image_picker.clone(),
             total_lines: 0,
             loading: false,
@@ -717,6 +728,7 @@ impl SkimWidget for Preview {
         match &mut *content {
             PreviewContent::Text(text) => self.total_lines = self.render_text(block, area, buf, text),
             PreviewContent::Terminal(parser) => self.total_lines = self.render_pty(block, area, buf, parser.as_ref()),
+            #[cfg(feature = "image")]
             PreviewContent::Image { source, protocol, size } => {
                 self.render_image(block, area, buf, source, protocol, size);
             }

@@ -2,4 +2,8 @@ set -xeuo pipefail
 
 cargo +nightly fmt --check --all
 cargo clippy --all-targets -- -Dwarnings
-cargo check --no-default-features
+cargo clippy --no-default-features -- -Dwarnings
+cargo clippy --no-default-features --features cli -- -Dwarnings
+cargo clippy --no-default-features --features image -- -Dwarnings
+cargo clippy --no-default-features --features listen -- -Dwarnings
+cargo clippy --no-default-features --features frizbee -- -Dwarnings

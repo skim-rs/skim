@@ -24,11 +24,15 @@ required-features = ["cli"]
 
 [features]
 # Default is destined to the CLI, not to library usage.
-default = ["cli", "frizbee"]
+default = ["cli", "frizbee", "image", "listen"]
 # Everything needed to use skim as a cli (argument parsing, shell integrations...). This should not be needed for most libraries.
-cli = ["dep:clap", "dep:clap_complete", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
+cli = ["dep:clap", "dep:clap_complete", "dep:clap_complete_nushell", "dep:shlex", "dep:env_logger", "dep:clap_mangen"]
 # Include frizbee as a matching algorithm
 frizbee = ["dep:frizbee"]
+# Enable image previews (renders the preview argument as an image)
+image = ["dep:image", "dep:ratatui-image"]
+# Enable the IPC socket (--listen / --remote), driving skim from other processes
+listen = ["dep:interprocess", "dep:ron", "dep:serde"]
 # Enable gungraun (Valgrind-based) benchmarks
 gungraun = ["dep:gungraun"]
 
@@ -61,7 +65,7 @@ ansi-to-tui = "8.0.1"
 assert_enum_variants = "0.1.2"
 clap = { version = "4.6.1" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
 clap_complete = { version = "4.6.5", optional = true }
-clap_complete_nushell = "4.6.0"
+clap_complete_nushell = { version = "4.6.0", optional = true }
 clap_mangen = { version = "0.3.0", optional = true }
 color-eyre = "0.6.5"
 # Crossterm's version is selected by ratatui
@@ -71,9 +75,9 @@ derive_more = { version = "2.1.1", features = ["debug", "eq"] }
 env_logger = { version = "0.11.10", optional = true, features = ["humantime"] }
 futures = "0.3.32"
 gungraun = { version = "0.19.1", optional = true }
-image = "0.25.10"
+image = { version = "0.25.10", optional = true }
 indexmap = "2.13.1"
-interprocess = { version = "2.4.2", features = ["tokio"] }
+interprocess = { version = "2.4.2", features = ["tokio"], optional = true }
 kanal = "0.1.1"
 log = "0.4.31"
 memchr = "2.8.1"
@@ -81,11 +85,11 @@ mimalloc = { version = "0.1.48", features = ["v3"] }
 nix = { version = "0.31.3", features = ["fs", "poll"] }
 portable-pty = "0.9.0"
 ratatui = "0.30.0"
-ratatui-image = { version = "11.0.4", features = ["image-defaults", "crossterm"], default-features = false }
+ratatui-image = { version = "11.0.4", features = ["image-defaults", "crossterm"], default-features = false, optional = true }
 regex = "1.12.3"
 roff = "1.1.1"
-ron = "0.12.1"
-serde = { version = "1.0.228", features = ["derive"] }
+ron = { version = "0.12.1", optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
 shell-quote = "0.7.2"
 shlex = { version = "2.0.1", optional = true }
 tempfile = "3.27.0"

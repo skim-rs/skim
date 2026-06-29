@@ -151,7 +151,8 @@ pub enum Event {
 }
 
 /// Actions that can be performed in skim
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "listen", derive(serde::Serialize, serde::Deserialize))]
 pub enum Action {
     /// Abort and exit with error
     Abort,
@@ -293,7 +294,7 @@ pub enum Action {
     #[debug("custom")]
     #[eq(skip)]
     #[partial_eq(skip)]
-    #[serde(skip)]
+    #[cfg_attr(feature = "listen", serde(skip))]
     Custom(ActionCallback),
 }
 

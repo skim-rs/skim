@@ -138,6 +138,7 @@ jobs:
           path: target/llvm-cov/html
 
   deploy-coverage-page:
+    if: *if-master
     needs: coverage
     runs-on: ubuntu-latest
     permissions:
@@ -149,7 +150,6 @@ jobs:
     steps:
       - name: "Deploy gh pages"
         id: deployment
-        if: *if-master
         uses: actions/deploy-pages@v4
 
   clippy:
@@ -174,7 +174,7 @@ jobs:
         run: |
           cargo fmt --all -- --check
 
-  build-no-default-features:
+  clippy-no-default-features:
     runs-on: ${{matrix.os}}
     strategy:
       matrix: *matrix
@@ -182,9 +182,13 @@ jobs:
       - *checkout
       - *toolchain
       - *cache
-      - name: Build without any feature
+      - name: Run clippy with specific features
         run: |
-          cargo build --no-default-features
+          cargo clippy --no-default-features -- -Dwarnings
+          cargo clippy --no-default-features --features cli -- -Dwarnings
+          cargo clippy --no-default-features --features image -- -Dwarnings
+          cargo clippy --no-default-features --features listen -- -Dwarnings
+          cargo clippy --no-default-features --features frizbee -- -Dwarnings
 
 
   msrv:

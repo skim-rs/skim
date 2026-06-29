@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::{self, OptionExt, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+#[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
 use tokio::runtime::Handle;
 use tokio::select;
@@ -14,6 +15,13 @@ use crate::reader::{Reader, ReaderControl};
 use crate::tui::event::Action;
 use crate::tui::{App, Event, Size, TICK_RATE, Tui};
 use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
+
+/// Stream type yielded by the IPC listener. With the `listen` feature disabled the
+/// listener branch can never fire, so its payload type is uninhabited.
+#[cfg(feature = "listen")]
+type RemoteStream = interprocess::local_socket::tokio::Stream;
+#[cfg(not(feature = "listen"))]
+type RemoteStream = std::convert::Infallible;
 
 /// Main entry point for running skim
 pub struct Skim<Backend = ratatui::backend::CrosstermBackend<BufWriter<Stderr>>>
@@ -29,6 +37,7 @@ where
     initial_cmd: String,
     reader_control: Option<ReaderControl>,
     matcher_interval: Option<tokio::time::Interval>,
+    #[cfg(feature = "listen")]
     listener: Option<interprocess::local_socket::tokio::Listener>,
     final_event: Event,
     final_key: KeyEvent,
@@ -175,6 +184,7 @@ where
             tui: None,
             reader_control: None,
             matcher_interval: None,
+            #[cfg(feature = "listen")]
             listener: None,
             final_event: Event::Quit,
             final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
@@ -350,6 +360,7 @@ where
             .expect("TUI needs to be initialized using Skim::init_tui before entering");
 
         tui.enter_terminal()?;
+        #[cfg(feature = "image")]
         if self.app.options.image == Some(crate::options::ImageProtocol::Detect) {
             if !tui.is_fullscreen {
                 crossterm::execute!(std::io::stderr(), crossterm::terminal::EnterAlternateScreen)?;
@@ -466,7 +477,9 @@ where
 
     /// Initialize the IPC socket listener
     /// This needs to be called from an async context despite being sync
+    #[cfg_attr(not(feature = "listen"), allow(clippy::unnecessary_wraps, clippy::unused_self))]
     fn init_listener(&mut self) -> Result<()> {
+        #[cfg(feature = "listen")]
         if let Some(socket_name) = &self.app.options.listen {
             self.listener = Some(
                 interprocess::local_socket::ListenerOptions::new()
@@ -628,26 +641,38 @@ where
                 self.app.restart_matcher(false);
                 self.try_flush_render();
             }
+            // IPC listener branch. `tokio::select!` does not allow `#[cfg]` on a
+            // branch, so the branch stays but its body is gated: with the `listen`
+            // feature off the future is a never-resolving `pending()` and the handler
+            // is unreachable (`RemoteStream` is uninhabited).
             Ok(stream) = async {
-                match &self.listener {
-                    Some(l) => interprocess::local_socket::traits::tokio::Listener::accept(l).await,
-                    None => std::future::pending().await,
+                #[cfg(feature = "listen")]
+                if let Some(l) = self.listener.as_ref() {
+                    return interprocess::local_socket::traits::tokio::Listener::accept(l).await;
                 }
+                std::future::pending::<std::io::Result<RemoteStream>>().await
             } => {
-                debug!("Listener accepted a connection");
-                let event_tx_clone_ipc = self.tui.as_ref().expect("TUI should be initialized before listening").event_tx.clone();
-                tokio::spawn(async move {
-                    use tokio::io::AsyncBufReadExt;
-                    let reader = tokio::io::BufReader::new(stream);
-                    let mut lines = reader.lines();
-                    while let Ok(Some(line)) = lines.next_line().await {
-                        debug!("listener: got {line}");
-                        if let Ok(act) = ron::from_str::<Action>(&line) {
-                            debug!("listener: parsed into action {act:?}");
-                            _ = event_tx_clone_ipc.try_send(Event::Action(act));
+                #[cfg(feature = "listen")]
+                {
+                    debug!("Listener accepted a connection");
+                    let event_tx_clone_ipc = self.tui.as_ref().expect("TUI should be initialized before listening").event_tx.clone();
+                    tokio::spawn(async move {
+                        use tokio::io::AsyncBufReadExt;
+                        let reader = tokio::io::BufReader::new(stream);
+                        let mut lines = reader.lines();
+                        while let Ok(Some(line)) = lines.next_line().await {
+                            debug!("listener: got {line}");
+                            if let Ok(act) = ron::from_str::<Action>(&line) {
+                                debug!("listener: parsed into action {act:?}");
+                                if let Err(e) = event_tx_clone_ipc.try_send(Event::Action(act)) {
+                                    warn!("listener: failed to send action to backend: {e:?}");
+                                }
+                            }
                         }
-                    }
-                });
+                    });
+                }
+                #[cfg(not(feature = "listen"))]
+                match stream {}
             }
         }
 
