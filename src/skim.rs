@@ -664,7 +664,9 @@ where
                             debug!("listener: got {line}");
                             if let Ok(act) = ron::from_str::<Action>(&line) {
                                 debug!("listener: parsed into action {act:?}");
-                                _ = event_tx_clone_ipc.try_send(Event::Action(act));
+                                if let Err(e) = event_tx_clone_ipc.try_send(Event::Action(act)) {
+                                    warn!("listener: failed to send action to backend: {e:?}");
+                                }
                             }
                         }
                     });
