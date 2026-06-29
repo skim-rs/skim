@@ -1,13 +1,18 @@
+#[cfg(feature = "image")]
 use image::{DynamicImage, RgbaImage};
+#[cfg(feature = "image")]
 use ratatui::layout::Size;
+#[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
 
 use super::Preview;
 
+#[cfg(feature = "image")]
 fn image(width: u32, height: u32) -> DynamicImage {
     DynamicImage::ImageRgba8(RgbaImage::new(width, height))
 }
 
+#[cfg(feature = "image")]
 #[test]
 fn image_protocol_constrains_by_width() {
     let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(400, 200), Size::new(20, 10))
@@ -16,6 +21,7 @@ fn image_protocol_constrains_by_width() {
     assert_eq!(protocol.size(), Size::new(20, 5));
 }
 
+#[cfg(feature = "image")]
 #[test]
 fn image_protocol_constrains_by_height() {
     let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(200, 400), Size::new(20, 10))
@@ -24,6 +30,7 @@ fn image_protocol_constrains_by_height() {
     assert_eq!(protocol.size(), Size::new(10, 10));
 }
 
+#[cfg(feature = "image")]
 #[test]
 fn image_protocol_keeps_at_least_one_cell() {
     let protocol = Preview::image_protocol(Some(&Picker::halfblocks()), image(1000, 1), Size::new(1, 1))
@@ -32,6 +39,7 @@ fn image_protocol_keeps_at_least_one_cell() {
     assert_eq!(protocol.size(), Size::new(1, 1));
 }
 
+#[cfg(feature = "image")]
 #[test]
 fn image_protocol_uses_halfblocks_picker_when_none_is_provided() {
     let protocol = Preview::image_protocol(None, image(400, 200), Size::new(20, 10))
@@ -160,6 +168,7 @@ fn size_to_offset_resolves_each_variant() {
     assert_eq!(p.size_to_offset(super::super::Size::Neg(10), false), 70);
 }
 
+#[cfg(feature = "image")]
 #[test]
 fn set_image_picker_sets_and_clears() {
     let mut p = Preview::default();

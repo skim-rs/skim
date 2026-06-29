@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
+#[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
 use regex::Regex;
 
@@ -62,6 +63,7 @@ pub enum MatchScheme {
 }
 
 /// Image rendering protocols
+#[cfg(feature = "image")]
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum ImageProtocol {
@@ -709,6 +711,7 @@ pub struct SkimOptions {
     ///
     /// Note: the backend detection **will not** work when piping data into skim, use
     /// `SKIM_DEFAULT_COMMAND="find . -type f" sk --image` instead of `find . -type f | sk --image`
+    #[cfg(feature = "image")]
     #[cfg_attr(
         feature = "cli",
         arg(long, help_heading = "Preview", value_enum, default_missing_value = "detect", num_args=0..)
@@ -717,6 +720,7 @@ pub struct SkimOptions {
 
     /// Terminal image protocol picker, queried after entering the alternate screen.
     /// Built from `options.image` and an stdio detection if needed
+    #[cfg(feature = "image")]
     #[cfg_attr(feature = "cli", clap(skip))]
     #[builder(setter(skip))]
     #[debug(skip)]
@@ -842,6 +846,7 @@ pub struct SkimOptions {
     ///
     /// The socket expects Actions in Ron format (similar to Rust code), see `./src/tui/event.rs` for all possible Actions
     /// To write to it, see the `--remote` option or the man page
+    #[cfg(feature = "listen")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub listen: Option<String>,
 
@@ -850,6 +855,7 @@ pub struct SkimOptions {
     /// The commands are read from stdin, one per line, in the same format as the actions in the
     /// bind flag. They can also be chained using `+` as a separator.
     /// All other arguments will be ignored
+    #[cfg(feature = "listen")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
 
@@ -1056,7 +1062,9 @@ impl Default for SkimOptions {
             no_strip_ansi: false,
             wrap_items: false,
             multiline: None,
+            #[cfg(feature = "listen")]
             listen: None,
+            #[cfg(feature = "listen")]
             remote: None,
             print_header: false,
             print_current: false,
@@ -1115,7 +1123,9 @@ impl Default for SkimOptions {
             cmd_history_size: 1000,
             preview: Default::default(),
             preview_window: PreviewLayout::default(),
+            #[cfg(feature = "image")]
             image: None,
+            #[cfg(feature = "image")]
             image_picker: None,
             query: Default::default(),
             cmd_query: Default::default(),

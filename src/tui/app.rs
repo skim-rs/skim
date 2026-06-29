@@ -466,7 +466,10 @@ impl App {
                 preview,
                 ItemPreview::Global | ItemPreview::Command(_) | ItemPreview::CommandWithPos(_, _)
             );
+            #[cfg(feature = "image")]
             let quote_cmd = self.options.image.is_none();
+            #[cfg(not(feature = "image"))]
+            let quote_cmd = true;
             match preview {
                 ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, quote_cmd))?,
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {

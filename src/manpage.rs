@@ -184,6 +184,7 @@ const ACTIONS_SS: &str = "
 * yank: ctrl-y
 ";
 
+#[cfg(feature = "listen")]
 const REMOTE_SECTION: &str = "
 skim can be controlled from other processes, using the `--listen` (and optionally `--remote`) flags.
 
@@ -356,6 +357,7 @@ Example:
 
     section(&mut custom, "THEME", THEME_SECTION);
 
+    #[cfg(feature = "listen")]
     section(&mut custom, "LISTEN/REMOTE", REMOTE_SECTION);
 
     section(&mut custom, "EXIT CODES", EXIT_CODES_SECTION);

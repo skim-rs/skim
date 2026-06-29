@@ -11,10 +11,14 @@ extern crate skim;
 
 use color_eyre::Result;
 use color_eyre::eyre::eyre;
+#[cfg(feature = "listen")]
 use interprocess::bound_util::RefWrite;
+#[cfg(feature = "listen")]
 use interprocess::local_socket::ToNsName as _;
+#[cfg(feature = "listen")]
 use interprocess::local_socket::traits::Stream as _;
 use log::trace;
+#[cfg(feature = "listen")]
 use skim::binds::parse_action_chain;
 use skim::reader::CommandCollector;
 use std::fs::File;
@@ -90,6 +94,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(feature = "listen")]
     if let Some(remote) = opts.remote {
         let ns_name = remote
             .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
