@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-07-02
+
+**Note:** this release is not breaking for CLI users or library users who used the default features.
+
+A lot has happened since skim v4, and this is a good opportunity for a quick recap :
+
+ - *Windows support* has been available for quite a while now, and a lot of work has been put into making skim as cross-platform as possible, with almost the same test coverage on Windows than Unix(-likes).
+ - *Image support in preview* is easily achievable through the `--image` flag, using whatever we detect is available (kitty image protocol, sixel or a unicode half-blocks fallback)
+ - *Zellij support* was added and grouped with tmux under the `--popup` flag
+ - *Multiline items* can be rendered for more complex interfaces
+ - *Various performance improvements* allow us to slowly but steadily keep gaining performance across our benchmarks
+
+Check the changelog for more details !
+
+### 🚀 Features
+
+- [**breaking**] Feature-gate listen and image to allow opting out (#1103)
+
 ## [4.10.0] - 2026-06-28
 
 ### 🚀 Features
