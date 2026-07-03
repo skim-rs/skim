@@ -103,9 +103,6 @@ unicode-display-width = "0.3.0"
 unicode-normalization = "0.1.25"
 which = "8.0.2"
 
-[build-dependencies]
-cfg_aliases = "0.2.1"
-
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["async_tokio"] }
 gnuplot = "0.0.46"

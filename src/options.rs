@@ -193,7 +193,7 @@ pub struct SkimOptions {
     ///
     /// - fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
     ///
-    /// - frizbee Algorithm used in the blink.cmp neovim plugin, supported on aarch64 and x86 only
+    /// - frizbee Algorithm used in the blink.cmp neovim plugin
     #[cfg_attr(
         feature = "cli",
         arg(

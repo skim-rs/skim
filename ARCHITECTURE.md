@@ -510,7 +510,7 @@ All algorithms implement the `FuzzyMatcher` trait with two methods:
 | `SkimV2` | `--algorithm skim_v2` | Skim's classic dynamic-programming scorer |
 | `Clangd` | `--algorithm clangd` | Clangd-style subsequence scoring |
 | `Fzy` | `--algorithm fzy` | Port of the `fzy` C algorithm; supports `--typos` |
-| `Frizbee` | `--algorithm frizbee` | Edit-distance based; explicitly typo-tolerant (x86_64 and aarch64 only) |
+| `Frizbee` | `--algorithm frizbee` | Edit-distance based; explicitly typo-tolerant |
 
 Typo tolerance is configured via `Typos`:
 - `Typos::Disabled` — no tolerance (default)

@@ -26,7 +26,7 @@ _sk() {
 '--algo=[Fuzzy matching algorithm]:ALGORITHM:((arinae\:"Arinae\: typo-resistant & natural algorithm, default"
 clangd\:"Clangd fuzzy matching algorithm"
 fzy\:"Fzy matching algorithm (https\://github.com/jhawthorn/fzy)"
-frizbee\:"Frizbee matching algorithm, typo resistant (x86_64 and aarch64 only)"
+frizbee\:"Frizbee matching algorithm, typo resistant"
 skim_v2\:"Previous skim fuzzy matching algorithm (v2)"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"

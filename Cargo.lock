@@ -3155,7 +3155,6 @@ version = "5.0.0"
 dependencies = [
  "ansi-to-tui",
  "assert_enum_variants",
- "cfg_aliases 0.2.1",
  "clap",
  "clap_complete",
  "clap_complete_nushell",

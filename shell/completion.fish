@@ -17,7 +17,7 @@ complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
 complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "arinae\t'Arinae: typo-resistant & natural algorithm, default'
 clangd\t'Clangd fuzzy matching algorithm'
 fzy\t'Fzy matching algorithm (https://github.com/jhawthorn/fzy)'
-frizbee\t'Frizbee matching algorithm, typo resistant (x86_64 and aarch64 only)'
+frizbee\t'Frizbee matching algorithm, typo resistant'
 skim_v2\t'Previous skim fuzzy matching algorithm (v2)'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
