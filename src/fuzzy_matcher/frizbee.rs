@@ -1,91 +1,91 @@
 //! Matcher using <https://crates.io/crates/frizbee>
-use frizbee::Scoring;
-use frizbee::smith_waterman::SmithWatermanMatcher;
+use std::cell::RefCell;
+
+use frizbee::{Config, Matcher};
 
 use crate::CaseMatching;
 use crate::fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType};
 
-const RESPECT_CASE_BONUS: u16 = 10000;
+thread_local! {
+    /// One reusable frizbee Matcher per thread, keyed by the config it was built with.
+    static LOCAL_MATCHER: RefCell<Option<Matcher>> = const { RefCell::new(None) };
+}
 
 /// Matcher using frizbee,
 /// the same one that `blink.cmp` uses in neovim
 /// credits to @saghen
-#[derive(Default)]
 pub struct FrizbeeMatcher {
-    case: CaseMatching,
-    max_typos: Option<u16>,
+    config: Config,
+}
+impl Default for FrizbeeMatcher {
+    fn default() -> Self {
+        Self {
+            config: Config {
+                casing: CaseMatching::Respect.into(),
+                ..Config::default()
+            },
+        }
+    }
 }
 
 impl FrizbeeMatcher {
     /// Set the max typos to use
     #[must_use]
     pub fn max_typos(mut self, typos: Option<usize>) -> Self {
-        self.max_typos = Some(typos.map_or(0, |x| u16::try_from(x).unwrap_or(u16::MAX)));
+        let mut config = self.config.clone();
+        config.max_typos = Some(typos.map_or(0, |x| u16::try_from(x).unwrap_or(u16::MAX)));
+        self.config = config;
         self
     }
-    /// Set the case, will be converted to a `matching_case_bonus`
+
+    /// Set the case matching strategy
     #[must_use]
     pub fn case(mut self, case: CaseMatching) -> Self {
-        self.case = case;
+        let mut config = self.config.clone();
+        config.casing = case.into();
+        self.config = config;
         self
+    }
+
+    /// Run `f` with a thread-local matcher configured with this matcher's config
+    /// and the given needle.
+    fn with_matcher<R>(&self, pattern: &str, f: impl FnOnce(&mut Matcher) -> R) -> R {
+        LOCAL_MATCHER.with(|cell| {
+            let mut slot = cell.borrow_mut();
+
+            if slot.as_ref().is_none() {
+                *slot = Some(Matcher::new("", &self.config));
+            }
+            let matcher = slot.as_mut().unwrap();
+            matcher.set_config(self.config.clone());
+            matcher.set_needle(pattern);
+            f(matcher)
+        })
     }
 }
 
 impl FuzzyMatcher for FrizbeeMatcher {
     fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(ScoreType, MatchIndices)> {
-        let scoring = Scoring {
-            matching_case_bonus: match self.case {
-                CaseMatching::Respect => RESPECT_CASE_BONUS,
-                CaseMatching::Ignore => 0,
-                CaseMatching::Smart => {
-                    if pattern.chars().any(char::is_uppercase) {
-                        RESPECT_CASE_BONUS
-                    } else {
-                        0
-                    }
-                }
-            },
-            ..Default::default()
-        };
-        let mut matcher = SmithWatermanMatcher::new(pattern.as_bytes(), &scoring);
-        matcher
-            .match_haystack_indices(choice.as_bytes(), 0, self.max_typos)
-            .and_then(|(m, mut indices)| {
-                debug!("{choice}: {m} ({})", scoring.matching_case_bonus);
-                if m > scoring.matching_case_bonus.saturating_mul(
-                    pattern
-                        .chars()
-                        .count()
-                        .saturating_sub(self.max_typos.unwrap_or(0).into())
-                        .try_into()
-                        .unwrap(),
-                ) {
-                    indices.reverse();
-                    Some((m.into(), MatchIndices::from(indices)))
-                } else {
-                    None
-                }
+        self.with_matcher(pattern, |m| {
+            m.match_one_indices(choice, 0).map(|mut hit| {
+                hit.indices.reverse();
+                (hit.score.into(), hit.indices)
             })
+        })
     }
+
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<i64> {
-        let scoring = Scoring {
-            matching_case_bonus: match self.case {
-                CaseMatching::Respect => RESPECT_CASE_BONUS,
-                CaseMatching::Ignore => 0,
-                CaseMatching::Smart => {
-                    if pattern.chars().any(char::is_uppercase) {
-                        RESPECT_CASE_BONUS
-                    } else {
-                        0
-                    }
-                }
-            },
-            ..Default::default()
-        };
-        let mut matcher = SmithWatermanMatcher::new(pattern.as_bytes(), &scoring);
-        matcher
-            .match_haystack(choice.as_bytes(), self.max_typos)
-            .map(ScoreType::from)
+        self.with_matcher(pattern, |m| m.match_one(choice, 0).map(|hit| hit.score.into()))
+    }
+}
+
+impl From<CaseMatching> for frizbee::CaseMatching {
+    fn from(case: CaseMatching) -> Self {
+        match case {
+            CaseMatching::Respect => frizbee::CaseMatching::Respect,
+            CaseMatching::Ignore => frizbee::CaseMatching::Ignore,
+            CaseMatching::Smart => frizbee::CaseMatching::Smart,
+        }
     }
 }
 
