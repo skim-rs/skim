@@ -10,6 +10,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use skim::CaseMatching;
 use skim::fuzzy_matcher::FuzzyMatcher;
 use skim::fuzzy_matcher::arinae::ArinaeMatcher;
+#[cfg(feature = "frizbee")]
 use skim::fuzzy_matcher::frizbee::FrizbeeMatcher;
 use skim::prelude::SkimMatcherV2;
 
@@ -33,6 +34,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
+    #[cfg(feature = "frizbee")]
     c.bench_function("micro_frizbee_score", |b| {
         let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(0));
         b.iter(|| {
@@ -45,6 +47,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
+    #[cfg(feature = "frizbee")]
     c.bench_function("micro_frizbee", |b| {
         let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(0));
         b.iter(|| {
@@ -57,6 +60,7 @@ fn bench_matcher(c: &mut Criterion) {
             count
         });
     });
+    #[cfg(feature = "frizbee")]
     c.bench_function("micro_typos_frizbee", |b| {
         let m = FrizbeeMatcher::default().case(CaseMatching::Smart).max_typos(Some(1));
         b.iter(|| {
