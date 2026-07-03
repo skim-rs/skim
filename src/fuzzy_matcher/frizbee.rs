@@ -32,18 +32,14 @@ impl FrizbeeMatcher {
     /// Set the max typos to use
     #[must_use]
     pub fn max_typos(mut self, typos: Option<usize>) -> Self {
-        let mut config = self.config.clone();
-        config.max_typos = Some(typos.map_or(0, |x| u16::try_from(x).unwrap_or(u16::MAX)));
-        self.config = config;
+        self.config.max_typos = Some(typos.map_or(0, |x| u16::try_from(x).unwrap_or(u16::MAX)));
         self
     }
 
     /// Set the case matching strategy
     #[must_use]
     pub fn case(mut self, case: CaseMatching) -> Self {
-        let mut config = self.config.clone();
-        config.casing = case.into();
-        self.config = config;
+        self.config.casing = case.into();
         self
     }
 
