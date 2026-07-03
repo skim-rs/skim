@@ -7,7 +7,7 @@ use crate::CaseMatching;
 use crate::fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType};
 
 thread_local! {
-    /// One reusable frizbee Matcher per thread, keyed by the config it was built with.
+    /// One reusable frizbee Matcher per thread
     static LOCAL_MATCHER: RefCell<Option<Matcher>> = const { RefCell::new(None) };
 }
 
