@@ -40,6 +40,7 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
+    #[cfg(feature = "frizbee")]
     c.bench_function("filter_10M_frizbee", |b| {
         b.iter_batched(
             || {
@@ -55,6 +56,7 @@ fn criterion_benchmark_10m(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
+    #[cfg(feature = "frizbee")]
     c.bench_function("filter_10M_frizbee_typos", |b| {
         b.iter_batched(
             || {

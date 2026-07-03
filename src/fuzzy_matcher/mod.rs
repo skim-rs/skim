@@ -7,7 +7,7 @@
 pub mod arinae;
 /// Clangd fuzzy matching algorithm
 pub mod clangd;
-#[cfg(frizbee)]
+#[cfg(feature = "frizbee")]
 pub mod frizbee;
 /// Fzy fuzzy matching algorithm
 pub mod fzy;
