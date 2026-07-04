@@ -40,7 +40,7 @@ use std::cell::RefCell;
 
 use thread_local::ThreadLocal;
 
-use crate::fuzzy_matcher::util::cheap_matches;
+use crate::fuzzy_matcher::util::{char_equal, cheap_matches};
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType};
 
 // ---------------------------------------------------------------------------
@@ -123,20 +123,8 @@ fn precompute_bonus(haystack: &[char]) -> Vec<i64> {
 }
 
 #[inline]
-fn is_match(
-    needle: &[char],
-    haystack: &[char],
-    lower_needle: &[char],
-    lower_haystack: &[char],
-    case_sensitive: bool,
-    i: usize,
-    j: usize,
-) -> bool {
-    if case_sensitive {
-        needle[i] == haystack[j]
-    } else {
-        lower_needle[i] == lower_haystack[j]
-    }
+fn is_match(needle: &[char], haystack: &[char], case_sensitive: bool, i: usize, j: usize) -> bool {
+    char_equal(needle[i], haystack[j], case_sensitive)
 }
 
 /// Core fzy scoring without typos.
@@ -162,8 +150,6 @@ fn fzy_score(
         return Some(SCORE_MAX);
     }
 
-    let lower_needle: Vec<char> = needle.iter().map(char::to_ascii_lowercase).collect();
-    let lower_haystack: Vec<char> = haystack.iter().map(char::to_ascii_lowercase).collect();
     let match_bonus = precompute_bonus(haystack);
 
     if positions.is_some() {
@@ -176,7 +162,7 @@ fn fzy_score(
             let mut prev_score = SCORE_MIN;
             let gap = if n == 1 { SCORE_GAP_TRAILING } else { SCORE_GAP_INNER };
             for j in 0..m {
-                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, 0, j) {
+                if is_match(needle, haystack, case_sensitive, 0, j) {
                     let score = i64::try_from(j).unwrap_or(i64::MAX) * SCORE_GAP_LEADING + match_bonus[j];
                     d_matrix[0][j] = score;
                     prev_score = score;
@@ -197,7 +183,7 @@ fn fzy_score(
                 SCORE_GAP_INNER
             };
             for j in 0..m {
-                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, i, j) {
+                if is_match(needle, haystack, case_sensitive, i, j) {
                     let mut score = SCORE_MIN;
                     if j > 0 {
                         let prev_m = m_matrix[i - 1][j - 1];
@@ -259,7 +245,7 @@ fn fzy_score(
                 let old_d = d_row[j];
                 let old_m = m_row[j];
 
-                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, i, j) {
+                if is_match(needle, haystack, case_sensitive, i, j) {
                     let score = if i == 0 {
                         i64::try_from(j).unwrap_or(i64::MAX) * SCORE_GAP_LEADING + match_bonus[j]
                     } else if j > 0 {
@@ -687,7 +673,11 @@ fn internal_to_skim_score(score: i64) -> ScoreType {
     } else if score == SCORE_MIN {
         ScoreType::MIN / 2
     } else {
-        score * SCORE_TO_SKIM
+        // Saturate rather than panic: the DP sentinel (SCORE_MIN) can end up
+        // offset by a few accumulated bonuses/penalties along a path that's
+        // still effectively "no match" (see the fuzz-found case-folding bug
+        // this fixed), landing close to but not exactly on SCORE_MIN/SCORE_MAX.
+        score.saturating_mul(SCORE_TO_SKIM)
     }
 }
 
