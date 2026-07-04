@@ -208,8 +208,7 @@ jobs:
       matrix: *matrix
     steps:
       - *checkout
-      - name: Install nightly rust toolchain
-        run: rustup toolchain install nightly --profile minimal
+      - *toolchain
       - *cache
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
