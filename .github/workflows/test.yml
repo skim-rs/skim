@@ -252,3 +252,28 @@ jobs:
           name: fuzz-crashes-${{ matrix.build }}
           path: fuzz/artifacts/
           if-no-files-found: ignore
+
+  # Single aggregate status check for branch protection / repository rulesets,
+  # so they don't need to enumerate every matrix leg by name individually.
+  ci-success:
+    name: CI Success
+    if: always()
+    needs:
+      - nextest
+      - coverage
+      - deploy-coverage-page
+      - clippy
+      - rustfmt
+      - clippy-no-default-features
+      - msrv
+      - fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all required jobs succeeded
+        run: |
+          echo "${{ toJson(needs) }}"
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All required jobs passed (deploy-coverage-page is expected to skip off master)."
