@@ -203,6 +203,8 @@ jobs:
         run: cargo msrv verify
 
   fuzz:
+    # libFuzzer (and therefore cargo-fuzz) only supports Linux and macOS.
+    if: matrix.os != 'windows-latest'
     runs-on: ${{matrix.os}}
     strategy:
       matrix: *matrix
@@ -214,8 +216,6 @@ jobs:
         with:
           tool: cargo-fuzz@0.13
       - name: Run fuzz targets
-        # libFuzzer (and therefore cargo-fuzz) only supports Linux and macOS.
-        if: runner.os != 'Windows'
         shell: bash
         # 5 targets * 60s = 5 minutes of fuzzing total per run.
         # Force the actual host target: the sanitizer build can't link
