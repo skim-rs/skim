@@ -201,3 +201,37 @@ jobs:
           tool: cargo-msrv@0.19
       - name: MSRV Verify
         run: cargo msrv verify
+
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - ansi_strip
+          - field_extract
+          - fuzzy_match
+          - query_match
+          - keymap_parse
+    steps:
+      - *checkout
+      - name: Install nightly rust toolchain
+        run: rustup toolchain install nightly --profile minimal
+      - name: Setup cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            fuzz -> target
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Fuzz ${{ matrix.target }}
+        # 5 targets * 60s = 5 minutes of fuzzing total per run.
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=60
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
