@@ -16,16 +16,18 @@ fuzz_target!(|input: &str| {
         "mapping length must match the number of chars in the stripped string"
     );
 
-    let total_chars = input.chars().count();
     let mut prev_byte_pos = None;
     for &(byte_pos, char_idx) in &mapping {
         assert!(
             input.is_char_boundary(byte_pos),
             "byte_pos {byte_pos} is not a char boundary in the original string"
         );
-        assert!(
-            char_idx < total_chars,
-            "char_idx {char_idx} out of bounds ({total_chars} chars)"
+        // char_idx must be exactly the char position of byte_pos in the
+        // original string; this is stronger than (and implies) monotonicity.
+        let expected_char_idx = input[..byte_pos].chars().count();
+        assert_eq!(
+            char_idx, expected_char_idx,
+            "char_idx must equal the char position of byte_pos in the original string"
         );
         if let Some(prev) = prev_byte_pos {
             assert!(prev < byte_pos, "byte positions in mapping must be strictly increasing");
