@@ -31,6 +31,7 @@
             cargo-nextest
             cargo-insta
             cargo-llvm-cov
+            cargo-fuzz
             tmux
           ];
           utils = with pkgs; [
