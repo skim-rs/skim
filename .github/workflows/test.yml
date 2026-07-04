@@ -213,9 +213,18 @@ jobs:
       - *toolchain
       - *cache
       - uses: taiki-e/install-action@v2
+        # libFuzzer's SanitizerCoverage instrumentation needs __start/__stop
+        # section-boundary symbols that neither MSVC's link.exe nor LLD's
+        # COFF driver synthesize (that's an ELF/Mach-O-only linker feature),
+        # so fuzz targets can't be linked on Windows at all, with or without
+        # a sanitizer. Separately, MSVC ASan itself is documented broken on
+        # GH-hosted Windows runners (actions/runner-images#8891). Skip
+        # Windows entirely rather than build a binary that can't link.
+        if: runner.os != 'Windows'
         with:
           tool: cargo-fuzz@0.13
       - name: Run fuzz targets
+        if: runner.os != 'Windows'
         shell: bash
         # 5 targets * 60s = 5 minutes of fuzzing total per run.
         # Force the actual host target: the sanitizer build can't link
@@ -223,21 +232,8 @@ jobs:
         # defaults to a musl target elsewhere in the matrix).
         run: |
           host_target="$(rustc +nightly -vV | sed -n 's/^host: //p')"
-          extra_args=()
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            # MSVC's link.exe doesn't synthesize the __start/__stop section
-            # boundary symbols that libFuzzer's SanitizerCoverage
-            # instrumentation needs (independent of ASan); switch to rustc's
-            # bundled LLD, which (like GNU ld) does support this. MSVC ASan
-            # itself is also documented broken on GH-hosted Windows runners
-            # (actions/runner-images#8891: ASan-instrumented binaries crash
-            # with STATUS_DLL_INIT_FAILED even with the DLL on PATH), so run
-            # without a sanitizer here and keep coverage-guided fuzzing only.
-            export RUSTFLAGS="-C linker-flavor=lld-link -C link-self-contained=+linker -Z unstable-options"
-            extra_args=(--sanitizer none)
-          fi
           for target in ansi_strip field_extract fuzzy_match query_match keymap_parse; do
-            cargo +nightly fuzz run "$target" --target "$host_target" "${extra_args[@]}" -- -max_total_time=60
+            cargo +nightly fuzz run "$target" --target "$host_target" -- -max_total_time=60
           done
       - name: Upload crash artifacts
         if: failure()
