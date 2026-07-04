@@ -203,35 +203,29 @@ jobs:
         run: cargo msrv verify
 
   fuzz:
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.os}}
     strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - ansi_strip
-          - field_extract
-          - fuzzy_match
-          - query_match
-          - keymap_parse
+      matrix: *matrix
     steps:
       - *checkout
       - name: Install nightly rust toolchain
         run: rustup toolchain install nightly --profile minimal
-      - name: Setup cargo cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-            fuzz -> target
+      - *cache
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
-      - name: Fuzz ${{ matrix.target }}
+      - name: Run fuzz targets
+        # libFuzzer (and therefore cargo-fuzz) only supports Linux and macOS.
+        if: runner.os != 'Windows'
+        shell: bash
         # 5 targets * 60s = 5 minutes of fuzzing total per run.
-        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=60
+        run: |
+          for target in ansi_strip field_extract fuzzy_match query_match keymap_parse; do
+            cargo +nightly fuzz run "$target" -- -max_total_time=60
+          done
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: fuzz-crash-${{ matrix.target }}
-          path: fuzz/artifacts/${{ matrix.target }}
+          name: fuzz-crashes-${{ matrix.build }}
+          path: fuzz/artifacts/
           if-no-files-found: ignore
