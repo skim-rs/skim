@@ -218,9 +218,13 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         # 5 targets * 60s = 5 minutes of fuzzing total per run.
+        # Force the actual host target: the sanitizer build can't link
+        # against a statically-linked libc (e.g. if CARGO_BUILD_TARGET
+        # defaults to a musl target elsewhere in the matrix).
         run: |
+          host_target="$(rustc +nightly -vV | sed -n 's/^host: //p')"
           for target in ansi_strip field_extract fuzzy_match query_match keymap_parse; do
-            cargo +nightly fuzz run "$target" -- -max_total_time=60
+            cargo +nightly fuzz run "$target" --target "$host_target" -- -max_total_time=60
           done
       - name: Upload crash artifacts
         if: failure()
