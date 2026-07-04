@@ -204,7 +204,7 @@ jobs:
 
   fuzz:
     # libFuzzer (and therefore cargo-fuzz) only supports Linux and macOS.
-    if: matrix.os != 'windows-latest'
+    if: runner.os != 'Windows'
     runs-on: ${{matrix.os}}
     strategy:
       matrix: *matrix
