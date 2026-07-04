@@ -210,8 +210,9 @@ jobs:
       - *checkout
       - *toolchain
       - *cache
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz@0.13
       - name: Run fuzz targets
         # libFuzzer (and therefore cargo-fuzz) only supports Linux and macOS.
         if: runner.os != 'Windows'
