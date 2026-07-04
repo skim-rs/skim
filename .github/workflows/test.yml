@@ -212,19 +212,22 @@ jobs:
       - *checkout
       - *toolchain
       - *cache
+      - name: Set up MSVC dev environment
+        # Without a sanitizer, libFuzzer's coverage instrumentation fails to
+        # link on Windows: neither MSVC's link.exe nor LLD's COFF driver
+        # synthesize the __start/__stop section-boundary symbols it needs
+        # (an ELF/Mach-O-only linker feature). MSVC's AddressSanitizer
+        # runtime provides an equivalent shim for those symbols, so it's
+        # required for the link to succeed at all, not just extra bug
+        # detection. It needs its DLL directory on PATH at run time, which
+        # this action sets up (see
+        # https://rust-fuzz.github.io/book/cargo-fuzz/windows/setup.html).
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
       - uses: taiki-e/install-action@v2
-        # libFuzzer's SanitizerCoverage instrumentation needs __start/__stop
-        # section-boundary symbols that neither MSVC's link.exe nor LLD's
-        # COFF driver synthesize (that's an ELF/Mach-O-only linker feature),
-        # so fuzz targets can't be linked on Windows at all, with or without
-        # a sanitizer. Separately, MSVC ASan itself is documented broken on
-        # GH-hosted Windows runners (actions/runner-images#8891). Skip
-        # Windows entirely rather than build a binary that can't link.
-        if: runner.os != 'Windows'
         with:
           tool: cargo-fuzz@0.13
       - name: Run fuzz targets
-        if: runner.os != 'Windows'
         shell: bash
         # 5 targets * 60s = 5 minutes of fuzzing total per run.
         # Force the actual host target: the sanitizer build can't link
