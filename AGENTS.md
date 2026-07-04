@@ -12,6 +12,7 @@
   2. Run: `TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --target x86_64-unknown-linux-gnu`
 - Lint: `cargo clippy`
 - Format: `cargo +nightly fmt` (check only: `cargo +nightly fmt --check`)
+- Fuzz (requires nightly + `cargo install cargo-fuzz`): `cargo +nightly fuzz run <target>` — see `fuzz/README.md` for target list
 
 ## Code Style
 - Format with 120 char line width (defined in .rustfmt.toml)

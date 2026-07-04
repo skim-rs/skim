@@ -1,0 +1,52 @@
+[package]
+name = "skim-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+regex = "1"
+
+[dependencies.skim]
+path = ".."
+default-features = false
+
+[[bin]]
+name = "ansi_strip"
+path = "fuzz_targets/ansi_strip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "field_extract"
+path = "fuzz_targets/field_extract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzzy_match"
+path = "fuzz_targets/fuzzy_match.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "query_match"
+path = "fuzz_targets/query_match.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "keymap_parse"
+path = "fuzz_targets/keymap_parse.rs"
+test = false
+doc = false
+bench = false
