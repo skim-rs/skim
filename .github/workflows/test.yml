@@ -235,6 +235,13 @@ jobs:
         # defaults to a musl target elsewhere in the matrix).
         run: |
           host_target="$(rustc +nightly -vV | sed -n 's/^host: //p')"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # Git Bash's own coreutils `link` (for hardlinks) sits ahead of
+            # the MSVC one on PATH within this shell, so cargo/rustc would
+            # otherwise invoke the wrong `link.exe`. Point at the real MSVC
+            # linker explicitly, using the dev env ilammy/msvc-dev-cmd set up.
+            export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${VCToolsInstallDir}bin\\HostX64\\x64\\link.exe"
+          fi
           for target in ansi_strip field_extract fuzzy_match query_match keymap_parse; do
             cargo +nightly fuzz run "$target" --target "$host_target" -- -max_total_time=60
           done
