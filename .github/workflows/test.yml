@@ -203,8 +203,6 @@ jobs:
         run: cargo msrv verify
 
   fuzz:
-    # libFuzzer (and therefore cargo-fuzz) only supports Linux and macOS.
-    if: runner.os != 'Windows'
     runs-on: ${{matrix.os}}
     strategy:
       matrix: *matrix
@@ -221,10 +219,19 @@ jobs:
         # Force the actual host target: the sanitizer build can't link
         # against a statically-linked libc (e.g. if CARGO_BUILD_TARGET
         # defaults to a musl target elsewhere in the matrix).
+        # On Windows, AddressSanitizer needs the separate "C++ AddressSanitizer"
+        # Visual Studio component plus its DLL on PATH (see
+        # https://rust-fuzz.github.io/book/cargo-fuzz/windows/setup.html), which
+        # isn't set up on this runner, so disable the sanitizer there and keep
+        # coverage-guided fuzzing (our targets assert via plain Rust panics).
         run: |
           host_target="$(rustc +nightly -vV | sed -n 's/^host: //p')"
+          sanitizer_args=()
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            sanitizer_args=(--sanitizer none)
+          fi
           for target in ansi_strip field_extract fuzzy_match query_match keymap_parse; do
-            cargo +nightly fuzz run "$target" --target "$host_target" -- -max_total_time=60
+            cargo +nightly fuzz run "$target" --target "$host_target" "${sanitizer_args[@]}" -- -max_total_time=60
           done
       - name: Upload crash artifacts
         if: failure()
