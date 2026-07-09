@@ -30,6 +30,40 @@ fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
     Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {e}"))
 }
 
+/// Custom value parser for border
+///
+/// Any undefined value falls back to [`BorderType::Plain`] (see the `FromStr` impl in `tui`)
+/// instead of producing a parse error like the default `ValueEnum` parser would, while still
+/// advertising the known variants in `--help` and shell completions by delegating
+/// [`possible_values`](clap::builder::TypedValueParser::possible_values) to
+/// [`BorderType`]'s [`ValueEnum`](clap::ValueEnum) members.
+#[cfg(feature = "cli")]
+#[derive(Clone)]
+struct BorderValueParser;
+
+#[cfg(feature = "cli")]
+impl clap::builder::TypedValueParser for BorderValueParser {
+    type Value = BorderType;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        // `FromStr for BorderType` is infallible: unknown values map to `BorderType::Plain`.
+        Ok(value.to_string_lossy().parse().unwrap_or(BorderType::Plain))
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        Some(Box::new(
+            <BorderType as clap::ValueEnum>::value_variants()
+                .iter()
+                .filter_map(clap::ValueEnum::to_possible_value),
+        ))
+    }
+}
+
 #[cfg(feature = "cli")]
 /// Custom value parser for typo tolerance
 ///
@@ -562,9 +596,8 @@ pub struct SkimOptions {
     ///
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_missing_value = "plain", help_heading = "Display", default_value = "none", num_args=0..)
+        arg(long, default_missing_value = "plain", help_heading = "Display", default_value = "none", num_args=0.., value_parser = BorderValueParser)
     )]
-    #[debug(skip)]
     pub border: BorderType,
 
     /// Disables all borders, including in tmux/zellij popups

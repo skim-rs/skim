@@ -135,7 +135,7 @@ impl std::fmt::Display for Size {
 /// This mirrors Ratatui's border type
 ///
 /// We need it so that we can properly use `ValueEnum`
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[allow(missing_docs)]
 pub enum BorderType {
@@ -192,6 +192,20 @@ impl BorderType {
     }
 }
 
+#[cfg(feature = "cli")]
+impl std::str::FromStr for BorderType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use clap::ValueEnum as _;
+        for variant in Self::value_variants() {
+            if variant.to_possible_value().unwrap().matches(s, false) {
+                return Ok(*variant);
+            }
+        }
+        Ok(Self::Plain)
+    }
+}
 #[cfg(test)]
 mod size_test {
     use super::*;
