@@ -1,5 +1,6 @@
 use super::*;
 use crate::fuzzy_matcher::FuzzyMatcher;
+use crate::fuzzy_matcher::arinae::constants::MAX_PAT_LEN;
 
 fn matcher() -> ArinaeMatcher {
     ArinaeMatcher::default()
@@ -41,12 +42,12 @@ fn empty_choice_never_matches() {
 fn pattern_longer_than_max_pat_len_is_rejected() {
     // Patterns over MAX_PAT_LEN (32) chars exceed the stack-allocated banding
     // arrays, so the matcher rejects them gracefully rather than panicking.
-    let pattern = "a".repeat(40);
+    let pattern = "a".repeat(MAX_PAT_LEN + 1);
     let choice = "a".repeat(50);
     assert!(score(&choice, &pattern).is_none());
     assert!(matcher().fuzzy_indices(&choice, &pattern).is_none());
     // Also via the non-ASCII (char-buffer) path.
-    let pattern_u = "é".repeat(40);
+    let pattern_u = "é".repeat(MAX_PAT_LEN + 1);
     let choice_u = "é".repeat(50);
     assert!(score(&choice_u, &pattern_u).is_none());
 }
