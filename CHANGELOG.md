@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-07-09
+
+### 🚀 Features
+
+- Bump frizbee to 0.10.0, thread local matcher (#1105)
+- Add cargo-fuzz targets for hand-rolled text parsers (#1106)
+
+### 🐛 Bug Fixes
+
+- Less restrictive max pattern in ari matcher
+- Unknown border values fallback to plain (closes #1107)
+
+### 🧪 Testing
+
+- Fix arinae max pat len test after constant update
+
+### New Contributors
+* @saghen made their first contribution in [#1105](https://github.com/skim-rs/skim/pull/1105)
+
 ## [5.0.0] - 2026-07-02
 
 **Note:** this release is not breaking for CLI users or library users who used the default features.
