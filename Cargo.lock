@@ -1196,9 +1196,9 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "frizbee"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf1203300031cb4fbd90e77833d9b2455f609ba9ab7c1703990d09ebbcd8b5ef"
+checksum = "a151c9ed9ab8cefc76a76b7a15292fc83575f70cf2076d238e0a3251f69738ba"
 
 [[package]]
 name = "funty"
@@ -1367,9 +1367,9 @@ dependencies = [
 
 [[package]]
 name = "gungraun"
-version = "0.19.3"
+version = "0.19.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42dad80904253d053d82f31c739a304715174f3483a8ce7f4db187c47c1588ee"
+checksum = "9300d38d30facf6870c15bc9e243edcc47e5ddc270c9d2c1ae824a00b1faea79"
 dependencies = [
  "bincode-next",
  "derive_more",
@@ -1395,9 +1395,9 @@ dependencies = [
 
 [[package]]
 name = "gungraun-runner"
-version = "0.19.3"
+version = "0.19.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ae33525418129fba64b34a1bfa91f157282559d805ac2bf444736de969dd61a"
+checksum = "47c68c92812da579a2510a2cc702d5aa3251992b9662d4a98502ca46e0cbe16e"
 dependencies = [
  "either-or-both",
  "serde",
@@ -3447,9 +3447,9 @@ dependencies = [
 
 [[package]]
 name = "thread_local"
-version = "1.1.9"
+version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
+checksum = "1ad99c4c6d32803332c548b1af0540b357b3f5fc0be8f6c6bfe8b2e6ae784070"
 dependencies = [
  "cfg-if",
 ]
