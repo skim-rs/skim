@@ -25,7 +25,7 @@ publish-jobs = ["./publish"]
 publish-prereleases = true
 
 [dist.github-custom-runners]
-global = "blacksmith-4vcpu-ubuntu-2204"
+global = "blacksmith-2vcpu-ubuntu-2204"
 aarch64-apple-darwin = "blacksmith-6vcpu-macos-latest"
 aarch64-unknown-linux-gnu = "blacksmith-2vcpu-ubuntu-2404-arm"
 aarch64-unknown-linux-musl = "blacksmith-2vcpu-ubuntu-2404-arm"
