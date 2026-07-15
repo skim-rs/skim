@@ -4,7 +4,7 @@ members = ["cargo:."]
 # Config for 'dist'
 [dist]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.30.4"
+cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
@@ -24,9 +24,15 @@ publish-jobs = ["./publish"]
 # Whether to publish prereleases to package managers
 publish-prereleases = true
 
-# Run dist's coordination ("global") jobs on Blacksmith runners
 [dist.github-custom-runners]
 global = "blacksmith-4vcpu-ubuntu-2204"
+aarch64-apple-darwin = "blacksmith-6vcpu-macos-latest"
+aarch64-unknown-linux-gnu = "blacksmith-2vcpu-ubuntu-2404-arm"
+aarch64-unknown-linux-musl = "blacksmith-2vcpu-ubuntu-2404-arm"
+# x86_64-apple-darwin = ""
+x86_64-unknown-linux-gnu = "blacksmith-2vcpu-ubuntu-2404"
+x86_64-unknown-linux-musl = "blacksmith-2vcpu-ubuntu-2404"
+x86_64-pc-windows-msvc = "blacksmith-2vcpu-windows-2025"
 
 [dist.github-custom-job-permissions.test]
 code-quality = "write"

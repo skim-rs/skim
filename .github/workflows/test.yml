@@ -18,19 +18,19 @@ concurrency:
 
 jobs:
   nextest:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: &matrix
         build: [linux, macos, windows]
         include:
           - build: linux
-            os: ubuntu-latest
+            runner: blacksmith-2vcpu-ubuntu-2404
             target: x86_64-unknown-linux-musl
           - build: macos
-            os: macos-latest
+            runner: blacksmith-6vcpu-macos-latest
             target: x86_64-apple-darwin
           - build: windows
-            os: windows-latest
+            runner: blacksmith-2vcpu-windows-2025
             target: x86_64-pc-windows-msvc
     permissions:
       contents: read
@@ -140,7 +140,7 @@ jobs:
   deploy-coverage-page:
     if: *if-master
     needs: coverage
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       pages: write
       id-token: write
@@ -153,7 +153,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   clippy:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -164,7 +164,7 @@ jobs:
         run: cargo clippy
 
   rustfmt:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -175,7 +175,7 @@ jobs:
           cargo fmt --all -- --check
 
   clippy-no-default-features:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -205,7 +205,7 @@ jobs:
   fuzz:
     permissions:
       contents: read
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -267,7 +267,7 @@ jobs:
       - clippy-no-default-features
       - msrv
       - fuzz
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Check all required jobs succeeded
         run: |
