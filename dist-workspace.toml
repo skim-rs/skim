@@ -24,6 +24,10 @@ publish-jobs = ["./publish"]
 # Whether to publish prereleases to package managers
 publish-prereleases = true
 
+# Run dist's coordination ("global") jobs on Blacksmith runners
+[dist.github-custom-runners]
+global = "blacksmith-4vcpu-ubuntu-2204"
+
 [dist.github-custom-job-permissions.test]
 code-quality = "write"
 contents = "read"
