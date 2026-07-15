@@ -92,7 +92,7 @@ jobs:
         shell: bash
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       code-quality: write
     steps:
@@ -140,7 +140,7 @@ jobs:
   deploy-coverage-page:
     if: *if-master
     needs: coverage
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       pages: write
       id-token: write
@@ -192,7 +192,7 @@ jobs:
 
 
   msrv:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - *checkout
       - *toolchain
@@ -267,7 +267,7 @@ jobs:
       - clippy-no-default-features
       - msrv
       - fuzz
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Check all required jobs succeeded
         run: |

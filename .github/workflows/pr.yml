@@ -8,7 +8,7 @@ on:
 
 jobs:
   check-title:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Create git-cliff mock context
         env:
@@ -73,7 +73,7 @@ jobs:
           echo "Checking..."
           cat "${{ steps.git-cliff.outputs.changelog }}" | grep -Ev '^(## \[unreleased\]|)$' | grep -q '^.\+$'
   check-generated-files:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: actions/checkout@v7
