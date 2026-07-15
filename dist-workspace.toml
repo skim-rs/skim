@@ -25,14 +25,14 @@ publish-jobs = ["./publish"]
 publish-prereleases = true
 
 [dist.github-custom-runners]
-global = "blacksmith-2vcpu-ubuntu-2204"
+global = "ubuntu-latest"
 aarch64-apple-darwin = "blacksmith-6vcpu-macos-latest"
-aarch64-unknown-linux-gnu = "blacksmith-2vcpu-ubuntu-2404-arm"
-aarch64-unknown-linux-musl = "blacksmith-2vcpu-ubuntu-2404-arm"
+aarch64-unknown-linux-gnu = "blacksmith-6vcpu-ubuntu-2404-arm"
+aarch64-unknown-linux-musl = "blacksmith-6vcpu-ubuntu-2404-arm"
 # x86_64-apple-darwin = ""
-x86_64-unknown-linux-gnu = "blacksmith-2vcpu-ubuntu-2404"
-x86_64-unknown-linux-musl = "blacksmith-2vcpu-ubuntu-2404"
-x86_64-pc-windows-msvc = "blacksmith-2vcpu-windows-2025"
+x86_64-unknown-linux-gnu = "blacksmith-6vcpu-ubuntu-2404"
+x86_64-unknown-linux-musl = "blacksmith-6vcpu-ubuntu-2404"
+x86_64-pc-windows-msvc = "blacksmith-6vcpu-windows-2025"
 
 [dist.github-custom-job-permissions.test]
 code-quality = "write"

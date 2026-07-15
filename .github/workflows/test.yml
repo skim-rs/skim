@@ -24,13 +24,13 @@ jobs:
         build: [linux, macos, windows]
         include:
           - build: linux
-            runner: blacksmith-2vcpu-ubuntu-2404
+            runner: blacksmith-6vcpu-ubuntu-2404
             target: x86_64-unknown-linux-musl
           - build: macos
             runner: blacksmith-6vcpu-macos-latest
             target: x86_64-apple-darwin
           - build: windows
-            runner: blacksmith-2vcpu-windows-2025
+            runner: blacksmith-6vcpu-windows-2025
             target: x86_64-pc-windows-msvc
     permissions:
       contents: read
@@ -92,7 +92,7 @@ jobs:
         shell: bash
 
   coverage:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       code-quality: write
     steps:
@@ -140,7 +140,7 @@ jobs:
   deploy-coverage-page:
     if: *if-master
     needs: coverage
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
@@ -267,7 +267,7 @@ jobs:
       - clippy-no-default-features
       - msrv
       - fuzz
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - name: Check all required jobs succeeded
         run: |
