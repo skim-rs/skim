@@ -21,7 +21,9 @@ use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
 /// this consistently outperforms tree-based or fold-based merge strategies
 /// due to driftsort's cache-friendly single-buffer merge passes.
 ///
-/// When `no_sort` is true, the worker results are simply flattened.
+/// When `no_sort` is true, items are sorted by `rank.index` instead, restoring
+/// the original input order: workers grab chunks from a shared queue, so the
+/// concatenation order of worker results is nondeterministic.
 ///
 /// Signals `needs_render` after writing so the UI picks up the new data.
 fn merge_worker_results(
@@ -42,7 +44,9 @@ fn merge_worker_results(
     // (driftsort since 1.81, a TimSort variant before that) detects
     // pre-existing runs and merges them in O(n log k) for k workers,
     // all on contiguous memory with a single auxiliary buffer.
-    if !no_sort {
+    if no_sort {
+        items.sort_by_key(|item| item.rank.index);
+    } else {
         items.sort();
     }
 
@@ -376,7 +380,12 @@ impl Matcher {
                 // cost.  The final merge uses sort() so that driftsort can
                 // exploit the k sorted runs produced by the workers.
                 move |acc: &mut Vec<MatchedItem>| {
-                    if !no_sort {
+                    if no_sort {
+                        // Chunks are grabbed from a shared queue, so the
+                        // accumulator is not in input order; sort by index
+                        // so the final merge sees k sorted runs here too.
+                        acc.sort_unstable_by_key(|item| item.rank.index);
+                    } else {
                         acc.sort_unstable();
                     }
                 },
@@ -467,6 +476,25 @@ mod tests {
         let guard = processed.lock();
         let items = &guard.as_ref().unwrap().items;
         assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn merge_worker_results_no_sort_restores_input_order() {
+        let processed = SpinLock::new(None);
+        let needs_render = AtomicBool::new(false);
+        // Worker slots arrive in nondeterministic order (chunks are grabbed
+        // from a shared queue), so the concatenation is not in input order.
+        let workers = vec![
+            vec![matched("e", 4), matched("f", 5)],
+            vec![matched("c", 2), matched("d", 3)],
+            vec![matched("a", 0), matched("b", 1)],
+        ];
+        merge_worker_results(workers, true, &processed, MergeStrategy::Replace, &needs_render);
+
+        let guard = processed.lock();
+        let items = &guard.as_ref().unwrap().items;
+        let indexes: Vec<i32> = items.iter().map(|item| item.rank.index).collect();
+        assert_eq!(indexes, vec![0, 1, 2, 3, 4, 5]);
     }
 
     #[test]
