@@ -1,0 +1,159 @@
+name: Release PR
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-pr-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: "${{ github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'release: v') }}"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: taiki-e/install-action@43aecc8d72668fbcfe75c31400bc4f890f1c5853 # v2
+        with:
+          tool: git-cliff
+      - id: version
+        name: Compute next version
+        shell: bash
+        run: |
+          version="$(git cliff --bumped-version)"
+          version="${version#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
+          if git rev-parse --verify --quiet "refs/tags/v$version"; then
+            echo "No releasable changes since v$version"
+            exit 0
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Prepare release files
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed -i 's/^version = ".*"/version = "'"$VERSION"'"/' Cargo.toml
+          SKIM_DEFAULT_OPTIONS='' cargo run -- --man > man/man1/sk.1
+          SKIM_DEFAULT_OPTIONS='' cargo run -- --shell bash > shell/completion.bash
+          SKIM_DEFAULT_OPTIONS='' cargo run -- --shell zsh > shell/completion.zsh
+          SKIM_DEFAULT_OPTIONS='' cargo run -- --shell fish > shell/completion.fish
+          SKIM_DEFAULT_OPTIONS='' cargo run -- --shell nushell > shell/completion.nu
+          git cliff -p CHANGELOG.md -t "v$VERSION" -u
+          cargo generate-lockfile
+          echo "$VERSION" > shell/version.txt
+          git diff --binary -- CHANGELOG.md Cargo.lock Cargo.toml man shell > "$RUNNER_TEMP/release.patch"
+          test -s "$RUNNER_TEMP/release.patch"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: steps.version.outputs.version != ''
+        with:
+          name: release-${{ github.sha }}
+          path: ${{ runner.temp }}/release.patch
+          if-no-files-found: error
+
+  update-pr:
+    needs: prepare
+    if: needs.prepare.outputs.version != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-${{ github.sha }}
+          path: ${{ runner.temp }}/release
+      - name: Create the release commit
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          git fetch origin master
+          test "$(git rev-parse origin/master)" = "$GITHUB_SHA"
+          git apply "$RUNNER_TEMP/release/release.patch"
+          unexpected="$(git diff --name-only | grep -Ev '^(CHANGELOG.md|Cargo.lock|Cargo.toml|man/|shell/)' || true)"
+          test -z "$unexpected"
+          git switch -c release-pr
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add CHANGELOG.md Cargo.lock Cargo.toml man shell
+          git commit -m "release: v$VERSION"
+      # Mint the write token only on this fresh runner, after repository code has finished executing.
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.SKIM_RS_BOT_APP_ID }}
+          private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Push branch and create or update PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push --force origin HEAD:release-pr
+
+          cat > "$RUNNER_TEMP/pr-body.md" <<EOF
+          Automated release preparation for v$VERSION.
+
+          This branch is rebuilt from master as one commit on every push. Merge it with the repository's required squash merge; the resulting commit will be tagged v$VERSION and picked up by the release workflow.
+          EOF
+
+          pr="$(gh pr list --base master --head release-pr --state open --json number --jq '.[0].number')"
+          if [[ -n "$pr" ]]; then
+            gh pr edit "$pr" --title "release: v$VERSION" --body-file "$RUNNER_TEMP/pr-body.md"
+          else
+            gh pr create --base master --head release-pr --title "release: v$VERSION" --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
+
+  tag:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'release-pr' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+          sparse-checkout: Cargo.toml
+      - id: release
+        name: Validate release merge
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        shell: bash
+        run: |
+          version="$(awk -F '"' '/^version = "/ { print $2; exit }' Cargo.toml)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]
+          test "$PR_TITLE" = "release: v$version"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      # No checked-out code runs after this repository-scoped, contents-only token is minted.
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.SKIM_RS_BOT_APP_ID }}
+          private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Tag the squash commit
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA"
