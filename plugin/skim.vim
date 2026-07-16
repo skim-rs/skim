@@ -338,7 +338,7 @@ function! skim#wrap(...)
   " Action: g:skim_action
   if !s:has_any(opts, ['sink', 'sink*'])
     let opts._action = get(g:, 'skim_action', s:default_action)
-    let opts.options .= ' --bind='.join(map(keys(opts._action), 'v:val.":accept(".v:val.")"'), ',')
+    let opts.options .= ' '.skim#shellescape('--bind='.join(map(keys(opts._action), 'v:val.":accept(".v:val.")"'), ','))
     function! opts.sink(lines) abort
       return s:common_sink(self._action, a:lines)
     endfunction
