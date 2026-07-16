@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Cursor, Stderr};
 use std::time::Duration;

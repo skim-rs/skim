@@ -5,6 +5,146 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-07-09
+
+### 🚀 Features
+
+- Bump frizbee to 0.10.0, thread local matcher (#1105)
+- Add cargo-fuzz targets for hand-rolled text parsers (#1106)
+
+### 🐛 Bug Fixes
+
+- Less restrictive max pattern in ari matcher
+- Unknown border values fallback to plain (closes #1107)
+
+### 🧪 Testing
+
+- Fix arinae max pat len test after constant update
+
+### New Contributors
+* @saghen made their first contribution in [#1105](https://github.com/skim-rs/skim/pull/1105)
+
+## [5.0.0] - 2026-07-02
+
+**Note:** this release is not breaking for CLI users or library users who used the default features.
+
+A lot has happened since skim v4, and this is a good opportunity for a quick recap :
+
+ - *Windows support* has been available for quite a while now, and a lot of work has been put into making skim as cross-platform as possible, with almost the same test coverage on Windows than Unix(-likes).
+ - *Image support in preview* is easily achievable through the `--image` flag, using whatever we detect is available (kitty image protocol, sixel or a unicode half-blocks fallback)
+ - *Zellij support* was added and grouped with tmux under the `--popup` flag
+ - *Multiline items* can be rendered for more complex interfaces
+ - *Various performance improvements* allow us to slowly but steadily keep gaining performance across our benchmarks
+
+Check the changelog for more details !
+
+### 🚀 Features
+
+- [**breaking**] Feature-gate listen and image to allow opting out (#1103)
+
+## [4.10.0] - 2026-06-28
+
+### 🚀 Features
+
+- *(theme)* Add a themeable scrollbar color for the item list (#1101)
+
+### 🧪 Testing
+
+- Improve coverage on matchers & algos (#1100)
+
+### New Contributors
+* @max-sixty made their first contribution in [#1101](https://github.com/skim-rs/skim/pull/1101)
+
+## [4.9.0] - 2026-06-25
+
+### 🚀 Features
+
+- *(ci)* Upload coverage report to pages for easier browsing (#1096)
+
+### 🐛 Bug Fixes
+
+- Refresh preview after mouse selection (#1095)
+
+### 🧪 Testing
+
+- Add unit tests for the shell & manpage generators (#1098)
+- Improve coverage to 90% (#1099)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Use github's coverage (#1094)
+
+### New Contributors
+* @wang-borong made their first contribution in [#1095](https://github.com/skim-rs/skim/pull/1095)
+
+## [4.8.0] - 2026-06-17
+
+### 🚀 Features
+
+- Add image preview support & preview spinner while loading (#1081)
+
+### 🐛 Bug Fixes
+
+- Multiline popup cmd misread (#1088)
+- Tmux sigpipe (#1090)
+
+### 📚 Documentation
+
+- Update ARCHITECTURE.md
+
+### ⚡ Performance
+
+- Optimize --tac pipeline (#1089)
+
+### ⚙️ Miscellaneous Tasks
+
+- Add msrv checks (#1083)
+- Add image tests & examples
+- Format imports
+
+## [4.7.0] - 2026-05-21
+
+### 🚀 Features
+
+- Add `--disable-pattern` option to selectively disable items (#1077)
+
+### 🐛 Bug Fixes
+
+- *(ari)* Tweak previous char bonuses
+
+### ⚙️ Miscellaneous Tasks
+
+- Crate-level lints
+
+## [4.6.3] - 2026-05-20
+
+### 🐛 Bug Fixes
+
+- Re-enable `--no-mouse` (#1074)
+- Item matching mismatching (closes #1071) (#1073)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Readd PR check (#1068)
+
+## [4.6.2] - 2026-05-02
+
+### 🐛 Bug Fixes
+
+- *(windows)* Use 1-based cursor position (closes #1065)
+
+## [4.6.1] - 2026-04-26
+
+### 🐛 Bug Fixes
+
+- *(windows)* Raw_arg to avoid escape issue (#1061)
+- Do not truncate display when longer than text (#1064)
+
+### ⚙️ Miscellaneous Tasks
+
+- Delete dangerous (and not that useful) PR action in favor of a just recipe
+- Frizbee as a feature and remove quotes from output-format (#1062)
+
 ## [4.6.0] - 2026-04-14
 
 ### 🚀 Features

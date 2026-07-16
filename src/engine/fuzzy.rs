@@ -2,14 +2,16 @@ use std::cmp::min;
 use std::fmt::{Display, Error, Formatter};
 use std::sync::Arc;
 
+use crate::fuzzy_matcher::FuzzyMatcher;
 use crate::fuzzy_matcher::arinae::ArinaeMatcher;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+use crate::fuzzy_matcher::clangd::ClangdMatcher;
+#[cfg(feature = "frizbee")]
 use crate::fuzzy_matcher::frizbee::FrizbeeMatcher;
-use crate::fuzzy_matcher::{FuzzyMatcher, clangd::ClangdMatcher, fzy::FzyMatcher, skim::SkimMatcherV2};
+use crate::fuzzy_matcher::fzy::FzyMatcher;
+use crate::fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine, Typos};
-use crate::{MatchRange, MatchResult, SkimItem};
+use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, SkimItem, Typos};
 
 //------------------------------------------------------------------------------
 /// Fuzzy matching algorithm to use
@@ -17,19 +19,19 @@ use crate::{MatchRange, MatchResult, SkimItem};
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 #[cfg_attr(feature = "cli", clap(rename_all = "snake_case"))]
 pub enum FuzzyAlgorithm {
-    /// Improved skim fuzzy matching algorithm (v2)
-    SkimV2,
-    /// Clangd fuzzy matching algorithm
-    Clangd,
-    /// Fzy matching algorithm (<https://github.com/jhawthorn/fzy>)
-    Fzy,
-    /// Frizbee matching algorithm, typo resistant (`x86_64` and `aarch64` only)
-    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
-    Frizbee,
     /// Arinae: typo-resistant & natural algorithm, default
     #[cfg_attr(feature = "cli", clap(alias = "ari"))]
     #[default]
     Arinae,
+    /// Clangd fuzzy matching algorithm
+    Clangd,
+    /// Fzy matching algorithm (<https://github.com/jhawthorn/fzy>)
+    Fzy,
+    /// Frizbee matching algorithm, typo resistant
+    #[cfg(feature = "frizbee")]
+    Frizbee,
+    /// Previous skim fuzzy matching algorithm (v2)
+    SkimV2,
 }
 
 const BYTES_1M: usize = 1024 * 1024 * 1024;
@@ -127,7 +129,7 @@ impl FuzzyEngineBuilder {
                 debug!("Initialized Clangd algorithm");
                 Box::new(matcher)
             }
-            #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+            #[cfg(feature = "frizbee")]
             FuzzyAlgorithm::Frizbee => Box::new(FrizbeeMatcher::default().case(self.case).max_typos(max_typos)),
             FuzzyAlgorithm::Fzy => {
                 let matcher = FzyMatcher::default().max_typos(max_typos);
@@ -174,30 +176,26 @@ impl MatchEngine for FuzzyEngine {
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
 
-        // Always use fuzzy_match_range which returns (score, begin, end)
-        // without computing per-character match indices.  This avoids an
-        // O(pattern_len) Vec allocation per matched item and skips the full
-        // traceback in the DP.  The renderer handles ByteRange directly for
-        // both horizontal scrolling and match highlighting.
-        let mut best: Option<(i64, usize, usize)> = None;
+        let mut best: Option<(i64, Vec<usize>)> = None;
         for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
             let start = min(start, item_text.len());
             let end = min(end, item_text.len());
 
             let result = if self.query.is_empty() {
-                Some((0i64, 0, 0))
+                Some((0i64, vec![]))
             } else if item_text[start..end].is_empty() {
                 None
             } else {
                 self.matcher
-                    .fuzzy_match_range(&item_text[start..end], &self.query)
-                    .map(|(s, b, e)| {
+                    .fuzzy_indices(&item_text[start..end], &self.query)
+                    .map(|(s, indices)| {
                         let offset = if start != 0 {
                             item_text[..start].chars().count()
                         } else {
                             0
                         };
-                        (s, b + offset, e + offset)
+                        let indices = indices.into_iter().map(|i| i + offset).collect();
+                        (s, indices)
                     })
             };
 
@@ -207,26 +205,14 @@ impl MatchEngine for FuzzyEngine {
             }
         }
 
-        let (score, begin, end) = best?;
-        // `fuzzy_match_range` returns `end` as the inclusive index of the last
-        // matched character.  Convert to exclusive upper bound for CharRange.
-        let end_excl = if self.query.is_empty() { end } else { end + 1 };
+        let (score, indices) = best?;
+        let begin = indices.first().copied().unwrap_or(0);
+        let end_excl = indices.last().map_or(0, |&i| i + 1);
 
-        // When the span length equals the query length, the match is
-        // contiguous and CharRange is a perfect representation (no gaps).
-        // When the span is wider than the query, there are gaps between
-        // matched characters; fall back to fuzzy_indices for accurate
-        // per-character highlighting (only ~25 visible items need this).
-        let query_len = self.query.chars().count();
-        let matched_range = if end_excl - begin == query_len {
-            // Contiguous match — CharRange is exact.
-            MatchRange::CharRange(begin, end_excl)
+        let matched_range = if indices.is_empty() {
+            MatchRange::CharRange(0, 0)
         } else {
-            // Non-contiguous match — compute exact indices for correct highlighting.
-            match self.matcher.fuzzy_indices(&item_text, &self.query) {
-                Some((_s, indices)) => MatchRange::Chars(indices),
-                None => MatchRange::CharRange(begin, end_excl),
-            }
+            MatchRange::Chars(indices)
         };
 
         Some(MatchResult {
@@ -241,5 +227,158 @@ impl MatchEngine for FuzzyEngine {
 impl Display for FuzzyEngine {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "(Fuzzy: {})", self.query)
+    }
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use std::borrow::Cow;
+
+    /// A test item that exposes explicit `get_matching_ranges`, letting us drive
+    /// the per-range loop in `match_item` (empty ranges, non-zero offsets, …).
+    struct RangedItem {
+        text: String,
+        ranges: Vec<(usize, usize)>,
+    }
+
+    impl SkimItem for RangedItem {
+        fn text(&self) -> Cow<'_, str> {
+            Cow::Borrowed(&self.text)
+        }
+
+        fn get_matching_ranges(&self) -> Option<&[(usize, usize)]> {
+            Some(&self.ranges)
+        }
+    }
+
+    #[test]
+    fn effective_max_typos_per_variant() {
+        let disabled = FuzzyEngine::builder().query("hello").typos(Typos::Disabled);
+        assert_eq!(disabled.effective_max_typos(), None);
+
+        let smart = FuzzyEngine::builder().query("hello").typos(Typos::Smart);
+        assert_eq!(smart.effective_max_typos(), Some(1)); // 5 / 4 = 1
+
+        let fixed = FuzzyEngine::builder().query("hello").typos(Typos::Fixed(3));
+        assert_eq!(fixed.effective_max_typos(), Some(3));
+    }
+
+    /// Every algorithm × case combination should build and match a basic query.
+    #[test]
+    fn builds_every_algorithm_and_case() {
+        let algorithms = [
+            FuzzyAlgorithm::SkimV2,
+            FuzzyAlgorithm::Clangd,
+            FuzzyAlgorithm::Fzy,
+            FuzzyAlgorithm::Arinae,
+        ];
+        let cases = [CaseMatching::Respect, CaseMatching::Ignore, CaseMatching::Smart];
+        for algo in algorithms {
+            for case in cases {
+                let engine = FuzzyEngine::builder().query("foo").algorithm(algo).case(case).build();
+                assert!(
+                    engine.match_item(&"foobar".to_string()).is_some(),
+                    "algo {algo:?} case {case:?} should match"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn empty_query_yields_empty_char_range() {
+        let engine = FuzzyEngine::builder().query("").build();
+        let result = engine.match_item(&"anything".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::CharRange(0, 0));
+    }
+
+    #[test]
+    fn matching_query_yields_char_indices() {
+        let engine = FuzzyEngine::builder().query("fb").build();
+        let result = engine.match_item(&"foobar".to_string()).unwrap();
+        assert!(matches!(result.matched_range, MatchRange::Chars(_)));
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        let engine = FuzzyEngine::builder().query("zzz").build();
+        assert!(engine.match_item(&"foobar".to_string()).is_none());
+    }
+
+    /// An empty matching range (start == end) with a non-empty query must be
+    /// skipped; a subsequent non-empty range can still match.
+    #[test]
+    fn empty_matching_range_is_skipped_then_later_range_matches() {
+        let item = RangedItem {
+            text: "foobar".to_string(),
+            ranges: vec![(0, 0), (0, 6)],
+        };
+        let engine = FuzzyEngine::builder().query("fb").build();
+        let result = engine.match_item(&item).expect("second range should match");
+        assert!(matches!(result.matched_range, MatchRange::Chars(_)));
+    }
+
+    /// When every matching range is empty, the query cannot match anywhere.
+    #[test]
+    fn only_empty_matching_ranges_yields_no_match() {
+        let item = RangedItem {
+            text: "foobar".to_string(),
+            ranges: vec![(0, 0), (3, 3)],
+        };
+        let engine = FuzzyEngine::builder().query("f").build();
+        assert!(engine.match_item(&item).is_none());
+    }
+
+    /// A matching range that starts after byte 0 must offset the reported
+    /// character indices by the number of characters skipped before it.
+    #[test]
+    fn nonzero_start_offsets_char_indices() {
+        // Bytes 2..8 of "xxfoobar" are "foobar"; the leading "xx" is two chars.
+        let item = RangedItem {
+            text: "xxfoobar".to_string(),
+            ranges: vec![(2, 8)],
+        };
+        let engine = FuzzyEngine::builder().query("fb").build();
+        let result = engine.match_item(&item).expect("should match within range");
+        let MatchRange::Chars(indices) = result.matched_range else {
+            panic!("expected Chars range, got {:?}", result.matched_range);
+        };
+        // 'f' sits at char index 2 in the full text; nothing before the range.
+        assert!(indices.iter().all(|&i| i >= 2), "indices not offset: {indices:?}");
+        assert!(indices.contains(&2), "expected 'f' at char index 2: {indices:?}");
+    }
+
+    /// Building the Arinae matcher exercises the `matches!(typos, Disabled)`
+    /// branch in both directions (typos on and off).
+    #[test]
+    fn builds_arinae_with_and_without_typos() {
+        for typos in [Typos::Disabled, Typos::Fixed(1)] {
+            let engine = FuzzyEngine::builder()
+                .query("foo")
+                .algorithm(FuzzyAlgorithm::Arinae)
+                .typos(typos)
+                .build();
+            assert!(
+                engine.match_item(&"foobar".to_string()).is_some(),
+                "Arinae with {typos:?} should match"
+            );
+        }
+    }
+
+    #[cfg(feature = "frizbee")]
+    #[test]
+    fn builds_frizbee_algorithm() {
+        let engine = FuzzyEngine::builder()
+            .query("foo")
+            .algorithm(FuzzyAlgorithm::Frizbee)
+            .build();
+        assert!(engine.match_item(&"foobar".to_string()).is_some());
+    }
+
+    #[test]
+    fn display_shows_query() {
+        let engine = FuzzyEngine::builder().query("foo").build();
+        assert_eq!(format!("{engine}"), "(Fuzzy: foo)");
     }
 }

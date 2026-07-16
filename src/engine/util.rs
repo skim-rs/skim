@@ -107,3 +107,50 @@ pub fn contains_upper(string: &str) -> bool {
     }
     false
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contains_upper_detects_case() {
+        assert!(contains_upper("heLlo"));
+        assert!(contains_upper("ABC"));
+        assert!(!contains_upper("hello"));
+        assert!(!contains_upper("123 -_"));
+    }
+
+    #[test]
+    fn regex_match_finds_and_misses() {
+        let re = Regex::new("ba.").unwrap();
+        assert_eq!(regex_match("foobar", Some(&re)), Some((3, 6)));
+        assert_eq!(regex_match("nope", Some(&re)), None);
+        assert_eq!(regex_match("foobar", None), None);
+    }
+
+    #[test]
+    fn byte_range_empty_mapping_returns_zero() {
+        // Empty mapping or out-of-range start short-circuits to (0, 0).
+        assert_eq!(map_byte_range_to_original(0, 2, &[], "abc"), (0, 0));
+        assert_eq!(map_byte_range_to_original(5, 6, &[0, 1, 2], "abc"), (0, 0));
+    }
+
+    #[test]
+    fn byte_range_end_past_mapping_uses_string_len() {
+        // normalized_end beyond the mapping length clamps to the original length.
+        assert_eq!(map_byte_range_to_original(0, 5, &[0, 1, 2], "abc"), (0, 3));
+    }
+
+    #[test]
+    fn byte_range_zero_end_falls_back_to_start() {
+        // normalized_end == 0 yields an empty range anchored at orig_start.
+        assert_eq!(map_byte_range_to_original(1, 0, &[0, 1, 2], "abc"), (1, 1));
+    }
+
+    #[test]
+    fn byte_range_maps_normal_range() {
+        // A normal in-bounds range maps to the byte span of the original char.
+        assert_eq!(map_byte_range_to_original(0, 2, &[0, 1, 2], "abc"), (0, 2));
+    }
+}

@@ -1,3 +1,5 @@
+//! Demonstrates collecting items from a command.
+
 extern crate skim;
 use reader::CommandCollector;
 use skim::prelude::*;
@@ -46,7 +48,7 @@ fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 }

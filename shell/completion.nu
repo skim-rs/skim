@@ -5,7 +5,7 @@ module completions {
   }
 
   def "nu-complete sk algorithm" [] {
-    [ "skim_v2" "clangd" "fzy" "frizbee" "arinae" ]
+    [ "arinae" "clangd" "fzy" "frizbee" "skim_v2" ]
   }
 
   def "nu-complete sk case" [] {
@@ -22,6 +22,10 @@ module completions {
 
   def "nu-complete sk border" [] {
     [ "force-off" "none" "plain" "rounded" "double" "thick" "light-double-dashed" "heavy-double-dashed" "light-triple-dashed" "heavy-triple-dashed" "light-quadruple-dashed" "heavy-quadruple-dashed" "quadrant-inside" "quadrant-outside" ]
+  }
+
+  def "nu-complete sk image" [] {
+    [ "detect" "halfblocks" ]
   }
 
   def "nu-complete sk shell" [] {
@@ -46,7 +50,7 @@ module completions {
     --algo: string@"nu-complete sk algorithm" # Fuzzy matching algorithm
     --case: string@"nu-complete sk case" # Case sensitivity
     --typos: string           # Enable typo-tolerant matching
-    --no-typos                # Disable typo-resistant matching
+    --no-typos                # Disable typo-tolerant matching
     --normalize               # Normalize unicode characters
     --split-match: string     # Enable split matching and set delimiter
     --last-match              # Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
@@ -69,6 +73,7 @@ module completions {
     --show-cmd-error          # Show error message if command fails
     --cycle                   # Cycle the results by wrapping around when scrolling
     --disabled                # Disable matching entirely
+    --disable-pattern: string # Disable items based on this regex pattern
     --layout: string@"nu-complete sk layout" # Set layout
     --reverse                 # Shorthand for reverse layout
     --height: string          # Height of skim's window
@@ -78,7 +83,7 @@ module completions {
     --prompt(-p): string      # Set prompt
     --cmd-prompt: string      # Set prompt in command mode
     --selector: string        # Set selected item icon
-    --multi-selector: string  # Set selected item icon
+    --multi-selector: string  # Set multi-selected item icon
     --ansi                    # Parse ANSI color codes in input strings
     --tabstop: string         # Number of spaces that make up a tab
     --ellipsis: string        # The characters used to display truncated lines
@@ -99,6 +104,7 @@ module completions {
     --cmd-history-size: string # Maximum number of query history entries to keep
     --preview: string         # Preview command
     --preview-window: string  # Preview window layout
+    --image: string@"nu-complete sk image" # Enable image preview
     --query(-q): string       # Initial query
     --cmd-query: string       # Initial query in interactive mode
     --read0                   # Read input delimited by ASCII NUL(\0) characters

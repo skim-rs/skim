@@ -9,6 +9,7 @@ use std::sync::Arc;
 //------------------------------------------------------------------------------
 // Exact engine
 #[derive(Debug, Copy, Clone, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ExactMatchingParam {
     pub prefix: bool,
     pub postfix: bool,
@@ -117,3 +118,7 @@ impl Display for ExactEngine {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "exact_tests.rs"]
+mod tests;

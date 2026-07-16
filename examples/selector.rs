@@ -1,3 +1,5 @@
+//! Demonstrates a custom selector implementation.
+
 extern crate skim;
 use skim::prelude::*;
 
@@ -11,7 +13,7 @@ impl Selector for BasicSelector {
     }
 }
 
-pub fn main() {
+fn main() {
     let selector = BasicSelector {
         pat: String::from("examples"),
     };
@@ -26,7 +28,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 }

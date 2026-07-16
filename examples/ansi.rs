@@ -1,7 +1,10 @@
-extern crate skim;
-use skim::{prelude::*, reader::CommandCollector};
+//! Demonstrates selecting ANSI-colored command output.
 
-pub fn main() {
+extern crate skim;
+use skim::prelude::*;
+use skim::reader::CommandCollector;
+
+fn main() {
     env_logger::init();
 
     let glogm = "git log --oneline --color=always | head -n10";
@@ -24,7 +27,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("selected: {}", item.output());
     }
 }

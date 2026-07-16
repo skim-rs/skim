@@ -140,3 +140,70 @@ pub fn wrap_matches(line: &str, indices: &[IndexType]) -> String {
 
     ret
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn char_equal_case_sensitive() {
+        assert!(char_equal('a', 'a', true));
+        assert!(!char_equal('a', 'A', true));
+    }
+
+    #[test]
+    fn char_equal_case_insensitive() {
+        assert!(char_equal('a', 'A', false));
+        assert!(!char_equal('a', 'b', false));
+    }
+
+    #[test]
+    fn char_equal_multichar_lowercase_mismatch() {
+        // 'İ' (U+0130) lowercases to two chars ("i" + combining dot), so it is
+        // not equal to the single char 'i' — exercising the length-mismatch path.
+        assert!(!char_equal('İ', 'i', false));
+    }
+
+    #[test]
+    fn cheap_matches_subsequence() {
+        let choice: Vec<char> = "hello".chars().collect();
+        let pattern: Vec<char> = "hlo".chars().collect();
+        assert_eq!(cheap_matches(&choice, &pattern, true), Some(vec![0, 2, 4]));
+    }
+
+    #[test]
+    fn cheap_matches_no_match() {
+        let choice: Vec<char> = "hello".chars().collect();
+        let pattern: Vec<char> = "xyz".chars().collect();
+        assert_eq!(cheap_matches(&choice, &pattern, true), None);
+    }
+
+    #[test]
+    fn char_type_and_role() {
+        assert_eq!(char_type_of('a'), CharType::Lower);
+        assert_eq!(char_type_of('A'), CharType::Upper);
+        assert_eq!(char_type_of('1'), CharType::Number);
+        assert_eq!(char_type_of('-'), CharType::NonWord);
+
+        assert_eq!(char_role('o', 'B'), CharRole::Head);
+        assert_eq!(char_role('-', 'f'), CharRole::Head);
+        assert_eq!(char_role('F', 'o'), CharRole::Tail);
+        assert_eq!(char_role('H', 'T'), CharRole::Tail);
+    }
+
+    #[test]
+    fn wrap_matches_brackets_indices() {
+        assert_eq!(wrap_matches("hello", &[0, 4]), "[h]ell[o]");
+        assert_eq!(wrap_matches("hi", &[]), "hi");
+    }
+
+    #[test]
+    #[should_panic = "assertion `left == right` failed"]
+    fn assert_order_panics_on_wrong_order() {
+        use crate::fuzzy_matcher::skim::SkimMatcherV2;
+
+        let matcher = SkimMatcherV2::default();
+        assert_order(&matcher, "abc", &["zzz", "abc"]);
+    }
+}

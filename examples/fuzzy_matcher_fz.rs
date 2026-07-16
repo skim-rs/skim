@@ -1,3 +1,5 @@
+//! Demonstrates fuzzy matching lines with selectable matching algorithms.
+
 use skim::fuzzy_matcher::FuzzyMatcher;
 use skim::fuzzy_matcher::clangd::ClangdMatcher;
 use skim::fuzzy_matcher::skim::SkimMatcherV2;
@@ -7,19 +9,19 @@ use std::process::exit;
 
 type IndexType = usize;
 
-pub fn main() {
+fn main() {
     let args: Vec<String> = env::args().collect();
 
     // arg parsing (manually)
     let mut arg_iter = args.iter().skip(1);
-    let mut pattern = "".to_string();
+    let mut pattern = String::new();
     let mut algorithm = Some("skim");
 
     while let Some(arg) = arg_iter.next() {
         if arg == "--algo" {
             algorithm = arg_iter.next().map(String::as_ref);
         } else {
-            pattern = arg.to_string();
+            pattern.clone_from(arg);
         }
     }
 
@@ -29,9 +31,9 @@ pub fn main() {
     }
 
     let matcher: Box<dyn FuzzyMatcher> = match algorithm {
-        Some("skim") | Some("skim_v2") => Box::new(SkimMatcherV2::default()),
+        Some("skim" | "skim_v2") => Box::new(SkimMatcherV2::default()),
         Some("clangd") => Box::new(ClangdMatcher::default()),
-        _ => panic!("Algorithm not supported: {:?}", algorithm),
+        _ => panic!("Algorithm not supported: {algorithm:?}"),
     };
 
     let stdin = io::stdin();
@@ -52,7 +54,7 @@ fn wrap_matches(line: &str, indices: &[IndexType]) -> String {
     for (idx, ch) in line.chars().enumerate() {
         let next_id = **peekable.peek().unwrap_or(&&(line.len() as IndexType));
         if next_id == (idx as IndexType) {
-            ret.push_str(format!("{}{}{}", ansi_invert, ch, ansi_reset).as_str());
+            ret.push_str(format!("{ansi_invert}{ch}{ansi_reset}").as_str());
             peekable.next();
         } else {
             ret.push(ch);

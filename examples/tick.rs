@@ -1,7 +1,9 @@
+//! Demonstrates manually driving skim ticks.
+
 use skim::prelude::*;
 
 #[tokio::main]
-pub async fn main() -> color_eyre::eyre::Result<()> {
+async fn main() -> color_eyre::eyre::Result<()> {
     let opts = SkimOptionsBuilder::default().cmd("cat bench_data.txt").build()?;
 
     println!("START");

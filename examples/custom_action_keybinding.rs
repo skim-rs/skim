@@ -1,10 +1,12 @@
+//! Demonstrates binding custom action callbacks to keyboard shortcuts.
+
 extern crate skim;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use skim::prelude::*;
 use skim::tui::event::{Action, ActionCallback, Event};
 use std::io::Cursor;
 
-/// This example demonstrates how to bind custom action callbacks to keyboard shortcuts.
+/// Runs the custom action keybinding example.
 ///
 /// It shows how to:
 /// 1. Create custom action callbacks (both sync and async)

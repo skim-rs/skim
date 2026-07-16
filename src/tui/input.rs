@@ -1,22 +1,21 @@
 use std::fmt::Write as _;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 use std::time::Instant;
 
 use ansi_to_tui::IntoText;
-use ratatui::{prelude::*, widgets::Widget};
+use ratatui::prelude::*;
+use ratatui::widgets::Widget;
 use unicode_display_width::width as display_width;
 
+use crate::SkimOptions;
 use crate::helper::item::strip_ansi;
+use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
-use crate::tui::statusline::{Info, InfoDisplay};
+use crate::tui::statusline::{Info, InfoDisplay, spinner_char};
 use crate::tui::util::style_line;
 use crate::tui::widget::{SkimRender, SkimWidget};
-use crate::{SkimOptions, theme::ColorTheme};
-use std::sync::Arc;
-
-const SPINNER_DURATION: u32 = 200;
-const SPINNERS_UNICODE: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /// Status information to display in the input widget's title
 #[derive(Clone, Default)]
@@ -55,10 +54,7 @@ impl StatusInfo {
         if self.show_spinner
             && let Some(start) = self.start
         {
-            let spinner_elapsed_ms = start.elapsed().as_millis();
-            let index =
-                ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
-            parts.push(SPINNERS_UNICODE[index]);
+            parts.push(spinner_char(start));
             parts.push(' ');
         } else {
             parts.push_str("  ");
@@ -69,7 +65,7 @@ impl StatusInfo {
 
         // Matcher mode
         if !self.matcher_mode.is_empty() {
-            let _ = write!(parts, "/{}", &self.matcher_mode);
+            let _ = write!(parts, "/{}", self.matcher_mode);
         }
 
         // Progress percentage
@@ -92,12 +88,9 @@ impl StatusInfo {
         if self.show_spinner
             && let Some(start) = self.start
         {
-            let spinner_elapsed_ms = start.elapsed().as_millis();
-            let index =
-                ((spinner_elapsed_ms / u128::from(SPINNER_DURATION)) % (SPINNERS_UNICODE.len() as u128)) as usize;
             format!(
                 "{}{}",
-                SPINNERS_UNICODE[index],
+                spinner_char(start),
                 " ".repeat(display_width(&self.inline_separator).try_into().unwrap())
             )
         } else {
@@ -115,7 +108,7 @@ impl StatusInfo {
 
         // Matcher mode
         if !self.matcher_mode.is_empty() {
-            let _ = write!(parts, "/{}", &self.matcher_mode);
+            let _ = write!(parts, "/{}", self.matcher_mode);
         }
 
         // Progress percentage
@@ -443,8 +436,7 @@ impl SkimWidget for Input {
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
         use ratatui::layout::Alignment;
         use ratatui::text::{Line, Span};
-        use ratatui::widgets::Paragraph;
-        use ratatui::widgets::{Block, Borders};
+        use ratatui::widgets::{Block, Borders, Paragraph};
 
         let mut line = self.prompt.into_text().map_or_else(
             |_| Line::from(self.prompt.as_str()),
@@ -569,3 +561,7 @@ impl DerefMut for Input {
         &mut self.value
     }
 }
+
+#[cfg(test)]
+#[path = "input_tests.rs"]
+mod tests;

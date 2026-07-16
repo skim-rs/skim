@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 use crate::common::SK;
 use std::process::Command;
 
@@ -201,19 +203,19 @@ insta_test!(opt_nth_range_dec, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "
     @snap;
 });
 
-insta_test!(opt_hscroll_begin, [&format!("b{}", &["a"; 1000].join(""))], &["-q", "b"], {
+insta_test!(opt_hscroll_begin, [&format!("b{}", ["a"; 1000].join(""))], &["-q", "b"], {
     @snap;
 });
 
-insta_test!(opt_hscroll_middle, [&format!("{}b{}", &["a"; 1000].join(""), &["a"; 1000].join(""))], &["-q", "b"], {
+insta_test!(opt_hscroll_middle, [&format!("{}b{}", ["a"; 1000].join(""), ["a"; 1000].join(""))], &["-q", "b"], {
     @snap;
 });
 
-insta_test!(opt_hscroll_end, [&format!("{}b", &["a"; 1000].join(""))], &["-q", "b"], {
+insta_test!(opt_hscroll_end, [&format!("{}b", ["a"; 1000].join(""))], &["-q", "b"], {
     @snap;
 });
 
-insta_test!(opt_no_hscroll, [&format!("{}b", &["a"; 1000].join(""))], &["-q", "b", "--no-hscroll"], {
+insta_test!(opt_no_hscroll, [&format!("{}b", ["a"; 1000].join(""))], &["-q", "b", "--no-hscroll"], {
     @snap;
 });
 
@@ -696,3 +698,131 @@ insta_test!(opt_scrollbar_custom_thumb, SCROLLBAR_ITEMS, &["--info=hidden", "--s
 insta_test!(opt_scrollbar_reverse, SCROLLBAR_ITEMS, &["--info=hidden", "--layout=reverse"], {
     @snap;
 });
+
+// The thumb is styled with the themed `scrollbar` color (defaulting to the border
+// color) instead of inheriting the fg/bg of the row it is drawn over. After Up(10)
+// the thumb overlaps the current line (`> item_11`), which --highlight-line fills
+// with the `current` style; the thumb cell in the rightmost column keeps
+// fg=Indexed(59) (dark256's scrollbar default), not the current-line highlight.
+insta_test!(opt_scrollbar_thumb_style, SCROLLBAR_ITEMS, &["--info=hidden", "--highlight-line"], {
+    @action Up(10);
+    @snap;
+    @snap_color;
+});
+
+// The `scrollbar` color key themes the thumb independently of the border. With
+// --color=scrollbar:208 the thumb cell renders fg=Indexed(208) on every row,
+// including the --highlight-line current line (row 12), where it keeps fg=208
+// over the current-line background rather than inheriting it.
+insta_test!(opt_scrollbar_thumb_color, SCROLLBAR_ITEMS, &["--info=hidden", "--highlight-line", "--color=scrollbar:208"], {
+    @action Up(10);
+    @snap_color;
+});
+
+// Basic rendering: prompt, counters, and the item list.
+insta_test!(vanilla_basic, ["1", "2", "3"], &[], {
+    @snap;
+});
+
+// --read0 splits the NUL-separated stream into three items.
+insta_test!(opt_read0, @bytes b"a\0b\0c", &["--read0"], {
+    @snap;
+});
+
+// A NUL delimiter with --with-nth shows only the second field of the single item.
+insta_test!(opt_null_delimiter_with_nth, @bytes b"a\0b\0c", &[r"--delimiter", r"\x00", "--with-nth", "2"], {
+    @snap;
+});
+
+// A NUL delimiter with --nth restricts matching to the second field ("b"):
+// typing 'c' matches nothing, while 'b' matches the whole item.
+insta_test!(opt_null_delimiter_nth, @bytes b"a\0b\0c", &[r"--delimiter", r"\x00", "--nth", "2"], {
+    @snap;
+    @char 'c';
+    @snap;
+    @key Backspace;
+    @char 'b';
+    @snap;
+});
+
+// --pre-select-file marks items "b" and "c" as selected at startup.
+#[test]
+fn opt_pre_select_file() -> color_eyre::Result<()> {
+    use std::io::Write;
+
+    let mut pre_select = tempfile::NamedTempFile::new()?;
+    pre_select.write_all(b"b\nc")?;
+    let path = pre_select.path().to_str().expect("utf-8 temp path");
+
+    let options = common::insta::parse_options(&["-m", "--pre-select-file", path]);
+    let mut h = common::insta::enter_items(["a", "b", "c"], options)?;
+    snap!(
+        h,
+        "input: items [\"a\", \"b\", \"c\"]\noptions: -m --pre-select-file <file with b,c>"
+    );
+    Ok(())
+}
+
+// Reserved fzf-compatibility options must be accepted by the parser.
+#[test]
+fn opt_reserved_options_parse() {
+    let reserved = [
+        "--extended",
+        "--literal",
+        "--no-mouse",
+        "--hscroll-off=10",
+        "--filepath-word",
+        "--jump-labels=CHARS",
+        "--no-bold",
+        "--history-size=10",
+    ];
+    for option in reserved {
+        // parse_options panics on a parse/build failure, which is the assertion.
+        let _ = common::insta::parse_options(&[option]);
+    }
+}
+
+// A flag accepted more than once (long/short, with or without `=`) must parse.
+#[test]
+fn opt_multiple_flags_parse() {
+    let combos = [
+        "--bind=ctrl-a:cancel --bind ctrl-b:cancel",
+        "--tiebreak=begin --tiebreak=score",
+        "--cmd asdf --cmd find",
+        "--query asdf -q xyz",
+        "--delimiter , --delimiter . -d ,",
+        "--nth 1,2 --nth=1,3 -n 1,3",
+        "--with-nth 1,2 --with-nth=1,3",
+        "-I {} -I XX",
+        "--color base --color light",
+        "--margin 30% --margin 0",
+        "--min-height 30% --min-height 10",
+        "--preview 'ls {}' --preview 'cat {}'",
+        "--preview-window up --preview-window down",
+        "--multi -m",
+        "--no-multi --no-multi",
+        "--tac --tac",
+        "--ansi --ansi",
+        "--exact -e",
+        "--regex --regex",
+        "--literal --literal",
+        "--no-mouse --no-mouse",
+        "--cycle --cycle",
+        "--no-hscroll --no-hscroll",
+        "--filepath-word --filepath-word",
+        "--inline-info --inline-info",
+        "--no-bold --no-bold",
+        "--print-query --print-query",
+        "--print-cmd --print-cmd",
+        "--print0 --print0",
+        "--sync --sync",
+        "--extended --extended",
+        "--no-sort --no-sort",
+        "--exit-0 --exit-0",
+    ];
+    for combo in combos {
+        let args = shlex::split(combo).expect("valid shell tokens");
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let _ = common::insta::parse_options(&refs);
+    }
+}

@@ -1,55 +1,104 @@
-name: "Pull Requests"
 on:
-  pull_request_target:
+  pull_request:
     types:
       - opened
-      - edited
       - synchronize
-      - labeled
-      - unlabeled
+      - reopened
+      - edited
 
 jobs:
-  check:
+  check-title:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     steps:
-      - uses: thehanimo/pr-title-checker@v1.4.3
+      - name: Create git-cliff mock context
+        env:
+          CONTEXT: >
+            [
+              {
+                "commits": [{
+                  "id": "foo",
+                  "message": $msg,
+                  "links": [],
+                  "author": {
+                    "name": "",
+                    "timestamp": 1
+                  },
+                  "committer": {
+                    "name": "",
+                    "timestamp": 1
+                  },
+                  "merge_commit": false,
+                  "github": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "gitlab": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "gitea": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "bitbucket": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                  "azure_devops": {
+                    "pr_labels": [],
+                    "is_first_time": false
+                  },
+                }],
+                "github": { "contributors": [] },
+                "gitlab": { "contributors": [] },
+                "gitea": { "contributors": [] },
+                "bitbucket": { "contributors": [] },
+                "azure_devops": { "contributors": [] },
+                "submodule_commits": {}
+              }
+            ]
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          jq -nc --arg msg "$PR_TITLE" "$CONTEXT" | tee git-cliff-context.json
+      - name: Generate mock changelog entry
+        id: git-cliff
+        uses: orhun/git-cliff-action@v4
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          pass_on_octokit_error: false
-          configuration_path: .github/pr-title-checker-config.json
-  generate-files:
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
+          args: >
+            --from-context git-cliff-context.json -s all
+      - name: Check generated entry
+        run: |
+          echo "Generated:"
+          cat "${{ steps.git-cliff.outputs.changelog }}"
+          echo "Checking..."
+          cat "${{ steps.git-cliff.outputs.changelog }}" | grep -Ev '^(## \[unreleased\]|)$' | grep -q '^.\+$'
+  check-generated-files:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@v3
-        id: app-token
-        with:
-          app-id: ${{ vars.SKIM_RS_BOT_APP_ID }}
-          private-key: ${{ secrets.SKIM_RS_BOT_PRIVATE_KEY }}
-      - name: Checkout Git repo
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
-          token: ${{ steps.app-token.outputs.token }}
-      - run: rustup toolchain install
+      - name: Checkout
+        uses: actions/checkout@v7
       - name: Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}
+          add-job-id-key: "false"
+          add-rust-environment-hash-key: "false"
+          env-vars: "____"
+          cache-on-failure: "true"
+          cache-all-crates: "true"
       - name: Generate files
         run: |
-          cargo run -- --man > man/man1/sk.1
-          cargo run -- --shell bash > shell/completion.bash
-          cargo run -- --shell zsh > shell/completion.zsh
-          cargo run -- --shell fish > shell/completion.fish
-          cargo run -- --shell nushell > shell/completion.nu
-      - name: Push modified files
+          cargo run -- --man > ./man/man1/sk.1
+          cargo run -- --shell bash > ./shell/completion.bash
+          cargo run -- --shell zsh > ./shell/completion.zsh
+          cargo run -- --shell fish > ./shell/completion.fish
+          cargo run -- --shell nushell > ./shell/completion.nu
+      - name: Check diff
         run: |
-          git branch -v
-          git config user.email "skim-bot@skim-rs.github.io"
-          git config user.name "Skim bot"
-          git commit -am 'chore: generate completions & manpage' || exit 0
-          git push
+          if git diff --exit-code; then
+            echo "No changes to generated files found, PR is safe to merge"
+            exit 0
+          else
+            echo "Found changes to generated files, regenerate them locally and push them using 'just generate-files'"
+            exit 1
+          fi

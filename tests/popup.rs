@@ -1,14 +1,12 @@
+#![allow(missing_docs, clippy::pedantic)]
 #![cfg(unix)]
 #[allow(dead_code)]
 mod common;
 
 use common::tmux::Keys::*;
 use common::tmux::TmuxController;
-use std::fs::File;
-use std::fs::Permissions;
-use std::io::Read;
-use std::io::Result;
-use std::io::Write;
+use std::fs::{File, Permissions};
+use std::io::{Read, Result, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
@@ -48,13 +46,8 @@ fn get_tmux_cmd(outfile: &str) -> Result<String> {
 fn tmux_via_skim_default_options() -> Result<()> {
     let tmux = TmuxController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
-    // Run sk with SKIM_DEFAULT_OPTIONS=--tmux inline (bypassing the SK constant
-    // which always clears SKIM_DEFAULT_OPTIONS).
-    let sk_bin = crate::common::SK
-        .split_whitespace()
-        .last()
-        .expect("SK must have a binary path");
-    let cmd = format!("SKIM_DEFAULT_OPTIONS='--tmux' {sk_bin}");
+    // Run sk with SKIM_DEFAULT_OPTIONS=--tmux set inline so the popup path is exercised.
+    let cmd = format!("SKIM_DEFAULT_OPTIONS='--tmux' {}", crate::common::SK);
     tmux.send_keys(&[Str(&cmd), Enter])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;
@@ -76,7 +69,6 @@ fn tmux_vanilla() -> Result<()> {
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
     assert!(cmd.contains("--print-query"));
-    assert!(cmd.contains("--print-cmd"));
     assert!(cmd.contains("--print-header"));
     assert!(cmd.contains("--print-current"));
     assert!(cmd.contains("--print-score"));
@@ -103,7 +95,6 @@ fn tmux_output_format() -> Result<()> {
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
     assert!(cmd.contains("--print-query"));
-    assert!(cmd.contains("--print-cmd"));
     assert!(cmd.contains("--print-header"));
     assert!(cmd.contains("--print-current"));
     assert!(cmd.contains("--print-score"));

@@ -1,8 +1,10 @@
+//! Demonstrates configuring skim with `SkimOptionsBuilder`.
+
 extern crate skim;
 use skim::prelude::*;
 use std::io::Cursor;
 
-pub fn main() {
+fn main() {
     let item_reader = SkimItemReader::default();
 
     //==================================================
@@ -14,7 +16,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 
@@ -27,7 +29,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 }

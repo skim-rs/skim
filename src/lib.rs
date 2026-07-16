@@ -19,11 +19,7 @@
 //!         ["awk", "bash", "csh", "dash", "fish", "ksh", "zsh"]
 //!     ).unwrap();
 //! ```
-
-#![warn(missing_docs)]
-#![warn(clippy::pedantic)]
-#![warn(clippy::incompatible_msrv)]
-#![allow(clippy::default_trait_access, clippy::struct_excessive_bools)]
+#![cfg_attr(coverage, feature(coverage_attribute))]
 
 #[macro_use]
 extern crate log;
@@ -38,15 +34,13 @@ use std::process::Command;
 use std::sync::Arc;
 
 use crate::fuzzy_matcher::MatchIndices;
-use ratatui::{
-    style::Style,
-    text::{Line, Span},
-};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
 
 pub use crate::engine::fuzzy::FuzzyAlgorithm;
 pub use crate::item::RankCriteria;
 pub use crate::options::SkimOptions;
-pub use crate::output::SkimOutput;
+pub use crate::output::{BinOptions, SkimOutput};
 pub use crate::skim::*;
 pub use crate::skim_item::SkimItem;
 use crate::tui::Size;
@@ -78,10 +72,12 @@ pub mod manpage;
 #[cfg(feature = "cli")]
 pub mod shell;
 
+/// Skim's default command when no `--cmd` flag is passed and `$SKIM_DEFAULT_COMMAND` is unset
 #[cfg(unix)]
-const SKIM_DEFAULT_COMMAND: &str = "find .";
+pub const SKIM_DEFAULT_COMMAND: &str = "find .";
+/// Skim's default command when no `--cmd` flag is passed and `$SKIM_DEFAULT_COMMAND` is unset
 #[cfg(windows)]
-const SKIM_DEFAULT_COMMAND: &str = "dir /s /b /A:-D";
+pub const SKIM_DEFAULT_COMMAND: &str = "dir /s /b /A:-D";
 
 #[cfg(unix)]
 fn shell_cmd(cmd: &str) -> Command {
@@ -91,8 +87,13 @@ fn shell_cmd(cmd: &str) -> Command {
 }
 #[cfg(windows)]
 fn shell_cmd(cmd: &str) -> Command {
+    use std::os::windows::process::CommandExt as _;
+    // `cmd.exe` does not parse its command line using MSVC rules, so the default
+    // `Command::arg` escaping (quoting/backslash-escaping) corrupts shell
+    // metacharacters like `|`, `&`, `>` and embedded quotes. Pass the command
+    // string verbatim via `raw_arg` so cmd.exe sees exactly what the user wrote.
     let mut c = Command::new("cmd");
-    c.arg("/c").arg(cmd);
+    c.arg("/c").raw_arg(cmd);
     c
 }
 
@@ -412,3 +413,7 @@ pub trait Selector {
 pub type SkimItemSender = kanal::Sender<Vec<Arc<dyn SkimItem>>>;
 /// Receiver for streaming items to skim
 pub type SkimItemReceiver = kanal::Receiver<Vec<Arc<dyn SkimItem>>>;
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;

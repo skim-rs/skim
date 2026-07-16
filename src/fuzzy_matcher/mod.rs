@@ -7,7 +7,7 @@
 pub mod arinae;
 /// Clangd fuzzy matching algorithm
 pub mod clangd;
-#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+#[cfg(feature = "frizbee")]
 pub mod frizbee;
 /// Fzy fuzzy matching algorithm
 pub mod fzy;
@@ -44,5 +44,45 @@ pub trait FuzzyMatcher: Send + Sync {
             let end = indices.last().copied().unwrap_or(0);
             (score, begin, end)
         })
+    }
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    /// A matcher that only implements `fuzzy_indices`, so it exercises the
+    /// default `fuzzy_match` / `fuzzy_match_range` implementations.
+    struct StubMatcher;
+
+    impl FuzzyMatcher for StubMatcher {
+        fn fuzzy_indices(&self, choice: &str, pattern: &str) -> Option<(i64, MatchIndices)> {
+            if pattern.is_empty() {
+                return Some((0, vec![]));
+            }
+            // Match only when the pattern is a prefix of the choice.
+            choice
+                .starts_with(pattern)
+                .then(|| (10, (0..pattern.chars().count()).collect()))
+        }
+    }
+
+    #[test]
+    fn default_fuzzy_match_uses_indices_score() {
+        assert_eq!(StubMatcher.fuzzy_match("hello", "he"), Some(10));
+        assert_eq!(StubMatcher.fuzzy_match("hello", "xy"), None);
+    }
+
+    #[test]
+    fn default_fuzzy_match_range_spans_first_to_last() {
+        assert_eq!(StubMatcher.fuzzy_match_range("hello", "hel"), Some((10, 0, 2)));
+        assert_eq!(StubMatcher.fuzzy_match_range("hello", "zz"), None);
+    }
+
+    #[test]
+    fn default_fuzzy_match_range_empty_indices_default_to_zero() {
+        // Empty pattern yields an empty index list, so begin/end fall back to 0.
+        assert_eq!(StubMatcher.fuzzy_match_range("hello", ""), Some((0, 0, 0)));
     }
 }

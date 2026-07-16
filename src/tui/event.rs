@@ -151,7 +151,8 @@ pub enum Event {
 }
 
 /// Actions that can be performed in skim
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "listen", derive(serde::Serialize, serde::Deserialize))]
 pub enum Action {
     /// Abort and exit with error
     Abort,
@@ -293,15 +294,14 @@ pub enum Action {
     #[debug("custom")]
     #[eq(skip)]
     #[partial_eq(skip)]
-    #[serde(skip)]
+    #[cfg_attr(feature = "listen", serde(skip))]
     Custom(ActionCallback),
 }
 
 /// Parses an action string into an Action enum
 ///
-/// # Panics
-///
-/// Panics if an `if-*` action is specified without its required argument.
+/// Returns `None` if the action is unrecognized, or an `if-*` action is
+/// specified without its required argument.
 #[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn parse_action(raw_action: &str) -> Option<Action> {
@@ -323,7 +323,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
         let then_arg;
         let mut otherwise_arg = None;
 
-        let if_arg = arg.unwrap_or_else(|| panic!("no arg specified for event {action}"));
+        let if_arg = arg?;
         if if_arg.contains('+') {
             let split = if_arg.split_once('+');
             match split {
@@ -345,18 +345,19 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
             "if-query-not-empty" => Some(Action::IfQueryNotEmpty(then_arg, otherwise_arg)),
             _ => None,
         }
+    } else if matches!(
+        action,
+        "add-char" | "execute" | "execute-silent" | "set-preview-cmd" | "set-query"
+    ) && arg.is_none()
+    {
+        None
     } else {
         exhaustive_match! {
             action => Option<Action>;
             {
                 "abort" => Some(Abort),
                 "accept" => Some(Accept(arg)),
-                "add-char" => Some(AddChar(
-                    arg.unwrap_or_default()
-                        .chars()
-                        .next()
-                        .expect("add-char should have an argument"),
-                )),
+                "add-char" => Some(AddChar(arg.unwrap_or_default().chars().next().unwrap_or_default())),
                 "append-and-select" => Some(AppendAndSelect),
                 "backward-char" => Some(BackwardChar),
                 "backward-delete-char" => Some(BackwardDeleteChar),
@@ -371,8 +372,8 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "deselect-all" => Some(DeselectAll),
                 "down" => Some(Down(arg.and_then(|s| s.parse().ok()).unwrap_or(1))),
                 "end-of-line" => Some(EndOfLine),
-                "execute" => Some(Execute(arg.expect("execute event should have argument"))),
-                "execute-silent" => Some(ExecuteSilent(arg.expect("execute-silent event should have argument"))),
+                "execute" => Some(Execute(arg.unwrap_or_default())),
+                "execute-silent" => Some(ExecuteSilent(arg.unwrap_or_default())),
                 "first" => Some(First),
                 "forward-char" => Some(ForwardChar),
                 "forward-word" => Some(ForwardWord),
@@ -404,8 +405,8 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "select-all" => Some(SelectAll),
                 "select-row" => Some(SelectRow(arg.and_then(|s| s.parse().ok()).unwrap_or_default())),
                 "set-header" => Some(SetHeader(arg)),
-                "set-preview-cmd" => Some(SetPreviewCmd(arg.expect("set-preview-cmd action needs a value"))),
-                "set-query" => Some(SetQuery(arg.expect("set-query action needs a value"))),
+                "set-preview-cmd" => Some(SetPreviewCmd(arg.unwrap_or_default())),
+                "set-query" => Some(SetQuery(arg.unwrap_or_default())),
                 "toggle" => Some(Toggle),
                 "toggle-all" => Some(ToggleAll),
                 "toggle-in" => Some(ToggleIn),
@@ -428,3 +429,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "event_tests.rs"]
+mod tests;

@@ -23,11 +23,11 @@ _sk() {
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
 '-d+[Delimiter between fields]:DELIMITER:_default' \
 '--delimiter=[Delimiter between fields]:DELIMITER:_default' \
-'--algo=[Fuzzy matching algorithm]:ALGORITHM:((skim_v2\:"Improved skim fuzzy matching algorithm (v2)"
+'--algo=[Fuzzy matching algorithm]:ALGORITHM:((arinae\:"Arinae\: typo-resistant & natural algorithm, default"
 clangd\:"Clangd fuzzy matching algorithm"
 fzy\:"Fzy matching algorithm (https\://github.com/jhawthorn/fzy)"
-frizbee\:"Frizbee matching algorithm, typo resistant (x86_64 and aarch64 only)"
-arinae\:"Arinae\: typo-resistant & natural algorithm, default"))' \
+frizbee\:"Frizbee matching algorithm, typo resistant"
+skim_v2\:"Previous skim fuzzy matching algorithm (v2)"))' \
 '--case=[Case sensitivity]:CASE:((respect\:"Case-sensitive matching"
 ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
@@ -43,6 +43,7 @@ history\:"History scheme\: will force index as the first tiebreak"))' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \
 '--color=[Set color theme]:COLOR:_default' \
 '--skip-to-pattern=[Show the matched pattern at the line start]:SKIP_TO_PATTERN:_default' \
+'--disable-pattern=[Disable items based on this regex pattern]:DISABLE_PATTERN:_default' \
 '--layout=[Set layout]:LAYOUT:((default\:"Display from the bottom of the screen"
 reverse\:"Display from the top of the screen"
 reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
@@ -53,7 +54,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--prompt=[Set prompt]:PROMPT:_default' \
 '--cmd-prompt=[Set prompt in command mode]:CMD_PROMPT:_default' \
 '--selector=[Set selected item icon]:SELECTOR_ICON:_default' \
-'--multi-selector=[Set selected item icon]:MULTI_SELECT_ICON:_default' \
+'--multi-selector=[Set multi-selected item icon]:MULTI_SELECT_ICON:_default' \
 '--tabstop=[Number of spaces that make up a tab]:TABSTOP:_default' \
 '--ellipsis=[The characters used to display truncated lines]:ELLIPSIS:_default' \
 '--info=[Set matching result count display position]:INFO:_default' \
@@ -81,6 +82,8 @@ quadrant-outside\:""))' \
 '--cmd-history-size=[Maximum number of query history entries to keep]:CMD_HISTORY_SIZE:_default' \
 '--preview=[Preview command]:PREVIEW:_default' \
 '--preview-window=[Preview window layout]:PREVIEW_WINDOW:_default' \
+'--image=[Enable image preview]::IMAGE:((detect\:"Default\: automatically detect the available backend at startup"
+halfblocks\:"Force halfblocks if you want blurry previews but a faster startup or if the detection fails"))' \
 '-q+[Initial query]:QUERY:_default' \
 '--query=[Initial query]:QUERY:_default' \
 '--cmd-query=[Initial query in interactive mode]:CMD_QUERY:_default' \
@@ -102,7 +105,7 @@ zsh\:"Zsh"))' \
 '--popup=[Run in a tmux or zellij popup]::POPUP:_default' \
 '--log-level=[Set the log level]:LOG_LEVEL:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
-'*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on linux"
+'*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on Linux"
 show-score\:"Display the item'\''s match score before its value in the item list (for matcher debugging)"
 show-index\:"Display the item'\''s index before its value in the item list"
 single-reader\:"Limit the reader thread pool to a single thread"
@@ -147,7 +150,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '-e[Run in exact mode]' \
 '--exact[Run in exact mode]' \
 '--regex[Start in regex mode instead of fuzzy-match]' \
-'--no-typos[Disable typo-resistant matching]' \
+'--no-typos[Disable typo-tolerant matching]' \
 '--normalize[Normalize unicode characters]' \
 '--last-match[Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts]' \
 '-m[Enable multiple selection]' \

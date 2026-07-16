@@ -5,10 +5,8 @@
 //! 2. Use `.lock()` instead of `.lock().unwrap()` to retrieve the guard.
 //! 3. It doesn't handle poison so data is still available on thread panic.
 use std::cell::UnsafeCell;
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
+use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// A spin lock that uses busy-waiting instead of OS blocking
 #[derive(Default)]
@@ -82,6 +80,7 @@ impl<T: ?Sized> Drop for SpinLockGuard<'_, T> {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use std::sync::Arc;

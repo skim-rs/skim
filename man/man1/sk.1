@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 4.6.0" 
+.TH sk 1  "sk 5.1.0" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -8,7 +8,7 @@ sk \- Fuzzy Finder in rust!
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH SYNOPSIS
-\fBsk\fR [\fB\-\-tac\fR] [\fB\-\-min\-query\-length\fR] [\fB\-\-no\-sort\fR] [\fB\-t\fR|\fB\-\-tiebreak\fR] [\fB\-n\fR|\fB\-\-nth\fR] [\fB\-\-with\-nth\fR] [\fB\-d\fR|\fB\-\-delimiter\fR] [\fB\-e\fR|\fB\-\-exact\fR] [\fB\-\-regex\fR] [\fB\-\-algo\fR] [\fB\-\-case\fR] [\fB\-\-typos\fR] [\fB\-\-no\-typos\fR] [\fB\-\-normalize\fR] [\fB\-\-split\-match\fR] [\fB\-\-last\-match\fR] [\fB\-\-scheme\fR] [\fB\-b\fR|\fB\-\-bind\fR] [\fB\-m\fR|\fB\-\-multi\fR] [\fB\-\-no\-multi\fR] [\fB\-\-no\-mouse\fR] [\fB\-c\fR|\fB\-\-cmd\fR] [\fB\-i\fR|\fB\-\-interactive\fR] [\fB\-I \fR] [\fB\-\-color\fR] [\fB\-\-highlight\-line\fR] [\fB\-\-no\-hscroll\fR] [\fB\-\-keep\-right\fR] [\fB\-\-skip\-to\-pattern\fR] [\fB\-\-no\-clear\-if\-empty\fR] [\fB\-\-no\-clear\-start\fR] [\fB\-\-no\-clear\fR] [\fB\-\-show\-cmd\-error\fR] [\fB\-\-cycle\fR] [\fB\-\-disabled\fR] [\fB\-\-layout\fR] [\fB\-\-reverse\fR] [\fB\-\-height\fR] [\fB\-\-no\-height\fR] [\fB\-\-min\-height\fR] [\fB\-\-margin\fR] [\fB\-p\fR|\fB\-\-prompt\fR] [\fB\-\-cmd\-prompt\fR] [\fB\-\-selector\fR] [\fB\-\-multi\-selector\fR] [\fB\-\-ansi\fR] [\fB\-\-tabstop\fR] [\fB\-\-info\fR] [\fB\-\-no\-info\fR] [\fB\-\-inline\-info\fR] [\fB\-\-header\fR] [\fB\-\-header\-lines\fR] [\fB\-\-border\fR] [\fB\-\-no\-border\fR] [\fB\-\-wrap\fR] [\fB\-\-multiline\fR] [\fB\-\-scrollbar\fR] [\fB\-\-no\-scrollbar\fR] [\fB\-\-history\fR] [\fB\-\-history\-size\fR] [\fB\-\-cmd\-history\fR] [\fB\-\-cmd\-history\-size\fR] [\fB\-\-preview\fR] [\fB\-\-preview\-window\fR] [\fB\-q\fR|\fB\-\-query\fR] [\fB\-\-cmd\-query\fR] [\fB\-\-read0\fR] [\fB\-\-print0\fR] [\fB\-\-print\-query\fR] [\fB\-\-print\-cmd\fR] [\fB\-\-print\-score\fR] [\fB\-\-print\-header\fR] [\fB\-\-print\-current\fR] [\fB\-\-output\-format\fR] [\fB\-\-no\-strip\-ansi\fR] [\fB\-1\fR|\fB\-\-select\-1\fR] [\fB\-0\fR|\fB\-\-exit\-0\fR] [\fB\-\-sync\fR] [\fB\-\-pre\-select\-n\fR] [\fB\-\-pre\-select\-pat\fR] [\fB\-\-pre\-select\-items\fR] [\fB\-\-pre\-select\-file\fR] [\fB\-f\fR|\fB\-\-filter\fR] [\fB\-\-shell\fR] [\fB\-\-shell\-bindings\fR] [\fB\-\-man\fR] [\fB\-\-listen\fR] [\fB\-\-remote\fR] [\fB\-\-popup\fR] [\fB\-\-log\-level\fR] [\fB\-\-log\-file\fR] [\fB\-\-expect\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
+\fBsk\fR [\fB\-\-tac\fR] [\fB\-\-min\-query\-length\fR] [\fB\-\-no\-sort\fR] [\fB\-t\fR|\fB\-\-tiebreak\fR] [\fB\-n\fR|\fB\-\-nth\fR] [\fB\-\-with\-nth\fR] [\fB\-d\fR|\fB\-\-delimiter\fR] [\fB\-e\fR|\fB\-\-exact\fR] [\fB\-\-regex\fR] [\fB\-\-algo\fR] [\fB\-\-case\fR] [\fB\-\-typos\fR] [\fB\-\-no\-typos\fR] [\fB\-\-normalize\fR] [\fB\-\-split\-match\fR] [\fB\-\-last\-match\fR] [\fB\-\-scheme\fR] [\fB\-b\fR|\fB\-\-bind\fR] [\fB\-m\fR|\fB\-\-multi\fR] [\fB\-\-no\-multi\fR] [\fB\-\-no\-mouse\fR] [\fB\-c\fR|\fB\-\-cmd\fR] [\fB\-i\fR|\fB\-\-interactive\fR] [\fB\-I \fR] [\fB\-\-color\fR] [\fB\-\-highlight\-line\fR] [\fB\-\-no\-hscroll\fR] [\fB\-\-keep\-right\fR] [\fB\-\-skip\-to\-pattern\fR] [\fB\-\-no\-clear\-if\-empty\fR] [\fB\-\-no\-clear\-start\fR] [\fB\-\-no\-clear\fR] [\fB\-\-show\-cmd\-error\fR] [\fB\-\-cycle\fR] [\fB\-\-disabled\fR] [\fB\-\-disable\-pattern\fR] [\fB\-\-layout\fR] [\fB\-\-reverse\fR] [\fB\-\-height\fR] [\fB\-\-no\-height\fR] [\fB\-\-min\-height\fR] [\fB\-\-margin\fR] [\fB\-p\fR|\fB\-\-prompt\fR] [\fB\-\-cmd\-prompt\fR] [\fB\-\-selector\fR] [\fB\-\-multi\-selector\fR] [\fB\-\-ansi\fR] [\fB\-\-tabstop\fR] [\fB\-\-info\fR] [\fB\-\-no\-info\fR] [\fB\-\-inline\-info\fR] [\fB\-\-header\fR] [\fB\-\-header\-lines\fR] [\fB\-\-border\fR] [\fB\-\-no\-border\fR] [\fB\-\-wrap\fR] [\fB\-\-multiline\fR] [\fB\-\-scrollbar\fR] [\fB\-\-no\-scrollbar\fR] [\fB\-\-history\fR] [\fB\-\-history\-size\fR] [\fB\-\-cmd\-history\fR] [\fB\-\-cmd\-history\-size\fR] [\fB\-\-preview\fR] [\fB\-\-preview\-window\fR] [\fB\-\-image\fR] [\fB\-q\fR|\fB\-\-query\fR] [\fB\-\-cmd\-query\fR] [\fB\-\-read0\fR] [\fB\-\-print0\fR] [\fB\-\-print\-query\fR] [\fB\-\-print\-cmd\fR] [\fB\-\-print\-score\fR] [\fB\-\-print\-header\fR] [\fB\-\-print\-current\fR] [\fB\-\-output\-format\fR] [\fB\-\-no\-strip\-ansi\fR] [\fB\-1\fR|\fB\-\-select\-1\fR] [\fB\-0\fR|\fB\-\-exit\-0\fR] [\fB\-\-sync\fR] [\fB\-\-pre\-select\-n\fR] [\fB\-\-pre\-select\-pat\fR] [\fB\-\-pre\-select\-items\fR] [\fB\-\-pre\-select\-file\fR] [\fB\-f\fR|\fB\-\-filter\fR] [\fB\-\-shell\fR] [\fB\-\-shell\-bindings\fR] [\fB\-\-man\fR] [\fB\-\-listen\fR] [\fB\-\-remote\fR] [\fB\-\-popup\fR] [\fB\-\-log\-level\fR] [\fB\-\-log\-file\fR] [\fB\-\-expect\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH OPTIONS
@@ -97,7 +97,7 @@ See nth for the details
 \fB\-d\fR, \fB\-\-delimiter\fR \fI<DELIMITER>\fR [default: [\\t\\n ]+]
 Delimiter between fields
 
-In regex format, default to AWK\-style. Escape sequences like \\x00, \\t, \\n are supported.
+In regex format, defaults to AWK\-style. Escape sequences like \\x00, \\t, \\n are supported.
 .TP
 \fB\-e\fR, \fB\-\-exact\fR
 Run in exact mode
@@ -108,31 +108,36 @@ Start in regex mode instead of fuzzy\-match
 \fB\-\-algo\fR \fI<ALGORITHM>\fR [default: arinae]
 Fuzzy matching algorithm
 
-arinae (ari) Latest algorithm
-`skim_v2` Legacy skim algorithm
-clangd  Used in clangd for keyword completion
-fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
+\- arinae (ari) Latest algorithm
+
+\- `skim_v2` Legacy skim algorithm
+
+\- clangd  Used in clangd for keyword completion
+
+\- fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
+
+\- frizbee Algorithm used in the blink.cmp neovim plugin
 .br
 
 .br
 \fIPossible values:\fR
 .RS 14
 .IP \(bu 2
-skim_v2: Improved skim fuzzy matching algorithm (v2)
+arinae: Arinae: typo\-resistant & natural algorithm, default
 .IP \(bu 2
 clangd: Clangd fuzzy matching algorithm
 .IP \(bu 2
 fzy: Fzy matching algorithm (https://github.com/jhawthorn/fzy)
 .IP \(bu 2
-frizbee: Frizbee matching algorithm, typo resistant (x86_64 and aarch64 only)
+frizbee: Frizbee matching algorithm, typo resistant
 .IP \(bu 2
-arinae: Arinae: typo\-resistant & natural algorithm, default
+skim_v2: Previous skim fuzzy matching algorithm (v2)
 .RE
 .TP
 \fB\-\-case\fR \fI<CASE>\fR [default: smart]
 Case sensitivity
 
-Determines whether or not to ignore case while matching Note: this is not used for the Frizbee matcher, it uses a penalty system to favor case\-sensitivity without enforcing it
+Determines whether or not to ignore case while matching Note: this is not used for the Frizbee matcher, which uses a penalty system to favor case\-sensitivity without enforcing it
 .br
 
 .br
@@ -152,7 +157,7 @@ Enable typo\-tolerant matching
 When passed without a value (\-\-typos), uses adaptive formula (pattern_length / 4). When passed with a value (e.g. \-\-typos=2), uses that exact number as the maximum allowed typos. \-\-typos=0 explicitly disables typo tolerance. Applies to both fzy and frizbee matchers.
 .TP
 \fB\-\-no\-typos\fR
-Disable typo\-resistant matching
+Disable typo\-tolerant matching
 .TP
 \fB\-\-normalize\fR
 Normalize unicode characters
@@ -207,19 +212,19 @@ Note: if no argument is supplied to reload, the default command is run.
 
 You can use the same placeholder expressions as in \-\-preview.
 
-sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐
-pected to complete quickly, and you are not interested in its output, you might want to use exe‐
-cute\-silent instead, which silently executes the command without the  switching.  Note  that  sk
+`sk` switches to the alternate screen when executing a command. However, if the command is
+expected to complete quickly, and you are not interested in its output, you might want to use
+execute\-silent instead, which silently executes the command without the  switching.  Note  that  sk
 will  not  be  responsive  until the command is complete. For asynchronous execution, start your
-command as a background process (i.e. appending &).
+command as a background process (i.e. appending `&`).
 
-With if\-query\-empty and if\-query\-not\-empty action, you could specify the action to  execute  de‐
-pends on the query condition. For example:
+With the `if\-query\-empty` and `if\-query\-not\-empty` actions, you could specify the action to execute
+depending on the query condition. For example:
 
 `sk \-\-bind \*(Aqctrl\-d:if\-query\-empty(abort)+delete\-char\*(Aq`
 
 If  the query is empty, skim will execute abort action, otherwise execute delete\-char action. It
-is equal to ‘delete\-char/eof‘.
+is equal to \*(Aqdelete\-char/eof\*(Aq.
 .TP
 \fB\-m\fR, \fB\-\-multi\fR
 Enable multiple selection
@@ -235,7 +240,7 @@ Disable mouse
 \fB\-c\fR, \fB\-\-cmd\fR \fI<CMD>\fR
 Command to invoke dynamically in interactive mode
 
-Will be invoked using sh \-c on unix\-like systems and cmd /c on Windows
+Will be invoked using sh \-c on Unix\-like systems and cmd /c on Windows
 .TP
 \fB\-i\fR, \fB\-\-interactive\fR
 Start skim in interactive mode
@@ -276,8 +281,8 @@ Do not clear previous line if the command returns an empty result
 Do not clear previous items if new command returns empty result. This might be useful  to
 reduce flickering when typing new commands and the half\-complete commands are not valid.
 
-This is not the default behavior because similar use cases for grep and rg have already been op‐
-timized where empty query results actually mean "empty" and previous results should be
+This is not the default behavior because similar use cases for `grep` and `rg` have already been
+optimized where empty query results actually mean "empty" and previous results should be
 cleared.
 .TP
 \fB\-\-no\-clear\-start\fR
@@ -296,6 +301,9 @@ Cycle the results by wrapping around when scrolling
 .TP
 \fB\-\-disabled\fR
 Disable matching entirely
+.TP
+\fB\-\-disable\-pattern\fR \fI<DISABLE_PATTERN>\fR
+Disable items based on this regex pattern
 .SH LAYOUT
 .TP
 \fB\-\-layout\fR \fI<LAYOUT>\fR [default: default]
@@ -352,7 +360,7 @@ Set prompt in command mode
 Set selected item icon
 .TP
 \fB\-\-multi\-selector\fR \fI<MULTI_SELECT_ICON>\fR [default: >]
-Set selected item icon
+Set multi\-selected item icon
 .SH DISPLAY
 .TP
 \fB\-\-ansi\fR
@@ -461,7 +469,7 @@ Run in a tmux or zellij popup
 
 Format: `sk \-\-popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
 Note: this will try to detect a Zellij session, then a Tmux session
-This means that in nested sesions, skim will prioritize Zellij over Tmux
+This means that in nested sessions, `skim` will prioritize Zellij over Tmux
 .SH HISTORY
 .TP
 \fB\-\-history\fR \fI<HISTORY_FILE>\fR
@@ -489,8 +497,8 @@ Maximum number of query history entries to keep
 Preview command
 
 Execute the given command for the current line and display the result on the preview window. {} in the command
-is the placeholder that is replaced to the single\-quoted string of the current line. To transform the replace‐
-ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
+is the placeholder that is replaced to the single\-quoted string of the current line. To transform the
+replacement string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
 
 **Examples**:
 
@@ -505,11 +513,11 @@ Format: [up|down|left|right][:SIZE][:hidden][:[no]wrap][:[no]pty][:+SCROLL[\-OFF
 
 Determine  the  layout of the preview window. If the argument ends with: hidden, the preview window will be hidden by default until toggle\-preview action is triggered. Long lines are truncated by default. Line wrap can be enabled with :wrap flag. For more interactive commands or previews that draw complex interfaces, the preview can use a PTY with the :pty flag.
 
-Note: the preview will run in a PTY (interactive session) on linux and when wrap is unset
+Note: the preview will run in a PTY (interactive session) on Linux and when wrap is unset
 
 SIZE can be either: \- 0, which will hide the preview window \- A positive size (eg 20) \- A percentage of the total size (eg 50%) \- A negative size, which will set the size of everything but the preview to that value
 
-+SCROLL[\-OFFSET] determines the initial scroll offset of the preview window. SCROLL can be either a  numeric  integer or  a  single\-field index expression that refers to a numeric integer. The optional \-OFFSET part is for adjusting the base offset so that you can see the text above it. It should be given as a numeric integer (\-INTEGER), or as a denom‐ inator form (\-/INTEGER) for specifying a fraction of the preview window height.
++SCROLL[\-OFFSET] determines the initial scroll offset of the preview window. SCROLL can be either a numeric integer or a single\-field index expression that refers to a numeric integer. The optional \-OFFSET part is for adjusting the base offset so that you can see the text above it. It should be given as a numeric integer (\-INTEGER), or as a denominator form (\-/INTEGER) for specifying a fraction of the preview window height.
 
 Examples:
 
@@ -528,6 +536,25 @@ Examples:
                     \-\-preview \*(Aqbat \-\-style=numbers \-\-color=always \-\-highlight\-line {2} {1}\*(Aq \\
                     \-\-preview\-window +{2}\-/2
 
+.TP
+\fB\-\-image\fR [\fI<IMAGE>...\fR]
+Enable image preview
+
+This will render the preview argument as an image instead of running it as a command.
+
+If set to detect or if no value is passed, it will try to detect the available image backends at startup, which will add a small delay before the first render. If set to halfblocks, it will always use the halfblocks rendering method
+
+Note: the backend detection will not work when piping data into skim, use SKIM_DEFAULT_COMMAND="find . \-type f" sk \-\-image instead of find . \-type f | sk \-\-image
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+detect: Default: automatically detect the available backend at startup
+.IP \(bu 2
+halfblocks: Force halfblocks if you want blurry previews but a faster startup or if the detection fails
+.RE
 .SH SCRIPTING
 .TP
 \fB\-q\fR, \fB\-\-query\fR \fI<QUERY>\fR
@@ -572,7 +599,7 @@ Do not enter the TUI if the query passed in \-q does not match any item
 \fB\-\-sync\fR
 Synchronous search for multi\-staged filtering
 
-Synchronous search for multi\-staged filtering. If specified, skim will launch ncurses finder only after the input stream is complete. e.g. sk \-\-multi | sk \-\-sync
+Synchronous search for multi\-staged filtering. If specified, skim will launch the TUI finder only after the input stream is complete. e.g. sk \-\-multi | sk \-\-sync
 .TP
 \fB\-\-pre\-select\-n\fR \fI<PRE_SELECT_N>\fR [default: 0]
 Pre\-select the first n items in multi\-selection mode
@@ -1058,6 +1085,8 @@ Available color names:
 .br
     * border: border lines
 .br
+    * scrollbar: item list scrollbar thumb
+.br
 
 .br
 Adding `\-fg`, `_fg`, `\-bg`, `_bg`, `\-underline`, `_underline` sets the corresponding part of
@@ -1134,4 +1163,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v4.6.0
+v5.1.0

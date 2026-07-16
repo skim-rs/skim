@@ -36,6 +36,7 @@ Available color names:
     * selected (or marker): selected item marker
     * header: header text
     * border: border lines
+    * scrollbar: item list scrollbar thumb
 
 Adding `-fg`, `_fg`, `-bg`, `_bg`, `-underline`, `_underline` sets the corresponding part of
 the color. For instance, `normal-fg` (or simply `fg`) will set the foreground normal color.
@@ -183,6 +184,7 @@ const ACTIONS_SS: &str = "
 * yank: ctrl-y
 ";
 
+#[cfg(feature = "listen")]
 const REMOTE_SECTION: &str = "
 skim can be controlled from other processes, using the `--listen` (and optionally `--remote`) flags.
 
@@ -355,6 +357,7 @@ Example:
 
     section(&mut custom, "THEME", THEME_SECTION);
 
+    #[cfg(feature = "listen")]
     section(&mut custom, "LISTEN/REMOTE", REMOTE_SECTION);
 
     section(&mut custom, "EXIT CODES", EXIT_CODES_SECTION);
@@ -364,4 +367,42 @@ Example:
     // Finish with mangen version section
     base.render_version_section(w)?;
     Ok(())
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    fn manpage_str() -> String {
+        let mut buf = Vec::new();
+        generate(&mut buf).expect("manpage generation should not fail");
+        String::from_utf8(buf).expect("manpage output is valid UTF-8")
+    }
+
+    #[test]
+    fn manpage_contains_version() {
+        let out = manpage_str();
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(
+            out.contains(version),
+            "manpage should contain package version {version}"
+        );
+    }
+
+    #[test]
+    fn manpage_contains_key_options() {
+        let out = manpage_str();
+        for flag in ["query", "multi", "preview", "bind", "color"] {
+            assert!(out.contains(flag), "manpage should mention '--{flag}'");
+        }
+    }
+
+    #[test]
+    fn manpage_contains_sections() {
+        let out = manpage_str();
+        for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
+            assert!(out.contains(section), "manpage should contain section '{section}'");
+        }
+    }
 }

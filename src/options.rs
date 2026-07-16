@@ -8,18 +8,18 @@ use std::rc::Rc;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_builder::Builder;
+#[cfg(feature = "image")]
+use ratatui_image::picker::Picker;
 use regex::Regex;
 
 use crate::binds::KeyMap;
 use crate::item::RankCriteria;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
-use crate::tui::BorderType;
-use crate::tui::PreviewCallback;
 use crate::tui::event::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
-use crate::tui::statusline::Info;
-use crate::tui::statusline::InfoDisplay;
+use crate::tui::statusline::{Info, InfoDisplay};
+use crate::tui::{BorderType, PreviewCallback};
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector, Typos};
 
@@ -28,6 +28,40 @@ use crate::{CaseMatching, FuzzyAlgorithm, Selector, Typos};
 fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
     let unescaped = crate::util::unescape_delimiter(s);
     Regex::new(&unescaped).map_err(|e| format!("Invalid regex delimiter: {e}"))
+}
+
+/// Custom value parser for border
+///
+/// Any undefined value falls back to [`BorderType::Plain`] (see the `FromStr` impl in `tui`)
+/// instead of producing a parse error like the default `ValueEnum` parser would, while still
+/// advertising the known variants in `--help` and shell completions by delegating
+/// [`possible_values`](clap::builder::TypedValueParser::possible_values) to
+/// [`BorderType`]'s [`ValueEnum`](clap::ValueEnum) members.
+#[cfg(feature = "cli")]
+#[derive(Clone)]
+struct BorderValueParser;
+
+#[cfg(feature = "cli")]
+impl clap::builder::TypedValueParser for BorderValueParser {
+    type Value = BorderType;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        // `FromStr for BorderType` is infallible: unknown values map to `BorderType::Plain`.
+        Ok(value.to_string_lossy().parse().unwrap_or(BorderType::Plain))
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        Some(Box::new(
+            <BorderType as clap::ValueEnum>::value_variants()
+                .iter()
+                .filter_map(clap::ValueEnum::to_possible_value),
+        ))
+    }
 }
 
 #[cfg(feature = "cli")]
@@ -62,10 +96,22 @@ pub enum MatchScheme {
     History,
 }
 
+/// Image rendering protocols
+#[cfg(feature = "image")]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub enum ImageProtocol {
+    /// Default: automatically detect the available backend at startup
+    #[default]
+    Detect,
+    /// Force halfblocks if you want blurry previews but a faster startup or if the detection fails
+    Halfblocks,
+}
+
 /// sk - fuzzy finder in Rust
 ///
 /// sk is a general purpose command-line fuzzy finder.
-#[allow(missing_docs)] // derive_builder seems to have issues with doc comments ?
+#[allow(missing_docs, clippy::struct_excessive_bools)] // derive_builder seems to have issues with doc comments ?
 #[derive(Builder)]
 #[builder(build_fn(name = "final_build"), setter(into, strip_option))]
 #[builder(default)]
@@ -156,7 +202,7 @@ pub struct SkimOptions {
 
     /// Delimiter between fields
     ///
-    /// In regex format, default to AWK-style. Escape sequences like \x00, \t, \n are supported.
+    /// In regex format, defaults to AWK-style. Escape sequences like \x00, \t, \n are supported.
     #[cfg_attr(
         feature = "cli",
         arg(short, long, default_value = r"[\t\n ]+", value_parser = parse_delimiter_value, help_heading = "Search")
@@ -173,10 +219,15 @@ pub struct SkimOptions {
 
     /// Fuzzy matching algorithm
     ///
-    /// arinae (ari) Latest algorithm
-    /// `skim_v2` Legacy skim algorithm
-    /// clangd  Used in clangd for keyword completion
-    /// fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
+    /// - arinae (ari) Latest algorithm
+    ///
+    /// - `skim_v2` Legacy skim algorithm
+    ///
+    /// - clangd  Used in clangd for keyword completion
+    ///
+    /// - fzy     Algorithm from fzy (<https://github.com/jhawthorn/fzy>)
+    ///
+    /// - frizbee Algorithm used in the blink.cmp neovim plugin
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -192,7 +243,7 @@ pub struct SkimOptions {
     /// Case sensitivity
     ///
     /// Determines whether or not to ignore case while matching
-    /// Note: this is not used for the Frizbee matcher, it uses a penalty system to favor
+    /// Note: this is not used for the Frizbee matcher, which uses a penalty system to favor
     /// case-sensitivity without enforcing it
     #[cfg_attr(
         feature = "cli",
@@ -212,7 +263,7 @@ pub struct SkimOptions {
     )]
     pub typos: Typos,
 
-    /// Disable typo-resistant matching
+    /// Disable typo-tolerant matching
     #[cfg_attr(feature = "cli", arg(long, overrides_with = "typos", help_heading = "Search"))]
     pub no_typos: bool,
 
@@ -272,19 +323,19 @@ pub struct SkimOptions {
     ///
     /// You can use the same placeholder expressions as in --preview.
     ///
-    /// sk  switches  to  the  alternate screen when executing a command. However, if the command is ex‐
-    /// pected to complete quickly, and you are not interested in its output, you might want to use exe‐
-    /// cute-silent instead, which silently executes the command without the  switching.  Note  that  sk
+    /// `sk` switches to the alternate screen when executing a command. However, if the command is
+    /// expected to complete quickly, and you are not interested in its output, you might want to use
+    /// execute-silent instead, which silently executes the command without the  switching.  Note  that  sk
     /// will  not  be  responsive  until the command is complete. For asynchronous execution, start your
-    /// command as a background process (i.e. appending &).
+    /// command as a background process (i.e. appending `&`).
     ///
-    /// With if-query-empty and if-query-not-empty action, you could specify the action to  execute  de‐
-    /// pends on the query condition. For example:
+    /// With the `if-query-empty` and `if-query-not-empty` actions, you could specify the action to execute
+    /// depending on the query condition. For example:
     ///
     /// `sk --bind 'ctrl-d:if-query-empty(abort)+delete-char'`
     ///
     /// If  the query is empty, skim will execute abort action, otherwise execute delete-char action. It
-    /// is equal to ‘delete-char/eof‘.
+    /// is equal to 'delete-char/eof'.
     #[cfg_attr(
         feature = "cli",
         arg(short, long, help_heading = "Interface", verbatim_doc_comment, default_value = "", num_args=0..)
@@ -310,7 +361,7 @@ pub struct SkimOptions {
 
     /// Command to invoke dynamically in interactive mode
     ///
-    /// Will be invoked using `sh -c` on unix-like systems and `cmd /c` on Windows
+    /// Will be invoked using `sh -c` on Unix-like systems and `cmd /c` on Windows
     #[cfg_attr(feature = "cli", arg(short, long, help_heading = "Interface"))]
     pub cmd: Option<String>,
 
@@ -360,8 +411,8 @@ pub struct SkimOptions {
     /// Do not clear previous items if new command returns empty result. This might be useful  to
     /// reduce flickering when typing new commands and the half-complete commands are not valid.
     ///
-    /// This is not the default behavior because similar use cases for grep and rg have already been op‐
-    /// timized where empty query results actually mean "empty" and previous results should be
+    /// This is not the default behavior because similar use cases for `grep` and `rg` have already been
+    /// optimized where empty query results actually mean "empty" and previous results should be
     /// cleared.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub no_clear_if_empty: bool,
@@ -389,6 +440,10 @@ pub struct SkimOptions {
     /// Disable matching entirely
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub disabled: bool,
+
+    /// Disable items based on this regex pattern
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
+    pub disable_pattern: Option<Regex>,
 
     //  --- Layout ---
     /// Set layout
@@ -458,7 +513,7 @@ pub struct SkimOptions {
     )]
     pub selector_icon: String,
 
-    /// Set selected item icon
+    /// Set multi-selected item icon
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -541,9 +596,8 @@ pub struct SkimOptions {
     ///
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_missing_value = "plain", help_heading = "Display", default_value = "none", num_args=0..)
+        arg(long, default_missing_value = "plain", help_heading = "Display", default_value = "none", num_args=0.., value_parser = BorderValueParser)
     )]
-    #[debug(skip)]
     pub border: BorderType,
 
     /// Disables all borders, including in tmux/zellij popups
@@ -619,8 +673,8 @@ pub struct SkimOptions {
     /// Preview command
     ///
     /// Execute the given command for the current line and display the result on the preview window. {} in the command
-    /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the replace‐
-    /// ment string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
+    /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the
+    /// replacement string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
     ///
     /// **Examples**:
     ///
@@ -639,7 +693,7 @@ pub struct SkimOptions {
     /// Line wrap can be enabled with `:wrap` flag.
     /// For more interactive commands or previews that draw complex interfaces, the preview can use a PTY with the `:pty` flag.
     ///
-    /// Note: the preview will run in a PTY (interactive session) on linux and when `wrap` is unset
+    /// Note: the preview will run in a PTY (interactive session) on Linux and when `wrap` is unset
     ///
     /// SIZE can be either:
     ///     - `0`, which will hide the preview window
@@ -647,10 +701,10 @@ pub struct SkimOptions {
     ///     - A percentage of the total size (eg `50%`)
     ///     - A negative size, which will set the size of everything but the preview to that value
     ///
-    /// +SCROLL[-OFFSET] determines the initial scroll offset of the preview window. SCROLL can be either a  numeric  integer
-    /// or  a  single-field index expression that refers to a numeric integer. The optional -OFFSET part is for adjusting the
-    /// base offset so that you can see the text above it. It should be given as a numeric integer (-INTEGER), or as a denom‐
-    /// inator form (-/INTEGER) for specifying a fraction of the preview window height.
+    /// +SCROLL[-OFFSET] determines the initial scroll offset of the preview window. SCROLL can be either a numeric integer
+    /// or a single-field index expression that refers to a numeric integer. The optional -OFFSET part is for adjusting the
+    /// base offset so that you can see the text above it. It should be given as a numeric integer (-INTEGER), or as a
+    /// denominator form (-/INTEGER) for specifying a fraction of the preview window height.
     ///
     /// **Examples**:
     /// ```bash
@@ -679,6 +733,31 @@ pub struct SkimOptions {
         )
     )]
     pub preview_window: PreviewLayout,
+
+    /// Enable image preview
+    ///
+    /// This will render the preview argument as an image instead of running it as a command.
+    ///
+    /// If set to `detect` or if no value is passed, it will try to detect the available image backends at startup, which will add a small
+    /// delay before the first render.
+    /// If set to `halfblocks`, it will always use the `halfblocks` rendering method
+    ///
+    /// Note: the backend detection **will not** work when piping data into skim, use
+    /// `SKIM_DEFAULT_COMMAND="find . -type f" sk --image` instead of `find . -type f | sk --image`
+    #[cfg(feature = "image")]
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Preview", value_enum, default_missing_value = "detect", num_args=0..)
+    )]
+    pub image: Option<ImageProtocol>,
+
+    /// Terminal image protocol picker, queried after entering the alternate screen.
+    /// Built from `options.image` and an stdio detection if needed
+    #[cfg(feature = "image")]
+    #[cfg_attr(feature = "cli", clap(skip))]
+    #[builder(setter(skip))]
+    #[debug(skip)]
+    pub image_picker: Option<Picker>,
 
     //  --- Scripting ---
     /// Initial query
@@ -738,7 +817,7 @@ pub struct SkimOptions {
     /// Synchronous search for multi-staged filtering
     ///
     /// Synchronous search for multi-staged filtering. If specified,
-    /// skim will launch ncurses finder only after the input stream is complete.
+    /// `skim` will launch the TUI finder only after the input stream is complete.
     /// e.g. `sk --multi | sk --sync`
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub sync: bool,
@@ -800,6 +879,7 @@ pub struct SkimOptions {
     ///
     /// The socket expects Actions in Ron format (similar to Rust code), see `./src/tui/event.rs` for all possible Actions
     /// To write to it, see the `--remote` option or the man page
+    #[cfg(feature = "listen")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub listen: Option<String>,
 
@@ -808,6 +888,7 @@ pub struct SkimOptions {
     /// The commands are read from stdin, one per line, in the same format as the actions in the
     /// bind flag. They can also be chained using `+` as a separator.
     /// All other arguments will be ignored
+    #[cfg(feature = "listen")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
 
@@ -815,7 +896,7 @@ pub struct SkimOptions {
     ///
     /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     /// Note: this will try to detect a Zellij session, then a Tmux session
-    /// This means that in nested sesions, skim will prioritize Zellij over Tmux
+    /// This means that in nested sessions, `skim` will prioritize Zellij over Tmux
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]
     pub popup: Option<String>,
 
@@ -1014,11 +1095,14 @@ impl Default for SkimOptions {
             no_strip_ansi: false,
             wrap_items: false,
             multiline: None,
+            #[cfg(feature = "listen")]
             listen: None,
+            #[cfg(feature = "listen")]
             remote: None,
             print_header: false,
             print_current: false,
             disabled: false,
+            disable_pattern: None,
             tac: Default::default(),
             min_query_length: Default::default(),
             no_sort: Default::default(),
@@ -1072,6 +1156,10 @@ impl Default for SkimOptions {
             cmd_history_size: 1000,
             preview: Default::default(),
             preview_window: PreviewLayout::default(),
+            #[cfg(feature = "image")]
+            image: None,
+            #[cfg(feature = "image")]
+            image_picker: None,
             query: Default::default(),
             cmd_query: Default::default(),
             read0: Default::default(),
@@ -1271,19 +1359,49 @@ impl SkimOptions {
     ///
     /// Panics if the process was invoked with no arguments (which should never happen in practice).
     pub fn from_env() -> Result<Self, clap::Error> {
-        use clap::Parser;
         use std::env;
 
-        let mut args = Vec::new();
+        let prog = env::args()
+            .next()
+            .expect("there should be at least one arg: the application name");
+        let options_file_content = env::var("SKIM_OPTIONS_FILE").ok().and_then(|f| std::fs::read(f).ok());
+        let default_options = env::var("SKIM_DEFAULT_OPTIONS").ok();
+        let default_command = env::var("SKIM_DEFAULT_COMMAND").ok();
 
-        args.push(
-            env::args()
-                .next()
-                .expect("there should be at least one arg: the application name"),
-        );
-        if let Ok(opts_file) = env::var("SKIM_OPTIONS_FILE")
-            && let Ok(content) = std::fs::read(opts_file)
-        {
+        Self::merge_args_and_parse(
+            prog,
+            options_file_content.as_deref(),
+            default_options.as_deref(),
+            env::args().skip(1),
+            default_command,
+        )
+    }
+
+    /// Build [`SkimOptions`] from explicitly provided sources, mirroring how
+    /// [`from_env`](Self::from_env) assembles them but without touching the
+    /// process environment — which makes it unit-testable and platform-agnostic.
+    ///
+    /// Precedence (lowest to highest): `SKIM_OPTIONS_FILE` contents, then
+    /// `SKIM_DEFAULT_OPTIONS`, then the real CLI args. `default_command`
+    /// (`SKIM_DEFAULT_COMMAND`) only fills `cmd` when no `--cmd` was given,
+    /// falling back to [`crate::SKIM_DEFAULT_COMMAND`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`clap::Error`] if argument parsing fails.
+    #[cfg(feature = "cli")]
+    pub(crate) fn merge_args_and_parse(
+        prog: String,
+        options_file_content: Option<&[u8]>,
+        default_options: Option<&str>,
+        cli_args: impl IntoIterator<Item = String>,
+        default_command: Option<String>,
+    ) -> Result<Self, clap::Error> {
+        use clap::Parser;
+
+        let mut args = vec![prog];
+
+        if let Some(content) = options_file_content {
             let mut in_comment = false;
             let mut pending_comment = false;
             let without_comments = content
@@ -1317,17 +1435,16 @@ impl SkimOptions {
             let parsed = String::from_utf8_lossy(&without_comments);
             args.extend(shlex::split(&parsed).unwrap_or_default());
         }
-        args.extend(
-            env::var("SKIM_DEFAULT_OPTIONS")
-                .ok()
-                .and_then(|val| shlex::split(&val))
-                .unwrap_or_default(),
-        );
-        for arg in env::args().skip(1) {
-            args.push(arg);
-        }
 
-        Self::try_parse_from(args)
+        args.extend(default_options.and_then(shlex::split).unwrap_or_default());
+        args.extend(cli_args);
+
+        Self::try_parse_from(args).map(|mut opts| {
+            if opts.cmd.is_none() {
+                opts.cmd = Some(default_command.unwrap_or_else(|| crate::SKIM_DEFAULT_COMMAND.to_string()));
+            }
+            opts
+        })
     }
 }
 
@@ -1335,7 +1452,7 @@ impl SkimOptions {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
 pub enum FeatureFlag {
-    /// Disable preview PTY on linux
+    /// Disable preview PTY on Linux
     NoPreviewPty,
     /// Display the item's match score before its value in the item list (for matcher debugging)
     ShowScore,
@@ -1363,3 +1480,7 @@ macro_rules! feature_flag {
 }
 #[allow(unused_imports)]
 pub(crate) use feature_flag;
+
+#[cfg(test)]
+#[path = "options_tests.rs"]
+mod tests;

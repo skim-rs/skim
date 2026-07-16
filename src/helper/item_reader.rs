@@ -33,6 +33,7 @@ pub struct SkimItemReaderOption {
     delimiter: Regex,
     line_ending: u8,
     show_error: bool,
+    disable_pattern: Option<Regex>,
 }
 
 impl Default for SkimItemReaderOption {
@@ -45,6 +46,7 @@ impl Default for SkimItemReaderOption {
             matching_fields: Vec::new(),
             delimiter: Regex::new(DELIMITER_STR).unwrap(),
             show_error: false,
+            disable_pattern: None,
         }
     }
 }
@@ -69,6 +71,7 @@ impl SkimItemReaderOption {
                 .collect(),
             delimiter: options.delimiter.clone(),
             show_error: options.show_cmd_error,
+            disable_pattern: options.disable_pattern.clone(),
         }
     }
 
@@ -432,13 +435,17 @@ impl SkimItemReader {
             let Ok(line) = std::str::from_utf8(line_bytes) else {
                 continue;
             };
-            items.push(Arc::new(DefaultSkimItem::new(
+            let mut item = DefaultSkimItem::new(
                 line,
                 opt.use_ansi_color,
                 &opt.transform_fields,
                 &opt.matching_fields,
                 &opt.delimiter,
-            )) as Arc<dyn SkimItem>);
+            );
+            if opt.disable_pattern.as_ref().is_some_and(|re| re.is_match(line)) {
+                item.disable();
+            }
+            items.push(Arc::new(item) as Arc<dyn SkimItem>);
         }
 
         (seq, items)
@@ -513,3 +520,7 @@ fn get_command_output(cmd: &str, send_error: bool) -> Result<CommandOutput, Box<
 
     Ok((command.spawn().ok(), Box::new(BufReader::new(reader))))
 }
+
+#[cfg(test)]
+#[path = "item_reader_tests.rs"]
+mod tests;

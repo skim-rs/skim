@@ -1,27 +1,27 @@
 // TODO: automate listen tests on windows
 // Maybe using smaller tests ? actions processing is already tested, only the IPC part needs testing
-#![cfg(unix)]
+#![allow(missing_docs, clippy::pedantic)]
+#![cfg(all(unix, feature = "listen"))]
 #[allow(dead_code)]
 #[macro_use]
 mod common;
 
 use common::tmux::Keys::*;
-use rand::{RngExt as _, distr::Alphabetic};
-use std::{
-    io::{Result, Write as _},
-    process::{Child, Command, Stdio},
-};
+use rand::RngExt as _;
+use rand::distr::Alphabetic;
+use std::io::{Result, Write as _};
+use std::process::{Child, Command, Stdio};
 
 use common::tmux::TmuxController;
 
-use crate::common::SK;
+use crate::common::{SK, SKIM_ENV_REMOVES};
 
 fn connect(name: &str) -> Result<Child> {
-    Command::new("/bin/sh")
-        .arg("-c")
-        .arg(format!("{SK} --remote {name}"))
-        .stdin(Stdio::piped())
-        .spawn()
+    let mut cmd = Command::new(SK);
+    for var in SKIM_ENV_REMOVES {
+        cmd.env_remove(var);
+    }
+    cmd.args(["--remote", name]).stdin(Stdio::piped()).spawn()
 }
 fn send(child: &mut Child, msg: &str) -> Result<()> {
     let mut b = msg.bytes().collect::<Vec<_>>();

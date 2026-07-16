@@ -31,12 +31,10 @@ pub(super) fn compute_last_match_cols<C: Atom>(
     let mut end = m; // search up to this choice index (exclusive)
     for i in (0..n).rev() {
         let found = pat[i].find_last_in(&cho[..end], respect_case);
-        match found {
-            Some(pos) => {
-                last[i] = pos + 1; // 1-indexed column
-                end = pos; // previous char must be strictly before
-            }
-            None => return None,
+        {
+            let pos = found?;
+            last[i] = pos + 1; // 1-indexed column
+            end = pos; // previous char must be strictly before
         }
     }
     Some(last)

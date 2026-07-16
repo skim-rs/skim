@@ -1,23 +1,22 @@
-use std::{
-    fmt::{Display, Formatter},
-    fs::File,
-    io::{BufReader, ErrorKind, Read, Result},
-    path::Path,
-    process::Command,
-    thread::sleep,
-    time::Duration,
-};
+use std::fmt::{Display, Formatter};
+use std::fs::File;
+use std::io::{BufReader, ErrorKind, Read, Result};
+use std::path::Path;
+use std::process::Command;
+use std::thread::sleep;
+use std::time::Duration;
 
 use rand::RngExt as _;
 use rand::distr::Alphanumeric;
 use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
-use crate::common::SK;
+use crate::common::{SK, SKIM_SHELL_ENV_CLEAR};
 
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
-        "{} {} > {}.part; mv {}.part {}",
+        "{}{} {} > {}.part; mv {}.part {}",
+        SKIM_SHELL_ENV_CLEAR,
         SK,
         opts.join(" "),
         outfile,

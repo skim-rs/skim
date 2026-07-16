@@ -14,11 +14,11 @@ pathname\t''
 complete -c sk -s n -l nth -d 'Fields to be matched' -r
 complete -c sk -l with-nth -d 'Fields to be transformed' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
-complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "skim_v2\t'Improved skim fuzzy matching algorithm (v2)'
+complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "arinae\t'Arinae: typo-resistant & natural algorithm, default'
 clangd\t'Clangd fuzzy matching algorithm'
 fzy\t'Fzy matching algorithm (https://github.com/jhawthorn/fzy)'
-frizbee\t'Frizbee matching algorithm, typo resistant (x86_64 and aarch64 only)'
-arinae\t'Arinae: typo-resistant & natural algorithm, default'"
+frizbee\t'Frizbee matching algorithm, typo resistant'
+skim_v2\t'Previous skim fuzzy matching algorithm (v2)'"
 complete -c sk -l case -d 'Case sensitivity' -r -f -a "respect\t'Case-sensitive matching'
 ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"
@@ -32,6 +32,7 @@ complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode
 complete -c sk -s I -d 'Replace replstr with the selected item in commands' -r
 complete -c sk -l color -d 'Set color theme' -r
 complete -c sk -l skip-to-pattern -d 'Show the matched pattern at the line start' -r
+complete -c sk -l disable-pattern -d 'Disable items based on this regex pattern' -r
 complete -c sk -l layout -d 'Set layout' -r -f -a "default\t'Display from the bottom of the screen'
 reverse\t'Display from the top of the screen'
 reverse-list\t'Display from the top of the screen, prompt at the bottom'"
@@ -41,7 +42,7 @@ complete -c sk -l margin -d 'Screen margin' -r
 complete -c sk -s p -l prompt -d 'Set prompt' -r
 complete -c sk -l cmd-prompt -d 'Set prompt in command mode' -r
 complete -c sk -l selector -d 'Set selected item icon' -r
-complete -c sk -l multi-selector -d 'Set selected item icon' -r
+complete -c sk -l multi-selector -d 'Set multi-selected item icon' -r
 complete -c sk -l tabstop -d 'Number of spaces that make up a tab' -r
 complete -c sk -l ellipsis -d 'The characters used to display truncated lines' -r
 complete -c sk -l info -d 'Set matching result count display position' -r
@@ -69,6 +70,8 @@ complete -c sk -l cmd-history -d 'Command history file' -r
 complete -c sk -l cmd-history-size -d 'Maximum number of query history entries to keep' -r
 complete -c sk -l preview -d 'Preview command' -r
 complete -c sk -l preview-window -d 'Preview window layout' -r
+complete -c sk -l image -d 'Enable image preview' -r -f -a "detect\t'Default: automatically detect the available backend at startup'
+halfblocks\t'Force halfblocks if you want blurry previews but a faster startup or if the detection fails'"
 complete -c sk -s q -l query -d 'Initial query' -r
 complete -c sk -l cmd-query -d 'Initial query in interactive mode' -r
 complete -c sk -l output-format -d 'Set the output format If set, overrides all print_ options Will be expanded the same way as preview or commands' -r
@@ -88,7 +91,7 @@ complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (
 complete -c sk -l popup -d 'Run in a tmux or zellij popup' -r
 complete -c sk -l log-level -d 'Set the log level' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
-complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on linux'
+complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on Linux'
 show-score\t'Display the item\'s match score before its value in the item list (for matcher debugging)'
 show-index\t'Display the item\'s index before its value in the item list'
 single-reader\t'Limit the reader thread pool to a single thread'
@@ -132,7 +135,7 @@ complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
 complete -c sk -s e -l exact -d 'Run in exact mode'
 complete -c sk -l regex -d 'Start in regex mode instead of fuzzy-match'
-complete -c sk -l no-typos -d 'Disable typo-resistant matching'
+complete -c sk -l no-typos -d 'Disable typo-tolerant matching'
 complete -c sk -l normalize -d 'Normalize unicode characters'
 complete -c sk -l last-match -d 'Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts'
 complete -c sk -s m -l multi -d 'Enable multiple selection'

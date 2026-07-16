@@ -5,8 +5,8 @@
   <a href="https://github.com/skim-rs/skim/actions?query=workflow%3A%22Build+%26+Test%22+event%3Apush">
     <img src="https://github.com/skim-rs/skim/actions/workflows/test.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
-  <a href="https://codecov.io/gh/skim-rs/skim" >
-    <img src="https://codecov.io/gh/skim-rs/skim/graph/badge.svg?token=RtIDgmDdzX" alt="codecov badge" />
+  <a href="https://skim-rs.github.io/skim" >
+    <img src="https://skim-rs.github.io/skim/coverage.svg" alt="coverage badge" />
   </a>
   <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
@@ -399,6 +399,7 @@ The following UI elements can be customized:
 | `selected`         | Selected item marker color                  | `--color=selected:168`         |
 | `header`           | Header text color                           | `--color=header:109`           |
 | `border`           | Border color for preview/layout             | `--color=border:59`            |
+| `scrollbar`        | Item list scrollbar thumb color             | `--color=scrollbar:59`         |
 
 ### Examples
 
@@ -457,7 +458,7 @@ sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 
 Skim offers multiple algorithms, check the help or manpage for an exhaustive list. Among them are:
 - `skim_v2`, the default algorithm, loosely based on `fzf`'s algorithm
-- `frizbee`, uses [frizbee](https://crates.io/frizbee), the typo-resistant algorithm from in the [blink.cmp](https://github.com/saghen/blink.cmp) neovim plugin (**x86_64 and aarch64 only**)
+- `frizbee`, uses [frizbee](https://crates.io/frizbee), the typo-resistant algorithm from the [blink.cmp](https://github.com/saghen/blink.cmp) neovim plugin
 - `fzy`, based on [fzy](https://github.com/jhawthorn/fzy/)'s algorithm expanded for basic typo-resistance
 - `arinae`, skim's newest algorithm, designed in-house with typo-resistance in mind, expanding on all the above to make typo-resistant matching feel more natural while keeping the per-item performance up to the best standards
 

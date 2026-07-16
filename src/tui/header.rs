@@ -1,24 +1,18 @@
 //! Header display widget for skim's TUI.
 //!
 //! This module provides the header widget that displays static text above the item list.
-use crate::DisplayContext;
-use crate::SkimItem;
-use crate::SkimOptions;
 use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::options::TuiLayout;
-use crate::tui::util::char_display_width;
-use crate::tui::util::clip_line_to_chars;
-use crate::tui::util::style_line;
-use crate::tui::util::style_text;
+use crate::tui::util::{char_display_width, clip_line_to_chars, style_line, style_text};
 use crate::tui::widget::{SkimRender, SkimWidget};
+use crate::{DisplayContext, SkimItem, SkimOptions};
 
 use ansi_to_tui::IntoText;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::Widget;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget};
 use std::cmp::max;
 use std::sync::Arc;
 
@@ -237,5 +231,97 @@ impl SkimWidget for Header {
             .render(area, buf);
 
         SkimRender::default()
+    }
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use crate::options::SkimOptionsBuilder;
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+
+    fn header_with(options: &SkimOptions) -> Header {
+        Header::from_options(options, Arc::new(ColorTheme::default()))
+    }
+
+    fn buffer_text(buf: &Buffer) -> String {
+        let area = buf.area;
+        let mut out = String::new();
+        for y in 0..area.height {
+            for x in 0..area.width {
+                out.push_str(buf[(x, y)].symbol());
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn apply_tabstop_expands_to_column() {
+        // A tab advances to the next multiple of the tabstop width.
+        assert_eq!(apply_tabstop("a\tb", 4), "a   b");
+        assert_eq!(apply_tabstop("\t", 4), "    ");
+        assert_eq!(apply_tabstop("ab\tc", 4), "ab  c");
+        assert_eq!(apply_tabstop("noTabs", 8), "noTabs");
+    }
+
+    #[test]
+    fn default_header_is_empty_with_zero_height() {
+        let header = Header::default();
+        assert_eq!(header.height(), 0);
+    }
+
+    #[test]
+    fn theme_setter_is_chainable() {
+        let header = Header::default().theme(Arc::new(ColorTheme::default()));
+        assert_eq!(header.height(), 0);
+    }
+
+    #[test]
+    fn height_counts_static_header_lines() {
+        let options = SkimOptionsBuilder::default()
+            .header("line one\nline two")
+            .build()
+            .unwrap();
+        let header = header_with(&options);
+        assert_eq!(header.height(), 2);
+    }
+
+    #[test]
+    fn height_includes_reserved_header_lines_count() {
+        let options = SkimOptionsBuilder::default().header_lines(3usize).build().unwrap();
+        let header = header_with(&options);
+        // No items yet → falls back to the reserved count.
+        assert_eq!(header.height(), 3);
+    }
+
+    #[test]
+    fn set_header_lines_counts_dynamic_items() {
+        let options = SkimOptionsBuilder::default().header_lines(2usize).build().unwrap();
+        let mut header = header_with(&options);
+        let items: Vec<Arc<dyn SkimItem>> = vec![Arc::new("a".to_string()), Arc::new("b".to_string())];
+        header.set_header_lines(items);
+        assert_eq!(header.height(), 2);
+    }
+
+    #[test]
+    fn render_writes_static_header_text() {
+        let options = SkimOptionsBuilder::default().header("MYHEADER").build().unwrap();
+        let mut header = header_with(&options);
+        let area = Rect::new(0, 0, 20, 3);
+        let mut buf = Buffer::empty(area);
+        header.render(area, &mut buf);
+        assert!(buffer_text(&buf).contains("MYHEADER"));
+    }
+
+    #[test]
+    fn render_empty_header_does_not_panic() {
+        let mut header = Header::default();
+        let area = Rect::new(0, 0, 20, 3);
+        let mut buf = Buffer::empty(area);
+        // Exercises the blank-line padding branch for an empty header.
+        let _ = header.render(area, &mut buf);
     }
 }

@@ -27,7 +27,7 @@ pub(super) const TYPO_PENALTY: Score = 10;
 pub(super) const MISMATCH_PENALTY: Score = 16;
 
 /// Maximum pattern length supported by the banding arrays (stack-allocated).
-pub(super) const MAX_PAT_LEN: usize = 32;
+pub(super) const MAX_PAT_LEN: usize = 128;
 
 /// Bandwidth for typo-mode banding. In typo mode we allow diagonal moves
 /// (match/mismatch) plus UP (skip pattern char) and LEFT (skip choice char),
@@ -36,6 +36,14 @@ pub(super) const MAX_PAT_LEN: usize = 32;
 /// to capture all viable alignments while still pruning far-off cells.
 pub(super) const TYPO_BAND_SLACK: usize = 4;
 
+const HI_BONUS: Score = 16;
+const MED_BONUS: Score = 12;
+const LOW_BONUS: Score = 10;
+macro_rules! set_bonus {
+    ($t: ident, $($c: literal),*, $value: ident) => {
+        $( $t[$c as usize] = $value; )*
+    };
+}
 /// Per-separator bonus lookup table. Each entry holds the `Score` awarded when
 /// a matched character immediately follows that ASCII codepoint. Non-separator
 /// characters (and all non-ASCII codepoints) map to `0`.
@@ -45,11 +53,26 @@ pub(super) const TYPO_BAND_SLACK: usize = 4;
 /// (standard bonus).  Entries that are `0` are not considered separators.
 pub(super) const SEPARATOR_TABLE: [Score; 128] = {
     let mut t = [0 as Score; 128];
-    t[b' ' as usize] = 16; // space
-    t[b'-' as usize] = 10; // hyphen / kebab-case
-    t[b'.' as usize] = 12; // dot (file extensions, domain names)
-    t[b'/' as usize] = 16; // forward slash (path separator — higher bonus)
-    t[b'\\' as usize] = 16; // backslash (Windows path separator — higher bonus)
-    t[b'_' as usize] = 12; // underscore / snake_case
+
+    // Full word separators
+    set_bonus!(t, ' ', '[', ']', '(', ')', '{', '}', '|', HI_BONUS);
+
+    // Paths separators
+    set_bonus!(t, '/', HI_BONUS);
+    #[cfg(windows)]
+    {
+        set_bonus!(t, '\\', HI_BONUS);
+    }
+
+    // Other common word splitters
+    set_bonus!(t, '_', '.', '\'', MED_BONUS);
+
+    // Other non-word characters
+    set_bonus!(t, '-', '~', ':', ';', ',', LOW_BONUS);
+    #[cfg(unix)]
+    {
+        set_bonus!(t, '\\', LOW_BONUS);
+    }
+
     t
 };

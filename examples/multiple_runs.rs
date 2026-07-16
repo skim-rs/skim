@@ -1,4 +1,7 @@
-use skim::{Skim, prelude::SkimOptionsBuilder};
+//! Runs skim repeatedly to check that runs clean up their worker threads.
+
+use skim::Skim;
+use skim::prelude::SkimOptionsBuilder;
 
 // Hint: use `ps -T -p $(pgrep -f target/debug/examples/multiple_runs)` to watch threads while the
 // different invocations run, and make sure none is leaking through

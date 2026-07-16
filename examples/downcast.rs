@@ -1,8 +1,7 @@
+//! Illustrates downcasting custom structs that implement `SkimItem`.
+
 extern crate skim;
 use skim::prelude::*;
-
-/// This example illustrates downcasting custom structs that implement
-/// `SkimItem` after calling `Skim::run_with`.
 
 #[derive(Debug, Clone)]
 struct Item {
@@ -15,11 +14,11 @@ impl SkimItem for Item {
     }
 
     fn preview(&self, _context: PreviewContext) -> ItemPreview {
-        ItemPreview::Text(self.text.to_owned())
+        ItemPreview::Text(self.text.clone())
     }
 }
 
-pub fn main() {
+fn main() {
     let options = SkimOptionsBuilder::default()
         .height("50%")
         .multi(true)

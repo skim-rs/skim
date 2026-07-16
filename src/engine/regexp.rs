@@ -5,8 +5,7 @@ use regex::Regex;
 
 use crate::engine::util::regex_match;
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine};
-use crate::{MatchRange, MatchResult, SkimItem};
+use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, SkimItem};
 use std::cmp::min;
 
 //------------------------------------------------------------------------------
@@ -84,5 +83,63 @@ impl Display for RegexEngine {
                 .as_ref()
                 .map_or(String::new(), |re| re.as_str().to_string())
         )
+    }
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+
+    fn engine(query: &str, case: CaseMatching) -> RegexEngine {
+        RegexEngine::builder(query, case).build()
+    }
+
+    #[test]
+    fn matches_regex_pattern() {
+        let e = engine("ba.", CaseMatching::Respect);
+        let result = e.match_item(&"foobar".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::ByteRange(3, 6));
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        let e = engine("xyz", CaseMatching::Respect);
+        assert!(e.match_item(&"foobar".to_string()).is_none());
+    }
+
+    #[test]
+    fn ignore_case_matches_insensitively() {
+        let e = engine("foo", CaseMatching::Ignore);
+        assert!(e.match_item(&"FOOBAR".to_string()).is_some());
+    }
+
+    #[test]
+    fn smart_case_is_sensitive() {
+        let e = engine("foo", CaseMatching::Smart);
+        assert!(e.match_item(&"foobar".to_string()).is_some());
+        assert!(e.match_item(&"FOOBAR".to_string()).is_none());
+    }
+
+    #[test]
+    fn empty_query_matches_everything() {
+        // An empty pattern produces a regex that matches at position 0.
+        let e = engine("", CaseMatching::Respect);
+        assert!(e.match_item(&"anything".to_string()).is_some());
+    }
+
+    #[test]
+    fn invalid_regex_yields_no_regex_and_matches_all() {
+        // An unparsable pattern leaves `query_regex` as None, which short-circuits
+        // to a zero-length match for every item.
+        let e = engine("(", CaseMatching::Respect);
+        let result = e.match_item(&"abc".to_string()).unwrap();
+        assert_eq!(result.matched_range, MatchRange::ByteRange(0, 0));
+    }
+
+    #[test]
+    fn display_shows_pattern() {
+        let e = engine("ba.", CaseMatching::Respect);
+        assert_eq!(format!("{e}"), "(Regex: ba.)");
     }
 }

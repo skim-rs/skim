@@ -215,3 +215,115 @@ where
 
     tx_interrupt
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+    use std::time::{Duration, Instant};
+
+    fn source(text: &str) -> SkimItemReceiver {
+        SkimItemReader::default().of_bufread(Cursor::new(text.to_owned().into_bytes()))
+    }
+
+    /// Spin until `cond` holds or a short timeout elapses.
+    fn wait_until(mut cond: impl FnMut() -> bool) {
+        let start = Instant::now();
+        while !cond() && start.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    #[test]
+    fn collect_streams_items_into_pool() {
+        let pool = Arc::new(ItemPool::new());
+        let mut reader = Reader::default().source(Some(source("a\nb\nc\n")));
+        let control = reader.collect(pool.clone(), "");
+        wait_until(|| pool.len() == 3);
+        assert_eq!(pool.len(), 3);
+        drop(control);
+    }
+
+    #[test]
+    fn run_sends_items_to_channel() {
+        let (tx, rx) = kanal::unbounded::<Vec<Arc<dyn SkimItem>>>();
+        let mut reader = Reader::default().source(Some(source("x\ny\n")));
+        let control = reader.run(tx, "");
+        wait_until(|| control.is_done());
+
+        let mut count = 0;
+        while let Ok(Some(batch)) = rx.try_recv() {
+            count += batch.len();
+        }
+        assert_eq!(count, 2);
+        drop(control);
+    }
+
+    #[test]
+    fn is_done_true_after_completion() {
+        let pool = Arc::new(ItemPool::new());
+        let mut reader = Reader::default().source(Some(source("only\n")));
+        let control = reader.collect(pool.clone(), "");
+        wait_until(|| control.is_done());
+        assert!(control.is_done());
+    }
+
+    #[test]
+    fn kill_stops_all_components() {
+        let pool = Arc::new(ItemPool::new());
+        let mut reader = Reader::default().source(Some(source("a\nb\n")));
+        let mut control = reader.collect(pool, "");
+        control.kill();
+        // After kill, no components remain running.
+        assert!(control.is_done());
+    }
+
+    #[test]
+    fn run_without_source_invokes_command() {
+        // With no preset source, `run` falls back to invoking the command via
+        // the command collector.
+        #[cfg(unix)]
+        let cmd = "printf 'a\\nb\\n'";
+        #[cfg(windows)]
+        let cmd = "echo a & echo b";
+
+        let (tx, rx) = kanal::unbounded::<Vec<Arc<dyn SkimItem>>>();
+        let mut reader = Reader::default();
+        let control = reader.run(tx, cmd);
+        wait_until(|| control.is_done());
+
+        let mut count = 0;
+        while let Ok(Some(batch)) = rx.try_recv() {
+            count += batch.len();
+        }
+        assert_eq!(count, 2);
+        drop(control);
+    }
+
+    #[test]
+    fn collect_without_source_invokes_command() {
+        // Same command-invoking fallback for the pool-collecting path.
+        #[cfg(unix)]
+        let cmd = "printf 'x\\ny\\nz\\n'";
+        #[cfg(windows)]
+        let cmd = "echo x & echo y & echo z";
+
+        let pool = Arc::new(ItemPool::new());
+        let mut reader = Reader::default();
+        let control = reader.collect(pool.clone(), cmd);
+        wait_until(|| pool.len() == 3);
+        assert_eq!(pool.len(), 3);
+        drop(control);
+    }
+
+    #[test]
+    fn take_returns_empty_for_pool_collection() {
+        // `collect` routes items to the pool, not the control's own buffer.
+        let pool = Arc::new(ItemPool::new());
+        let mut reader = Reader::default().source(Some(source("a\n")));
+        let control = reader.collect(pool, "");
+        wait_until(|| control.is_done());
+        assert!(control.take().is_empty());
+    }
+}

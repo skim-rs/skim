@@ -3,10 +3,10 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
 use color_eyre::eyre::Result;
-use crossterm::event::KeyEventKind;
-use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
-use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::event::{
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
+};
+use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
@@ -40,6 +40,7 @@ where
     pub cancellation_token: CancellationToken,
     /// Whether running in fullscreen mode
     pub is_fullscreen: bool,
+    enable_mouse: bool,
 }
 
 impl Tui {
@@ -51,6 +52,12 @@ impl Tui {
     pub fn new_with_height(height: Size) -> Result<Self> {
         let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
         Self::new_with_height_and_backend(backend, height)
+    }
+    /// Disable mouse handling.
+    /// Needs to be called before enter.
+    pub fn disable_mouse(&mut self) -> &mut Self {
+        self.enable_mouse = false;
+        self
     }
 }
 
@@ -107,6 +114,7 @@ where
             tick_rate: f64::from(TICK_RATE),
             cancellation_token: CancellationToken::default(),
             is_fullscreen: lines.is_none(),
+            enable_mouse: true,
         })
     }
 
@@ -116,16 +124,33 @@ where
     ///
     /// Returns an error if enabling raw mode or mouse capture fails.
     pub fn enter(&mut self) -> Result<()> {
+        self.enter_terminal()?;
+        self.start();
+        Ok(())
+    }
+
+    /// Enables terminal modes and enters the alternate screen without starting event polling.
+    ///
+    /// This lets callers run terminal queries after alternate-screen entry but
+    /// before the event stream starts reading terminal input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if enabling raw mode or terminal features fails.
+    pub fn enter_terminal(&mut self) -> Result<()> {
         crossterm::terminal::enable_raw_mode()?;
         // On Windows, install a console ctrl handler so that CTRL_C_EVENT
         // performs terminal cleanup instead of killing the process abruptly.
         #[cfg(windows)]
         super::windows::install_ctrl_c_handler()?;
-        crossterm::execute!(std::io::stderr(), EnableMouseCapture, EnableBracketedPaste)?;
+
+        crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
+        if self.enable_mouse {
+            crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+        }
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
-        self.start();
         Ok(())
     }
 
@@ -143,9 +168,13 @@ where
         // When using the inline layout, we want to remove all previous output
         //  -> reset cursor at the top of the drawing area
         if !self.is_fullscreen {
-            self.clear()?;
             let area = self.get_frame().area();
             let orig = ratatui::layout::Position { x: area.x, y: area.y };
+            crossterm::execute!(
+                std::io::stderr(),
+                cursor::MoveTo(orig.x, orig.y),
+                Clear(ClearType::FromCursorDown)
+            )?;
             self.set_cursor_position(orig)?;
         }
         Ok(())
@@ -274,4 +303,49 @@ pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     )?;
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+
+    fn fullscreen_tui() -> Tui<TestBackend> {
+        // Percent(100) selects the fullscreen viewport, avoiding any TTY cursor query.
+        Tui::new_with_height_and_backend(TestBackend::new(80, 24), Size::Percent(100))
+            .expect("failed to build test TUI")
+    }
+
+    #[test]
+    fn new_with_full_height_is_fullscreen() {
+        let tui = fullscreen_tui();
+        assert!(tui.is_fullscreen);
+        assert!(tui.enable_mouse);
+    }
+
+    #[test]
+    fn stop_cancels_token() {
+        let tui = fullscreen_tui();
+        assert!(!tui.cancellation_token.is_cancelled());
+        tui.stop();
+        assert!(tui.cancellation_token.is_cancelled());
+    }
+
+    #[test]
+    fn cancel_is_idempotent() {
+        let tui = fullscreen_tui();
+        tui.cancel();
+        tui.cancel();
+        assert!(tui.cancellation_token.is_cancelled());
+    }
+
+    #[test]
+    fn deref_exposes_terminal_frame() {
+        let mut tui = fullscreen_tui();
+        // Deref/DerefMut should expose the underlying ratatui terminal.
+        let area = tui.get_frame().area();
+        assert_eq!(area.width, 80);
+        assert_eq!(area.height, 24);
+    }
 }

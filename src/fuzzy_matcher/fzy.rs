@@ -40,7 +40,7 @@ use std::cell::RefCell;
 
 use thread_local::ThreadLocal;
 
-use crate::fuzzy_matcher::util::cheap_matches;
+use crate::fuzzy_matcher::util::{char_equal, cheap_matches};
 use crate::fuzzy_matcher::{FuzzyMatcher, IndexType, MatchIndices, ScoreType};
 
 // ---------------------------------------------------------------------------
@@ -123,20 +123,8 @@ fn precompute_bonus(haystack: &[char]) -> Vec<i64> {
 }
 
 #[inline]
-fn is_match(
-    needle: &[char],
-    haystack: &[char],
-    lower_needle: &[char],
-    lower_haystack: &[char],
-    case_sensitive: bool,
-    i: usize,
-    j: usize,
-) -> bool {
-    if case_sensitive {
-        needle[i] == haystack[j]
-    } else {
-        lower_needle[i] == lower_haystack[j]
-    }
+fn is_match(needle: &[char], haystack: &[char], case_sensitive: bool, i: usize, j: usize) -> bool {
+    char_equal(needle[i], haystack[j], case_sensitive)
 }
 
 /// Core fzy scoring without typos.
@@ -162,8 +150,6 @@ fn fzy_score(
         return Some(SCORE_MAX);
     }
 
-    let lower_needle: Vec<char> = needle.iter().map(char::to_ascii_lowercase).collect();
-    let lower_haystack: Vec<char> = haystack.iter().map(char::to_ascii_lowercase).collect();
     let match_bonus = precompute_bonus(haystack);
 
     if positions.is_some() {
@@ -176,7 +162,7 @@ fn fzy_score(
             let mut prev_score = SCORE_MIN;
             let gap = if n == 1 { SCORE_GAP_TRAILING } else { SCORE_GAP_INNER };
             for j in 0..m {
-                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, 0, j) {
+                if is_match(needle, haystack, case_sensitive, 0, j) {
                     let score = i64::try_from(j).unwrap_or(i64::MAX) * SCORE_GAP_LEADING + match_bonus[j];
                     d_matrix[0][j] = score;
                     prev_score = score;
@@ -197,7 +183,7 @@ fn fzy_score(
                 SCORE_GAP_INNER
             };
             for j in 0..m {
-                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, i, j) {
+                if is_match(needle, haystack, case_sensitive, i, j) {
                     let mut score = SCORE_MIN;
                     if j > 0 {
                         let prev_m = m_matrix[i - 1][j - 1];
@@ -259,7 +245,7 @@ fn fzy_score(
                 let old_d = d_row[j];
                 let old_m = m_row[j];
 
-                if is_match(needle, haystack, &lower_needle, &lower_haystack, case_sensitive, i, j) {
+                if is_match(needle, haystack, case_sensitive, i, j) {
                     let score = if i == 0 {
                         i64::try_from(j).unwrap_or(i64::MAX) * SCORE_GAP_LEADING + match_bonus[j]
                     } else if j > 0 {
@@ -687,7 +673,11 @@ fn internal_to_skim_score(score: i64) -> ScoreType {
     } else if score == SCORE_MIN {
         ScoreType::MIN / 2
     } else {
-        score * SCORE_TO_SKIM
+        // Saturate rather than panic: the DP sentinel (SCORE_MIN) can end up
+        // offset by a few accumulated bonuses/penalties along a path that's
+        // still effectively "no match" (see the fuzz-found case-folding bug
+        // this fixed), landing close to but not exactly on SCORE_MIN/SCORE_MAX.
+        score.saturating_mul(SCORE_TO_SKIM)
     }
 }
 
@@ -859,6 +849,10 @@ impl FuzzyMatcher for FzyMatcher {
                     &mut bufs,
                 )?;
 
+                // Release the lowercase-cache borrows before optionally freeing
+                // them; `replace` would otherwise re-borrow the same RefCells.
+                drop(lower_choice);
+                drop(lower_pattern);
                 if !self.use_cache {
                     self.lc_cache.get().map(|cell| cell.replace(vec![]));
                     self.lp_cache.get().map(|cell| cell.replace(vec![]));
@@ -936,6 +930,10 @@ impl FuzzyMatcher for FzyMatcher {
                     &mut bufs,
                 )?;
 
+                // Release the lowercase-cache borrows before optionally freeing
+                // them; `replace` would otherwise re-borrow the same RefCells.
+                drop(lower_choice);
+                drop(lower_pattern);
                 if !self.use_cache {
                     self.lc_cache.get().map(|cell| cell.replace(vec![]));
                     self.lp_cache.get().map(|cell| cell.replace(vec![]));
@@ -970,249 +968,5 @@ pub fn fuzzy_match(choice: &str, pattern: &str) -> Option<ScoreType> {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::fuzzy_matcher::util::{assert_order, wrap_matches};
-
-    fn wrap_fuzzy_match(choice: &str, pattern: &str) -> Option<String> {
-        let (_score, indices) = fuzzy_indices(choice, pattern)?;
-        Some(wrap_matches(choice, &indices))
-    }
-
-    #[test]
-    fn test_no_match() {
-        assert_eq!(None, fuzzy_match("abc", "abx"));
-        assert_eq!(None, fuzzy_match("abc", "d"));
-        assert_eq!(None, fuzzy_match("", "a"));
-    }
-
-    #[test]
-    fn test_has_match() {
-        assert!(fuzzy_match("axbycz", "abc").is_some());
-        assert!(fuzzy_match("axbycz", "xyz").is_some());
-        assert!(fuzzy_match("abc", "abc").is_some());
-    }
-
-    #[test]
-    fn test_exact_match_is_max() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let score = matcher.fuzzy_match("abc", "abc").unwrap();
-        assert!(score > 1_000_000);
-    }
-
-    #[test]
-    fn test_match_indices() {
-        assert_eq!("[a]x[b]y[c]z", &wrap_fuzzy_match("axbycz", "abc").unwrap());
-        assert_eq!("a[x]b[y]c[z]", &wrap_fuzzy_match("axbycz", "xyz").unwrap());
-    }
-
-    #[test]
-    fn test_consecutive_bonus() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let consecutive = matcher.fuzzy_match("foobar", "foo").unwrap();
-        let scattered = matcher.fuzzy_match("fxoxo", "foo").unwrap();
-        assert!(
-            consecutive > scattered,
-            "consecutive={consecutive} > scattered={scattered}"
-        );
-    }
-
-    #[test]
-    fn test_word_boundary_bonus() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let boundary = matcher.fuzzy_match("foo_bar_baz", "fbb").unwrap();
-        let inner = matcher.fuzzy_match("fooobarbaz", "fbb").unwrap();
-        assert!(boundary > inner, "boundary={boundary} > inner={inner}");
-    }
-
-    #[test]
-    fn test_path_separator_bonus() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let path = matcher.fuzzy_match("src/lib/foo.rs", "foo").unwrap();
-        let no_path = matcher.fuzzy_match("srcxlibxfoo.rs", "foo").unwrap();
-        assert!(path > no_path, "path={path} > no_path={no_path}");
-    }
-
-    #[test]
-    fn test_camel_case_bonus() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let camel = matcher.fuzzy_match("FooBarBaz", "fbb").unwrap();
-        let no_camel = matcher.fuzzy_match("foobarbaz", "fbb").unwrap();
-        assert!(camel > no_camel, "camel={camel} > no_camel={no_camel}");
-    }
-
-    #[test]
-    fn test_shorter_match_preferred() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let short = matcher.fuzzy_match("ab", "ab").unwrap();
-        let long = matcher.fuzzy_match("axxxxxxb", "ab").unwrap();
-        assert!(short > long, "short={short} > long={long}");
-    }
-
-    #[test]
-    fn test_match_quality_ordering() {
-        let matcher = FzyMatcher::default();
-        assert_order(&matcher, "monad", &["monad", "Monad", "mONAD"]);
-        assert_order(&matcher, "ab", &["ab", "aoo_boo", "acb"]);
-        assert_order(&matcher, "ma", &["map", "many", "maximum"]);
-    }
-
-    #[test]
-    fn test_unicode_match() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let result = matcher.fuzzy_indices("Hello, 世界", "H世");
-        assert!(result.is_some());
-        let (_, indices) = result.unwrap();
-        assert_eq!(indices.as_slice(), &[0, 7]);
-    }
-
-    #[test]
-    fn test_smart_case() {
-        let matcher = FzyMatcher::default().smart_case();
-        assert!(matcher.fuzzy_match("FooBar", "foobar").is_some());
-        assert!(matcher.fuzzy_match("foobar", "FooBar").is_none());
-        assert!(matcher.fuzzy_match("FooBar", "FooBar").is_some());
-    }
-
-    #[test]
-    fn test_respect_case() {
-        let matcher = FzyMatcher::default().respect_case();
-        assert!(matcher.fuzzy_match("abc", "ABC").is_none());
-        assert!(matcher.fuzzy_match("ABC", "ABC").is_some());
-    }
-
-    #[test]
-    fn test_long_haystack() {
-        let matcher = FzyMatcher::default().ignore_case();
-        let long = "a".repeat(MATCH_MAX_LEN + 1);
-        assert_eq!(None, matcher.fuzzy_match(&long, "a"));
-    }
-
-    // -----------------------------------------------------------------------
-    // Typo-tolerant matching tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_typo_no_typos_behaves_like_default() {
-        let strict = FzyMatcher::default().ignore_case();
-        let typo0 = FzyMatcher::default().ignore_case().max_typos(Some(0));
-
-        assert!(strict.fuzzy_match("axbycz", "abc").is_some());
-        assert!(typo0.fuzzy_match("axbycz", "abc").is_some());
-
-        assert!(strict.fuzzy_match("abc", "abx").is_none());
-        assert!(typo0.fuzzy_match("abc", "abx").is_none());
-    }
-
-    #[test]
-    fn test_typo_substitution_single() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        assert!(matcher.fuzzy_match("abc", "abx").is_some(), "substitution: 'x' for 'c'");
-    }
-
-    #[test]
-    fn test_typo_substitution_returns_none_when_too_many_typos() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        assert!(
-            matcher.fuzzy_match("abc", "ayx").is_none(),
-            "2 typos needed but only 1 allowed"
-        );
-
-        let matcher2 = FzyMatcher::default().ignore_case().max_typos(Some(2));
-        assert!(matcher2.fuzzy_match("abc", "ayx").is_some(), "2 typos allowed");
-    }
-
-    #[test]
-    fn test_typo_needle_deletion() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        assert!(matcher.fuzzy_match("abd", "abcd").is_some(), "needle deletion of 'c'");
-
-        let strict = FzyMatcher::default().ignore_case();
-        assert!(strict.fuzzy_match("abd", "abcd").is_none());
-    }
-
-    #[test]
-    fn test_typo_exact_match_scores_higher_than_typo_match() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        let exact = matcher.fuzzy_match("abc", "abc").unwrap();
-        let typo = matcher.fuzzy_match("axc", "abc").unwrap();
-        assert!(exact > typo, "exact ({exact}) > typo ({typo})");
-    }
-
-    #[test]
-    fn test_typo_subsequence_beats_typo() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        let subseq = matcher.fuzzy_match("axbycz", "abc").unwrap();
-        let typo = matcher.fuzzy_match("abx", "abc").unwrap();
-        assert!(subseq > typo, "subsequence ({subseq}) > typo ({typo})");
-    }
-
-    #[test]
-    fn test_typo_indices_substitution() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        let result = matcher.fuzzy_indices("abx", "abc");
-        assert!(result.is_some());
-        let (_, indices) = result.unwrap();
-        assert_eq!(indices.as_slice(), &[0, 1, 2]);
-    }
-
-    #[test]
-    fn test_typo_indices_needle_deletion() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        let result = matcher.fuzzy_indices("abd", "abcd");
-        assert!(result.is_some());
-        let (_, indices) = result.unwrap();
-        // 'a'→0, 'b'→1, 'c' deleted (no index), 'd'→2
-        assert_eq!(indices.as_slice(), &[0, 1, 2]);
-    }
-
-    #[test]
-    fn test_typo_max_typos_none_is_zero_overhead() {
-        let default = FzyMatcher::default().ignore_case();
-        let explicit_none = FzyMatcher::default().ignore_case().max_typos(None);
-
-        let choices = ["foobar", "axbycz", "src/lib/foo.rs", "FooBarBaz"];
-        let pattern = "foo";
-
-        for choice in &choices {
-            assert_eq!(
-                default.fuzzy_match(choice, pattern),
-                explicit_none.fuzzy_match(choice, pattern),
-                "max_typos(None) should match default for '{choice}'"
-            );
-        }
-    }
-
-    #[test]
-    fn test_typo_realistic_filename() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        let result = matcher.fuzzy_match("controller", "controllr");
-        assert!(
-            result.is_some(),
-            "should match 'controller' with needle 'controllr' (1 typo)"
-        );
-    }
-
-    #[test]
-    fn test_typo_two_typos() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(2));
-        assert!(matcher.fuzzy_match("abc", "xyz").is_none());
-        assert!(matcher.fuzzy_match("abc", "axz").is_some());
-    }
-
-    #[test]
-    fn test_typo_empty_pattern() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        assert_eq!(None, matcher.fuzzy_match("abc", ""));
-    }
-
-    #[test]
-    fn test_typo_pattern_longer_than_haystack() {
-        let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
-        assert!(matcher.fuzzy_match("ab", "abc").is_some(), "delete 'c' from needle");
-        assert!(matcher.fuzzy_match("a", "abc").is_none());
-
-        let matcher2 = FzyMatcher::default().ignore_case().max_typos(Some(2));
-        assert!(matcher2.fuzzy_match("a", "abc").is_some());
-    }
-}
+#[path = "fzy_tests.rs"]
+mod tests;

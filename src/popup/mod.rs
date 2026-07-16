@@ -6,27 +6,22 @@
 mod tmux;
 mod zellij;
 
-use std::{
-    borrow::Cow,
-    fmt::Write as FmtWrite,
-    io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _},
-    process::ExitStatus,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread,
-};
+use std::borrow::Cow;
+use std::fmt::Write as FmtWrite;
+use std::io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _};
+use std::process::ExitStatus;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nix::sys::stat::Mode;
 use nix::unistd::mkfifo;
 
-use crate::{
-    Rank, SkimItem, SkimOptions, SkimOutput,
-    item::{MatchedItem, RankBuilder},
-    tui::{Event, event::Action},
-};
+use crate::item::{MatchedItem, RankBuilder};
+use crate::tui::Event;
+use crate::tui::event::Action;
+use crate::{Rank, SkimItem, SkimOptions, SkimOutput};
 
 use tmux::TmuxPopup;
 use zellij::ZellijPopup;
@@ -132,9 +127,15 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
                     Ok(0) => break,
                     Ok(n) => {
                         debug!("Read {n} bytes from stdin");
-                        stdin_writer.write_all(&buf).unwrap();
+                        if let Err(e) = stdin_writer.write_all(&buf) {
+                            debug!("Exit error (silent): failed to write bytes: {e}");
+                            break;
+                        }
                     }
-                    Err(e) => panic!("Failed to read from stdin: {e}"),
+                    Err(e) => {
+                        error!("Failed to read from stdin: {e}");
+                        break;
+                    }
                 }
             }
             // Ensure all buffered data is written to the file
@@ -167,6 +168,9 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         } else if arg.starts_with("--tmux") || arg.starts_with("--popup") {
             debug!("Found equal popup arg, skipping");
             continue;
+        } else if arg == "--print-cmd" {
+            debug!("Found print cmd arg, skipping");
+            continue;
         } else if arg == "--output-format" {
             debug!("Found output format arg, skipping this and the next");
             prev_is_output_format_flag = true;
@@ -180,13 +184,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // Always add all --print-xxx flags to the child sk command so that the output
     // is fully structured and can be parsed unconditionally below, regardless of
     // which flags the user originally passed.
-    for flag in &[
-        "--print-query",
-        "--print-cmd",
-        "--print-header",
-        "--print-current",
-        "--print-score",
-    ] {
+    for flag in &["--print-query", "--print-header", "--print-current", "--print-score"] {
         let _ = write!(stripped_shell_cmd, " {flag}");
     }
 
@@ -195,7 +193,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     }
     let _ = write!(stripped_shell_cmd, " >{}", tmp_stdout.display());
 
-    debug!("build cmd {}", &stripped_shell_cmd);
+    debug!("build cmd {stripped_shell_cmd}");
 
     // Run downstream sk in tmux
     let mut popup: Box<dyn SkimPopup> = if zellij::is_available() {
@@ -233,12 +231,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     // The child sk process always runs with --print-query, --print-cmd, --print-header,
     // and --print-score, so we always read those lines unconditionally.
     let query_str = if status.success() {
-        stdout.next().unwrap_or_default()
-    } else {
-        ""
-    };
-
-    let command_str = if status.success() {
         stdout.next().unwrap_or_default()
     } else {
         ""
@@ -300,7 +292,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         // popup process. Only the output text is captured. Use --expect with --bind to capture
         // specific accept keys in the output if needed.
         query: query_str.to_string(),
-        cmd: command_str.to_string(),
+        cmd: opts.cmd.clone().unwrap_or_default(),
         selected_items: output_lines,
         current,
         header,
@@ -328,109 +320,5 @@ fn sanitize_value(value: String) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // ── PopupWindowDir::from ──────────────────────────────────────────────────
-
-    #[test]
-    fn popup_window_dir_known_values() {
-        assert_eq!(PopupWindowDir::from("center"), PopupWindowDir::Center);
-        assert_eq!(PopupWindowDir::from("top"), PopupWindowDir::Top);
-        assert_eq!(PopupWindowDir::from("bottom"), PopupWindowDir::Bottom);
-        assert_eq!(PopupWindowDir::from("left"), PopupWindowDir::Left);
-        assert_eq!(PopupWindowDir::from("right"), PopupWindowDir::Right);
-    }
-
-    #[test]
-    fn popup_window_dir_unknown_falls_back_to_center() {
-        assert_eq!(PopupWindowDir::from(""), PopupWindowDir::Center);
-        assert_eq!(PopupWindowDir::from("foobar"), PopupWindowDir::Center);
-        assert_eq!(PopupWindowDir::from("CENTER"), PopupWindowDir::Center); // case-sensitive
-    }
-
-    // ── sanitize_value ────────────────────────────────────────────────────────
-
-    #[test]
-    fn sanitize_value_no_semicolon() {
-        assert_eq!(sanitize_value("hello".to_string()), "hello");
-        assert_eq!(sanitize_value("foo=bar".to_string()), "foo=bar");
-        assert_eq!(sanitize_value(String::new()), "");
-    }
-
-    #[test]
-    fn sanitize_value_trailing_semicolon_is_escaped() {
-        assert_eq!(sanitize_value("hello;".to_string()), "hello\\;");
-        assert_eq!(sanitize_value(";".to_string()), "\\;");
-    }
-
-    #[test]
-    fn sanitize_value_semicolon_in_middle_unchanged() {
-        assert_eq!(sanitize_value("hel;lo".to_string()), "hel;lo");
-        assert_eq!(sanitize_value("a;b;c".to_string()), "a;b;c");
-    }
-
-    // ── push_quoted_arg ───────────────────────────────────────────────────────
-    // These tests mutate the SHELL env var. `#[serial]` ensures they never run
-    // concurrently. `set_var`/`remove_var` are `unsafe fn` in Rust ≥ 1.81
-    // (edition 2024); the SAFETY invariant holds because `#[serial]` serialises
-    // access so no other thread reads the var while it is being written.
-
-    #[test]
-    #[serial_test::serial]
-    fn push_quoted_arg_simple_word_sh() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
-        unsafe { std::env::set_var("SHELL", "/bin/sh") };
-        let mut s = String::new();
-        push_quoted_arg(&mut s, "hello");
-        assert_eq!(s, " hello");
-        unsafe { std::env::remove_var("SHELL") };
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn push_quoted_arg_spaces_are_quoted() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
-        unsafe { std::env::set_var("SHELL", "/bin/sh") };
-        let mut s = String::new();
-        push_quoted_arg(&mut s, "hello world");
-        // The result must preserve both words and not be a bare unquoted string
-        assert!(s.contains("hello"));
-        assert!(s.contains("world"));
-        assert_ne!(s.trim(), "hello world"); // must be quoted somehow
-        unsafe { std::env::remove_var("SHELL") };
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn push_quoted_arg_appends_with_space_prefix() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
-        unsafe { std::env::set_var("SHELL", "/bin/sh") };
-        let mut s = String::from("sk");
-        push_quoted_arg(&mut s, "--flag");
-        assert!(s.starts_with("sk "));
-        unsafe { std::env::remove_var("SHELL") };
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn push_quoted_arg_bash_shell() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
-        unsafe { std::env::set_var("SHELL", "/usr/bin/bash") };
-        let mut s = String::new();
-        push_quoted_arg(&mut s, "simple");
-        assert_eq!(s, " simple");
-        unsafe { std::env::remove_var("SHELL") };
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn push_quoted_arg_zsh_shell() {
-        // SAFETY: serialised by #[serial]; no concurrent reads of SHELL.
-        unsafe { std::env::set_var("SHELL", "/bin/zsh") };
-        let mut s = String::new();
-        push_quoted_arg(&mut s, "simple");
-        assert_eq!(s, " simple");
-        unsafe { std::env::remove_var("SHELL") };
-    }
-}
+#[path = "mod_tests.rs"]
+mod tests;

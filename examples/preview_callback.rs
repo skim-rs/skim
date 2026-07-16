@@ -1,8 +1,10 @@
+//! Demonstrates generating preview content with a callback.
+
 use std::io::Cursor;
 
 use skim::prelude::*;
 
-pub fn main() {
+fn main() {
     env_logger::init();
     let options = SkimOptionsBuilder::default()
         .multi(true)
@@ -19,7 +21,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 }

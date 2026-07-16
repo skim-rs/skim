@@ -402,3 +402,96 @@ impl Matcher {
         }
     }
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
+mod tests {
+    use super::*;
+    use crate::Rank;
+    use crate::item::RankBuilder;
+    use crate::options::SkimOptionsBuilder;
+
+    fn matched(text: &str, index: i32) -> MatchedItem {
+        MatchedItem::new(
+            Arc::new(text.to_string()),
+            Rank {
+                index,
+                ..Default::default()
+            },
+            None,
+            &RankBuilder::default(),
+        )
+    }
+
+    #[test]
+    fn from_options_exposes_case_and_factory() {
+        let options = SkimOptionsBuilder::default()
+            .case(CaseMatching::Ignore)
+            .build()
+            .unwrap();
+        let matcher = Matcher::from_options(&options);
+        assert_eq!(matcher.case_matching(), CaseMatching::Ignore);
+        // The factory builds a working engine.
+        let engine = matcher.engine_factory().create_engine("foo");
+        assert!(engine.match_item(&"foobar".to_string()).is_some());
+    }
+
+    #[test]
+    fn create_engine_factory_builds_fuzzy_engine() {
+        let options = SkimOptions::default();
+        let factory = Matcher::create_engine_factory(&options);
+        let engine = factory.create_engine("fb");
+        assert!(engine.match_item(&"foobar".to_string()).is_some());
+    }
+
+    #[test]
+    fn create_engine_factory_regex_with_normalize() {
+        let options = SkimOptionsBuilder::default()
+            .regex(true)
+            .normalize(true)
+            .build()
+            .unwrap();
+        let (factory, _rank) = Matcher::create_engine_factory_with_builder(&options);
+        let engine = factory.create_engine("ba.");
+        assert!(engine.match_item(&"foobar".to_string()).is_some());
+    }
+
+    #[test]
+    fn merge_worker_results_replace_sorts() {
+        let processed = SpinLock::new(None);
+        let needs_render = AtomicBool::new(false);
+        let workers = vec![vec![matched("b", 1)], vec![matched("a", 0)]];
+        merge_worker_results(workers, false, &processed, MergeStrategy::Replace, &needs_render);
+
+        assert!(needs_render.load(Ordering::Relaxed));
+        let guard = processed.lock();
+        let items = &guard.as_ref().unwrap().items;
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn merge_worker_results_append_no_sort_extends_existing() {
+        let processed = SpinLock::new(None);
+        let needs_render = AtomicBool::new(false);
+
+        // First append establishes the existing list.
+        merge_worker_results(
+            vec![vec![matched("a", 0)]],
+            true,
+            &processed,
+            MergeStrategy::Append,
+            &needs_render,
+        );
+        // Second append with no_sort extends the existing list in place.
+        merge_worker_results(
+            vec![vec![matched("b", 1)]],
+            true,
+            &processed,
+            MergeStrategy::Append,
+            &needs_render,
+        );
+
+        let guard = processed.lock();
+        assert_eq!(guard.as_ref().unwrap().items.len(), 2);
+    }
+}

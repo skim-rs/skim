@@ -263,6 +263,7 @@ impl MatchEngineFactory for RegexEngineFactory {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod test {
     #[test]
     fn test_engine_factory() {
@@ -309,5 +310,39 @@ mod test {
             format!("{x}"),
             "(And: (Fuzzy: readme), (Or: (Exact|(?i)\\.md$), (Exact|(?i)\\.markdown$)))"
         );
+    }
+
+    #[test]
+    fn andor_skips_empty_and_terms() {
+        use super::*;
+        // Two consecutive spaces produce an empty "and" term between `a` and `b`,
+        // which must be filtered out, leaving a plain two-clause AND.
+        let factory = AndOrEngineFactory::new(ExactOrFuzzyEngineFactory::builder().build());
+        let engine = factory.create_engine("a  b");
+        assert_eq!(format!("{engine}"), "(And: (Fuzzy: a), (Fuzzy: b))");
+    }
+
+    #[test]
+    fn andor_skips_empty_or_terms() {
+        use super::*;
+        // A leading `|` splits into an empty "or" term and `abc`; the empty term
+        // must be dropped, collapsing to a single fuzzy clause.
+        let factory = AndOrEngineFactory::new(ExactOrFuzzyEngineFactory::builder().build());
+        let engine = factory.create_engine("|abc");
+        assert_eq!(format!("{engine}"), "(And: (Fuzzy: abc))");
+        // It still behaves like a plain `abc` fuzzy match.
+        assert!(engine.match_item(&"xabcy".to_string()).is_some());
+        assert!(engine.match_item(&"zzz".to_string()).is_none());
+    }
+
+    #[test]
+    fn regex_factory_with_rank_builder() {
+        use super::*;
+        // Exercise the `rank_builder` and `build` chaining on RegexEngineFactory.
+        let factory = RegexEngineFactory::builder()
+            .rank_builder(Arc::new(RankBuilder::default()))
+            .build();
+        let engine = factory.create_engine("ab.");
+        assert_eq!(format!("{engine}"), "(Regex: ab.)");
     }
 }

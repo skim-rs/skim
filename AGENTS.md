@@ -11,7 +11,8 @@
   1. Build: `RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests -Zbuild-std --target x86_64-unknown-linux-gnu`
   2. Run: `TSAN_OPTIONS="detect_deadlocks=1" cargo +nightly nextest run --profile tsan --target x86_64-unknown-linux-gnu`
 - Lint: `cargo clippy`
-- Format: `cargo fmt` (check only: `cargo fmt --check`)
+- Format: `cargo +nightly fmt` (check only: `cargo +nightly fmt --check`)
+- Fuzz (requires nightly + `cargo install cargo-fuzz`): `cargo +nightly fuzz run <target>` — see `fuzz/README.md` for target list
 
 ## Code Style
 - Format with 120 char line width (defined in .rustfmt.toml)
@@ -62,7 +63,8 @@ insta_test!(my_test, @interactive, &["-i", "--cmd", "echo {q}"]);
 **DSL variant** (multiple snapshots with interaction between them):
 ```rust
 insta_test!(my_test, ["a", "b", "c"], &["--multi"], {
-    @snap;                      // take a snapshot
+    @snap;                      // take a snapshot (cell text only)
+    @snap_color;                // snapshot cell styling (fg/bg/modifier) instead
     @key Up;                    // send a named key (Enter, Down, Tab, …)
     @char 'f';                  // send a single character
     @type "foo";                // type a string
@@ -83,6 +85,7 @@ insta_test!(my_test, ["a", "b", "c"], &["--multi"], {
 |---|---|---|
 | Simple variant | `{file}__{test}.snap` | `options__opt_wrap.snap` |
 | DSL variant — Nth `@snap` | `{file}__{test}@{NNN}.snap` | `options__opt_cycle@002.snap` |
+| DSL variant — Nth `@snap_color` | `{file}__{test}@color{NNN}.snap` | `ansi__ansi_flag_enabled@color002.snap` |
 
 DSL snapshots use a zero-padded three-digit suffix (`@001`, `@002`, …) so that
 `cargo insta review` presents them in the order they were taken.

@@ -156,6 +156,10 @@ impl FuzzyMatcher for ClangdMatcher {
             }
         }
 
+        // Release the cache borrows before (optionally) freeing their backing
+        // storage below; `replace` would otherwise re-borrow the same RefCells.
+        drop(choice_chars);
+        drop(pattern_chars);
         if !self.use_cache {
             // drop the allocated memory
             self.c_cache.get().map(|cell| cell.replace(vec![]));
@@ -195,6 +199,10 @@ impl FuzzyMatcher for ClangdMatcher {
         let cell = dp[num_pattern_chars & 1][num_choice_chars];
         let score = max(cell.hit, cell.missed);
 
+        // Release the cache borrows before (optionally) freeing their backing
+        // storage below; `replace` would otherwise re-borrow the same RefCells.
+        drop(choice_chars);
+        drop(pattern_chars);
         if !self.use_cache {
             // drop the allocated memory
             self.c_cache.get().map(|cell| cell.replace(vec![]));
@@ -467,6 +475,7 @@ fn print_dp(line: &str, pattern: &str, dp: &[Vec<Score>]) {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage, coverage(off))]
 mod tests {
     use super::*;
     use crate::fuzzy_matcher::util::{assert_order, wrap_matches};
@@ -518,5 +527,74 @@ mod tests {
         assert_order(&matcher, "ast", &["ast", "AST", "INT_FAST16_MAX"]);
         // score(PRINT) > kMinScore
         assert_order(&matcher, "Int", &["int", "INT", "PRINT"]);
+    }
+
+    #[test]
+    fn respect_case_is_sensitive() {
+        let matcher = ClangdMatcher::default().respect_case();
+        assert!(matcher.fuzzy_match("Foo", "Fo").is_some());
+        assert!(matcher.fuzzy_match("foo", "Fo").is_none());
+    }
+
+    #[test]
+    fn ignore_case_is_insensitive() {
+        let matcher = ClangdMatcher::default().ignore_case();
+        assert!(matcher.fuzzy_match("FOO", "foo").is_some());
+        assert!(matcher.fuzzy_match("foo", "FOO").is_some());
+    }
+
+    #[test]
+    fn smart_case_uppercase_pattern_is_sensitive() {
+        let matcher = ClangdMatcher::default().smart_case();
+        // Uppercase in the pattern makes matching case-sensitive.
+        assert!(matcher.fuzzy_match("Foo", "Fo").is_some());
+        assert!(matcher.fuzzy_match("foo", "Fo").is_none());
+        // All-lowercase pattern matches case-insensitively.
+        assert!(matcher.fuzzy_match("FOO", "fo").is_some());
+    }
+
+    #[test]
+    fn use_cache_toggle_is_chainable() {
+        // Enabling the cache explicitly still produces matches.
+        let matcher = ClangdMatcher::default().use_cache(true);
+        assert!(matcher.fuzzy_indices("foobar", "fb").is_some());
+    }
+
+    #[test]
+    fn use_cache_disabled_drops_buffers() {
+        // With the cache disabled, both fuzzy_indices and fuzzy_match free their
+        // scratch buffers (the `!use_cache` arms) yet still return correct
+        // results, including on a repeated call after the drop.
+        let matcher = ClangdMatcher::default().ignore_case().use_cache(false);
+        let (_score, indices) = matcher.fuzzy_indices("axbycz", "abc").unwrap();
+        assert_eq!(indices, vec![0, 2, 4]);
+        assert!(matcher.fuzzy_match("axbycz", "abc").is_some());
+        // A second call still works after the first dropped the buffers.
+        assert!(matcher.fuzzy_indices("axbycz", "xyz").is_some());
+    }
+
+    #[test]
+    fn fuzzy_match_range_spans_match() {
+        let matcher = ClangdMatcher::default().ignore_case();
+        let (_score, begin, end) = matcher.fuzzy_match_range("foobar", "fb").unwrap();
+        assert!(begin <= end);
+        assert!(matcher.fuzzy_match_range("foobar", "zzz").is_none());
+    }
+
+    #[test]
+    fn match_bonus_in_segment_after_miss_penalty() {
+        // The DP only ever calls match_bonus with `Action::Match`, so the
+        // mid-segment-after-a-miss penalty (line_role == Tail, pat_idx > 0,
+        // last_action == Miss) is unreachable through the public API. Exercise
+        // it directly: matching 'b' in the middle of a segment ('a'→'b' is a
+        // Tail) right after a skipped character costs 30 points.
+        let prev = 'a'; // lowercase → 'b' is a Tail, not a Head
+        let after_miss = match_bonus(1, 'b', prev, 1, 'b', prev, Action::Miss);
+        let after_match = match_bonus(1, 'b', prev, 1, 'b', prev, Action::Match);
+        assert_eq!(
+            after_match - after_miss,
+            30,
+            "an in-segment match preceded by a miss must cost 30 points"
+        );
     }
 }

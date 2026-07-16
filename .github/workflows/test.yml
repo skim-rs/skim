@@ -20,7 +20,7 @@ jobs:
   nextest:
     runs-on: ${{matrix.os}}
     strategy:
-      matrix:
+      matrix: &matrix
         build: [linux, macos, windows]
         include:
           - build: linux
@@ -32,8 +32,11 @@ jobs:
           - build: windows
             os: windows-latest
             target: x86_64-pc-windows-msvc
+    permissions:
+      contents: read
     steps:
-      - name: "[linux] Install dependencies"
+      - &linux-deps
+        name: "[linux] Install dependencies"
         run: |
           sudo apt-get install tmux
           tmux -V
@@ -47,35 +50,31 @@ jobs:
         if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
-      - name: Checkout repository
-        uses: actions/checkout@v6
+
+      - &checkout
+        name: Checkout repository
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
-      - run: rustup toolchain install
-      - uses: taiki-e/install-action@v2
+      - &toolchain
+        name: Install rust toolchain
+        run: rustup toolchain install
+      - &nextest-install
+        name: Install nextest
+        uses: taiki-e/install-action@v2
         with:
           tool: nextest@0.9
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov@0.8
-      - name: Cache
+      - &cache
+        name: Setup cargo cache
         uses: Swatinem/rust-cache@v2
-        with: &cache-with
-          key: ${{ runner.os }}
-          add-job-id-key: "false"
-          add-rust-environment-hash-key: "false"
-          env-vars: "____"
-          cache-on-failure: "true"
-          cache-all-crates: "true"
       - name: Run doctests
         run: cargo test --doc
-      - name: Run tests
+      - name: "Run tests"
         # Do not use `--all-targets` to avoid running benches
-        run: cargo llvm-cov nextest --release --profile ci --bins --lib --examples --tests --codecov --output-path codecov.json
+        run: cargo nextest run --release --profile ci --bins --lib --examples --tests
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
-          INSTA_UPDATE: new
       - name: Show snapshot diffs on failure
         if: failure()
         run: |
@@ -91,55 +90,190 @@ jobs:
             fi
           done
         shell: bash
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v6
+
+  coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      code-quality: write
+    steps:
+      - *linux-deps
+      - *checkout
+      - *toolchain
+      - *nextest-install
+      - uses: taiki-e/install-action@v2
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
-          fail_ci_if_error: false
+          tool: cargo-llvm-cov@0.8
+      - *cache
+      - name: "Run tests with coverage"
+        # Do not use `--all-targets` to avoid running benches
+        run: |
+          cargo +nightly llvm-cov nextest --release --profile ci --branch --bins --lib --examples --tests --no-report
+          cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
+          cargo +nightly llvm-cov report --release --html
+          echo "COVERAGE_PERCENT=$(cargo +nightly llvm-cov report --release | tail -n1 | awk '{ print $13 }')" | tee --append $GITHUB_ENV
+        env:
+          LC_ALL: en_US.UTF-8
+          TERM: xterm-256color
+      - name: "Upload coverage report"
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
-      - name: Upload test results to Codecov
-        uses: codecov/codecov-action@v6
+        uses: actions/upload-code-coverage@v1
         with:
-          report_type: test_results
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: target/nextest/ci/junit.xml
-          fail_ci_if_error: false
-        continue-on-error: true
+          file: coverage.xml
+          language: Rust
+          label: ${{ runner.os }}
+
+      - name: "Generate coverage badge"
+        if: &if-master github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: emibcn/badge-action@v2.0.4
+        with:
+          label: 'Coverage'
+          status: ${{ env.COVERAGE_PERCENT }}
+          color: 'blue'
+          path: 'target/llvm-cov/html/coverage.svg'
+      - name: "Upload default branch results to gh pages"
+        if: *if-master
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: target/llvm-cov/html
+
+  deploy-coverage-page:
+    if: *if-master
+    needs: coverage
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: "Deploy gh pages"
+        id: deployment
+        uses: actions/deploy-pages@v5
 
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix: *matrix
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-      - run: rustup toolchain install
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with: *cache-with
+      - *checkout
+      - *toolchain
+      - *cache
       - name: Clippy
         run: cargo clippy
 
   rustfmt:
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix: *matrix
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - run: rustup toolchain install
+      - *checkout
+      - *toolchain
       - name: Check formatting
         run: |
           cargo fmt --all -- --check
 
-  build-no-default-features:
+  clippy-no-default-features:
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix: *matrix
+    steps:
+      - *checkout
+      - *toolchain
+      - *cache
+      - name: Run clippy with specific features
+        run: |
+          cargo clippy --no-default-features -- -Dwarnings
+          cargo clippy --no-default-features --features cli -- -Dwarnings
+          cargo clippy --no-default-features --features image -- -Dwarnings
+          cargo clippy --no-default-features --features listen -- -Dwarnings
+          cargo clippy --no-default-features --features frizbee -- -Dwarnings
+
+
+  msrv:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-      - run: rustup toolchain install
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-        with: *cache-with
-      - name: Build without any feature
+      - *checkout
+      - *toolchain
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-msrv@0.19
+      - name: MSRV Verify
+        run: cargo msrv verify
+
+  fuzz:
+    permissions:
+      contents: read
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix: *matrix
+    steps:
+      - *checkout
+      - *toolchain
+      - *cache
+      - name: Set up MSVC dev environment
+        # Without a sanitizer, libFuzzer's coverage instrumentation fails to
+        # link on Windows: neither MSVC's link.exe nor LLD's COFF driver
+        # synthesize the __start/__stop section-boundary symbols it needs
+        # (an ELF/Mach-O-only linker feature). MSVC's AddressSanitizer
+        # runtime provides an equivalent shim for those symbols, so it's
+        # required for the link to succeed at all, not just extra bug
+        # detection. It needs its DLL directory on PATH at run time, which
+        # this action sets up (see
+        # https://rust-fuzz.github.io/book/cargo-fuzz/windows/setup.html).
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz@0.13
+      - name: Run fuzz targets
+        shell: bash
+        # 5 targets * 60s = 5 minutes of fuzzing total per run.
+        # Force the actual host target: the sanitizer build can't link
+        # against a statically-linked libc (e.g. if CARGO_BUILD_TARGET
+        # defaults to a musl target elsewhere in the matrix).
         run: |
-          cargo build --no-default-features
+          host_target="$(rustc +nightly -vV | sed -n 's/^host: //p')"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # Git Bash's own coreutils `link` (for hardlinks) sits ahead of
+            # the MSVC one on PATH within this shell, so cargo/rustc would
+            # otherwise invoke the wrong `link.exe`. Point at the real MSVC
+            # linker explicitly, using the dev env ilammy/msvc-dev-cmd set up.
+            export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${VCToolsInstallDir}bin\\HostX64\\x64\\link.exe"
+          fi
+          for target in ansi_strip field_extract fuzzy_match query_match keymap_parse; do
+            cargo +nightly fuzz run "$target" --target "$host_target" -- -max_total_time=60
+          done
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes-${{ matrix.build }}
+          path: fuzz/artifacts/
+          if-no-files-found: ignore
+
+  # Single aggregate status check for branch protection / repository rulesets,
+  # so they don't need to enumerate every matrix leg by name individually.
+  ci-success:
+    name: CI Success
+    if: always()
+    needs:
+      - nextest
+      - coverage
+      - deploy-coverage-page
+      - clippy
+      - rustfmt
+      - clippy-no-default-features
+      - msrv
+      - fuzz
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all required jobs succeeded
+        run: |
+          echo "${{ toJson(needs) }}"
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All required jobs passed (deploy-coverage-page is expected to skip off master)."

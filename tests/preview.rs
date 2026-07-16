@@ -1,3 +1,5 @@
+#![allow(missing_docs, clippy::pedantic)]
+
 #[allow(dead_code)]
 #[macro_use]
 mod common;
@@ -65,6 +67,24 @@ insta_test!(preview_plus, ["a", "b", "c"], &["--preview", "echo {+}", "-m"], {
     @shift Tab;
     @snap;
     @action DeselectAll;
+    @snap;
+});
+
+insta_test!(preview_image_lenna, ["examples/Lenna.png"], &["--preview", "{}", "--image", "halfblocks"], {
+    @snap;
+});
+
+insta_test!(preview_image_missing, ["examples/missing.png"], &["--preview", "{}", "--image", "halfblocks"], {
+    @snap;
+});
+
+insta_test!(preview_image_navigation, ["examples/missing.png", "examples/Lenna.png"], &["--preview", "{}", "--image", "halfblocks"], {
+    @snap;
+    @key Up;
+    @snap;
+});
+
+insta_test!(preview_image_window_down, ["examples/Lenna.png"], &["--preview", "{}", "--image", "halfblocks", "--preview-window", "down:40%"], {
     @snap;
 });
 

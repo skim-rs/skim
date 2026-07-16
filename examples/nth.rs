@@ -1,10 +1,14 @@
+//! Demonstrates matching against selected fields with the `nth` option.
+
 extern crate skim;
 use skim::prelude::*;
 use std::io::Cursor;
 
-/// `nth` option is supported by SkimItemReader.
+/// Runs the `nth` example.
+///
+/// `nth` option is supported by `SkimItemReader`.
 /// In the example below, with `nth=2` set, only `123` could be matched.
-pub fn main() {
+fn main() {
     let input = "foo 123";
 
     let options = SkimOptionsBuilder::default().query("f").build().unwrap();
@@ -15,7 +19,7 @@ pub fn main() {
         .map(|out| out.selected_items)
         .unwrap_or_default();
 
-    for item in selected_items.iter() {
+    for item in &selected_items {
         println!("{}", item.output());
     }
 }
