@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.content }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -56,6 +57,18 @@ jobs:
           echo "$VERSION" > shell/version.txt
           git diff --binary -- CHANGELOG.md Cargo.lock Cargo.toml man shell > "$RUNNER_TEMP/release.patch"
           test -s "$RUNNER_TEMP/release.patch"
+      - id: changelog
+        name: Render release changelog
+        if: steps.version.outputs.version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          delimiter="changelog-$(cat /proc/sys/kernel/random/uuid)"
+          {
+            echo "content<<$delimiter"
+            git cliff -u -t "v$VERSION" --strip all
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: steps.version.outputs.version != ''
         with:
@@ -103,6 +116,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           VERSION: ${{ needs.prepare.outputs.version }}
+          CHANGELOG: ${{ needs.prepare.outputs.changelog }}
         shell: bash
         run: |
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
@@ -112,7 +126,9 @@ jobs:
           Automated release preparation for v$VERSION.
 
           This branch is rebuilt from master as one commit on every push. Merge it with the repository's required squash merge; the resulting commit will be tagged v$VERSION and picked up by the release workflow.
+
           EOF
+          printf '%s\n' "$CHANGELOG" >> "$RUNNER_TEMP/pr-body.md"
 
           pr="$(gh pr list --base master --head release-pr --state open --json number --jq '.[0].number')"
           if [[ -n "$pr" ]]; then
