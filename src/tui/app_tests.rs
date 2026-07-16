@@ -1115,17 +1115,30 @@ fn handle_event_resize_reflows_and_reruns_preview() {
 }
 
 #[test]
-fn handle_event_resize_fixed_reflows_and_reruns_preview() {
+fn handle_event_resize_fixed_resizes_terminal() {
     let mut app = app_with_items(&["a", "b"]);
-    let _ = render(&mut app, 100, 20);
-    let mut tui = Tui::new_with_height_and_backend(TestBackend::new(100, 100), Size::Fixed(20))
-        .expect("failed to build test TUI");
-    assert_eq!(app.layout.list_area.width, 100);
-    assert_eq!(app.layout.list_area.height, 18);
-    // Resize updates the cached layout and triggers a preview re-run.
-    app.handle_event(&mut tui, &Event::Resize(60, 40)).unwrap();
-    assert_eq!(app.layout.list_area.width, 60);
-    assert_eq!(tui.terminal.get_frame().area().height, 40);
+    let _ = render(&mut app, 40, 10);
+    assert_eq!(app.layout.list_area.width, 40);
+    assert_eq!(app.layout.list_area.height, 8);
+
+    let mut tui = test_tui();
+    let curr_rect = tui.terminal.get_frame().area();
+    tui.terminal = ratatui::Terminal::with_options(
+        tui.backend().clone(),
+        ratatui::TerminalOptions {
+            viewport: ratatui::Viewport::Fixed(Rect {
+                height: 20,
+                ..curr_rect
+            }),
+        },
+    )
+    .unwrap();
+    tui.is_fullscreen = false;
+
+    assert_eq!(tui.terminal.get_frame().area().height, 20);
+
+    app.handle_event(&mut tui, &Event::Resize(40, 10)).unwrap();
+    assert_eq!(tui.terminal.get_frame().area().height, 10);
 }
 
 // ---------------------------------------------------------------------------
