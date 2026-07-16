@@ -106,11 +106,6 @@ jobs:
       - *cache
       - name: "Run tests with coverage"
         # Do not use `--all-targets` to avoid running benches
-        # Temporary: tolerate the upstream nightly rustc ICE under
-        # `-C instrument-coverage` (rustc 1.99.0-nightly da80ed070, 2026-07-14
-        # panics on the test-harness `rustc_test_entrypoint_marker`; see
-        # rust-lang/rust). Remove once a fixed nightly ships so coverage gates CI again.
-        continue-on-error: true
         run: |
           cargo +nightly llvm-cov nextest --release --profile ci --branch --bins --lib --examples --tests --no-report
           cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
