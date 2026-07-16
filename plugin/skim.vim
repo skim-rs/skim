@@ -207,19 +207,10 @@ function! s:open(cmd, target)
 endfunction
 
 function! s:common_sink(action, lines) abort
-  if len(a:lines) < 1
+  if len(a:lines) < 2
     return
   endif
-  " In sk 4.x, --expect is deprecated and no longer outputs the key name
-  " as the first line. Handle both old format (key + files) and new format
-  " (just files) by checking if the first line is a known action key.
-  if len(a:lines) >= 2 && has_key(a:action, a:lines[0])
-    let key = remove(a:lines, 0)
-  elseif len(a:lines) >= 2 && a:lines[0] ==# ''
-    let key = remove(a:lines, 0)
-  else
-    let key = 'enter'
-  endif
+  let key = remove(a:lines, 0)
   let Cmd = get(a:action, key, 'e')
   if type(Cmd) == type(function('call'))
     return Cmd(a:lines)
@@ -347,7 +338,7 @@ function! skim#wrap(...)
   " Action: g:skim_action
   if !s:has_any(opts, ['sink', 'sink*'])
     let opts._action = get(g:, 'skim_action', s:default_action)
-    let opts.options .= ' --expect='.join(keys(opts._action), ',')
+    let opts.options .= ' --bind='.join(map(keys(opts._action), 'v:val.":accept(".v:val.")"'), ',')
     function! opts.sink(lines) abort
       return s:common_sink(self._action, a:lines)
     endfunction
