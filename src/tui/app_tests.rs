@@ -763,6 +763,13 @@ fn resize_updates_layout() {
 }
 
 #[test]
+fn resize_fixed_updates_layout() {
+    let mut app = App::default();
+    app.resize(120, 40);
+    assert_eq!(app.layout.list_area.width, 120);
+}
+
+#[test]
 fn restart_matcher_short_query_clears_items() {
     let mut app = app_with_items(&["a", "b"]);
     app.options.min_query_length = Some(3);
@@ -1105,6 +1112,20 @@ fn handle_event_resize_reflows_and_reruns_preview() {
     // Resize updates the cached layout and triggers a preview re-run.
     app.handle_event(&mut tui, &Event::Resize(60, 20)).unwrap();
     assert_eq!(app.layout.list_area.width, 60);
+}
+
+#[test]
+fn handle_event_resize_fixed_reflows_and_reruns_preview() {
+    let mut app = app_with_items(&["a", "b"]);
+    let _ = render(&mut app, 100, 20);
+    let mut tui = Tui::new_with_height_and_backend(TestBackend::new(100, 100), Size::Fixed(20))
+        .expect("failed to build test TUI");
+    assert_eq!(app.layout.list_area.width, 100);
+    assert_eq!(app.layout.list_area.height, 18);
+    // Resize updates the cached layout and triggers a preview re-run.
+    app.handle_event(&mut tui, &Event::Resize(60, 40)).unwrap();
+    assert_eq!(app.layout.list_area.width, 60);
+    assert_eq!(tui.terminal.get_frame().area().height, 40);
 }
 
 // ---------------------------------------------------------------------------

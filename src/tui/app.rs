@@ -329,9 +329,7 @@ impl App {
         self.layout_template = LayoutTemplate::from_options(&self.options, self.header.height());
         self.layout = self.layout_template.apply(Rect::new(0, 0, cols, rows));
     }
-}
 
-impl App {
     /// Calculate preview offset from offset expression (e.g., "+123", "+{2}", "+{2}-2")
     fn calculate_preview_offset(&self, offset_expr: &str) -> u16 {
         // Remove the leading '+'
@@ -544,6 +542,7 @@ impl App {
     where
         B::Error: Send + Sync + 'static,
     {
+        trace!("handling event {event:?}");
         match event {
             Event::Render => {
                 // Always render to avoid freezing, but the render function itself can optimize
@@ -630,6 +629,16 @@ impl App {
                 }
             }
             Event::Resize(cols, rows) => {
+                // We need to manually resize Fixed viewports
+                if !tui.is_fullscreen {
+                    let curr = tui.terminal.get_frame().area();
+                    let _ = tui.terminal.resize(Rect {
+                        x: curr.x,
+                        y: curr.y,
+                        width: *cols,
+                        height: *rows,
+                    });
+                }
                 self.resize(*cols, *rows);
                 if let Err(e) = self.run_preview(tui) {
                     warn!("error while rerunnig preview after resize: {e}");
