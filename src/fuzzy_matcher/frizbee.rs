@@ -49,12 +49,9 @@ impl FrizbeeMatcher {
         LOCAL_MATCHER.with(|cell| {
             let mut slot = cell.borrow_mut();
 
-            if slot.as_ref().is_none() {
-                *slot = Some(Matcher::new("", &self.config));
-            }
-            let matcher = slot.as_mut().unwrap();
+            let matcher = slot.get_or_insert_with(|| Matcher::new("", &self.config));
             matcher.set_config(self.config.clone());
-            matcher.set_needle(pattern);
+            matcher.set_pattern(pattern);
             f(matcher)
         })
     }
@@ -65,7 +62,10 @@ impl FuzzyMatcher for FrizbeeMatcher {
         self.with_matcher(pattern, |m| {
             m.match_one_indices(choice, 0).map(|mut hit| {
                 hit.indices.reverse();
-                (hit.score.into(), hit.indices)
+                (
+                    hit.score.into(),
+                    hit.indices.into_iter().map(|index| index as usize).collect(),
+                )
             })
         })
     }
