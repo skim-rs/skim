@@ -22,15 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### New Contributors
 * @antiagainst made their first contribution in [#1057](https://github.com/skim-rs/skim/pull/1057)
 
-## [5.1.1] - 2026-07-16
-
-### 🐛 Bug Fixes
-
-- Handle deprecated --expect flag in sk 4.x vim plugin (#1057)
-
-### New Contributors
-* @antiagainst made their first contribution in [#1057](https://github.com/skim-rs/skim/pull/1057)
-
 ## [5.1.0] - 2026-07-09
 
 ### 🚀 Features
