@@ -173,6 +173,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
+'--border-no-collapse[Do not collapse adjacent borders into a shared row or column]' \
 '--no-border[Disables all borders, including in tmux/zellij popups]' \
 '--wrap[Wrap items in the item list]' \
 '--no-scrollbar[Disable the scrollbar in the item list]' \
