@@ -1,7 +1,7 @@
 #![allow(missing_docs, clippy::pedantic)]
 
-use eyre::{Ok, Result};
 use criterion::{Criterion, criterion_group, criterion_main};
+use eyre::{Ok, Result};
 
 use skim::prelude::*;
 

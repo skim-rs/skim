@@ -1,8 +1,8 @@
 use std::io::Cursor;
 
 use clap::Parser;
-use eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
+use eyre::Result;
 use ratatui::backend::TestBackend;
 use skim::prelude::*;
 use skim::tui::event::Action;

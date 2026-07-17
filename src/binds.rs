@@ -6,9 +6,8 @@
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-use eyre::Result;
-use eyre::eyre;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use eyre::{Result, eyre};
 
 use crate::tui::event::{self, Action};
 

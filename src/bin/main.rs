@@ -9,8 +9,7 @@ extern crate log;
 extern crate shlex;
 extern crate skim;
 
-use eyre::Result;
-use eyre::eyre;
+use eyre::{Result, eyre};
 #[cfg(feature = "listen")]
 use interprocess::bound_util::RefWrite;
 #[cfg(feature = "listen")]
