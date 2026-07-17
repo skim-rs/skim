@@ -6,7 +6,7 @@
 use skim::options::ImageProtocol;
 use skim::prelude::*;
 
-fn main() -> color_eyre::Result<()> {
+fn main() -> eyre::Result<()> {
     env_logger::init();
 
     let options = SkimOptionsBuilder::default()

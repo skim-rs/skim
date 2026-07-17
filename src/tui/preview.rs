@@ -1,5 +1,5 @@
 use ansi_to_tui::IntoText;
-use color_eyre::eyre::{Result, eyre};
+use eyre::{Result, eyre};
 use portable_pty::{PtyPair, PtySize, native_pty_system};
 use ratatui::layout::Alignment;
 use ratatui::prelude::Backend;
@@ -224,7 +224,7 @@ impl Preview {
     pub fn content(&mut self, content: &[u8]) -> Result<()> {
         let text = content.to_owned().into_text()?;
         let Ok(mut content) = self.content.write() else {
-            return Err(color_eyre::eyre::eyre!("Failed to acquire content for writing"));
+            return Err(eyre::eyre!("Failed to acquire content for writing"));
         };
         self.total_lines = text.lines.len().try_into().unwrap();
         *content = PreviewContent::Text(text);

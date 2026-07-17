@@ -23,8 +23,8 @@ use super::header::Header;
 use super::item_list::ItemList;
 use super::{Event, Tui, input, preview};
 use crate::thread_pool::{self, ThreadPool};
-use color_eyre::eyre::{Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use eyre::{Result, bail};
 use input::Input;
 use preview::Preview;
 use ratatui::buffer::Buffer;
@@ -1181,7 +1181,7 @@ impl App {
                 return Ok(self.on_query_changed());
             }
             Custom(cb) => {
-                return cb.call(self).map_err(|e| color_eyre::eyre::eyre!("{}", e));
+                return cb.call(self).map_err(|e| eyre::eyre!("{}", e));
             }
         }
         Ok(Vec::default())

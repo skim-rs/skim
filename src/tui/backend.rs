@@ -2,12 +2,12 @@ use std::io::BufWriter;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
-use color_eyre::eyre::Result;
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
 };
 use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
+use eyre::Result;
 use futures::{FutureExt as _, StreamExt as _};
 use ratatui::layout::Rect;
 use ratatui::prelude::{Backend, CrosstermBackend};

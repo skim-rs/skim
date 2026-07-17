@@ -45,6 +45,7 @@
             cargo-xwin
             gnuplot
             llvm
+            cargo-bloat
           ];
           gungraun = with pkgs; [
             valgrind

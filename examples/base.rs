@@ -3,7 +3,7 @@
 use skim::prelude::*;
 use skim::tui::statusline::InfoDisplay;
 
-fn main() -> color_eyre::Result<()> {
+fn main() -> eyre::Result<()> {
     let opts = SkimOptionsBuilder::default()
         .multi(true)
         .reverse(true)

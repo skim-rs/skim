@@ -1,7 +1,7 @@
 //! Demonstrates fine-grained control over skim lifecycle events.
 
 extern crate skim;
-use color_eyre::Result;
+use eyre::Result;
 use skim::prelude::*;
 
 #[tokio::main(flavor = "current_thread")]
