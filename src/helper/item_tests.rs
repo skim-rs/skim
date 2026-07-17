@@ -597,3 +597,75 @@ fn test_hidden_field_match_not_highlighted() {
     // No span carries the highlight background, since the matched chars are hidden.
     assert!(line.spans.iter().all(|span| span.style.bg != Some(Color::Yellow)));
 }
+
+#[test]
+fn test_hidden_field_preserves_ansi_colors() {
+    use crate::field::FieldRange;
+    use crate::{DisplayContext, Matches, SkimItem};
+    use ratatui::style::{Color, Style};
+    use regex::Regex;
+    let delimiter = Regex::new(r"\s+").unwrap();
+    // Two colored, space-separated fields: green "one" and red "two".
+    let item = DefaultSkimItem::new(
+        "\x1b[32mone\x1b[0m \x1b[31mtwo\x1b[0m",
+        true, // ansi_enabled
+        &[],
+        &[],
+        &[FieldRange::Single(1)], // hide the first (green) field
+        &delimiter,
+    );
+    // The hidden field is still part of the matchable text.
+    assert_eq!(item.text(), "one two");
+    let context = DisplayContext {
+        score: 0,
+        matches: Matches::None,
+        container_width: 80,
+        base_style: Style::default(),
+        matched_style: Style::default(),
+    };
+    let line = item.display(context);
+    let rendered: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+    // "one " (field 1 plus its trailing delimiter) is gone; "two" remains.
+    assert_eq!(rendered, "two");
+    // The surviving field keeps its ANSI red foreground; the hidden green is gone.
+    assert!(
+        line.spans.iter().any(|span| span.style.fg == Some(Color::Red)),
+        "surviving field should keep its ANSI red foreground"
+    );
+    assert!(
+        line.spans.iter().all(|span| span.style.fg != Some(Color::Green)),
+        "hidden field's ANSI green foreground should not appear"
+    );
+}
+
+#[test]
+fn test_hidden_field_ansi_highlight_remapped() {
+    use crate::field::FieldRange;
+    use crate::{DisplayContext, Matches, SkimItem};
+    use ratatui::style::{Color, Style};
+    use regex::Regex;
+    let delimiter = Regex::new(r"\s+").unwrap();
+    let item = DefaultSkimItem::new(
+        "\x1b[32mone\x1b[0m \x1b[31mtwo\x1b[0m",
+        true,
+        &[],
+        &[],
+        &[FieldRange::Single(1)], // hide green "one"
+        &delimiter,
+    );
+    // Match "two" — chars 4,5,6 in the full stripped text "one two".
+    let context = DisplayContext {
+        score: 0,
+        matches: Matches::CharIndices(vec![4, 5, 6]),
+        container_width: 80,
+        base_style: Style::default(),
+        matched_style: Style::default().bg(Color::Yellow),
+    };
+    let line = item.display(context);
+    let rendered: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+    assert_eq!(rendered, "two");
+    // The match on the visible field is highlighted (remapped to visible coords 0..3)
+    // while its ANSI red foreground is preserved alongside the highlight background.
+    assert!(line.spans.iter().any(|span| span.style.bg == Some(Color::Yellow)));
+    assert!(line.spans.iter().any(|span| span.style.fg == Some(Color::Red)));
+}

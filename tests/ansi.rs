@@ -47,3 +47,30 @@ insta_test!(test_prompt_ansi, ["a"], &["--prompt", "\x1b[1;34mprompt\x1b[0m noco
     @snap;
     @snap_color;
 });
+
+// --ansi combined with --hide-nth: the hidden (red) middle field is removed from
+// the rendered line, while the surviving green/plain fields keep their ANSI colors.
+// The color snapshot confirms the green foreground survives and the red one is gone.
+insta_test!(
+    test_ansi_hide_nth,
+    @bytes b"\x1b[32mgreen\x1b[0m \x1b[31mred\x1b[0m plain\n",
+    &["--ansi", "--delimiter", " ", "--hide-nth", "2"],
+    {
+        @snap;
+        @snap_color;
+    }
+);
+
+// The hidden ANSI field stays searchable: matching its text ("red") still selects
+// the item even though the field is not shown, and no highlight leaks onto the
+// visible text.
+insta_test!(
+    test_ansi_hide_nth_searchable,
+    @bytes b"\x1b[32mgreen\x1b[0m \x1b[31mred\x1b[0m plain\n",
+    &["--ansi", "--delimiter", " ", "--hide-nth", "2"],
+    {
+        @type "red";
+        @snap;
+        @snap_color;
+    }
+);

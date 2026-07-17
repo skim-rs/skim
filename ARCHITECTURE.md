@@ -466,7 +466,10 @@ searchable and still participate in matching. They only affect rendering:
 
 - `DefaultSkimItem::display()` removes the hidden characters and remaps the match highlight
   positions into the visible coordinate space (`project_visible_text` / `project_match_indices` in
-  `src/helper/item.rs`). This path takes precedence over the ANSI display branch.
+  `src/helper/item.rs`). This is integrated into **both** display branches: the plain branch projects
+  the text through `to_line`, and the ANSI branch drops the hidden characters from the already-parsed
+  styled spans (`retain_visible_spans`) so surviving characters **keep their ANSI colors**, then runs
+  the normal highlighting on the remapped visible-coordinate matches.
 - `ItemRenderer::render_item` applies the same projection to derive the visible sub-line text and the
   match range used for horizontal scrolling, so hidden characters are ignored for hscroll and never
   highlighted.

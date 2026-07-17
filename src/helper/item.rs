@@ -319,25 +319,6 @@ impl SkimItem for DefaultSkimItem {
     // rendering in a single pass; splitting it would require duplicating context handling.
     #[allow(clippy::too_many_lines)]
     fn display(&self, context: DisplayContext) -> Line<'_> {
-        // When fields are hidden (--hide-nth), remove them from the rendered text and
-        // remap the match positions into the visible coordinate space. This path takes
-        // precedence over ANSI styling: the visible text is built from `text()` (which
-        // is already ANSI-stripped when ANSI is enabled), so hidden-field removal works
-        // uniformly but does not re-apply ANSI colors to the surviving characters.
-        if let Some(hidden) = self.hidden_ranges() {
-            let text = self.text();
-            let (visible, map) = project_visible_text(text.as_ref(), hidden);
-            let indices = project_match_indices(text.as_ref(), &context.matches, &map);
-            let projected = DisplayContext {
-                score: context.score,
-                matches: Matches::CharIndices(indices),
-                container_width: context.container_width,
-                base_style: context.base_style,
-                matched_style: context.matched_style,
-            };
-            return projected.to_line(Cow::Owned(visible));
-        }
-
         // If we have ANSI info, we need to handle ANSI codes properly and map matches
         if self.ansi_info().is_some() {
             // Parse the ANSI text using ansi-to-tui to get proper styled spans
@@ -350,9 +331,23 @@ impl SkimItem for DefaultSkimItem {
             // Extract all spans from the parsed text (should be a single line)
             let all_spans: Vec<Span> = parsed_text.lines.into_iter().flat_map(|line| line.spans).collect();
 
+            // When fields are hidden (--hide-nth), drop the hidden characters from the
+            // parsed spans while preserving their ANSI styling, and remap the match
+            // positions into the resulting visible coordinate space. The remaining
+            // highlighting logic then runs unchanged on visible-coordinate CharIndices.
+            let (all_spans, matches) = if let Some(hidden) = self.hidden_ranges() {
+                let stripped = self.text();
+                let (_, map) = project_visible_text(stripped.as_ref(), hidden);
+                let visible_spans = retain_visible_spans(all_spans, &map);
+                let indices = project_match_indices(stripped.as_ref(), &context.matches, &map);
+                (visible_spans, Matches::CharIndices(indices))
+            } else {
+                (all_spans, context.matches.clone())
+            };
+
             // Now apply highlighting based on matched positions
             // We need to map match positions from stripped text to original text
-            match context.matches {
+            match matches {
                 crate::Matches::CharIndices(ref indices) => {
                     // Indices are already in stripped text coordinates (same as parsed ANSI text)
                     // No need to remap since both matching and ANSI parsing strip the codes
@@ -507,6 +502,19 @@ impl SkimItem for DefaultSkimItem {
                 }
                 crate::Matches::None => Line::from(all_spans),
             }
+        } else if let Some(hidden) = self.hidden_ranges() {
+            // Non-ANSI hidden path: remove the hidden characters and remap the match
+            // highlight positions into the visible coordinate space.
+            let (visible, map) = project_visible_text(&self.text, hidden);
+            let indices = project_match_indices(&self.text, &context.matches, &map);
+            DisplayContext {
+                score: context.score,
+                matches: Matches::CharIndices(indices),
+                container_width: context.container_width,
+                base_style: context.base_style,
+                matched_style: context.matched_style,
+            }
+            .to_line(Cow::Owned(visible))
         } else {
             // No ANSI mapping needed, use text as-is
             context.to_line(Cow::Borrowed(&self.text))
@@ -661,6 +669,31 @@ pub(crate) fn project_visible_text(text: &str, hidden: &[(usize, usize)]) -> (St
     }
 
     (visible, map)
+}
+
+/// Drop hidden characters from already-parsed styled spans while preserving each
+/// span's style, keeping the ANSI colors of the surviving characters intact.
+///
+/// `map` is the per-char index map produced by [`project_visible_text`]; the spans
+/// are iterated in the same (stripped-text) char order the map is indexed by. Spans
+/// that become empty after filtering are dropped.
+#[must_use]
+pub(crate) fn retain_visible_spans(spans: Vec<Span<'_>>, map: &[Option<usize>]) -> Vec<Span<'static>> {
+    let mut out = Vec::with_capacity(spans.len());
+    let mut char_idx = 0usize;
+    for span in spans {
+        let mut content = String::new();
+        for ch in span.content.chars() {
+            if map.get(char_idx).copied().flatten().is_some() {
+                content.push(ch);
+            }
+            char_idx += 1;
+        }
+        if !content.is_empty() {
+            out.push(Span::styled(content, span.style));
+        }
+    }
+    out
 }
 
 /// Convert the matched character positions of `matches` (in full-text coordinates)
