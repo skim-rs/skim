@@ -3,7 +3,7 @@ use std::io::{BufWriter, Stderr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use color_eyre::eyre::{self, OptionExt, Result};
+use eyre::{self, OptionExt, Result};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 #[cfg(feature = "image")]
 use ratatui_image::picker::Picker;

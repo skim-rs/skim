@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-use color_eyre::Result;
-use color_eyre::eyre::eyre;
+use eyre::Result;
+use eyre::eyre;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::tui::event::{self, Action};

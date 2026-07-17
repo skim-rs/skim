@@ -3,7 +3,7 @@ use std::io::Write;
 
 use clap::CommandFactory;
 use clap_mangen::Man;
-use color_eyre::eyre::Result;
+use eyre::Result;
 use roff::{Inline, Roff};
 
 use crate::SkimOptions;

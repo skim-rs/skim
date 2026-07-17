@@ -2,7 +2,7 @@ use std::io::BufWriter;
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
-use color_eyre::eyre::Result;
+use eyre::Result;
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
 };

@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use clap::Parser;
-use color_eyre::Result;
+use eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
 use ratatui::backend::TestBackend;
 use skim::prelude::*;
@@ -276,7 +276,7 @@ impl TestHarness {
         // Wait for reader to finish
         while !self.skim.reader_done() {
             if start.elapsed() > timeout {
-                return Err(color_eyre::eyre::eyre!("Timeout waiting for reader to finish"));
+                return Err(eyre::eyre!("Timeout waiting for reader to finish"));
             }
             // Check reader status (may restart matcher)
             self.skim.check_reader();
@@ -299,7 +299,7 @@ impl TestHarness {
         // Wait for matcher to complete
         while !self.skim.app().matcher_control.stopped() {
             if start.elapsed() > timeout {
-                return Err(color_eyre::eyre::eyre!("Timeout waiting for matcher to stop"));
+                return Err(eyre::eyre!("Timeout waiting for matcher to stop"));
             }
             std::thread::sleep(poll_interval);
         }
@@ -332,7 +332,7 @@ impl TestHarness {
         let debounce_start = std::time::Instant::now();
         while self.skim.app().pending_preview_run {
             if debounce_start.elapsed() > debounce_timeout {
-                return Err(color_eyre::eyre::eyre!("Timeout waiting for debounced preview to run"));
+                return Err(eyre::eyre!("Timeout waiting for debounced preview to run"));
             }
 
             std::thread::sleep(std::time::Duration::from_millis(10));
@@ -524,7 +524,7 @@ pub fn enter_cmd(cmd: &str, options: SkimOptions) -> Result<TestHarness> {
             .stderr(std::process::Stdio::null())
             .spawn()?
             .stdout
-            .ok_or_else(|| color_eyre::eyre::eyre!("Failed to capture stdout"))?,
+            .ok_or_else(|| eyre::eyre!("Failed to capture stdout"))?,
     ));
 
     enter_sized_with_source(options, 80, 24, Some(rx))
@@ -662,7 +662,7 @@ macro_rules! insta_test {
     // Simple variant with items array - just snapshot
     ($name:ident, [$($item:expr),* $(,)?], $options:expr) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_items([$($item),*], options)?;
             let __desc = format!(
@@ -678,7 +678,7 @@ macro_rules! insta_test {
     // Simple variant with items expression (identifier or expression) - just snapshot
     ($name:ident, $items:expr, $options:expr) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_items($items, options)?;
             let __desc = format!(
@@ -694,7 +694,7 @@ macro_rules! insta_test {
     // Simple variant with @cmd - just snapshot
     ($name:ident, @cmd $cmd:expr, $options:expr) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_cmd($cmd, options)?;
             let __desc = format!(
@@ -710,7 +710,7 @@ macro_rules! insta_test {
     // Simple variant with @bytes - just snapshot
     ($name:ident, @bytes $bytes:expr, $options:expr) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_bytes($bytes, options)?;
             let __desc = format!(
@@ -726,7 +726,7 @@ macro_rules! insta_test {
     // Simple variant with @interactive - just snapshot
     ($name:ident, @interactive, $options:expr) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_interactive(options)?;
             let __desc = format!(
@@ -741,7 +741,7 @@ macro_rules! insta_test {
     // DSL variant with items expression (identifier or expression)
     ($name:ident, $items:expr, $options:expr, { $($content:tt)* }) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_items($items, options)?;
             let __base_desc = format!(
@@ -760,7 +760,7 @@ macro_rules! insta_test {
     // DSL variant with @cmd
     ($name:ident, @cmd $cmd:expr, $options:expr, { $($content:tt)* }) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_cmd($cmd, options)?;
             let __base_desc = format!(
@@ -779,7 +779,7 @@ macro_rules! insta_test {
     // DSL variant with @bytes
     ($name:ident, @bytes $bytes:expr, $options:expr, { $($content:tt)* }) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_bytes($bytes, options)?;
             let __base_desc = format!(
@@ -798,7 +798,7 @@ macro_rules! insta_test {
     // DSL variant with @interactive
     ($name:ident, @interactive, $options:expr, { $($content:tt)* }) => {
         #[test]
-        fn $name() -> color_eyre::Result<()> {
+        fn $name() -> eyre::Result<()> {
             let options = $crate::common::insta::parse_options($options);
             let mut h = $crate::common::insta::enter_interactive(options)?;
             let __base_desc = format!(

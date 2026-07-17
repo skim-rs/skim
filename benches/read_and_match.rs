@@ -1,6 +1,6 @@
 #![allow(missing_docs, clippy::pedantic)]
 
-use color_eyre::eyre::{Ok, Result};
+use eyre::{Ok, Result};
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use skim::prelude::*;

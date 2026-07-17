@@ -3,7 +3,7 @@
 use skim::prelude::*;
 
 #[tokio::main]
-async fn main() -> color_eyre::eyre::Result<()> {
+async fn main() -> eyre::Result<()> {
     let opts = SkimOptionsBuilder::default().cmd("cat bench_data.txt").build()?;
 
     println!("START");
@@ -19,5 +19,5 @@ async fn main() -> color_eyre::eyre::Result<()> {
         }
     }
     println!("DONE: {:?}", skim.output());
-    color_eyre::eyre::Ok(())
+    eyre::Ok(())
 }

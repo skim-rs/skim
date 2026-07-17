@@ -174,6 +174,9 @@ The `image` feature (enabled by default) gates image preview support, including 
 `SkimOptions::image` / `SkimOptions::image_picker` fields, and the
 `PreviewContent::Image` rendering path. With the feature off, the `--image` flag and
 its supporting code are compiled out entirely and neither image crate is pulled in.
+The `image` crate is built with only the common decoders enabled (`png`, `jpeg`,
+`gif`, `webp`) rather than its full default set, keeping the binary small; previewing
+other formats (TIFF, OpenEXR, QOI, BMP, …) falls back to the normal command preview.
 
 The `listen` feature (enabled by default) gates the IPC socket that lets other processes
 drive skim via `--listen` / `--remote`, including the `interprocess`, `ron`, and `serde`

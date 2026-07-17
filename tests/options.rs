@@ -747,7 +747,7 @@ insta_test!(opt_null_delimiter_nth, @bytes b"a\0b\0c", &[r"--delimiter", r"\x00"
 
 // --pre-select-file marks items "b" and "c" as selected at startup.
 #[test]
-fn opt_pre_select_file() -> color_eyre::Result<()> {
+fn opt_pre_select_file() -> eyre::Result<()> {
     use std::io::Write;
 
     let mut pre_select = tempfile::NamedTempFile::new()?;

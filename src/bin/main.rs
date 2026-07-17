@@ -9,8 +9,8 @@ extern crate log;
 extern crate shlex;
 extern crate skim;
 
-use color_eyre::Result;
-use color_eyre::eyre::eyre;
+use eyre::Result;
+use eyre::eyre;
 #[cfg(feature = "listen")]
 use interprocess::bound_util::RefWrite;
 #[cfg(feature = "listen")]
@@ -72,7 +72,6 @@ fn main() -> Result<()> {
     let mut opts = SkimOptions::from_env().unwrap_or_else(|e| {
         e.exit();
     });
-    color_eyre::install()?;
     init_logger(&opts);
 
     // Build the options after setting the log target
