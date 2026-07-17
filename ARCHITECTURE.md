@@ -176,7 +176,7 @@ The `image` feature (enabled by default) gates image preview support, including 
 its supporting code are compiled out entirely and neither image crate is pulled in.
 The `image` crate is built with only the common decoders enabled (`png`, `jpeg`,
 `gif`, `webp`) rather than its full default set, keeping the binary small; previewing
-other formats (TIFF, OpenEXR, QOI, BMP, …) falls back to the normal command preview.
+other formats (TIFF, OpenEXR, QOI, BMP, …) will fail.
 
 The `listen` feature (enabled by default) gates the IPC socket that lets other processes
 drive skim via `--listen` / `--remote`, including the `interprocess`, `ron`, and `serde`
