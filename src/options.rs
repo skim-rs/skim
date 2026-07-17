@@ -600,6 +600,10 @@ pub struct SkimOptions {
     )]
     pub border: BorderType,
 
+    /// Do not collapse adjacent borders into a shared row or column
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display"))]
+    pub border_no_collapse: bool,
+
     /// Disables all borders, including in tmux/zellij popups
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", overrides_with = "border"))]
     pub no_border: bool,
@@ -1185,6 +1189,7 @@ impl Default for SkimOptions {
             filepath_word: Default::default(),
             jump_labels: String::from("abcdefghijklmnopqrstuvwxyz"),
             border: Default::default(),
+            border_no_collapse: Default::default(),
             no_bold: Default::default(),
             phony: Default::default(),
             scheme: Default::default(),

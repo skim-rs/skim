@@ -33,6 +33,10 @@ insta_test!(layout_border, ["header line 1", "header line 2", "a", "b", "c", "ab
     @snap;
 });
 
+insta_test!(layout_border_no_collapse, ["header line 1", "header line 2", "a", "b", "c", "ab", "ac"], &args(&["--border", "--border-no-collapse"]), {
+    @snap;
+});
+
 insta_test!(layout_reverse, ["header line 1", "header line 2", "a", "b", "c", "ab", "ac"], &args(&["--layout", "reverse"]), {
     @snap;
 });
@@ -41,10 +45,18 @@ insta_test!(layout_reverse_border, ["header line 1", "header line 2", "a", "b", 
     @snap;
 });
 
+insta_test!(layout_reverse_border_no_collapse, ["header line 1", "header line 2", "a", "b", "c", "ab", "ac"], &args(&["--layout", "reverse", "--border", "--border-no-collapse"]), {
+    @snap;
+});
+
 insta_test!(layout_reverse_list, ["header line 1", "header line 2", "a", "b", "c", "ab", "ac"], &args(&["--layout", "reverse-list"]), {
     @snap;
 });
 
 insta_test!(layout_reverse_list_border, ["header line 1", "header line 2", "a", "b", "c", "ab", "ac"], &args(&["--layout", "reverse-list", "--border"]), {
+    @snap;
+});
+
+insta_test!(layout_reverse_list_border_no_collapse, ["header line 1", "header line 2", "a", "b", "c", "ab", "ac"], &args(&["--layout", "reverse-list", "--border", "--border-no-collapse"]), {
     @snap;
 });

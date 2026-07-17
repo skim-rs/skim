@@ -56,6 +56,8 @@ pub struct LayoutTemplate {
     /// Pre-built [`Layout`] for carving the preview out of the full area
     /// (step 1).  `None` when no preview is visible.
     preview_layout: Option<Layout>,
+    /// Whether adjacent bordered widgets share their touching row or column.
+    collapse_borders: bool,
     /// Pre-built [`Layout`] for splitting the work area into three slots.
     ///
     /// When `work_layout_reversed` is `false` the slots map to
@@ -75,6 +77,8 @@ impl LayoutTemplate {
     #[must_use]
     pub fn from_options(options: &SkimOptions, header_height: u16) -> Self {
         let has_border = options.border.is_some();
+        let collapse_borders = has_border && !options.border_no_collapse;
+        let overlap = u16::from(collapse_borders);
 
         // Rows consumed by the input widget.
         let input_rows: u16 = if has_border {
@@ -120,18 +124,17 @@ impl LayoutTemplate {
         //
         // For Default / ReverseList: slots are [list, header, input] top-to-bottom.
         // For Reverse:               slots are [input, header, list] top-to-bottom.
-        let non_list_rows = input_rows + header_rows;
         let work_layout_reversed = options.layout == TuiLayout::Reverse;
         let work_layout = if show_header {
             match options.layout {
                 TuiLayout::Default | TuiLayout::ReverseList => Layout::vertical([
                     Constraint::Fill(1),
-                    Constraint::Length(header_rows),
-                    Constraint::Length(input_rows),
+                    Constraint::Length(header_rows.saturating_sub(overlap)),
+                    Constraint::Length(input_rows.saturating_sub(overlap)),
                 ]),
                 TuiLayout::Reverse => Layout::vertical([
                     Constraint::Length(input_rows),
-                    Constraint::Length(header_rows),
+                    Constraint::Length(header_rows.saturating_sub(overlap)),
                     Constraint::Fill(1),
                 ]),
             }
@@ -140,10 +143,10 @@ impl LayoutTemplate {
                 TuiLayout::Default | TuiLayout::ReverseList => Layout::vertical([
                     Constraint::Fill(1),
                     Constraint::Length(0),
-                    Constraint::Length(non_list_rows),
+                    Constraint::Length(input_rows.saturating_sub(overlap)),
                 ]),
                 TuiLayout::Reverse => Layout::vertical([
-                    Constraint::Length(non_list_rows),
+                    Constraint::Length(input_rows),
                     Constraint::Length(0),
                     Constraint::Fill(1),
                 ]),
@@ -155,6 +158,7 @@ impl LayoutTemplate {
             preview_placement,
             work_layout_reversed,
             preview_layout,
+            collapse_borders,
             work_layout,
         }
     }
@@ -166,7 +170,14 @@ impl LayoutTemplate {
         // ── Step 1: carve out the preview from the full area ─────────────────
         let (work_area, preview_area): (Rect, Option<Rect>) = match &self.preview_layout {
             Some(layout) => {
-                let [a, b]: [Rect; 2] = layout.areas(area);
+                let [a, mut b]: [Rect; 2] = layout.areas(area);
+                if self.collapse_borders {
+                    b = match self.preview_placement {
+                        PreviewPlacement::Left | PreviewPlacement::Right => extend_left(b, area.x),
+                        PreviewPlacement::Up | PreviewPlacement::Down => extend_up(b, area.y),
+                        PreviewPlacement::None => unreachable!(),
+                    };
+                }
                 match self.preview_placement {
                     // preview is the first segment for Left / Up
                     PreviewPlacement::Left | PreviewPlacement::Up => (b, Some(a)),
@@ -183,11 +194,25 @@ impl LayoutTemplate {
         // or [input, header, list] when true (Reverse layout).
         let [slot0, slot1, slot2]: [Rect; 3] = self.work_layout.areas(work_area);
 
-        let (list_area, header_slot, input_area) = if self.work_layout_reversed {
+        let (mut list_area, mut header_slot, mut input_area) = if self.work_layout_reversed {
             (slot2, slot1, slot0)
         } else {
             (slot0, slot1, slot2)
         };
+
+        if self.collapse_borders {
+            if self.work_layout_reversed {
+                if self.show_header {
+                    header_slot = extend_up(header_slot, work_area.y);
+                }
+                list_area = extend_up(list_area, work_area.y);
+            } else {
+                if self.show_header {
+                    header_slot = extend_up(header_slot, work_area.y);
+                }
+                input_area = extend_up(input_area, work_area.y);
+            }
+        }
 
         let header_area = if self.show_header { Some(header_slot) } else { None };
 
@@ -237,6 +262,22 @@ impl AppLayout {
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
+
+fn extend_up(mut rect: Rect, top: u16) -> Rect {
+    if rect.y > top {
+        rect.y -= 1;
+        rect.height = rect.height.saturating_add(1);
+    }
+    rect
+}
+
+fn extend_left(mut rect: Rect, left: u16) -> Rect {
+    if rect.x > left {
+        rect.x -= 1;
+        rect.width = rect.width.saturating_add(1);
+    }
+    rect
+}
 
 fn size_to_constraint(size: Size) -> (Constraint, Constraint) {
     match size {

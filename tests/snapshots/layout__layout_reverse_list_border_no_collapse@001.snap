@@ -1,13 +1,7 @@
 ---
 source: tests/layout.rs
-description: "input: items [\"header line 1\", \"header line 2\", \"a\", \"b\", \"c\", \"ab\", \"ac\"]\noptions: -q a --header header --header-lines 2 --prompt prompt  --selector sel  --multi-selector multi-sel  -m --pre-select-n 2 --layout reverse --border"
+description: "input: items [\"header line 1\", \"header line 2\", \"a\", \"b\", \"c\", \"ab\", \"ac\"]\noptions: -q a --header header --header-lines 2 --prompt prompt  --selector sel  --multi-selector multi-sel  -m --pre-select-n 2 --layout reverse-list --border --border-no-collapse"
 ---
-"┌──────────────────────────────────────────────────────────────────────────────┐"
-"│prompt a                                                                      │"
-"└  3/5 [2]──────────────────────────────────────────────────────────────────0/0┘"
-"│              header                                                          │"
-"│              header line 1                                                   │"
-"│              header line 2                                                   │"
 "┌──────────────────────────────────────────────────────────────────────────────┐"
 "│sel multi-sel a                                                               │"
 "│    multi-sel ab                                                              │"
@@ -23,7 +17,13 @@ description: "input: items [\"header line 1\", \"header line 2\", \"a\", \"b\", 
 "│                                                                              │"
 "│                                                                              │"
 "│                                                                              │"
-"│                                                                              │"
-"│                                                                              │"
 "└──────────────────────────────────────────────────────────────────────────────┘"
-cursor: (2, 10)
+"┌──────────────────────────────────────────────────────────────────────────────┐"
+"│              header line 1                                                   │"
+"│              header line 2                                                   │"
+"│              header                                                          │"
+"└──────────────────────────────────────────────────────────────────────────────┘"
+"┌  3/5 [2]──────────────────────────────────────────────────────────────────0/0┐"
+"│prompt a                                                                      │"
+"└──────────────────────────────────────────────────────────────────────────────┘"
+cursor: (23, 10)

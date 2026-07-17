@@ -27,6 +27,14 @@ fn assert_horizontally_adjacent(a: Rect, b: Rect, label: &str) {
     assert_eq!(a.x + a.width, b.x, "{label}: b should start right after a");
 }
 
+fn assert_vertical_border_overlap(a: Rect, b: Rect, label: &str) {
+    assert_eq!(a.y + a.height - 1, b.y, "{label}: borders should share one row");
+}
+
+fn assert_horizontal_border_overlap(a: Rect, b: Rect, label: &str) {
+    assert_eq!(a.x + a.width - 1, b.x, "{label}: borders should share one column");
+}
+
 // Compute layout with no reserved-item header lines (header_height = 0
 // unless the test needs something different).
 fn compute(options: &SkimOptions) -> AppLayout {
@@ -367,9 +375,10 @@ fn default_with_borders_no_header() {
     let options = opts().border(crate::tui::BorderType::Plain).build().unwrap();
     let layout = compute(&options);
 
-    // input = 3 rows (1 content + 2 border)
+    // input = 3 rows (1 content + 2 border), sharing one border row with the list.
     assert_eq!(layout.input_area.height, 3);
-    assert_eq!(layout.list_area.height, 21);
+    assert_eq!(layout.list_area.height, 22);
+    assert_vertical_border_overlap(layout.list_area, layout.input_area, "list→input");
     assert!(layout.header_area.is_none());
 }
 
@@ -382,11 +391,13 @@ fn default_with_borders_and_header() {
         .unwrap();
     let layout = compute_with_header_height(&options, 2);
 
-    // input = 3, header = 2+2 = 4
+    // input = 3, header = 2+2 = 4; both separators are shared.
     assert_eq!(layout.input_area.height, 3);
     let h = layout.header_area.unwrap();
     assert_eq!(h.height, 4);
-    assert_eq!(layout.list_area.height, 24 - 3 - 4);
+    assert_eq!(layout.list_area.height, 19);
+    assert_vertical_border_overlap(layout.list_area, h, "list→header");
+    assert_vertical_border_overlap(h, layout.input_area, "header→input");
 }
 
 #[test]
@@ -401,8 +412,25 @@ fn reverse_with_borders() {
     // input at top (y = 0)
     assert_eq!(layout.input_area.y, 0);
     assert_eq!(layout.input_area.height, 3);
-    assert_eq!(layout.list_area.y, 3);
-    assert_eq!(layout.list_area.height, 21);
+    assert_eq!(layout.list_area.y, 2);
+    assert_eq!(layout.list_area.height, 22);
+    assert_vertical_border_overlap(layout.input_area, layout.list_area, "input→list");
+}
+
+#[test]
+fn border_no_collapse_keeps_separate_widget_areas() {
+    let options = opts()
+        .border(crate::tui::BorderType::Plain)
+        .border_no_collapse(true)
+        .header("hdr")
+        .build()
+        .unwrap();
+    let layout = compute_with_header_height(&options, 2);
+    let header = layout.header_area.unwrap();
+
+    assert_eq!(layout.list_area.height, 17);
+    assert_vertically_adjacent(layout.list_area, header, "list→header");
+    assert_vertically_adjacent(header, layout.input_area, "header→input");
 }
 
 // ── Coverage / edge cases ──────────────────────────────────────────────
@@ -440,7 +468,7 @@ fn all_areas_non_overlapping_default() {
 }
 
 #[test]
-fn all_areas_non_overlapping_reverse() {
+fn collapsed_borders_overlap_in_reverse_layout() {
     let options = opts()
         .layout(TuiLayout::Reverse)
         .inline_info(true)
@@ -455,14 +483,15 @@ fn all_areas_non_overlapping_reverse() {
     let preview = layout.preview_area.unwrap();
     let header = layout.header_area.unwrap();
 
-    // Horizontally disjoint: preview on left, everything else on right.
+    // Preview and work widgets share their touching border column.
     assert_eq!(preview.x, 0);
     assert_eq!(preview.width, 25);
-    assert_eq!(layout.list_area.x, 25);
+    assert_eq!(layout.list_area.x, 24);
+    assert_horizontal_border_overlap(preview, layout.list_area, "preview→list");
 
-    // Vertical ordering within work column (Reverse): input, header, list.
-    assert_vertically_adjacent(layout.input_area, header, "input→header");
-    assert_vertically_adjacent(header, layout.list_area, "header→list");
+    // Vertical borders are shared too (Reverse order: input, header, list).
+    assert_vertical_border_overlap(layout.input_area, header, "input→header");
+    assert_vertical_border_overlap(header, layout.list_area, "header→list");
 }
 
 #[test]
