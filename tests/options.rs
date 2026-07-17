@@ -243,6 +243,18 @@ insta_test!(opt_info_default, ["a", "b", "c"], &["--info", "default"], {
     @snap;
 });
 
+insta_test!(opt_info_left, ["a", "b", "c"], &["--info", "left"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
+insta_test!(opt_info_right, ["a", "b", "c"], &["--info", "right"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
 insta_test!(opt_no_info, ["a", "b", "c"], &["--no-info"], {
     @snap;
 });

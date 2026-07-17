@@ -503,30 +503,40 @@ impl SkimWidget for Input {
                         .render(area, buf);
                 }
             }
-            InfoDisplay::Default => {
+            InfoDisplay::Default | InfoDisplay::Left | InfoDisplay::Right => {
                 // Default mode: render status as block title (separate line)
                 // In normal layout: status above input (title_top)
                 // In reverse layout: status below input (title_bottom)
+                //
+                // Left and Right modes pack both titles together at the corresponding edge.
                 if let Some(ref status) = self.status_info {
                     let left_title = status.left_title();
                     let right_title = status.right_title();
 
-                    if self.reverse {
-                        block = block
-                            .title_bottom(Line::from(left_title).style(self.theme.info).alignment(Alignment::Left))
-                            .title_bottom(
-                                Line::from(right_title)
-                                    .style(self.theme.info)
-                                    .alignment(Alignment::Right),
-                            );
+                    if matches!(self.info.display, InfoDisplay::Left | InfoDisplay::Right) {
+                        let alignment = if self.info.display == InfoDisplay::Left {
+                            Alignment::Left
+                        } else {
+                            Alignment::Right
+                        };
+                        let title = Line::from(format!("{left_title}  {right_title}"))
+                            .style(self.theme.info)
+                            .alignment(alignment);
+                        block = if self.reverse {
+                            block.title_bottom(title)
+                        } else {
+                            block.title_top(title)
+                        };
                     } else {
-                        block = block
-                            .title_top(Line::from(left_title).style(self.theme.info).alignment(Alignment::Left))
-                            .title_top(
-                                Line::from(right_title)
-                                    .style(self.theme.info)
-                                    .alignment(Alignment::Right),
-                            );
+                        let info_line = Line::from(left_title).style(self.theme.info).alignment(Alignment::Left);
+                        let index_line = Line::from(right_title)
+                            .style(self.theme.info)
+                            .alignment(Alignment::Right);
+                        block = if self.reverse {
+                            block.title_bottom(info_line).title_bottom(index_line)
+                        } else {
+                            block.title_top(info_line).title_top(index_line)
+                        };
                     }
                 }
 
