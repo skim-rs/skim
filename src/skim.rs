@@ -11,6 +11,7 @@ use tokio::runtime::Handle;
 use tokio::select;
 use tokio::task::block_in_place;
 
+use crate::binds::SkimEvent;
 use crate::reader::{Reader, ReaderControl};
 use crate::tui::event::Action;
 use crate::tui::{App, Event, Size, TICK_RATE, Tui};
@@ -41,6 +42,8 @@ where
     listener: Option<interprocess::local_socket::tokio::Listener>,
     final_event: Event,
     final_key: KeyEvent,
+    /// Whether the `start` event has already been fired (fired exactly once).
+    start_fired: bool,
 }
 
 impl Skim {
@@ -188,6 +191,7 @@ where
             listener: None,
             final_event: Event::Quit,
             final_key: KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            start_fired: false,
         })
     }
 
@@ -196,6 +200,24 @@ where
         debug!("Starting reader with initial_cmd: {:?}", self.initial_cmd);
         self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), &self.initial_cmd));
         self.app.restart_matcher(true);
+        // If the TUI is already available (e.g. test harnesses that build the
+        // TUI before starting), fire the `start` event now. In the normal
+        // binary flow the TUI is created after `start()`, so `enter()` fires it.
+        self.fire_start_event();
+    }
+
+    /// Fire the `start` event exactly once, as soon as the TUI event channel is
+    /// available. The event is routed through the keymap like any other key, so
+    /// a `--bind start:<action>` binding runs when skim comes up.
+    fn fire_start_event(&mut self) {
+        if self.start_fired {
+            return;
+        }
+        if let Some(tui) = self.tui.as_ref()
+            && tui.event_tx.try_send(Event::Key(SkimEvent::Start.into())).is_ok()
+        {
+            self.start_fired = true;
+        }
     }
 
     /// Handle a reload event by killing the current reader, clearing items, and starting a new reader.
@@ -218,6 +240,10 @@ where
         // Start a new reader with the new command
         self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), new_cmd));
         self.reader_done = false;
+        // A new read is in flight: arm the `load` event to fire again once the
+        // new item set has been read and rendered.
+        self.app.reader_done = false;
+        self.app.load_event_fired = false;
     }
 
     /// Check if the reader has finished and restart the matcher if needed.
@@ -234,6 +260,10 @@ where
             && !self.reader_done
         {
             self.reader_done = true;
+            // Signal that reading is complete. The `load` event is fired from
+            // the render path once the freshly-read items have been merged into
+            // the list, so a `load` binding sees a fully-populated, stable list.
+            self.app.reader_done = true;
             self.app.restart_matcher(false);
             // If the matcher already consumed everything, stop the periodic
             // interval immediately rather than waiting for the next tick.
@@ -385,6 +415,9 @@ where
             .as_mut()
             .expect("TUI needs to be initialized using Skim::init_tui before starting")
             .start();
+        // In the normal binary flow the TUI is created after `start()`, so this
+        // is the first point at which the `start` event can be queued.
+        self.fire_start_event();
         Ok(())
     }
 

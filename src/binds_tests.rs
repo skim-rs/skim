@@ -130,6 +130,26 @@ fn test_parse_key() {
 }
 
 #[test]
+fn skim_event_name_roundtrip() {
+    // Named events resolve to distinct reserved key events and back.
+    for (name, event) in [
+        ("start", SkimEvent::Start),
+        ("load", SkimEvent::Load),
+        ("change", SkimEvent::Change),
+    ] {
+        assert_eq!(SkimEvent::from_name(name), Some(event));
+        assert_eq!(parse_key(name).unwrap(), KeyEvent::from(event));
+    }
+    // Unknown names are not events.
+    assert_eq!(SkimEvent::from_name("nope"), None);
+    // A binding referencing an event name resolves to an action chain.
+    let keymap = KeyMap::from("start:first,load:last,change:first");
+    assert!(keymap.get(&SkimEvent::Start.key_event()).is_some());
+    assert!(keymap.get(&SkimEvent::Load.key_event()).is_some());
+    assert!(keymap.get(&SkimEvent::Change.key_event()).is_some());
+}
+
+#[test]
 fn parse_key_error_cases() {
     // Empty input.
     assert!(parse_key("").is_err());

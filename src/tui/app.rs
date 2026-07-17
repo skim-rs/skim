@@ -23,7 +23,7 @@ use super::header::Header;
 use super::item_list::ItemList;
 use super::{Event, Tui, input, preview};
 use crate::thread_pool::{self, ThreadPool};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use eyre::{Result, bail};
 use input::Input;
 use preview::Preview;
@@ -127,6 +127,12 @@ pub struct App {
     items_just_updated: bool,
     /// Records if we are scrolling (mouse down on the scrollbar and no mouse up yet)
     currently_scrolling: bool,
+    /// Set by [`Skim::check_reader`] once the reader has finished producing
+    /// items. Reset on `reload`. Drives the one-shot `load` event.
+    pub reader_done: bool,
+    /// Whether the `load` event has been fired for the current read. Reset on
+    /// `reload` so a new read fires `load` again.
+    pub load_event_fired: bool,
 }
 
 impl Widget for &mut App {
@@ -250,6 +256,8 @@ impl Default for App {
             reader_timer: std::time::Instant::now(),
             items_just_updated: false,
             currently_scrolling: false,
+            reader_done: false,
+            load_event_fired: false,
         }
     }
 }
@@ -316,6 +324,8 @@ impl App {
                 .unwrap(),
             pending_preview_run: false,
             currently_scrolling: false,
+            reader_done: false,
+            load_event_fired: false,
         }
     }
 
@@ -387,7 +397,7 @@ impl App {
         }
         self.restart_matcher_debounced();
         vec![
-            Event::Key(KeyEvent::new(KeyCode::F(255), KeyModifiers::NONE)), // Send F255 which is the change bind
+            Event::Key(crate::binds::SkimEvent::Change.into()), // fire the `change` event binding
             Event::RunPreview,
         ]
     }
@@ -551,6 +561,16 @@ impl App {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
+                // The reader has finished and the freshly-read items have now
+                // been merged into the item list by the render above, so the
+                // list is stable: fire the one-shot `load` event. Routed through
+                // the keymap like any key, so `--bind load:<action>` runs and can
+                // safely inspect the fully-populated list.
+                if self.reader_done && !self.load_event_fired {
+                    self.load_event_fired = true;
+                    tui.event_tx
+                        .try_send(Event::Key(crate::binds::SkimEvent::Load.into()))?;
+                }
             }
             Event::Heartbeat | Event::Tick => {
                 // Heartbeat is used for periodic UI updates

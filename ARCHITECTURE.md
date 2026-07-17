@@ -953,6 +953,28 @@ Notable defaults:
 
 User bindings from `--bind key:action[+action]` are parsed at startup and merged via `KeyMap::add_keymaps()`.
 
+### Synthetic Events (`SkimEvent`)
+
+Besides real key presses, skim fires a few *synthetic* events that can be bound
+to actions just like keys. Because the keymap is keyed by
+`crossterm::event::KeyEvent`, these events are represented *transparently* as
+reserved function-key codes in the high-`F` range that no real terminal emits.
+The [`SkimEvent`](src/binds.rs) enum gives them named variants so the reserved
+codes live in one place rather than being scattered as magic `F(255)` literals,
+and `parse_key` accepts the friendly names below:
+
+| Bind name | `SkimEvent` | Reserved code | Fired when |
+| --- | --- | --- | --- |
+| `start` | `SkimEvent::Start` | `F(254)` | skim has started and entered its event loop (once) |
+| `load` | `SkimEvent::Load` | `F(253)` | the reader finishes producing items (once per read; a `reload` fires it again) |
+| `change` | `SkimEvent::Change` | `F(255)` | the query changes |
+
+`change` is injected by `App::on_query_changed` (`src/tui/app.rs`); `start` and
+`load` are injected by `Skim::fire_start_event` / `Skim::check_reader`
+(`src/skim.rs`) via `Event::Key(SkimEvent::_.into())`. Each flows through
+`handle_key` and its keymap lookup like any other key, so an unbound event is a
+harmless no-op.
+
 ### Action Dispatch
 
 ```
@@ -1248,8 +1270,9 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
-| `parse_key` | `src/binds.rs:139` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_chain` | `src/binds.rs:211` | `"down+select"` → `Vec<Action>` |
+| `SkimEvent` | `src/binds.rs:25` | `start`/`load`/`change` synthetic events → reserved `KeyEvent` |
+| `parse_key` | `src/binds.rs:196` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_chain` | `src/binds.rs:270` | `"down+select"` → `Vec<Action>` |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |
 | `AndOrEngineFactory::parse_andor` | `src/engine/factory.rs:176` | Split query into AND/OR tree |

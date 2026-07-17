@@ -11,6 +11,64 @@ use eyre::{Result, eyre};
 
 use crate::tui::event::{self, Action};
 
+/// Synthetic events that skim fires internally and that can be bound to actions
+/// via the keymap, exactly like a real key press.
+///
+/// The keymap is keyed by crossterm's [`KeyEvent`], which cannot express
+/// "the query changed" or "reading finished" directly. Each variant is
+/// therefore represented *transparently* as a reserved function-key code in the
+/// high-`F` range (`F(253)`–`F(255)`) that no real terminal ever emits. Giving
+/// these reserved codes named variants keeps them in one place instead of
+/// scattering magic `F(255)` literals across the codebase, and lets
+/// [`parse_key`] accept the friendly names `start`, `load` and `change`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum SkimEvent {
+    /// Fired once, when skim has started up and entered its event loop.
+    Start,
+    /// Fired when the reader finishes producing items (once per read; a
+    /// `reload` starts a new read and fires it again).
+    Load,
+    /// Fired whenever the query changes.
+    Change,
+}
+
+impl SkimEvent {
+    /// The reserved [`KeyCode`] used to route this event through the keymap.
+    #[must_use]
+    pub const fn key_code(self) -> KeyCode {
+        match self {
+            SkimEvent::Change => KeyCode::F(255),
+            SkimEvent::Start => KeyCode::F(254),
+            SkimEvent::Load => KeyCode::F(253),
+        }
+    }
+
+    /// The reserved [`KeyEvent`] used to route this event through the keymap.
+    #[must_use]
+    pub const fn key_event(self) -> KeyEvent {
+        KeyEvent::new(self.key_code(), KeyModifiers::NONE)
+    }
+
+    /// Parses an event name (`start`, `load`, `change`) into a [`SkimEvent`].
+    ///
+    /// Returns `None` if the name is not a recognised event.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "start" => Some(SkimEvent::Start),
+            "load" => Some(SkimEvent::Load),
+            "change" => Some(SkimEvent::Change),
+            _ => None,
+        }
+    }
+}
+
+impl From<SkimEvent> for KeyEvent {
+    fn from(event: SkimEvent) -> Self {
+        event.key_event()
+    }
+}
+
 /// A map of key events to their associated actions
 #[derive(Clone, Debug)]
 pub struct KeyMap(pub HashMap<KeyEvent, Vec<Action>>);
@@ -188,8 +246,10 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             "end" => KeyCode::End,
             "pgup" => KeyCode::PageUp,
             "pgdown" => KeyCode::PageDown,
-            "change" => KeyCode::F(255),
-            s => return Err(eyre!("Unknown key {}", s)),
+            s => match SkimEvent::from_name(s) {
+                Some(event) => event.key_code(),
+                None => return Err(eyre!("Unknown key {}", s)),
+            },
         }
     }
 

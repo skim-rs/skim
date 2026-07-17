@@ -53,6 +53,20 @@ insta_test!(bind_change, ["1", "12", "13", "14", "15", "16", "17", "18", "19", "
     @snap;
 });
 
+// Test start event: fires once when skim starts up, running its bound action.
+insta_test!(bind_start, ["a", "b", "c"], &["--bind", "start:set-query(started)"], {
+    @assert(|h: &common::insta::TestHarness| h.skim.app().input.value == "started");
+    @snap;
+});
+
+// Test load event: fires once the reader has finished AND the read items have
+// been rendered into the list, so a `load` binding can safely act on the
+// fully-populated list (here it jumps to the last item).
+insta_test!(bind_load, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "load:last"], {
+    @snap;
+    @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
+});
+
 insta_test!(bind_set_query_basic, ["a", "b", "c"], &["--bind", "ctrl-a:set-query(foo)"], {
     @snap;
     @ctrl 'a';
