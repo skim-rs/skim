@@ -93,6 +93,7 @@ module completions {
     --header: string          # Set header, displayed next to the info
     --header-lines: string    # Number of lines of the input treated as header
     --border: string@"nu-complete sk border" # Draw borders around the UI components
+    --border-no-collapse      # Do not collapse adjacent borders into a shared row or column
     --no-border               # Disables all borders, including in tmux/zellij popups
     --wrap                    # Wrap items in the item list
     --multiline: string       # Split item text into multiple display lines at the given separator character defaults to \n if read0 is set, and \\n if not (matching literal \n in text)

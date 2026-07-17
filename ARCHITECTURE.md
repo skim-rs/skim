@@ -164,6 +164,7 @@ skim/                  ← workspace root
 ```
 
 The single crate exports:
+
 - A **library** (`lib`): all types under `skim::*`, suitable for embedding.
 - A **binary** (`sk`, requires feature `cli`): the `clap`-based CLI.
 
@@ -217,7 +218,7 @@ main()
 Two public entry points exist on `Skim`:
 
 | Method | Use case |
-|---|---|
+| --- | --- |
 | `Skim::run_with(options, source)` | Takes a `SkimItemReceiver` channel (or `None` to use the configured command collector). The canonical entry point. |
 | `Skim::run_items(options, items)` | Convenience wrapper: accepts any `IntoIterator<Item: SkimItem>`, batches them through a bounded channel, and calls `run_with`. |
 
@@ -268,7 +269,7 @@ Skim::run_with(options, source)
 Each call to `tick()` runs a `tokio::select!` on four concurrent futures:
 
 | Branch | Source | Action |
-|---|---|---|
+| --- | --- | --- |
 | `tui.next()` | crossterm keyboard/mouse/resize/paste events | Dispatch to `app.handle_event()` |
 | `matcher_interval.tick()` | 10 ms periodic timer (adaptive: disabled once reader finishes and all items are matched) | `app.restart_matcher(false)` |
 | `items_available.notified()` | `Notify` set by `ItemPool::append` | `app.restart_matcher(false)` |
@@ -289,6 +290,7 @@ The default mode. The TUI is shown in full. Items arrive from stdin or a command
 When `--filter <query>` is set, skim never opens the TUI.
 
 `Skim::should_enter()` enters a busy-wait loop:
+
 ```
 loop {
     if matcher.stopped() && reader.is_done() && pool.num_not_taken() == 0 {
@@ -298,6 +300,7 @@ loop {
     app.restart_matcher(false);
 }
 ```
+
 Then `app.item_list.items` is populated from `processed_items` and `output()` is called immediately. The matched items are printed to stdout by the binary, one per line (or null-delimited with `--print0`).
 
 In filter mode the `FuzzyEngine` is built with `filter_mode = true`, which uses `fuzzy_match_range` instead of `fuzzy_indices` to skip the per-character index computation and run faster.
@@ -309,6 +312,7 @@ In filter mode the `FuzzyEngine` is built with `filter_mode = true`, which uses 
 When `--interactive` is set together with `--cmd <template>`, the query box controls a shell command rather than a fuzzy filter. Every change to the input re-expands the template and issues a `Reload` event.
 
 Template placeholders:
+
 - `{}` — the current query
 - `{q}` — alias for `{}`
 - `{n}` — ordinal of the current item
@@ -316,6 +320,7 @@ Template placeholders:
 `App::expand_cmd()` handles placeholder expansion. On `Action::ToggleInteractive`, the mode flips between the query controlling the fuzzy filter and the query driving the command.
 
 In interactive mode, the initial command is expanded against the initial query:
+
 ```rust
 // src/skim.rs Skim::init()
 let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
@@ -324,6 +329,7 @@ let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
 ```
 
 A `Reload(new_cmd)` event is handled at the `Skim::tick()` level (not `App::handle_event()`), because it must kill the reader and restart cleanly:
+
 ```rust
 // src/skim.rs tick()
 if let Event::Reload(new_cmd) = &evt {
@@ -332,6 +338,7 @@ if let Event::Reload(new_cmd) = &evt {
 ```
 
 `handle_reload()`:
+
 1. Kills `reader_control` (waits for all reader threads to stop)
 2. Clears `ItemPool`
 3. Clears `ItemList` (unless `no_clear_if_empty`)
@@ -345,7 +352,7 @@ if let Event::Reload(new_cmd) = &evt {
 All three are handled in `Skim::should_enter()` before opening the TUI:
 
 | Option | Meaning | Behaviour |
-|---|---|---|
+| --- | --- | --- |
 | `--select-1` | Auto-accept if exactly one match | Waits until ≥ 2 matches or reader/matcher done; returns without TUI if exactly 1 match |
 | `--exit-0` | Exit immediately if no matches | Waits until ≥ 1 match or done; returns without TUI if 0 matches |
 | `--sync` | Block until all items processed | Waits until `num_matched == usize::MAX` (effectively waits for full scan) |
@@ -372,10 +379,12 @@ ANSI input uses the same parallel pipeline as plain input — there is no separa
 When `--popup [direction[,size[,size]]]` (alias `--tmux`) is set, the binary calls `check_and_run_popup()`, which checks `popup::check_env()` and, if true, delegates to `popup::run_with()` instead of `Skim::run_with()`.
 
 **`check_env()`** returns `true` only when:
+
 - `$_SKIM_POPUP` is **not** set in the environment (prevents the child process from recursing back into popup mode), and
 - at least one supported multiplexer is detected: tmux (`$TMUX` set) or Zellij (`$ZELLIJ` set).
 
 The popup flow:
+
 1. Creates a temp directory for IPC (`/tmp/sk-popup-XXXXXXXX/`).
 2. If stdin is piped, creates a named FIFO (`tmp_stdin`) and spawns a thread to relay stdin into it incrementally so the child can stream-read.
 3. Reconstructs the `sk` command line from `std::env::args()`, shell-quotes every retained argument, strips `--popup`/`--tmux`, `--output-format`, and `--print-cmd`, then appends `--print-query --print-header --print-current --print-score`.
@@ -441,11 +450,11 @@ SkimItemReceiver channel
 ### `DefaultSkimItem` construction matrix
 
 | `with_nth` | `ansi` | `text` field | `orig_text` | `stripped_text` |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | false | false | original line | None | None |
-| false | true  | original line | None | stripped (+ `ansi_info`) |
-| true  | false | transformed   | original | None |
-| true  | true  | transformed   | original | stripped (+ `ansi_info`) |
+| false | true | original line | None | stripped (+ `ansi_info`) |
+| true | false | transformed | original | None |
+| true | true | transformed | original | stripped (+ `ansi_info`) |
 
 Fields `/0` bytes are stripped from `text` (used for display/matching) but preserved in `orig_text` (used for output).
 
@@ -491,7 +500,7 @@ query: "'abc def | ghi ^xyz"
 Query prefix semantics handled by `ExactOrFuzzyEngineFactory::create_engine_with_case()`:
 
 | Prefix/suffix | Engine type |
-|---|---|
+| --- | --- |
 | `'abc` | force ExactEngine (toggle from default) |
 | `!abc` | ExactEngine with `inverse = true` |
 | `^abc` | ExactEngine with `prefix = true` |
@@ -504,11 +513,12 @@ Query prefix semantics handled by `ExactOrFuzzyEngineFactory::create_engine_with
 ### Fuzzy Algorithms
 
 All algorithms implement the `FuzzyMatcher` trait with two methods:
+
 - `fuzzy_indices(choice, pattern) → Option<(score, Vec<usize>)>` — full match with per-character highlights
 - `fuzzy_match_range(choice, pattern) → Option<(score, begin, end)>` — fast path without highlight indices (used in filter mode)
 
 | Algorithm | Flag | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `Arinae` | `--algorithm arinae` (default) | Smith-Waterman with affine gaps; typo-resistant; picks last occurrence on ties when `--last-match` |
 | `SkimV2` | `--algorithm skim_v2` | Skim's classic dynamic-programming scorer |
 | `Clangd` | `--algorithm clangd` | Clangd-style subsequence scoring |
@@ -516,6 +526,7 @@ All algorithms implement the `FuzzyMatcher` trait with two methods:
 | `Frizbee` | `--algorithm frizbee` | Edit-distance based; explicitly typo-tolerant |
 
 Typo tolerance is configured via `Typos`:
+
 - `Typos::Disabled` — no tolerance (default)
 - `Typos::Smart` — adaptive: `query.len() / 4` typos allowed
 - `Typos::Fixed(n)` — exactly n typos
@@ -561,8 +572,9 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 `MatchedItem` implements `Ord` through a lazy sort key computed by `Rank::sort_key(criteria)`. Items can also be disabled: `SkimItem::disabled()` returns `false` by default, and `--disable-pattern <regex>` marks matching items as disabled in the default item type. Disabled items stay visible but are dimmed by `ItemRenderer` and cannot be selected.
 
 `Rank` fields:
+
 | Field | Description |
-|---|---|
+| --- | --- |
 | `score` | Raw match score (higher = better) |
 | `begin` | First matched character index |
 | `end` | Last matched character index |
@@ -575,7 +587,7 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 `MergeStrategy` (in `item_list.rs`):
 
 | Strategy | When used |
-|---|---|
+| --- | --- |
 | `Replace` | Fresh match pass (query changed, full re-sort) |
 | `SortedMerge` | New items arrived during a running match (merge-insert) |
 | `Append` | `--no-sort` mode |
@@ -587,12 +599,14 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 ### Backend & Terminal Setup
 
 `Tui<B>` (in `src/tui/backend.rs`) wraps `ratatui::Terminal<B>` and owns:
+
 - A `tokio::sync::mpsc` channel (`event_tx` / `event_rx`) of capacity 1 M for events.
 - A `JoinHandle` for a background Tokio task that reads `crossterm::event::EventStream` and sends `Event` values.
 - A `CancellationToken` to stop the background task.
 - A `is_fullscreen` flag that determines the `ratatui::Viewport`.
 
 **Viewport selection** (`Tui::new_with_height_and_backend()`):
+
 - `Size::Percent(100)` → `Viewport::Fullscreen` (enters alternate screen).
 - `Size::Fixed(lines)` → `Viewport::Fixed(Rect)` with that many rows.
 - `Size::Percent(p)` → fixed viewport with `terminal_height * p / 100` rows.
@@ -603,6 +617,7 @@ Any fixed viewport is anchored at the current cursor position; the terminal is s
 The default backend is `CrosstermBackend<BufWriter<Stderr>>`. Skim always draws to **stderr** so stdout remains clean for piped output.
 
 **Terminal lifecycle:**
+
 ```
 Tui::enter()
   ├─ enable_raw_mode()
@@ -650,7 +665,7 @@ Frame rate is capped at 120 fps (`FRAME_TIME_MS = 1000/120`). `App::handle_event
 `App` (in `src/tui/app.rs`) is the single mutable application state. It contains:
 
 | Field | Type | Role |
-|---|---|---|
+| --- | --- | --- |
 | `item_pool` | `Arc<ItemPool>` | Shared with reader; accumulates raw items |
 | `matcher` | `Matcher` | Engine factory + case + rank config |
 | `matcher_control` | `MatcherControl` | Handle to stop/query current match pass |
@@ -685,6 +700,7 @@ Event::Reload(_)    → (handled by Skim::tick, not here)
 ```
 
 **`App::restart_matcher(force)`:**
+
 ```
 restart_matcher(force)
   ├─ if !force && matcher not stopped → skip (debounce)
@@ -719,9 +735,13 @@ pub struct SkimRender {
 
 ### Layout Engine
 
-`LayoutTemplate` pre-computes area splits from `SkimOptions` once and stores constraint trees. `apply(area: Rect) → AppLayout` is then a cheap, allocation-free split.
+`LayoutTemplate` pre-computes area splits from `SkimOptions` once and stores constraint trees.
+`apply(area: Rect) → AppLayout` is then a cheap, allocation-free split. Bordered
+widgets share adjacent border rows and columns by default;
+`SkimOptions::border_no_collapse` keeps their areas separate.
 
 `AppLayout` has four optional areas:
+
 ```rust
 pub struct AppLayout {
     pub list_area: Rect,
@@ -736,12 +756,13 @@ Layout is rebuilt on `Event::Resize`, when the header height changes (multiline 
 **Layout orientations** (`TuiLayout`):
 
 | Mode | Description |
-|---|---|
+| --- | --- |
 | `Default` | Input at bottom, list above, header above list (bottom-to-top reading) |
 | `Reverse` | Input at top, list below (top-to-bottom reading) |
 | `ReverseList` | List at top, input at bottom |
 
 **Preview placement** is parsed from `--preview-window`:
+
 - Direction: `left` / `right` / `up` / `down`
 - Size: `50%` (default), fixed cells, or negative cells (`-N`, meaning the non-preview side keeps `N` cells)
 - Modifiers: `hidden`, `wrap`, `pty`, `+offset`
@@ -753,11 +774,13 @@ Layout is rebuilt on `Event::Resize`, when the header height changes (multiline 
 ### Input Widget
 
 `Input` (`src/tui/input.rs`) maintains:
+
 - `value: String` — the query text (primary mode)
 - `alternate_value: String` — the command text (interactive mode)
 - `cursor_pos: usize` — character-level cursor position
 
 Text operations (used by `handle_action`):
+
 - `insert(char)` / `insert_str(&str)` — insert at cursor
 - `delete(n)` — delete n characters forward
 - `delete_backward_word()` / `delete_to_beginning()` / `delete_forward_word()`
@@ -771,6 +794,7 @@ The `StatusInfo` struct rendered inside the input line shows:
 ### ItemList Widget
 
 `ItemList` (`src/tui/item_list.rs`) maintains:
+
 - `items: Vec<MatchedItem>` — the currently displayed matched items
 - `processed_items: Arc<SpinLock<Option<ProcessedItems>>>` — shared with matcher
 - `selection: Vec<usize>` — indices of multi-selected items
@@ -779,11 +803,13 @@ The `StatusInfo` struct rendered inside the input line shows:
 - `manual_hscroll: i16` — user-driven horizontal scroll
 
 On each render, `ItemList::render()` checks `processed_items` and swaps them in atomically via the `SpinLock`. Depending on `MergeStrategy`:
+
 - `Replace`: replaces `items` entirely.
 - `SortedMerge`: performs an O(n+m) merge preserving order.
 - `Append`: extends `items`.
 
 **Selection state management:**
+
 - `toggle_at(idx)` / `toggle()` / `toggle_all()` / `select_all()` / `clear_selection()`
 - `scroll_by_rows(n)` — scroll by terminal rows (accounting for multiline items)
 - `scroll_by(n)` — scroll by item count
@@ -816,6 +842,7 @@ Pre-selection is applied when items first appear: `DefaultSkimSelector::should_s
 **Image mode** (`--image[=detect|halfblocks]`, requires the default `image` feature): treats the expanded preview command as an image path instead of executing it. A worker thread decodes the image with the `image` crate and stores `PreviewContent::Image { source, protocol, size }`. Rendering uses `ratatui_image`; `detect` builds an image protocol picker after entering the alternate screen, while `halfblocks` skips terminal capability detection and uses the portable half-block renderer. The protocol is rebuilt when the preview area changes so the image keeps its aspect ratio within the pane.
 
 `Preview::spawn()`:
+
 ```
 kill() ← kill any running preview
 reset scroll_y / scroll_x
@@ -843,6 +870,7 @@ Scroll state: `scroll_y`, `scroll_x` (in lines/columns). `page_up/down`, `scroll
 ### Header Widget
 
 `Header` (`src/tui/header.rs`) renders two kinds of content:
+
 - **Static** (`--header <text>`): shown at the top or bottom depending on layout; expanded for tab characters once at init.
 - **Dynamic** (`--header-lines N`): first N items from `ItemPool::reserved()` are treated as header lines instead of selectable items.
 
@@ -859,6 +887,7 @@ Right side: multi-select count when multi mode
 ```
 
 `InfoDisplay` has four modes:
+
 - `Default` — separate line above the prompt
 - `Inline` — inside the prompt line (after the query text)
 - `InlineRight` — inside the prompt line, right-aligned
@@ -883,7 +912,7 @@ Right side: multi-select count when multi mode
 Notable defaults:
 
 | Key | Action |
-|---|---|
+| --- | --- |
 | `Enter` | `Accept(None)` |
 | `Esc` | `Abort` |
 | `Ctrl-C` / `Ctrl-D` / `Ctrl-G` | `Abort` |
@@ -918,7 +947,7 @@ Event::Action(a) → handle_action(a) → Vec<Event>
 `handle_action` is a large match statement covering all ~70+ `Action` variants. Key action categories:
 
 | Category | Actions |
-|---|---|
+| --- | --- |
 | Navigation | `Up/Down(n)`, `HalfPageUp/Down`, `PageUp/Down`, `First/Last/Top` |
 | Text editing | `AddChar`, `BackwardChar/DeleteChar/Word`, `ForwardChar/Word`, `KillLine`, `Yank`, `UnixLineDiscard/WordRubout` |
 | Selection | `Toggle`, `ToggleAll`, `ToggleIn/Out`, `Select`, `SelectAll`, `DeselectAll`, `AppendAndSelect` |
@@ -940,7 +969,7 @@ Event::Action(a) → handle_action(a) → Vec<Event>
 The preview command string supports placeholder substitution via `App::expand_cmd()`:
 
 | Placeholder | Expands to |
-|---|---|
+| --- | --- |
 | `{}` | text of the focused item |
 | `{q}` | current query string |
 | `{n}` | index of the focused item |
@@ -982,6 +1011,7 @@ Skim::output()
 ```
 
 `SkimOutput` fields returned to caller:
+
 ```rust
 pub struct SkimOutput {
     pub final_event: Event,         // Action::Accept or Action::Abort
@@ -996,6 +1026,7 @@ pub struct SkimOutput {
 ```
 
 The output phase is `SkimOutput::write_output(&mut out, &BinOptions)` (`src/output.rs`), called by the CLI binary with a buffered stdout. `BinOptions` (also in `src/output.rs`, built via `BinOptions::from_opts`) captures the output-related flags. Keeping the serialization independent of stdout lets it be unit-tested by passing a `Vec<u8>`. It writes, in order:
+
 1. `query` if `--print-query`
 2. `cmd` if `--print-cmd`
 3. `header` if `--print-header`
@@ -1048,7 +1079,7 @@ This enables scripted control of a running skim session.
 `ColorTheme` (`src/theme.rs`) holds 13 named `ratatui::style::Style` values:
 
 | Field | Covers |
-|---|---|
+| --- | --- |
 | `normal` | Default item text |
 | `matched` | Highlighted match characters |
 | `current` | Focused item background |
@@ -1068,6 +1099,7 @@ Built-in palettes: `none`, `bw`, `default16`, `dark256`, `molokai256`, `light256
 Selected via `--color base_theme[,component:color[:modifier]]`. Individual component overrides use CSS-style RGB hex (`#RRGGBB`), ANSI 256-color indices, or named modifiers (`bold`, `italic`, `underline`, `dim`, `reverse`).
 
 `BorderType` mirrors Ratatui's border styles but adds two internal no-border states:
+
 - `None` is the default `--border=none`; widgets do not draw boxes, but preview separators may still be drawn between panes.
 - `ForceOff` is set by `--no-border`; it disables all borders, including tmux/zellij popup borders.
 
@@ -1078,6 +1110,7 @@ Passing `--border` without a value means `plain`. Passing a value accepts Ratatu
 ## History
 
 Query and command histories are managed in `SkimOptions`:
+
 - Loaded at startup via `SkimOptions::init_histories()` from files specified by `--history-file` / `--cmd-history-file`.
 - Stored in `App::query_history` / `App::cmd_history`.
 - Navigation with `Action::NextHistory` / `Action::PreviousHistory` uses `history_index: Option<usize>` and `saved_input: String` to restore the original input when returning to the live query.
@@ -1096,6 +1129,7 @@ pub trait Selector {
 ```
 
 Three modes (combinable):
+
 - `first_n(N)` — selects the first N items by index
 - `preset(iter)` — selects items whose `text()` is in a `HashSet`
 - `regex(pattern)` — selects items matching a regex
@@ -1142,6 +1176,7 @@ Popup stdin relay thread (OS thread, only in --popup/--tmux mode):
 ```
 
 **Synchronization primitives used:**
+
 - `Arc<SpinLock<Option<ProcessedItems>>>` — matcher-to-ItemList result handoff
 - `Arc<AtomicBool>` — `needs_render` (matcher → event loop), `stopped` / `interrupt` (MatcherControl)
 - `Arc<AtomicUsize>` — `processed` / `matched` counters, reader `components_to_stop`
@@ -1156,7 +1191,7 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 ## Important Call Sites (Cross-Reference)
 
 | Call site | File | What it does |
-|---|---|---|
+| --- | --- | --- |
 | `Skim::run_with` | `src/skim.rs:58` | Top-level library entry point |
 | `Skim::run_items` | `src/skim.rs:100` | Convenience wrapper for iterator inputs |
 | `Skim::init_tui` | `src/skim.rs:124` | Initialize default crossterm TUI backend |
