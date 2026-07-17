@@ -174,6 +174,8 @@ pub enum Action {
     BackwardWord,
     /// Move cursor to beginning of line
     BeginningOfLine,
+    /// Bind one or more keys to action chains (`key:action[+action][,key:action…]`)
+    Bind(String),
     /// Cancel current operation
     Cancel,
     /// Clear the screen
@@ -282,6 +284,8 @@ pub enum Action {
     ToggleSort,
     /// Jump to first item in list (alias for First)
     Top,
+    /// Unbind one or more keys (`key[,key…]`)
+    Unbind(String),
     /// Discard line (unix-style)
     UnixLineDiscard,
     /// Delete word backward (unix-style)
@@ -347,7 +351,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
         }
     } else if matches!(
         action,
-        "add-char" | "execute" | "execute-silent" | "set-preview-cmd" | "set-query"
+        "add-char" | "bind" | "execute" | "execute-silent" | "set-preview-cmd" | "set-query" | "unbind"
     ) && arg.is_none()
     {
         None
@@ -365,6 +369,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "backward-kill-word" => Some(BackwardKillWord),
                 "backward-word" => Some(BackwardWord),
                 "beginning-of-line" => Some(BeginningOfLine),
+                "bind" => Some(Bind(arg.unwrap_or_default())),
                 "cancel" => Some(Cancel),
                 "clear-screen" => Some(ClearScreen),
                 "delete-char" => Some(DeleteChar),
@@ -416,6 +421,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "toggle-preview-wrap" => Some(TogglePreviewWrap),
                 "toggle-sort" => Some(ToggleSort),
                 "top" => Some(Top),
+                "unbind" => Some(Unbind(arg.unwrap_or_default())),
                 "unix-line-discard" => Some(UnixLineDiscard),
                 "unix-word-rubout" => Some(UnixWordRubout),
                 "up" => Some(Up(arg.and_then(|s| s.parse().ok()).unwrap_or(1))),

@@ -958,6 +958,7 @@ Event::Action(a) → handle_action(a) → Vec<Event>
 | Conditional | `IfQueryEmpty(then, else?)`, `IfQueryNotEmpty(then, else?)`, `IfNonMatched(then, else?)` |
 | Lifecycle | `Accept(key?)`, `Abort`, `Cancel` |
 | UI | `ClearScreen`, `Redraw`, `SetHeader(text?)`, `SelectRow(n)` |
+| Bindings | `Bind(spec)` — add `key:action[+action]` bindings at runtime; `Unbind(keys)` — remove bindings for a comma-separated key list |
 | Custom | `Custom(ActionCallback)` — async or sync closure receiving `&mut App` |
 
 `Action::Custom(ActionCallback)` is the library extension point: callers can inject arbitrary async logic into the action pipeline without forking skim.
