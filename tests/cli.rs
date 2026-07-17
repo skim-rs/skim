@@ -111,6 +111,24 @@ fn filter_mode_with_print0() {
 }
 
 #[test]
+fn filter_mode_no_sort_preserves_input_order() {
+    // Workers grab 4096-item chunks from a shared queue, so with enough items
+    // each worker processes several chunks and the concatenation order of
+    // worker results is nondeterministic. --no-sort must restore input order.
+    let input: String = (0..50_000).map(|i| format!("item{i:06} x\n")).collect();
+    let expected: Vec<String> = (0..50_000).map(|i| format!("item{i:06} x")).collect();
+    let (code, stdout, _) = run_sk_argv(&input, &["--no-sort", "-f", "x"], &[]);
+    assert_eq!(code, Some(0));
+    let lines: Vec<String> = stdout.lines().map(String::from).collect();
+    assert_eq!(lines.len(), expected.len());
+    let first_mismatch = lines.iter().zip(&expected).position(|(a, b)| a != b);
+    assert!(
+        first_mismatch.is_none(),
+        "output diverges from input order at line {first_mismatch:?}"
+    );
+}
+
+#[test]
 fn select_1_with_output_format() {
     // --output-format renders the selected item through the printf branch.
     let (code, stdout, _) = run_sk("1\\n2\\n3", "--select-1 -q 3 --output-format '{}'");

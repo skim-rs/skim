@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.4] - 2026-07-17
+
+### 🐛 Bug Fixes
+
+- Preserve input order with --no-sort (#1115)
+
+### New Contributors
+* @juneboku made their first contribution in [#1115](https://github.com/skim-rs/skim/pull/1115)
+
+## [5.1.3] - 2026-07-16
+
+### 🐛 Bug Fixes
+
+- Manually resize the Tui when not in fullscreen mode
+
+### 🤖 CI
+
+- Fix fixed viewport resize test in non-interactive env (#1114)
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix CHANGELOG duplication
+
 ## [5.1.2] - 2026-07-16
 
 ### 🤖 CI
