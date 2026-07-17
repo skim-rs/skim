@@ -124,7 +124,7 @@ mod tests {
 
         // A disabled item is rejected even when it would otherwise match first_n.
         let selector = DefaultSkimSelector::default().first_n(10);
-        let mut item = DefaultSkimItem::new("anything", false, &[], &[], &Regex::new(" ").unwrap());
+        let mut item = DefaultSkimItem::new("anything", false, &[], &[], &[], &Regex::new(" ").unwrap());
         item.disable();
         assert!(!selector.should_select(0, &item));
     }

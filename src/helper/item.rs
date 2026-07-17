@@ -2,7 +2,7 @@
 //! Including the `DefaultSkimItem`
 use crate::field::{FieldRange, parse_matching_fields, parse_transform_fields};
 use crate::tui::util::merge_styles;
-use crate::{DisplayContext, SkimItem};
+use crate::{DisplayContext, Matches, SkimItem};
 use ansi_to_tui::IntoText;
 use ratatui::text::{Line, Span};
 use regex::Regex;
@@ -48,6 +48,12 @@ pub struct DefaultSkimItemMetadata {
     /// The ranges on which to perform matching
     matching_ranges: Option<Vec<(usize, usize)>>,
 
+    /// Byte ranges (in the display/matching text) of fields hidden via `--hide-nth`.
+    /// Characters inside these ranges are removed from the rendered line and ignored
+    /// for match highlighting and horizontal scrolling, but remain part of the text
+    /// used for matching so they stay searchable.
+    hidden_ranges: Option<Vec<(usize, usize)>>,
+
     /// Whether the item should be disabled or not
     disabled: bool,
 }
@@ -60,6 +66,7 @@ impl DefaultSkimItem {
         ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
+        hidden_fields: &[FieldRange],
         delimiter: &Regex,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
@@ -155,18 +162,39 @@ impl DefaultSkimItem {
             }
         };
 
-        let metadata =
-            if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
-                Some(Box::new(DefaultSkimItemMetadata {
-                    orig_text: orig_text.map(std::string::String::into_boxed_str),
-                    stripped_text: stripped_text.map(std::string::String::into_boxed_str),
-                    ansi_info,
-                    matching_ranges,
-                    disabled: false,
-                }))
+        // Compute the byte ranges of fields that should be hidden from display.
+        // These are expressed in the same coordinate system as the text used for
+        // matching/display (the stripped text when ANSI is enabled, otherwise the
+        // temp text), so the renderer can remove them and remap match positions.
+        let hidden_ranges = if hidden_fields.is_empty() {
+            None
+        } else {
+            let text_for_hiding = if let Some(stripped) = stripped_text.as_ref() {
+                stripped.as_str()
             } else {
-                None
+                temp_text.as_ref()
             };
+            let ranges = normalize_ranges(&parse_matching_fields(delimiter, text_for_hiding, hidden_fields));
+            if ranges.is_empty() { None } else { Some(ranges) }
+        };
+
+        let metadata = if orig_text.is_some()
+            || stripped_text.is_some()
+            || ansi_info.is_some()
+            || matching_ranges.is_some()
+            || hidden_ranges.is_some()
+        {
+            Some(Box::new(DefaultSkimItemMetadata {
+                orig_text: orig_text.map(std::string::String::into_boxed_str),
+                stripped_text: stripped_text.map(std::string::String::into_boxed_str),
+                ansi_info,
+                matching_ranges,
+                hidden_ranges,
+                disabled: false,
+            }))
+        } else {
+            None
+        };
 
         DefaultSkimItem {
             text: temp_text,
@@ -228,6 +256,16 @@ impl DefaultSkimItem {
             None
         }
     }
+
+    /// Getter for `hidden_ranges` stored in metadata
+    #[must_use]
+    pub fn hidden_ranges(&self) -> Option<&[(usize, usize)]> {
+        if let Some(meta) = &self.metadata {
+            meta.hidden_ranges.as_ref().map(|v| v.as_ref() as &[(usize, usize)])
+        } else {
+            None
+        }
+    }
 }
 
 impl DefaultSkimItem {
@@ -273,10 +311,33 @@ impl SkimItem for DefaultSkimItem {
         self.matching_ranges()
     }
 
+    fn hidden_ranges(&self) -> Option<&[(usize, usize)]> {
+        self.hidden_ranges()
+    }
+
     // The display function handles ANSI stripping, field highlighting, and match
     // rendering in a single pass; splitting it would require duplicating context handling.
     #[allow(clippy::too_many_lines)]
     fn display(&self, context: DisplayContext) -> Line<'_> {
+        // When fields are hidden (--hide-nth), remove them from the rendered text and
+        // remap the match positions into the visible coordinate space. This path takes
+        // precedence over ANSI styling: the visible text is built from `text()` (which
+        // is already ANSI-stripped when ANSI is enabled), so hidden-field removal works
+        // uniformly but does not re-apply ANSI colors to the surviving characters.
+        if let Some(hidden) = self.hidden_ranges() {
+            let text = self.text();
+            let (visible, map) = project_visible_text(text.as_ref(), hidden);
+            let indices = project_match_indices(text.as_ref(), &context.matches, &map);
+            let projected = DisplayContext {
+                score: context.score,
+                matches: Matches::CharIndices(indices),
+                container_width: context.container_width,
+                base_style: context.base_style,
+                matched_style: context.matched_style,
+            };
+            return projected.to_line(Cow::Owned(visible));
+        }
+
         // If we have ANSI info, we need to handle ANSI codes properly and map matches
         if self.ansi_info().is_some() {
             // Parse the ANSI text using ansi-to-tui to get proper styled spans
@@ -549,6 +610,85 @@ pub fn strip_ansi(text: &str) -> (String, Vec<(usize, usize)>) {
 /// No risk associated
 fn escape_ansi(raw: &str) -> String {
     unsafe { String::from_utf8_unchecked(raw.bytes().map(|b| if b == 27 { b'?' } else { b }).collect()) }
+}
+
+/// Sort and merge a list of byte ranges into a canonical, non-overlapping form.
+///
+/// Empty ranges are dropped. Overlapping or touching ranges are merged so callers
+/// can iterate the result assuming disjoint, ascending ranges.
+#[must_use]
+pub(crate) fn normalize_ranges(ranges: &[(usize, usize)]) -> Vec<(usize, usize)> {
+    let mut sorted: Vec<(usize, usize)> = ranges.iter().copied().filter(|(s, e)| e > s).collect();
+    sorted.sort_unstable();
+
+    let mut merged: Vec<(usize, usize)> = Vec::with_capacity(sorted.len());
+    for (start, end) in sorted {
+        if let Some(last) = merged.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+        } else {
+            merged.push((start, end));
+        }
+    }
+    merged
+}
+
+/// Remove the hidden byte ranges from `text`, returning the visible string and a
+/// map from each original char index to its `Some(visible char index)`, or `None`
+/// when that char falls inside a hidden range.
+///
+/// `hidden` must be normalized (see [`normalize_ranges`]): sorted, disjoint byte ranges.
+#[must_use]
+pub(crate) fn project_visible_text(text: &str, hidden: &[(usize, usize)]) -> (String, Vec<Option<usize>>) {
+    let mut visible = String::with_capacity(text.len());
+    let mut map = Vec::new();
+    let mut vis_idx = 0usize;
+    let mut hi = 0usize;
+
+    for (byte_pos, ch) in text.char_indices() {
+        while hi < hidden.len() && byte_pos >= hidden[hi].1 {
+            hi += 1;
+        }
+        let is_hidden = hi < hidden.len() && byte_pos >= hidden[hi].0 && byte_pos < hidden[hi].1;
+        if is_hidden {
+            map.push(None);
+        } else {
+            map.push(Some(vis_idx));
+            visible.push(ch);
+            vis_idx += 1;
+        }
+    }
+
+    (visible, map)
+}
+
+/// Convert the matched character positions of `matches` (in full-text coordinates)
+/// into visible-text char indices, dropping any that fall inside hidden ranges.
+///
+/// `map` is the per-char index map produced by [`project_visible_text`]. The result
+/// is sorted ascending and deduplicated, ready to feed a `Matches::CharIndices`.
+#[must_use]
+pub(crate) fn project_match_indices(text: &str, matches: &Matches, map: &[Option<usize>]) -> Vec<usize> {
+    let full_indices: Vec<usize> = match matches {
+        Matches::CharIndices(indices) => indices.clone(),
+        Matches::CharRange(start, end) => (*start..*end).collect(),
+        Matches::ByteRange(start, end) => text
+            .char_indices()
+            .enumerate()
+            .filter(|(_, (byte_pos, _))| *byte_pos >= *start && *byte_pos < *end)
+            .map(|(char_idx, _)| char_idx)
+            .collect(),
+        Matches::None => Vec::new(),
+    };
+
+    let mut visible: Vec<usize> = full_indices
+        .into_iter()
+        .filter_map(|ci| map.get(ci).copied().flatten())
+        .collect();
+    visible.sort_unstable();
+    visible.dedup();
+    visible
 }
 
 #[cfg(test)]

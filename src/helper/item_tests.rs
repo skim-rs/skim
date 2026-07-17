@@ -147,6 +147,7 @@ fn test_ansi_matching_and_display() {
         true, // ansi_enabled
         &[],
         &[],
+        &[],
         &delimiter,
     );
 
@@ -188,6 +189,7 @@ fn test_ansi_char_indices_mapping() {
         true, // ansi_enabled
         &[],
         &[],
+        &[],
         &delimiter,
     );
 
@@ -221,6 +223,7 @@ fn test_text_returns_stripped() {
         true, // ansi_enabled
         &[],
         &[],
+        &[],
         &delimiter,
     );
     assert_eq!(
@@ -233,6 +236,7 @@ fn test_text_returns_stripped() {
     let item_no_ansi = DefaultSkimItem::new(
         "\x1b[31mred\x1b[0m",
         false, // ansi_enabled
+        &[],
         &[],
         &[],
         &delimiter,
@@ -256,6 +260,7 @@ fn test_highlighting_applied() {
     let item = DefaultSkimItem::new(
         "\x1b[32mgreen\x1b[0m",
         true, // ansi_enabled
+        &[],
         &[],
         &[],
         &delimiter,
@@ -294,6 +299,7 @@ fn test_char_range_highlighting() {
     let item = DefaultSkimItem::new(
         "\x1b[32mgreen\x1b[0m",
         true, // ansi_enabled
+        &[],
         &[],
         &[],
         &delimiter,
@@ -336,6 +342,7 @@ fn test_byte_range_highlighting() {
         true, // ansi_enabled
         &[],
         &[],
+        &[],
         &delimiter,
     );
 
@@ -375,6 +382,7 @@ fn test_matching_with_ansi_basic() {
         true, // ansi_enabled
         &[],
         &[], // no matching fields restriction
+        &[],
         &delimiter,
     );
 
@@ -406,6 +414,7 @@ fn test_null_delimiter_with_matching_fields() {
         false,                    // no ansi
         &[],                      // no transform fields
         &[FieldRange::Single(2)], // match field 2
+        &[],
         &delimiter,
     );
 
@@ -442,6 +451,7 @@ fn test_transform_fields_with_ansi_enabled() {
         true,
         &[FieldRange::Single(2)],
         &[],
+        &[],
         &delimiter,
     );
     // The display text is the second field.
@@ -458,6 +468,7 @@ fn test_matching_fields_with_ansi_uses_stripped_text() {
         true,
         &[],
         &[FieldRange::Single(2)],
+        &[],
         &delimiter,
     );
     assert_eq!(item.text(), "one two");
@@ -474,7 +485,7 @@ fn test_display_ansi_item_with_no_matches() {
     // An ANSI-enabled item displayed with `Matches::None` keeps the parsed
     // ANSI spans unchanged (the `Matches::None` arm of the ANSI branch).
     let delimiter = Regex::new(r"\s+").unwrap();
-    let item = DefaultSkimItem::new("\x1b[31mred\x1b[0m text", true, &[], &[], &delimiter);
+    let item = DefaultSkimItem::new("\x1b[31mred\x1b[0m text", true, &[], &[], &[], &delimiter);
     let context = DisplayContext {
         score: 0,
         matches: Matches::None,
@@ -486,4 +497,103 @@ fn test_display_ansi_item_with_no_matches() {
     let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect::<String>();
     assert!(text.contains("red"));
     assert!(text.contains("text"));
+}
+
+#[test]
+fn test_normalize_ranges_sorts_and_merges() {
+    // Overlapping and touching ranges are merged; empty ranges dropped; result sorted.
+    assert_eq!(normalize_ranges(&[(5, 8), (0, 3)]), vec![(0, 3), (5, 8)]);
+    assert_eq!(normalize_ranges(&[(0, 4), (2, 6)]), vec![(0, 6)]);
+    assert_eq!(normalize_ranges(&[(0, 3), (3, 6)]), vec![(0, 6)]);
+    assert_eq!(normalize_ranges(&[(2, 2), (0, 1)]), vec![(0, 1)]);
+    assert!(normalize_ranges(&[]).is_empty());
+}
+
+#[test]
+fn test_project_visible_text_removes_hidden_ranges() {
+    // Hide bytes 6..10 ("RED ") from "apple RED 001".
+    let (visible, map) = project_visible_text("apple RED 001", &[(6, 10)]);
+    assert_eq!(visible, "apple 001");
+    // Chars 0..6 ("apple ") map to themselves, 6..10 ("RED ") are hidden,
+    // and the trailing "001" is shifted left by 4 positions.
+    assert_eq!(map[0], Some(0)); // 'a'
+    assert_eq!(map[5], Some(5)); // ' '
+    assert_eq!(map[6], None); // 'R'
+    assert_eq!(map[9], None); // ' '
+    assert_eq!(map[10], Some(6)); // '0'
+    assert_eq!(map[12], Some(8)); // '1'
+}
+
+#[test]
+fn test_project_match_indices_drops_hidden_and_remaps() {
+    use crate::Matches;
+    let (_visible, map) = project_visible_text("apple RED 001", &[(6, 10)]);
+    // A match spanning both a visible char ('e' at 4) and hidden chars (7,8) keeps
+    // only the visible one, remapped into visible coordinates (unchanged here).
+    let indices = project_match_indices("apple RED 001", &Matches::CharIndices(vec![4, 7, 8]), &map);
+    assert_eq!(indices, vec![4]);
+    // A byte range covering "001" (bytes 10..13) maps to visible chars 6,7,8.
+    let indices = project_match_indices("apple RED 001", &Matches::ByteRange(10, 13), &map);
+    assert_eq!(indices, vec![6, 7, 8]);
+    // A match entirely inside the hidden field yields nothing.
+    let indices = project_match_indices("apple RED 001", &Matches::CharRange(6, 9), &map);
+    assert!(indices.is_empty());
+}
+
+#[test]
+fn test_hidden_ranges_keep_text_searchable() {
+    use crate::field::FieldRange;
+    use regex::Regex;
+    let delimiter = Regex::new(r"\s+").unwrap();
+    // Hide field 2 ("RED") but keep it searchable.
+    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &[FieldRange::Single(2)], &delimiter);
+    // text() (used for matching) retains the hidden field, so it stays searchable.
+    assert_eq!(item.text(), "apple RED 001");
+    // hidden_ranges exposes the field's byte range (including its trailing delimiter).
+    assert_eq!(item.hidden_ranges(), Some(&[(6, 10)][..]));
+}
+
+#[test]
+fn test_hidden_field_removed_from_display() {
+    use crate::field::FieldRange;
+    use crate::{DisplayContext, Matches, SkimItem};
+    use ratatui::style::Style;
+    use regex::Regex;
+    let delimiter = Regex::new(r"\s+").unwrap();
+    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &[FieldRange::Single(2)], &delimiter);
+    let context = DisplayContext {
+        score: 0,
+        matches: Matches::None,
+        container_width: 80,
+        base_style: Style::default(),
+        matched_style: Style::default(),
+    };
+    let line = item.display(context);
+    let rendered: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+    // The hidden field is gone from what is displayed, but the rest remains.
+    assert_eq!(rendered, "apple 001");
+    assert!(!rendered.contains("RED"));
+}
+
+#[test]
+fn test_hidden_field_match_not_highlighted() {
+    use crate::field::FieldRange;
+    use crate::{DisplayContext, Matches, SkimItem};
+    use ratatui::style::{Color, Style};
+    use regex::Regex;
+    let delimiter = Regex::new(r"\s+").unwrap();
+    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &[FieldRange::Single(2)], &delimiter);
+    // Simulate a match on the hidden "RED" (chars 6,7,8 in the full text).
+    let context = DisplayContext {
+        score: 0,
+        matches: Matches::CharIndices(vec![6, 7, 8]),
+        container_width: 80,
+        base_style: Style::default(),
+        matched_style: Style::default().bg(Color::Yellow),
+    };
+    let line = item.display(context);
+    let rendered: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+    assert_eq!(rendered, "apple 001");
+    // No span carries the highlight background, since the matched chars are hidden.
+    assert!(line.spans.iter().all(|span| span.style.bg != Some(Color::Yellow)));
 }
