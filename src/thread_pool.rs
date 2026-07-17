@@ -277,7 +277,7 @@ impl<R> Slot<R> {
 // ---------------------------------------------------------------------------
 
 /// Processes `items` in parallel across `num_workers` threads from the given
-/// pool, then hands the per-worker results to `merge`.
+/// pool, then hands the results to `merge`.
 ///
 /// The work is split into chunks of `chunk_size`.  Each worker thread
 /// repeatedly grabs the next available chunk (via an atomic counter), runs
@@ -285,8 +285,10 @@ impl<R> Slot<R> {
 /// accumulator using `reduce`.  When all chunks are consumed, each worker
 /// calls `prepare` on its local accumulator (e.g. to sort it) — this step
 /// runs **in parallel** across all workers — and then writes the prepared
-/// result into its slot.  The coordinator collects every worker's result and
-/// passes them all to `merge` in a single call.
+/// result into its slot. The coordinator collects every worker's result and
+/// passes them all to `merge` in a single call. When `preserve_chunk_order` is
+/// set, reduction and preparation are skipped and each chunk result is stored
+/// directly in its chunk-indexed slot.
 ///
 /// Because each worker picks up the *next* chunk as soon as it finishes the
 /// previous one, faster threads naturally do more work without any explicit
@@ -298,6 +300,7 @@ impl<R> Slot<R> {
 /// * `num_workers`    – how many workers to dispatch (capped to pool size internally by caller).
 /// * `items`          – the data to process; shared read-only across workers via `Arc`.
 /// * `chunk_size`     – number of items per chunk.
+/// * `preserve_chunk_order` – store results by chunk index and skip reduction/preparation.
 /// * `identity`       – the identity/seed value for per-worker local accumulators (called once per worker).
 /// * `process_chunk`  – `(chunk_start_index, &[T]) -> R` – processes one chunk.
 /// * `reduce`         – folds a per-chunk result into a worker-local accumulator (`&mut acc, partial`).
@@ -309,6 +312,7 @@ pub fn parallel_work_queue<S, T, R, P, M, I, W, G>(
     num_workers: usize,
     items: &Arc<S>,
     chunk_size: usize,
+    preserve_chunk_order: bool,
     identity: I,
     process_chunk: P,
     reduce: M,
@@ -336,10 +340,10 @@ pub fn parallel_work_queue<S, T, R, P, M, I, W, G>(
     // Shared atomic counter – workers fetch-add to grab the next chunk index.
     let next_chunk = Arc::new(AtomicUsize::new(0));
 
-    // Contiguous, cache-line-aligned per-worker result slots.  Each worker
-    // writes only to its own slot (lock-free via UnsafeCell); the
-    // coordinator reads after the AtomicCounter barrier.
-    let slots: Arc<Vec<Slot<R>>> = Arc::new((0..num_workers).map(|_| Slot::new()).collect());
+    // Ordered mode uses one slot per chunk; otherwise each worker writes its
+    // reduced result to its own slot. The coordinator reads only after the barrier.
+    let num_slots = if preserve_chunk_order { num_chunks } else { num_workers };
+    let slots: Arc<Vec<Slot<R>>> = Arc::new((0..num_slots).map(|_| Slot::new()).collect());
 
     // Barrier: we wait until all workers have finished.
     let remaining = Arc::new(AtomicCounter::new(num_workers));
@@ -368,9 +372,25 @@ pub fn parallel_work_queue<S, T, R, P, M, I, W, G>(
                 // Scope all Arc-holding work so clones are dropped before we
                 // signal completion.  This lets the coordinator safely unwrap
                 // the outer Arcs.
-                let local_acc = {
-                    let mut local_acc = w_identity();
+                let local_acc = if preserve_chunk_order {
+                    loop {
+                        let chunk_idx = w_next_chunk.fetch_add(1, Ordering::Relaxed);
+                        if chunk_idx >= num_chunks {
+                            break;
+                        }
 
+                        let start = chunk_idx * chunk_size;
+                        let end = total.min(start + chunk_size);
+                        let slice: &[T] = AsRef::<[T]>::as_ref(&*w_items);
+                        let partial = w_process_chunk(start, &slice[start..end]);
+
+                        // SAFETY: every chunk index is handed out once, so each
+                        // slot has one writer. The coordinator reads after the barrier.
+                        unsafe { *w_slots[chunk_idx].value.get() = Some(partial) };
+                    }
+                    None
+                } else {
+                    let mut local_acc = w_identity();
                     loop {
                         let chunk_idx = w_next_chunk.fetch_add(1, Ordering::Relaxed);
                         if chunk_idx >= num_chunks {
@@ -387,16 +407,14 @@ pub fn parallel_work_queue<S, T, R, P, M, I, W, G>(
                     // Run prepare (e.g. sort) while still on the worker thread
                     // so that this work happens in parallel across workers.
                     w_prepare(&mut local_acc);
-
-                    // w_items, w_next_chunk, w_process_chunk, w_reduce,
-                    // w_prepare, w_identity are dropped when this block ends.
-                    local_acc
+                    Some(local_acc)
                 };
 
-                // Write into our own slot – lock-free, no contention.
-                // SAFETY: each worker_id is unique; no other thread writes to
-                // this slot, and the coordinator reads only after the barrier.
-                unsafe { *w_slots[worker_id].value.get() = Some(local_acc) };
+                if let Some(local_acc) = local_acc {
+                    // SAFETY: each worker_id is unique; no other thread writes to
+                    // this slot, and the coordinator reads only after the barrier.
+                    unsafe { *w_slots[worker_id].value.get() = Some(local_acc) };
+                }
 
                 // Drop the slots Arc *before* signalling completion.
                 // The coordinator calls Arc::into_inner(slots) after wait_for_zero
@@ -418,7 +436,7 @@ pub fn parallel_work_queue<S, T, R, P, M, I, W, G>(
     // Block until all workers are done.
     remaining.wait_for_zero();
 
-    // Collect per-worker results and hand them to `merge` in one call.
+    // Collect worker or chunk results in slot order and hand them to `merge`.
     // Workers dropped their `w_slots` Arc clone explicitly before signalling
     // completion, so we are the sole owner here.
     if let Some(slots) = Arc::into_inner(slots) {
