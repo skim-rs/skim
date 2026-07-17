@@ -72,6 +72,7 @@ fn parallel_work_queue_sums() {
         4,
         &items,
         64,
+        false,
         || 0u64,
         |_start, chunk| chunk.iter().sum::<u64>(),
         |acc, partial| *acc += partial,
@@ -86,6 +87,29 @@ fn parallel_work_queue_sums() {
 }
 
 #[test]
+fn parallel_work_queue_preserves_chunk_order() {
+    let pool = ThreadPool::new(4);
+    let items: Arc<[usize]> = (0..40).collect::<Vec<_>>().into();
+    let mut starts = Vec::new();
+    parallel_work_queue(
+        &pool,
+        4,
+        &items,
+        10,
+        true,
+        || -> Vec<usize> { panic!("ordered mode must not create accumulators") },
+        |start, _chunk| {
+            std::thread::sleep(std::time::Duration::from_millis((30 - start) as u64));
+            vec![start]
+        },
+        |_acc, _partial| panic!("ordered mode must not reduce"),
+        |_acc| panic!("ordered mode must not prepare"),
+        |chunk_results| starts.extend(chunk_results.into_iter().flatten()),
+    );
+    assert_eq!(starts, vec![0, 10, 20, 30]);
+}
+
+#[test]
 fn parallel_work_queue_empty() {
     let pool = ThreadPool::new(2);
     let items: Arc<[u64]> = Arc::from(Vec::<u64>::new().into_boxed_slice());
@@ -95,6 +119,7 @@ fn parallel_work_queue_empty() {
         2,
         &items,
         64,
+        false,
         Vec::<u64>::new,
         |_start, chunk| chunk.to_vec(),
         |acc, mut partial| acc.append(&mut partial),
@@ -118,6 +143,7 @@ fn parallel_work_queue_single_thread() {
         1,
         &items,
         10,
+        false,
         || 0i32,
         |_start, chunk| chunk.iter().sum::<i32>(),
         |acc, partial| *acc += partial,
@@ -156,6 +182,7 @@ fn parallel_work_queue_many_workers_few_chunks() {
         8,
         &items,
         5,
+        false,
         || 0u64,
         |_start, chunk| chunk.iter().sum::<u64>(),
         |acc, partial| *acc += partial,
@@ -186,6 +213,7 @@ fn parallel_work_queue_single_thread_pool_no_deadlock() {
             1,
             &items,
             10,
+            false,
             || 0u64,
             |_start, chunk| chunk.iter().sum::<u64>(),
             |acc, partial| *acc += partial,

@@ -21,9 +21,8 @@ use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
 /// this consistently outperforms tree-based or fold-based merge strategies
 /// due to driftsort's cache-friendly single-buffer merge passes.
 ///
-/// When `no_sort` is true, items are sorted by `rank.index` instead, restoring
-/// the original input order: workers grab chunks from a shared queue, so the
-/// concatenation order of worker results is nondeterministic.
+/// When `no_sort` is true, worker results arrive in chunk-index order and are
+/// flattened without sorting.
 ///
 /// Signals `needs_render` after writing so the UI picks up the new data.
 fn merge_worker_results(
@@ -39,14 +38,9 @@ fn merge_worker_results(
         items.extend(chunk);
     }
 
-    // Each worker's sub-list is already sorted by `prepare`, so the
-    // concatenated Vec consists of k sorted runs.  Rust's stable sort
-    // (driftsort since 1.81, a TimSort variant before that) detects
-    // pre-existing runs and merges them in O(n log k) for k workers,
-    // all on contiguous memory with a single auxiliary buffer.
-    if no_sort {
-        items.sort_by_key(|item| item.rank.index);
-    } else {
+    if !no_sort {
+        // Each worker's sub-list is already sorted by `prepare`, so stable
+        // sort detects the pre-existing runs and merges them efficiently.
         items.sort();
     }
 
@@ -325,6 +319,7 @@ impl Matcher {
                 num_workers,
                 &shared_items,
                 CHUNK_SIZE,
+                no_sort,
                 // identity – seed value for each worker's local accumulator
                 Vec::<MatchedItem>::new,
                 // process_chunk – called for each chunk; returns a Vec of matches
@@ -379,16 +374,7 @@ impl Matcher {
                 // chunk order), so driftsort's run-detection overhead is pure
                 // cost.  The final merge uses sort() so that driftsort can
                 // exploit the k sorted runs produced by the workers.
-                move |acc: &mut Vec<MatchedItem>| {
-                    if no_sort {
-                        // Chunks are grabbed from a shared queue, so the
-                        // accumulator is not in input order; sort by index
-                        // so the final merge sees k sorted runs here too.
-                        acc.sort_unstable_by_key(|item| item.rank.index);
-                    } else {
-                        acc.sort_unstable();
-                    }
-                },
+                |acc: &mut Vec<MatchedItem>| acc.sort_unstable(),
                 // merge – concat pre-sorted worker results and sort().
                 // Rust's stable sort detects the k sorted runs and merges
                 // them in O(n log k), then writes into processed_items.
@@ -479,15 +465,13 @@ mod tests {
     }
 
     #[test]
-    fn merge_worker_results_no_sort_restores_input_order() {
+    fn merge_worker_results_no_sort_preserves_chunk_order() {
         let processed = SpinLock::new(None);
         let needs_render = AtomicBool::new(false);
-        // Worker slots arrive in nondeterministic order (chunks are grabbed
-        // from a shared queue), so the concatenation is not in input order.
         let workers = vec![
-            vec![matched("e", 4), matched("f", 5)],
-            vec![matched("c", 2), matched("d", 3)],
             vec![matched("a", 0), matched("b", 1)],
+            vec![matched("c", 2), matched("d", 3)],
+            vec![matched("e", 4), matched("f", 5)],
         ];
         merge_worker_results(workers, true, &processed, MergeStrategy::Replace, &needs_render);
 
