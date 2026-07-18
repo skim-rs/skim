@@ -293,7 +293,7 @@ where
     res
 }
 
-fn split_top_level(value: &str, separator: char) -> Vec<&str> {
+pub(crate) fn split_top_level(value: &str, separator: char) -> Vec<&str> {
     let mut depth = 0_u32;
     let mut start = 0;
     let mut parts = Vec::new();

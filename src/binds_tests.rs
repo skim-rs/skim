@@ -240,6 +240,17 @@ fn action_binds_parse_suppress_chain() {
 }
 
 #[test]
+fn action_binds_split_top_level_preserves_commas_in_args() {
+    // A single `--bind` spec containing a comma inside `(...)` must not be split
+    // there: `options.rs` uses `split_top_level(part, ',')` so the comma stays
+    // part of the action argument instead of garbling the follow-up binding.
+    let spec = "act-up:execute(echo a,b),first:last";
+    let binds = parse_action_binds(split_top_level(spec, ',').into_iter());
+    assert_eq!(binds.get("up"), Some(&vec![Execute(String::from("echo a,b"))]));
+    assert_eq!(binds.get("first"), Some(&vec![Last]));
+}
+
+#[test]
 fn parse_action_chain_unknown_is_error() {
     assert!(parse_action_chain("not-a-real-action").is_err());
 }

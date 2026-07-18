@@ -260,9 +260,10 @@ where
             && !self.reader_done
         {
             self.reader_done = true;
-            // Signal that reading is complete. The `load` event is fired from
-            // the render path once the freshly-read items have been merged into
-            // the list, so a `load` binding sees a fully-populated, stable list.
+            // Signal that reading is complete. The `load` event is fired later
+            // from `App::poll_completion_events` (the heartbeat handler) once the
+            // reader is done, the matcher has stopped, and every item has been
+            // consumed, so a `load` binding sees a fully-populated, stable list.
             self.app.reader_done = true;
             self.app.restart_matcher(false);
             // If the matcher already consumed everything, stop the periodic

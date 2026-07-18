@@ -1327,7 +1327,7 @@ impl SkimOptions {
         self.action_binds = self
             .bind
             .iter()
-            .flat_map(|part| crate::binds::parse_action_binds(part.split(',')))
+            .flat_map(|part| crate::binds::parse_action_binds(crate::binds::split_top_level(part, ',').into_iter()))
             .collect();
 
         if self.reverse {
