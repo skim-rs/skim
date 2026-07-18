@@ -213,7 +213,7 @@ fn build_filter_does_not_override_existing_query() {
 #[test]
 fn build_scheme_path_adjusts_tiebreak() {
     let opts = SkimOptions {
-        scheme: Some(MatchSchemeREVERTME::Path),
+        scheme: Some(MatchScheme::Path),
         ..Default::default()
     }
     .build();
@@ -225,7 +225,7 @@ fn build_scheme_path_adjusts_tiebreak() {
 #[test]
 fn build_scheme_history_prepends_index() {
     let opts = SkimOptions {
-        scheme: Some(MatchSchemeREVERTME::History),
+        scheme: Some(MatchScheme::History),
         ..Default::default()
     }
     .build();

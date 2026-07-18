@@ -85,7 +85,7 @@ fn parse_typos(s: &str) -> Result<Typos, String> {
 /// The options for `--scheme`
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
-pub enum MatchSchemeREVERTME {
+pub enum MatchScheme {
     /// Default scheme, no modifications to the options
     #[default]
     Default,
@@ -295,7 +295,7 @@ pub struct SkimOptions {
     pub last_match: bool,
 
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search", default_value = "default"))]
-    scheme: Option<MatchSchemeREVERTME>,
+    scheme: Option<MatchScheme>,
 
     //  --- Interface ---
     /// Comma separated list of bindings
@@ -1333,13 +1333,13 @@ impl SkimOptions {
         }
 
         match self.scheme {
-            None | Some(MatchSchemeREVERTME::Default) => (),
-            Some(MatchSchemeREVERTME::Path) => {
+            None | Some(MatchScheme::Default) => (),
+            Some(MatchScheme::Path) => {
                 self.last_match = true;
                 self.tiebreak.insert(0, RankCriteria::PathName);
                 self.tiebreak.insert(0, RankCriteria::Score);
             }
-            Some(MatchSchemeREVERTME::History) => self.tiebreak.insert(0, RankCriteria::Index),
+            Some(MatchScheme::History) => self.tiebreak.insert(0, RankCriteria::Index),
         }
 
         self
