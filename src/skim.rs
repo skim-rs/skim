@@ -208,15 +208,19 @@ where
 
     /// Fire the `start` event exactly once, as soon as the TUI event channel is
     /// available. The event is routed through the keymap like any other key, so
-    /// a `--bind start:<action>` binding runs when skim comes up.
+    /// a `--bind start:<action>` binding runs when skim comes up. In sync mode,
+    /// render the completed matcher output first so the action sees every item.
     fn fire_start_event(&mut self) {
         if self.start_fired {
             return;
         }
-        if let Some(tui) = self.tui.as_ref()
-            && tui.event_tx.try_send(Event::Key(SkimEvent::Start.into())).is_ok()
-        {
-            self.start_fired = true;
+        if let Some(tui) = self.tui.as_ref() {
+            if self.app.options.sync && tui.event_tx.try_send(Event::Render).is_err() {
+                return;
+            }
+            if tui.event_tx.try_send(Event::Key(SkimEvent::Start.into())).is_ok() {
+                self.start_fired = true;
+            }
         }
     }
 

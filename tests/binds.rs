@@ -59,6 +59,12 @@ insta_test!(bind_start, ["sl"], &["--bind", "start:add-char(s),load:add-char(l)"
     @assert(|h: &common::insta::TestHarness| h.skim.app().input.value == "sl");
     @snap;
 });
+insta_test!(bind_start_select_all_no_sync, ["a", "b", "c"], &["--multi", "--bind", "start:select-all"], {
+    @snap;
+});
+insta_test!(bind_start_select_all_sync, ["a", "b", "c"], &["--multi", "--sync", "--bind", "start:select-all"], {
+    @snap;
+});
 
 // Test load event: fires once the reader has finished AND the read items have
 // been rendered into the list, so a `load` binding can safely act on the
