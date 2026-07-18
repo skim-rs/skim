@@ -56,25 +56,24 @@ fn parse_all_no_arg_actions() {
 
 #[test]
 fn parse_numeric_actions_default_to_one() {
-    for name in [
-        "down",
-        "up",
-        "half-page-down",
-        "half-page-up",
-        "page-down",
-        "page-up",
-        "preview-up",
-        "preview-down",
-        "preview-left",
-        "preview-right",
-        "preview-page-up",
-        "preview-page-down",
-        "scroll-left",
-        "scroll-right",
-        "select-row",
+    for (name, expected) in [
+        ("down", Action::Down(1)),
+        ("up", Action::Up(1)),
+        ("half-page-down", Action::HalfPageDown(1)),
+        ("half-page-up", Action::HalfPageUp(1)),
+        ("page-down", Action::PageDown(1)),
+        ("page-up", Action::PageUp(1)),
+        ("preview-up", Action::PreviewUp(1)),
+        ("preview-down", Action::PreviewDown(1)),
+        ("preview-left", Action::PreviewLeft(1)),
+        ("preview-right", Action::PreviewRight(1)),
+        ("preview-page-up", Action::PreviewPageUp(1)),
+        ("preview-page-down", Action::PreviewPageDown(1)),
+        ("scroll-left", Action::ScrollLeft(1)),
+        ("scroll-right", Action::ScrollRight(1)),
+        ("select-row", Action::SelectRow(0)),
     ] {
-        let action = parse_action(name).unwrap_or_else(|| panic!("expected `{name}` to parse"));
-        assert_eq!(action.name(), name);
+        assert_eq!(parse_action(name), Some(expected), "unexpected default for `{name}`");
     }
 }
 

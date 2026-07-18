@@ -467,32 +467,48 @@ fn toggle_in_out_in_bottom_to_top_layout() {
 #[test]
 fn if_query_empty_branches() {
     let mut app = App::default();
-    // Query empty -> "then" branch (ignore action).
-    let events = act(&mut app, Action::IfQueryEmpty("ignore".to_string(), None));
-    assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+    assert!(act(&mut app, Action::IfQueryEmpty("abort".to_string(), None)).is_empty());
+    assert!(app.should_quit);
 
-    // Query non-empty -> "otherwise" branch.
+    let mut app = App::default();
     app.input.value = "x".to_string();
-    let events = act(
-        &mut app,
-        Action::IfQueryEmpty("ignore".to_string(), Some("abort".to_string())),
+    assert!(
+        act(
+            &mut app,
+            Action::IfQueryEmpty("ignore".to_string(), Some("abort".to_string())),
+        )
+        .is_empty()
     );
-    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+    assert!(app.should_quit);
 }
 
 #[test]
 fn if_query_not_empty_branches() {
     let mut app = App::default();
     app.input.value = "x".to_string();
-    let events = act(&mut app, Action::IfQueryNotEmpty("abort".to_string(), None));
-    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+    assert!(act(&mut app, Action::IfQueryNotEmpty("abort".to_string(), None)).is_empty());
+    assert!(app.should_quit);
 
     let mut app = App::default();
-    let events = act(
-        &mut app,
-        Action::IfQueryNotEmpty("abort".to_string(), Some("ignore".to_string())),
+    assert!(
+        act(
+            &mut app,
+            Action::IfQueryNotEmpty("ignore".to_string(), Some("abort".to_string())),
+        )
+        .is_empty()
     );
-    assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+    assert!(app.should_quit);
+}
+
+#[test]
+fn conditional_subactions_are_dispatched_without_remapping() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.action_binds.insert("up".to_string(), vec![Action::Last]);
+
+    let events = act(&mut app, Action::IfQueryEmpty("up".to_string(), None));
+
+    assert_eq!(app.item_list.selected().unwrap().text(), "b");
+    assert!(events.iter().all(|event| !matches!(event, Event::Action(_))));
 }
 
 #[test]
@@ -535,18 +551,19 @@ fn execute_action_runs_command() {
 
 #[test]
 fn if_non_matched_branches() {
-    // Empty item list -> "then".
     let mut app = App::default();
-    let events = act(&mut app, Action::IfNonMatched("abort".to_string(), None));
-    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+    assert!(act(&mut app, Action::IfNonMatched("abort".to_string(), None)).is_empty());
+    assert!(app.should_quit);
 
-    // Non-empty list -> "otherwise".
     let mut app = app_with_items(&["a"]);
-    let events = act(
-        &mut app,
-        Action::IfNonMatched("abort".to_string(), Some("ignore".to_string())),
+    assert!(
+        act(
+            &mut app,
+            Action::IfNonMatched("ignore".to_string(), Some("abort".to_string())),
+        )
+        .is_empty()
     );
-    assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+    assert!(app.should_quit);
 }
 
 #[test]

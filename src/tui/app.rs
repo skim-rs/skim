@@ -820,6 +820,17 @@ impl App {
         Ok(events)
     }
 
+    fn dispatch_conditional(&mut self, condition: bool, then: &str, otherwise: Option<&str>) -> Result<Vec<Event>> {
+        let Some(chain) = condition.then_some(then).or(otherwise) else {
+            return Ok(Vec::new());
+        };
+        let mut events = Vec::new();
+        for action in crate::binds::parse_action_chain(chain)? {
+            events.extend(self.dispatch_action(&action)?);
+        }
+        Ok(events)
+    }
+
     #[allow(clippy::too_many_lines)]
     fn dispatch_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         #[allow(clippy::enum_glob_use)]
@@ -972,37 +983,16 @@ impl App {
                 self.input.move_cursor_forward_word();
             }
             IfQueryEmpty(then, otherwise) => {
-                let inner = crate::binds::parse_action_chain(then)?;
-                if self.input.is_empty() {
-                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else if let Some(o) = otherwise {
-                    return Ok(crate::binds::parse_action_chain(o)?
-                        .iter()
-                        .map(|e| Event::Action(e.to_owned()))
-                        .collect());
-                }
+                let condition = self.input.is_empty();
+                return self.dispatch_conditional(condition, then, otherwise.as_deref());
             }
             IfQueryNotEmpty(then, otherwise) => {
-                let inner = crate::binds::parse_action_chain(then)?;
-                if !self.input.is_empty() {
-                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else if let Some(o) = otherwise {
-                    return Ok(crate::binds::parse_action_chain(o)?
-                        .iter()
-                        .map(|e| Event::Action(e.to_owned()))
-                        .collect());
-                }
+                let condition = !self.input.is_empty();
+                return self.dispatch_conditional(condition, then, otherwise.as_deref());
             }
             IfNonMatched(then, otherwise) => {
-                let inner = crate::binds::parse_action_chain(then)?;
-                if self.item_list.items.is_empty() {
-                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else if let Some(o) = otherwise {
-                    return Ok(crate::binds::parse_action_chain(o)?
-                        .iter()
-                        .map(|e| Event::Action(e.to_owned()))
-                        .collect());
-                }
+                let condition = self.item_list.items.is_empty();
+                return self.dispatch_conditional(condition, then, otherwise.as_deref());
             }
             // `ignore` is a no-op. `suppress` is also a no-op on its own; its
             // suppression effect is applied in `handle_action` when it appears in

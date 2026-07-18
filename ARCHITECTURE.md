@@ -1013,6 +1013,8 @@ Follow-up chains are parsed by `binds::parse_action_binds` into
 `SkimOptions::action_binds` (keyed by `Action::name`), and applied in
 `App::handle_action`, which dispatches each chain member through the private
 per-variant `App::dispatch_action` without re-entering `handle_action`.
+Conditional actions likewise dispatch their selected subaction chain immediately
+through `dispatch_action`, preserving the same non-recursive semantics.
 
 ### Action Dispatch
 
@@ -1290,9 +1292,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `App::run_preview` | `src/tui/app.rs:492` | Expand cmd, debounce, call Preview::spawn |
 | `App::handle_event` | `src/tui/app.rs:617` | Dispatch all Event variants |
 | `App::handle_action` | `src/tui/app.rs:804` | Apply action follow-up bindings |
-| `App::dispatch_action` | `src/tui/app.rs:824` | Dispatch one Action variant without follow-up bindings |
-| `App::restart_matcher` | `src/tui/app.rs:1321` | Kill old match pass, start new one |
-| `App::expand_cmd` | `src/tui/app.rs:1397` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `App::dispatch_conditional` | `src/tui/app.rs:823` | Dispatch the selected conditional subaction chain without follow-up bindings |
+| `App::dispatch_action` | `src/tui/app.rs:835` | Dispatch one Action variant without follow-up bindings |
+| `App::restart_matcher` | `src/tui/app.rs:1311` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1387` | Substitute `{}`, `{q}`, `{n}` etc. |
 | `Widget::render (App)` | `src/tui/app.rs:146` | Root render; calls all sub-widgets |
 | `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
