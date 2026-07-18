@@ -30,6 +30,7 @@ pub struct SkimItemReaderOption {
     use_ansi_color: bool,
     transform_fields: Vec<FieldRange>,
     matching_fields: Vec<FieldRange>,
+    hidden_fields: Vec<FieldRange>,
     delimiter: Regex,
     line_ending: u8,
     show_error: bool,
@@ -44,6 +45,7 @@ impl Default for SkimItemReaderOption {
             use_ansi_color: false,
             transform_fields: Vec::new(),
             matching_fields: Vec::new(),
+            hidden_fields: Vec::new(),
             delimiter: Regex::new(DELIMITER_STR).unwrap(),
             show_error: false,
             disable_pattern: None,
@@ -66,6 +68,11 @@ impl SkimItemReaderOption {
                 .collect(),
             matching_fields: options
                 .nth
+                .iter()
+                .filter_map(|f| if f.is_empty() { None } else { FieldRange::from_str(f) })
+                .collect(),
+            hidden_fields: options
+                .hide_nth
                 .iter()
                 .filter_map(|f| if f.is_empty() { None } else { FieldRange::from_str(f) })
                 .collect(),
@@ -134,6 +141,23 @@ impl SkimItemReaderOption {
     #[must_use]
     pub fn matching_fields(mut self, matching_fields: Vec<FieldRange>) -> Self {
         self.matching_fields = matching_fields;
+        self
+    }
+
+    /// Sets the fields to hide from display (while keeping them searchable)
+    #[must_use]
+    pub fn hide_nth<'a, T>(mut self, hide_nth: T) -> Self
+    where
+        T: Iterator<Item = &'a str>,
+    {
+        self.hidden_fields = hide_nth.filter_map(FieldRange::from_str).collect();
+        self
+    }
+
+    /// Sets the hidden fields directly
+    #[must_use]
+    pub fn hidden_fields(mut self, hidden_fields: Vec<FieldRange>) -> Self {
+        self.hidden_fields = hidden_fields;
         self
     }
 
@@ -441,7 +465,8 @@ impl SkimItemReader {
                 &opt.transform_fields,
                 &opt.matching_fields,
                 &opt.delimiter,
-            );
+            )
+            .hidden_fields(&opt.hidden_fields, &opt.delimiter);
             if opt.disable_pattern.as_ref().is_some_and(|re| re.is_match(line)) {
                 item.disable();
             }

@@ -87,6 +87,46 @@ insta_test!(opt_with_nth_range_desc, ["f1,f2,f3,f4"], &["--delimiter", ",", "--w
     @snap;
 });
 
+insta_test!(opt_hide_nth_1, ["f1,f2,f3,f4"], &["--delimiter", ",", "--hide-nth", "1"], {
+    @snap;
+});
+
+insta_test!(opt_hide_nth_2, ["f1,f2,f3,f4"], &["--delimiter", ",", "--hide-nth", "2"], {
+    @snap;
+});
+
+insta_test!(opt_hide_nth_last, ["f1,f2,f3,f4"], &["--delimiter", ",", "--hide-nth=-1"], {
+    @snap;
+});
+
+insta_test!(opt_hide_nth_range, ["f1,f2,f3,f4"], &["--delimiter", ",", "--hide-nth", "2..3"], {
+    @snap;
+});
+
+insta_test!(opt_hide_nth_multi, ["f1,f2,f3,f4"], &["--delimiter", ",", "--hide-nth", "1,3"], {
+    @snap;
+});
+
+// A hidden field stays searchable: querying "f2" still matches the item even though
+// the field is not displayed, and the hidden characters carry no highlight.
+insta_test!(opt_hide_nth_still_searchable, ["f1,f2,f3,f4"], &["--delimiter", ",", "--hide-nth", "2"], {
+    @snap;
+    @type "f2";
+    @snap;
+});
+
+// A very wide hidden field is ignored for horizontal scrolling: the short visible
+// field renders in full with no scroll ellipsis, even though the raw line is 1000+
+// columns wide.
+insta_test!(
+    opt_hide_nth_hscroll,
+    [&format!("{} target", ["a"; 1000].join(""))],
+    &["--delimiter", " ", "--hide-nth", "1"],
+    {
+        @snap;
+    }
+);
+
 insta_test!(opt_nth_1, ["f1,f2,f3,f4"], &["--delimiter", ",", "--nth", "1"], {
     @snap;
     @char '1';
@@ -238,6 +278,18 @@ insta_test!(opt_info_control, ["a", "b", "c"], &[], {
 });
 
 insta_test!(opt_info_default, ["a", "b", "c"], &["--info", "default"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
+insta_test!(opt_info_left, ["a", "b", "c"], &["--info", "left"], {
+    @snap;
+    @char 'a';
+    @snap;
+});
+
+insta_test!(opt_info_right, ["a", "b", "c"], &["--info", "right"], {
     @snap;
     @char 'a';
     @snap;
