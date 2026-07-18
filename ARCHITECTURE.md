@@ -1314,10 +1314,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
 | `SkimEvent` | `src/binds.rs:25` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
-| `parse_key` | `src/binds.rs:213` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_binds` | `src/binds.rs:299` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
-| `parse_action_chain` | `src/binds.rs:333` | `"down+select"` → `Vec<Action>` |
-| `Action::name` | `src/tui/event.rs:316` | `Action` → canonical bind name (reverse of `parse_action`) |
+| `parse_key` | `src/binds.rs:218` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_binds` | `src/binds.rs:324` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
+| `parse_action_chain` | `src/binds.rs:358` | `"down+select"` → `Vec<Action>` |
+| `Action::name` | `src/tui/event.rs:320` | `Action` → canonical bind name (reverse of `parse_action`) |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |
 | `AndOrEngineFactory::parse_andor` | `src/engine/factory.rs:176` | Split query into AND/OR tree |

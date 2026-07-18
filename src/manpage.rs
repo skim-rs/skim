@@ -121,24 +121,30 @@ const KEYS_SS: &str = "
 * alt-shift-right
 * any single character
 ";
-const BINDABLE_EVENTS_SS: &str = "
-* change: the query changes
-* start: skim enters its event loop; fired once
-* load: the reader and matcher finish consuming the current input; fired once per read, including reloads
-* result: filtering for the current query completes
-* focus: the focused item changes because of cursor movement or a result update
-* zero: a completed search has no matches
-* one: a completed search has exactly one match
-";
+const BINDABLE_EVENTS_SS: &str = concat!(
+    "\n",
+    "* change: the query changes\n",
+    "* start: skim enters its event loop; fired once\n",
+    "* load: the reader and matcher finish consuming the current input; ",
+    "fired once per read, including reloads\n",
+    "* result: filtering for the current query completes\n",
+    "* focus: the focused item changes because of cursor movement or a result update\n",
+    "* zero: a completed search has no matches\n",
+    "* one: a completed search has exactly one match\n",
+);
 
-const ACTION_BINDINGS_SS: &str = "
-Actions can also be used as binding triggers. A follow-up chain bound to an action name runs immediately after that action. Use the `act-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action name is also a key, for example `act-up:last`.
+const ACTION_BINDINGS_SS: &str = concat!(
+    "\n",
+    "Actions can also be used as binding triggers. A follow-up chain bound to an action name runs immediately ",
+    "after that action. Use the `act-` prefix for action triggers; it is recommended to avoid ambiguity and ",
+    "required when the action name is also a key, for example `act-up:last`.\n\n",
+    "Follow-up chains use non-recursive (`noremap`) semantics: their actions do not trigger further action ",
+    "bindings. Add `suppress` to skip the triggering action's default behavior, for example ",
+    "`act-up:suppress+down`.\n",
+);
 
-Follow-up chains use non-recursive (`noremap`) semantics: their actions do not trigger further action bindings. Add `suppress` to skip the triggering action's default behavior, for example `act-up:suppress+down`.
-";
-
-const ACTIONS_SS: &str = "
-* abort: ctrl-c  ctrl-q  esc
+const ACTIONS_SS: &str = concat!(
+    "\n* abort: ctrl-c  ctrl-q  esc
 * accept(...): enter *the argument will be printed when the binding is triggered*
 * append-and-select
 * backward-char: ctrl-b  left
@@ -184,8 +190,10 @@ const ACTIONS_SS: &str = "
 * select-row
 * set-preview-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * set-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
-* suppress: *if bound to an action (e.g. `act-up:suppress`), suppresses that action's default behavior so the rest of the non-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`
-* toggle
+",
+    "* suppress: *if bound to an action (e.g. `act-up:suppress`), suppresses that action's default behavior ",
+    "so the rest of the non-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`\n",
+    "* toggle
 * toggle-all
 * toggle+down: ctrl-i  tab
 * toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
@@ -201,7 +209,8 @@ const ACTIONS_SS: &str = "
 * unix-word-rubout: ctrl-w
 * up: ctrl-k  ctrl-p  up
 * yank: ctrl-y
-";
+",
+);
 
 #[cfg(feature = "listen")]
 const REMOTE_SECTION: &str = "
@@ -301,10 +310,13 @@ Exact search can be enabled by default by the `--exact` command-line flag. In ex
     section(
         &mut custom,
         "KEYBINDS",
-        "
-Bindings can be set by the `--bind` option, which takes a comma-separated list of `<trigger>:<action>[+action2]` expressions. A trigger can be a key, a finder event, or an action name.
-Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon `reload:ls`.
-",
+        concat!(
+            "\nBindings can be set by the `--bind` option, which takes a comma-separated list of ",
+            "`<trigger>:<action>[+action2]` expressions. A trigger can be a key, a finder event, or an action ",
+            "name.\n",
+            "Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon ",
+            "`reload:ls`.\n",
+        ),
     );
     subsection(&mut custom, "Available keys (aliases in parentheses)", KEYS_SS);
     subsection(&mut custom, "Bindable finder events", BINDABLE_EVENTS_SS);

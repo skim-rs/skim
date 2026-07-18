@@ -80,6 +80,11 @@ fn add_char_updates_query_and_emits_events() {
     let events = act(&mut app, Action::AddChar('x'));
     assert_eq!(app.input.value, "x");
     // on_query_changed emits a `change` event key (SkimEvent::Change) and a RunPreview
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Change.key_event()))
+    );
     assert!(events.iter().any(|e| matches!(e, Event::RunPreview)));
 }
 

@@ -17,10 +17,11 @@ use crate::tui::event::{self, Action};
 /// The keymap is keyed by crossterm's [`KeyEvent`], which cannot express
 /// "the query changed" or "reading finished" directly. Each variant is
 /// therefore represented *transparently* as a reserved function-key code in the
-/// high-`F` range (`F(253)`–`F(255)`) that no real terminal ever emits. Giving
-/// these reserved codes named variants keeps them in one place instead of
-/// scattering magic `F(255)` literals across the codebase, and lets
-/// [`parse_key`] accept the friendly names `start`, `load` and `change`.
+/// high-`F` range (`F(249)`–`F(255)`) that no real terminal ever emits. The
+/// seven variants are `change`, `start`, `load`, `result`, `focus`, `zero`, and
+/// `one`. Giving these reserved codes named variants keeps them in one place
+/// instead of scattering magic function-key literals across the codebase, and
+/// lets [`parse_key`] accept every friendly event name.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SkimEvent {
     /// Fired once, when skim has started up and entered its event loop.
@@ -210,7 +211,11 @@ pub fn get_default_key_map() -> KeyMap {
     KeyMap(ret)
 }
 
-/// Parses a key str into a crossterm `KeyEvent`
+/// Parses a key str into a crossterm `KeyEvent`.
+///
+/// In addition to keyboard names, accepts all seven names recognized by
+/// [`SkimEvent::from_name`]: `change`, `start`, `load`, `result`, `focus`,
+/// `zero`, and `one`.
 ///
 /// # Errors
 /// Returns an error if the key string is empty, contains an unknown modifier,
