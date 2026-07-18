@@ -1287,19 +1287,19 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `Skim::init` | `src/skim.rs:155` | Constructs all subsystems from options |
 | `Skim::start` | `src/skim.rs:199` | Starts reader + initial matcher pass |
 | `Skim::handle_reload` | `src/skim.rs:227` | Kills reader, clears pool, restarts |
-| `Skim::init_tui_with` | `src/skim.rs:298` | Install a caller-provided TUI backend |
-| `Skim::enter` | `src/skim.rs:385` | Enter terminal, resolve image picker, start listener/event pump |
-| `Skim::should_enter` | `src/skim.rs:429` | Filter/select-1/exit-0/sync gate |
-| `Skim::output` | `src/skim.rs:534` | Collect & return SkimOutput |
-| `Skim::tick` | `src/skim.rs:615` | Single async event loop iteration |
+| `Skim::init_tui_with` | `src/skim.rs:299` | Install a caller-provided TUI backend |
+| `Skim::enter` | `src/skim.rs:386` | Enter terminal, resolve image picker, start listener/event pump |
+| `Skim::should_enter` | `src/skim.rs:430` | Filter/select-1/exit-0/sync gate |
+| `Skim::output` | `src/skim.rs:535` | Collect & return SkimOutput |
+| `Skim::tick` | `src/skim.rs:616` | Single async event loop iteration |
 | `App::from_options` | `src/tui/app.rs:282` | Build all widgets from options |
 | `App::run_preview` | `src/tui/app.rs:492` | Expand cmd, debounce, call Preview::spawn |
 | `App::handle_event` | `src/tui/app.rs:617` | Dispatch all Event variants |
 | `App::handle_action` | `src/tui/app.rs:804` | Apply action follow-up bindings |
 | `App::dispatch_conditional` | `src/tui/app.rs:823` | Dispatch the selected conditional subaction chain without follow-up bindings |
-| `App::dispatch_action` | `src/tui/app.rs:835` | Dispatch one Action variant without follow-up bindings |
-| `App::restart_matcher` | `src/tui/app.rs:1311` | Kill old match pass, start new one |
-| `App::expand_cmd` | `src/tui/app.rs:1387` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `App::dispatch_action` | `src/tui/app.rs:846` | Dispatch one Action variant without follow-up bindings |
+| `App::restart_matcher` | `src/tui/app.rs:1352` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1428` | Substitute `{}`, `{q}`, `{n}` etc. |
 | `Widget::render (App)` | `src/tui/app.rs:146` | Root render; calls all sub-widgets |
 | `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
@@ -1317,10 +1317,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
-| `SkimEvent` | `src/binds.rs:25` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
-| `parse_key` | `src/binds.rs:218` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_binds` | `src/binds.rs:324` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
-| `parse_action_chain` | `src/binds.rs:358` | `"down+select"` → `Vec<Action>` |
+| `SkimEvent` | `src/binds.rs:26` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
+| `parse_key` | `src/binds.rs:223` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_binds` | `src/binds.rs:329` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
+| `parse_action_chain` | `src/binds.rs:377` | `"down+select"` → `Vec<Action>` |
 | `Action::name` | `src/tui/event.rs:320` | `Action` → canonical bind name (reverse of `parse_action`) |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |

@@ -824,8 +824,19 @@ impl App {
         let Some(chain) = condition.then_some(then).or(otherwise) else {
             return Ok(Vec::new());
         };
+        // `if-*` branch chains are stored unparsed (see `parse_action`), so an
+        // invalid action name only surfaces here, at dispatch time. Log and
+        // skip the chain instead of erroring out of the event loop, matching
+        // the invalid-chain handling of `parse_action_binds`.
+        let actions = match crate::binds::parse_action_chain(chain) {
+            Ok(actions) => actions,
+            Err(err) => {
+                debug!("Ignoring conditional action chain `{chain}`: {err}");
+                return Ok(Vec::new());
+            }
+        };
         let mut events = Vec::new();
-        for action in crate::binds::parse_action_chain(chain)? {
+        for action in actions {
             events.extend(self.dispatch_action(&action)?);
         }
         Ok(events)

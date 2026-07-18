@@ -537,6 +537,16 @@ fn runtime_bind_and_unbind_manage_action_triggers() {
 }
 
 #[test]
+fn conditional_invalid_chain_is_ignored() {
+    // Branch chains are unvalidated at parse time; a bad action name must be
+    // logged and skipped at dispatch time, not abort the event loop.
+    let mut app = App::default();
+    let events = act(&mut app, Action::IfQueryEmpty("not-a-real-action".to_string(), None));
+    assert!(events.is_empty());
+    assert!(!app.should_quit);
+}
+
+#[test]
 fn conditional_subactions_are_dispatched_without_remapping() {
     let mut app = app_with_items(&["a", "b", "c"]);
     app.options.action_binds.insert("up".to_string(), vec![Action::Last]);
