@@ -969,18 +969,27 @@ and `parse_key` accepts the friendly names below:
 | `start` | `SkimEvent::Start` | `F(254)` | skim has started and entered its event loop (once) |
 | `load` | `SkimEvent::Load` | `F(253)` | the reader finishes producing items (once per read; a `reload` fires it again) |
 | `result` | `SkimEvent::Result` | `F(252)` | filtering for the current query completes and its results are ready |
-| `focus` | `SkimEvent::Focus` | `F(251)` | the focused item changes (cursor movement or a result update) |
+| `focus` | `SkimEvent::Focus` | `F(251)` | the focused item changes on cursor movement |
 | `zero` | `SkimEvent::Zero` | `F(250)` | a completed search has no matches |
 | `one` | `SkimEvent::One` | `F(249)` | a completed search has exactly one match |
 
-`change` is injected by `App::on_query_changed`; `start` by
-`Skim::fire_start_event` and `load`/`reader_done` via `Skim::check_reader`
-(`src/skim.rs`). `result`, `zero`, `one` and `focus` are all injected from the
-`Event::Render` handler *after* the frame is drawn, so a binding sees a stable,
-up-to-date list; `zero`/`one` read `MatcherControl::get_num_matched()` (the
-matcher's authoritative count, which the rendered list may briefly lag). Each
-event flows through `handle_key` and its keymap lookup like any other key, so an
-unbound event is a harmless no-op.
+Events are injected from the state-change site rather than polled per render:
+
+- **`change`** — `App::on_query_changed`.
+- **`focus`** — `App::on_selection_changed` (via `take_focus_event`), so it
+  rides along with every cursor move and fires only when the focused item
+  actually changes.
+- **`start`** — `Skim::fire_start_event`; **`load`**/`reader_done` — set by
+  `Skim::check_reader` (`src/skim.rs`).
+- **`load`/`result`/`zero`/`one`** — these track *async* reader/matcher
+  completion, which has no synchronous callback, so `App::poll_completion_events`
+  edge-triggers them from the `Heartbeat` handler (not the render path). A
+  `Render` is queued just before them so a binding that inspects the list (e.g.
+  `load:first`) sees the finished results; `zero`/`one` read
+  `MatcherControl::get_num_matched()`, the matcher's authoritative count.
+
+Each event flows through `handle_key` and its keymap lookup like any other key,
+so an unbound event is a harmless no-op.
 
 ### Actions as Events (follow-up bindings)
 

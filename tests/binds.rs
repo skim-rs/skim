@@ -101,10 +101,11 @@ insta_test!(bind_result, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &[
     @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
 });
 
-// Test focus event: fires when the focused item changes (here, initial focus).
+// Test focus event: fires when the focused item changes on cursor movement.
 insta_test!(bind_focus, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "focus:set-header(focused)"], {
-    @snap;
+    @action Up(1);
     @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "focused");
+    @snap;
 });
 
 // Test zero event: fires when a completed search has no matches.

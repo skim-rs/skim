@@ -134,11 +134,12 @@ pub struct App {
     /// Whether the `load` event has been fired for the current read. Reset on
     /// `reload` so a new read fires `load` again.
     pub load_event_fired: bool,
-    /// Set whenever a matcher run is (re)started; drives the one-shot `result`
-    /// (and `zero`/`one`) events once that run completes and is rendered.
+    /// Set whenever a matcher run is (re)started; edge-triggers the one-shot
+    /// `result` (and `zero`/`one`) events once that run completes, polled from
+    /// the heartbeat.
     pub result_pending: bool,
-    /// The item that currently has focus, tracked so the `focus` event fires
-    /// only when it actually changes (cursor movement or a result update).
+    /// The last item that had focus, tracked so the `focus` event fires only
+    /// when the focused item actually changes on cursor movement.
     last_focused: Option<Arc<dyn SkimItem>>,
 }
 
@@ -394,9 +395,59 @@ impl App {
         self.items_just_updated = true;
     }
 
-    /// Call after selection changes (e.g., selection actions, `Event::Key`)
-    fn on_selection_changed() -> Vec<Event> {
-        vec![Event::RunPreview]
+    /// Call after selection changes (e.g., selection actions, `Event::Key`).
+    ///
+    /// Emits the `focus` event when the focused item actually changed, so a
+    /// `focus:<action>` binding runs on cursor movement.
+    fn on_selection_changed(&mut self) -> Vec<Event> {
+        let mut events = vec![Event::RunPreview];
+        events.extend(self.take_focus_event());
+        events
+    }
+
+    /// Returns a `focus` event if the focused item changed since the last call,
+    /// updating the tracked item. Used by [`Self::on_selection_changed`].
+    fn take_focus_event(&mut self) -> Option<Event> {
+        let focused = self.item_list.selected().map(|m| m.item);
+        let changed = match (&self.last_focused, &focused) {
+            (Some(prev), Some(curr)) => !Arc::ptr_eq(prev, curr),
+            (None, None) => false,
+            _ => true,
+        };
+        if changed {
+            self.last_focused = focused;
+            Some(Event::Key(SkimEvent::Focus.into()))
+        } else {
+            None
+        }
+    }
+
+    /// Polls the async reader/matcher state and returns any newly-due
+    /// completion events (`load`, `result`, `zero`, `one`).
+    ///
+    /// Each is edge-triggered by a flag so it fires once per read / search:
+    /// `load` when the reader finishes, `result` (plus `zero`/`one` from the
+    /// matcher's authoritative count) when a search completes. Called from the
+    /// heartbeat, not the render path.
+    fn poll_completion_events(&mut self) -> Vec<Event> {
+        let mut events = Vec::new();
+
+        if self.reader_done && !self.load_event_fired {
+            self.load_event_fired = true;
+            events.push(Event::Key(SkimEvent::Load.into()));
+        }
+
+        if self.result_pending && self.matcher_control.stopped() {
+            self.result_pending = false;
+            events.push(Event::Key(SkimEvent::Result.into()));
+            match self.matcher_control.get_num_matched() {
+                0 => events.push(Event::Key(SkimEvent::Zero.into())),
+                1 => events.push(Event::Key(SkimEvent::One.into())),
+                _ => {}
+            }
+        }
+
+        events
     }
 
     /// Call when query changes (e.g., `AddChar`, `BackwardDeleteChar`, etc.)
@@ -572,43 +623,6 @@ impl App {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-                // The synthetic finder events below are fired *after* the draw,
-                // once the item list reflects the latest reader/matcher output,
-                // so a binding can safely inspect a stable, up-to-date list. Each
-                // is routed through the keymap like any key press.
-
-                // `load`: the reader has finished and its items are now rendered.
-                if self.reader_done && !self.load_event_fired {
-                    self.load_event_fired = true;
-                    tui.event_tx.try_send(Event::Key(SkimEvent::Load.into()))?;
-                }
-
-                // `result` (+ `zero`/`one`): the in-flight search has completed
-                // and its results are on screen.
-                if self.result_pending && self.matcher_control.stopped() {
-                    self.result_pending = false;
-                    tui.event_tx.try_send(Event::Key(SkimEvent::Result.into()))?;
-                    // Use the matcher's own count, which is authoritative as soon
-                    // as it stops; the rendered `item_list` may briefly lag it.
-                    match self.matcher_control.get_num_matched() {
-                        0 => tui.event_tx.try_send(Event::Key(SkimEvent::Zero.into()))?,
-                        1 => tui.event_tx.try_send(Event::Key(SkimEvent::One.into()))?,
-                        _ => {}
-                    }
-                }
-
-                // `focus`: the focused item changed (cursor movement or a result
-                // update that shifted the current row to a different item).
-                let focused = self.item_list.selected().map(|m| m.item);
-                let focus_changed = match (&self.last_focused, &focused) {
-                    (Some(prev), Some(curr)) => !Arc::ptr_eq(prev, curr),
-                    (None, None) => false,
-                    _ => true,
-                };
-                if focus_changed {
-                    self.last_focused = focused;
-                    tui.event_tx.try_send(Event::Key(SkimEvent::Focus.into()))?;
-                }
             }
             Event::Heartbeat | Event::Tick => {
                 // Heartbeat is used for periodic UI updates
@@ -627,6 +641,19 @@ impl App {
                     self.needs_render.store(false, Ordering::Relaxed);
                     self.last_render_timer = std::time::Instant::now();
                     tui.event_tx.try_send(Event::Render)?;
+                }
+
+                // Fire the reader/matcher-completion events (`load`, `result`,
+                // `zero`, `one`). These track async state that has no synchronous
+                // callback, so they are polled here on the heartbeat rather than
+                // in the render path. A `Render` is queued first so a binding
+                // that inspects the list (e.g. `load:first`) sees the final one.
+                let completion_events = self.poll_completion_events();
+                if !completion_events.is_empty() {
+                    tui.event_tx.try_send(Event::Render)?;
+                    for evt in completion_events {
+                        tui.event_tx.try_send(evt)?;
+                    }
                 }
 
                 // Check if a debounced preview run needs to be executed
@@ -820,7 +847,7 @@ impl App {
                 )]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher_debounced();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             BackwardChar => {
                 self.input.move_cursor(-1);
@@ -880,7 +907,7 @@ impl App {
             DeselectAll => {
                 if !self.item_list.selection.is_empty() {
                     self.item_list.selection = Default::default();
-                    return Ok(Self::on_selection_changed());
+                    return Ok(self.on_selection_changed());
                 }
             }
             Down(n) => {
@@ -888,7 +915,7 @@ impl App {
                     TopToBottom => self.item_list.scroll_by(i32::from(*n)),
                     BottomToTop => self.item_list.scroll_by(-i32::from(*n)),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             EndOfLine => {
                 self.input.move_to_end();
@@ -934,7 +961,7 @@ impl App {
             First | Top => {
                 // Jump to first item (considering reserved items)
                 self.item_list.jump_to_first();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ForwardChar => {
                 self.input.move_cursor(1);
@@ -993,7 +1020,7 @@ impl App {
             Last => {
                 // Jump to last item
                 self.item_list.jump_to_last();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             NextHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
@@ -1040,7 +1067,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             HalfPageUp(n) => {
                 let offset = i32::from(self.item_list.height) / 2;
@@ -1049,7 +1076,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(-offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             PageDown(n) => {
                 let offset = i32::from(self.item_list.height);
@@ -1058,7 +1085,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             PageUp(n) => {
                 let offset = i32::from(self.item_list.height);
@@ -1067,7 +1094,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(-offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             PreviewUp(n) => {
                 self.preview.scroll_up(u16::try_from(*n).unwrap_or(u16::MAX));
@@ -1179,15 +1206,15 @@ impl App {
             }
             SelectAll => {
                 self.item_list.select_all();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             SelectRow(row) => {
                 self.item_list.select_row(*row);
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             Select => {
                 self.item_list.select();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             SetHeader(opt_header) => {
                 opt_header.clone_into(&mut self.options.header);
@@ -1207,11 +1234,11 @@ impl App {
             }
             Toggle => {
                 self.item_list.toggle();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ToggleAll => {
                 self.item_list.toggle_all();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ToggleIn => {
                 self.item_list.toggle();
@@ -1219,7 +1246,7 @@ impl App {
                     TopToBottom => self.item_list.select_next(),
                     BottomToTop => self.item_list.select_previous(),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
@@ -1232,7 +1259,7 @@ impl App {
                     TopToBottom => self.item_list.select_previous(),
                     BottomToTop => self.item_list.select_next(),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
@@ -1273,7 +1300,7 @@ impl App {
                     TopToBottom => self.item_list.scroll_by(-i32::from(*n)),
                     BottomToTop => self.item_list.scroll_by(i32::from(*n)),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             Yank => {
                 // Insert from yank register at cursor position
@@ -1520,7 +1547,7 @@ impl App {
         self.needs_render();
 
         if self.item_list.current != old_current {
-            return Ok(Self::on_selection_changed());
+            return Ok(self.on_selection_changed());
         }
         Ok(vec![])
     }
