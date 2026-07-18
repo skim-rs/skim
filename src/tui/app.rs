@@ -704,17 +704,8 @@ impl App {
 
     #[allow(clippy::too_many_lines)]
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
-        use Action::{
-            Abort, Accept, AddChar, AppendAndSelect, BackwardChar, BackwardDeleteChar, BackwardDeleteCharEof,
-            BackwardKillWord, BackwardWord, BeginningOfLine, Bind, Cancel, ClearScreen, Custom, DeleteChar,
-            DeleteCharEof, DeselectAll, Down, EndOfLine, Execute, ExecuteSilent, First, ForwardChar, ForwardWord,
-            HalfPageDown, HalfPageUp, IfNonMatched, IfQueryEmpty, IfQueryNotEmpty, Ignore, KillLine, KillWord, Last,
-            NextHistory, PageDown, PageUp, PreviewDown, PreviewLeft, PreviewPageDown, PreviewPageUp, PreviewRight,
-            PreviewUp, PreviousHistory, Redraw, RefreshCmd, RefreshPreview, Reload, RestartMatcher, RotateMode,
-            ScrollLeft, ScrollRight, Select, SelectAll, SelectRow, SetHeader, SetPreviewCmd, SetQuery, Toggle,
-            ToggleAll, ToggleIn, ToggleInteractive, ToggleOut, TogglePreview, TogglePreviewWrap, ToggleSort, Top,
-            Unbind, UnixLineDiscard, UnixWordRubout, Up, Yank,
-        };
+        #[allow(clippy::enum_glob_use)]
+        use Action::*;
         use ratatui::widgets::ListDirection::{BottomToTop, TopToBottom};
         match act {
             Abort | Accept(_) => {
