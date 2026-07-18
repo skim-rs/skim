@@ -74,6 +74,17 @@ pub trait SkimItem: AsAny + Send + Sync + 'static {
         None
     }
 
+    /// Byte ranges of `text()` that are hidden from display (via `--hide-nth`).
+    ///
+    /// Characters inside these ranges are removed from the rendered line and ignored
+    /// for match highlighting and horizontal scrolling, but stay part of `text()` so
+    /// they remain searchable. Ranges are expressed as (`start_byte`, `end_byte`) and
+    /// are expected to be sorted and non-overlapping. Returns `None` when nothing is
+    /// hidden.
+    fn hidden_ranges(&self) -> Option<&[(usize, usize)]> {
+        None
+    }
+
     /// Returns true if the item should be disabled
     /// Disabled items cannot be selected
     fn disabled(&self) -> bool {

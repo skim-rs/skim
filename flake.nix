@@ -46,6 +46,7 @@
             gnuplot
             llvm
             cargo-bloat
+            cargo-public-api
           ];
           gungraun = with pkgs; [
             valgrind

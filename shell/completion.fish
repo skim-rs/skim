@@ -13,6 +13,7 @@ pathname\t''
 -pathname\t''"
 complete -c sk -s n -l nth -d 'Fields to be matched' -r
 complete -c sk -l with-nth -d 'Fields to be transformed' -r
+complete -c sk -l hide-nth -d 'Fields to hide from display while keeping them searchable' -r
 complete -c sk -s d -l delimiter -d 'Delimiter between fields' -r
 complete -c sk -l algo -d 'Fuzzy matching algorithm' -r -f -a "arinae\t'Arinae: typo-resistant & natural algorithm, default'
 clangd\t'Clangd fuzzy matching algorithm'

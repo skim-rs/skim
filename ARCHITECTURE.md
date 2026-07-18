@@ -102,7 +102,7 @@ skim/                  ← workspace root
 │   ├── binds.rs       ← KeyMap, parse_key, parse_action_chain
 │   ├── theme.rs       ← ColorTheme, named palettes
 │   ├── thread_pool.rs ← ThreadPool + parallel_work_queue
-│   ├── field.rs       ← field range parsing (--nth / --with-nth)
+│   ├── field.rs       ← field range parsing (--nth / --with-nth / --hide-nth)
 │   ├── spinlock.rs    ← lightweight SpinLock<T>
 │   ├── util.rs        ← printf helper, misc utilities
 │   ├── popup/         ← tmux & zellij popup integration
@@ -428,7 +428,8 @@ Source (stdin bytes or child process stdout)
         │             assigns monotonic sequence numbers, sends to MPMC channel
         ├─ Thread N: workers — receive chunks, validate UTF-8,
         │             create DefaultSkimItem::new(line, ansi, trans_fields, matching_fields, delimiter)
-        │             (handles ANSI stripping, --nth / --with-nth transforms inline),
+        │               .hidden_fields(hidden_fields, delimiter)
+        │             (handles ANSI stripping, --nth / --with-nth / --hide-nth inline),
         │             send (seq, items) pairs
         ├─ Thread 1: reorder — collects (seq, items), emits in order through SkimItemReceiver;
         │             drops tx_pipeline_done on exit (signals killer thread)
@@ -457,6 +458,24 @@ SkimItemReceiver channel
 | true | true | transformed | original | stripped (+ `ansi_info`) |
 
 Fields `/0` bytes are stripped from `text` (used for display/matching) but preserved in `orig_text` (used for output).
+
+**`--hide-nth`** is orthogonal to the matrix above and applied through the builder method
+`DefaultSkimItem::hidden_fields(hidden_fields, delimiter)` after construction (rather than a `new`
+parameter). The requested fields are resolved to byte ranges (in the same coordinate space as
+`text()` — the stripped text under `--ansi`, otherwise the `text` field) and stored as
+`hidden_ranges` in the item metadata, exposed via the `SkimItem::hidden_ranges()` trait method. The
+hidden fields **remain part of `text()`**, so they stay searchable and still participate in matching.
+They only affect rendering:
+
+- `DefaultSkimItem::display()` removes the hidden characters and remaps the match highlight
+  positions into the visible coordinate space (`project_visible_text` / `project_match_indices` in
+  `src/helper/item.rs`). This is integrated into **both** display branches: the plain branch projects
+  the text through `to_line`, and the ANSI branch drops the hidden characters from the already-parsed
+  styled spans (`retain_visible_spans`) so surviving characters **keep their ANSI colors**, then runs
+  the normal highlighting on the remapped visible-coordinate matches.
+- `ItemRenderer::render_item` applies the same projection to derive the visible sub-line text and the
+  match range used for horizontal scrolling, so hidden characters are ignored for hscroll and never
+  highlighted.
 
 ---
 
@@ -1216,10 +1235,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
 | `ItemPool::append` | `src/item.rs:469` | Add items, notify matcher |
 | `ItemPool::take` | `src/item.rs:502` | Take un-matched items for matcher |
-| `DefaultSkimItem::new` | `src/helper/item.rs:58` | ANSI strip, field transform, ranges, disable pattern |
-| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:263` | Unified parallel pipeline (all inputs) |
-| `spawn_io_reader` | `src/helper/item_reader.rs:354` | I/O reader thread: chunk reads + line splitting |
-| `spawn_reorder_thread` | `src/helper/item_reader.rs:458` | Reorder thread: ordered output + pipeline-done signal |
+| `DefaultSkimItem::new` | `src/helper/item.rs:64` | ANSI strip, field transform, matching ranges (hidden ranges set later via `hidden_fields` builder) |
+| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:287` | Unified parallel pipeline (all inputs) |
+| `spawn_io_reader` | `src/helper/item_reader.rs:378` | I/O reader thread: chunk reads + line splitting |
+| `spawn_reorder_thread` | `src/helper/item_reader.rs:483` | Reorder thread: ordered output + pipeline-done signal |
 | `Preview::spawn` | `src/tui/preview.rs:319` | Start image, PTY, or plain preview worker |
 | `Tui::new_with_height_and_backend` | `src/tui/backend.rs:77` | Terminal init + viewport sizing |
 | `Tui::enter` | `src/tui/backend.rs:126` | Enable raw mode + terminal setup |

@@ -21,6 +21,7 @@ _sk() {
 '*-n+[Fields to be matched]:NTH:_default' \
 '*--nth=[Fields to be matched]:NTH:_default' \
 '*--with-nth=[Fields to be transformed]:WITH_NTH:_default' \
+'*--hide-nth=[Fields to hide from display while keeping them searchable]:HIDE_NTH:_default' \
 '-d+[Delimiter between fields]:DELIMITER:_default' \
 '--delimiter=[Delimiter between fields]:DELIMITER:_default' \
 '--algo=[Fuzzy matching algorithm]:ALGORITHM:((arinae\:"Arinae\: typo-resistant & natural algorithm, default"
