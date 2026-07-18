@@ -766,16 +766,16 @@ impl App {
     /// the action has run, the chain the user bound to its name is queued after
     /// the action's own events. See [`Action::name`](crate::tui::event::Action::name).
     ///
-    /// If that follow-up chain contains [`Action::Skip`], the action's own
+    /// If that follow-up chain contains [`Action::Suppress`], the action's own
     /// default behaviour is suppressed and only the rest of the chain runs, so
-    /// `act-up:skip+down` remaps the `up` action to `down`.
+    /// `act-up:suppress+down` remaps the `up` action to `down`.
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         let follow = self.options.action_binds.get(act.name()).cloned();
-        let skip_default = follow
+        let suppress_default = follow
             .as_ref()
-            .is_some_and(|chain| chain.iter().any(|a| matches!(a, Action::Skip)));
+            .is_some_and(|chain| chain.iter().any(|a| matches!(a, Action::Suppress)));
 
-        let mut events = if skip_default {
+        let mut events = if suppress_default {
             Vec::new()
         } else {
             self.dispatch_action(act)?
@@ -784,7 +784,7 @@ impl App {
             events.extend(
                 chain
                     .into_iter()
-                    .filter(|a| !matches!(a, Action::Skip))
+                    .filter(|a| !matches!(a, Action::Suppress))
                     .map(Event::Action),
             );
         }
@@ -975,10 +975,10 @@ impl App {
                         .collect());
                 }
             }
-            // `ignore` is a no-op. `skip` is also a no-op on its own; its
+            // `ignore` is a no-op. `suppress` is also a no-op on its own; its
             // suppression effect is applied in `handle_action` when it appears in
             // an action's follow-up chain.
-            Ignore | Skip => (),
+            Ignore | Suppress => (),
             KillLine => {
                 let cursor = self.input.cursor_pos as usize;
                 let deleted = self.input.split_off(cursor);

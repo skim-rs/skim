@@ -262,10 +262,10 @@ pub enum Action {
     Select,
     /// Suppress the default behaviour of the action this is bound to.
     ///
-    /// Only meaningful as a follow-up bound to an action (e.g. `act-up:skip`):
+    /// Only meaningful as a follow-up bound to an action (e.g. `act-up:suppress`):
     /// it cancels that action's own effect, so the remaining follow-up chain
-    /// runs in its place. On its own it is a no-op.
-    Skip,
+    /// runs in its place. On its own it is a no-op (equivalent to `ignore`).
+    Suppress,
     /// Set the header (or disable it on an empty value)
     SetHeader(Option<String>),
     /// Set the preview cmd and rerun preview
@@ -325,7 +325,7 @@ impl Action {
             HalfPageUp, IfNonMatched, IfQueryEmpty, IfQueryNotEmpty, Ignore, KillLine, KillWord, Last, NextHistory,
             PageDown, PageUp, PreviewDown, PreviewLeft, PreviewPageDown, PreviewPageUp, PreviewRight, PreviewUp,
             PreviousHistory, Redraw, RefreshCmd, RefreshPreview, Reload, RestartMatcher, RotateMode, ScrollLeft,
-            ScrollRight, Select, SelectAll, SelectRow, SetHeader, SetPreviewCmd, SetQuery, Skip, Toggle, ToggleAll,
+            ScrollRight, Select, SelectAll, SelectRow, SetHeader, SetPreviewCmd, SetQuery, Suppress, Toggle, ToggleAll,
             ToggleIn, ToggleInteractive, ToggleOut, TogglePreview, TogglePreviewWrap, ToggleSort, Top, Unbind,
             UnixLineDiscard, UnixWordRubout, Up, Yank,
         };
@@ -386,7 +386,7 @@ impl Action {
             SetHeader(_) => "set-header",
             SetPreviewCmd(_) => "set-preview-cmd",
             SetQuery(_) => "set-query",
-            Skip => "skip",
+            Suppress => "suppress",
             Toggle => "toggle",
             ToggleAll => "toggle-all",
             ToggleIn => "toggle-in",
@@ -511,7 +511,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "scroll-left" => Some(ScrollLeft(arg.and_then(|s| s.parse().ok()).unwrap_or(1))),
                 "scroll-right" => Some(ScrollRight(arg.and_then(|s| s.parse().ok()).unwrap_or(1))),
                 "select" => Some(Select),
-                "skip" => Some(Skip),
+                "suppress" => Some(Suppress),
                 "select-all" => Some(SelectAll),
                 "select-row" => Some(SelectRow(arg.and_then(|s| s.parse().ok()).unwrap_or_default())),
                 "set-header" => Some(SetHeader(arg)),

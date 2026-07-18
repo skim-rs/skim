@@ -84,13 +84,13 @@ insta_test!(bind_act_prefix, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
     @snap;
 });
 
-// `skip` suppresses the triggering action's own effect. Here the First action is
-// remapped: instead of jumping to the first item it only sets the header, so the
-// cursor stays put (on the last item) and the header is updated.
-insta_test!(bind_skip, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "act-first:skip+set-header(skipped)"], {
+// `suppress` cancels the triggering action's own effect. Here the First action
+// is remapped: instead of jumping to the first item it only sets the header, so
+// the cursor stays put (on the last item) and the header is updated.
+insta_test!(bind_suppress, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "act-first:suppress+set-header(suppressed)"], {
     @action Last;
     @action First;
-    @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "skipped");
+    @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "suppressed");
     @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
     @snap;
 });

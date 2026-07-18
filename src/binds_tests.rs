@@ -218,10 +218,10 @@ fn action_binds_key_wins_over_action() {
 }
 
 #[test]
-fn action_binds_parse_skip_chain() {
-    // `skip` is parsed like any other action and kept in the chain.
-    let binds = parse_action_binds(["act-up:skip+down"].into_iter());
-    assert_eq!(binds.get("up"), Some(&vec![Skip, Down(1)]));
+fn action_binds_parse_suppress_chain() {
+    // `suppress` is parsed like any other action and kept in the chain.
+    let binds = parse_action_binds(["act-up:suppress+down"].into_iter());
+    assert_eq!(binds.get("up"), Some(&vec![Suppress, Down(1)]));
 }
 
 #[test]
@@ -232,7 +232,7 @@ fn action_name_round_trips_through_parse_action() {
         "first",
         "last",
         "reload",
-        "skip",
+        "suppress",
         "backward-delete-char/eof",
         "up",
     ] {

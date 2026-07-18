@@ -992,10 +992,10 @@ ends on the last item.
 - **Keys win.** If a bind's "key" resolves to a real key it stays in the key
   map, so a name shared by a key and an action (e.g. `up`) always binds the key.
   Prefix with `act-` to target the action instead: `act-up:down`.
-- **`skip`.** Including [`Action::Skip`] in the follow-up chain suppresses the
-  triggering action's own default behaviour, so `act-up:skip+down` remaps the
-  `up` action to `down`, and `up:skip` disables the up key. On its own `skip` is
-  a no-op.
+- **`suppress`.** Including [`Action::Suppress`] in the follow-up chain cancels
+  the triggering action's own default behaviour, so `act-up:suppress+down`
+  remaps the `up` action to `down`, and `up:suppress` disables the up key. On
+  its own `suppress` is a no-op (equivalent to `ignore`).
 
 Follow-up chains are parsed by `binds::parse_action_binds` into
 `SkimOptions::action_binds` (keyed by `Action::name`), and applied in
@@ -1298,7 +1298,7 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
 | `SkimEvent` | `src/binds.rs:25` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
 | `parse_key` | `src/binds.rs:213` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_binds` | `src/binds.rs:299` | `"reload:first"`, `"act-up:skip+down"` → action follow-up map |
+| `parse_action_binds` | `src/binds.rs:299` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
 | `parse_action_chain` | `src/binds.rs:329` | `"down+select"` → `Vec<Action>` |
 | `Action::name` | `src/tui/event.rs:316` | `Action` → canonical bind name (reverse of `parse_action`) |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
