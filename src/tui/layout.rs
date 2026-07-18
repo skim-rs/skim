@@ -84,7 +84,10 @@ impl LayoutTemplate {
         let input_rows: u16 = if has_border {
             3 // 1 content + 2 border rows
         } else {
-            1 + u16::from(options.info.display == InfoDisplay::Default)
+            1 + u16::from(matches!(
+                options.info.display,
+                InfoDisplay::Default | InfoDisplay::Left | InfoDisplay::Right
+            ))
         };
 
         // Rows consumed by the header widget.

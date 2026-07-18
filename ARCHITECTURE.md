@@ -905,9 +905,11 @@ Inline sep: " < " (when inline_info)
 Right side: multi-select count when multi mode
 ```
 
-`InfoDisplay` has four modes:
+`InfoDisplay` has six modes:
 
 - `Default` — separate line above the prompt
+- `Left` — separate line above the prompt, with all info left-aligned
+- `Right` — separate line above the prompt, with all info right-aligned
 - `Inline` — inside the prompt line (after the query text)
 - `InlineRight` — inside the prompt line, right-aligned
 - `Hidden` — not shown
