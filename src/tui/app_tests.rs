@@ -58,6 +58,23 @@ fn act(app: &mut App, action: Action) -> Vec<Event> {
 }
 
 #[test]
+fn load_waits_until_all_items_are_consumed() {
+    let mut app = App::default();
+    app.reader_done = true;
+    app.item_pool.append(vec![Arc::new("item".to_string())]);
+
+    assert!(app.poll_completion_events().is_empty());
+
+    assert_eq!(app.item_pool.take().len(), 1);
+    assert!(
+        app.poll_completion_events()
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Load.key_event()))
+    );
+    assert!(app.poll_completion_events().is_empty());
+}
+
+#[test]
 fn add_char_updates_query_and_emits_events() {
     let mut app = App::default();
     let events = act(&mut app, Action::AddChar('x'));

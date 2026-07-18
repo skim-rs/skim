@@ -338,7 +338,11 @@ where
         // is also a key. Without the prefix, a bare action name still works as
         // long as it isn't a key.
         let action_name = key.strip_prefix("act-").unwrap_or(key);
-        if let Some(action) = event::parse_action(action_name)
+        // Some actions require an argument when executed, but their canonical
+        // name is still valid as a trigger. `()` supplies the parser's empty
+        // placeholder solely for name validation.
+        let action = event::parse_action(action_name).or_else(|| event::parse_action(&format!("{action_name}()")));
+        if let Some(action) = action
             && let Ok(actions) = parse_action_chain(chain)
         {
             res.insert(action.name().to_string(), actions);

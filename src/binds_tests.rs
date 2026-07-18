@@ -215,6 +215,21 @@ fn action_binds_key_wins_over_action() {
     // `act-` forces the action interpretation even for a key-shaped name.
     let binds = parse_action_binds(["act-up:down"].into_iter());
     assert_eq!(binds.get("up"), Some(&vec![Down(1)]));
+
+    // Actions that require arguments when executed are still valid triggers.
+    let binds = parse_action_binds(
+        [
+            "act-add-char:last",
+            "act-execute:last",
+            "act-execute-silent:last",
+            "act-set-preview-cmd:last",
+            "act-set-query:last",
+        ]
+        .into_iter(),
+    );
+    for name in ["add-char", "execute", "execute-silent", "set-preview-cmd", "set-query"] {
+        assert_eq!(binds.get(name), Some(&vec![Last]), "missing trigger `{name}`");
+    }
 }
 
 #[test]
@@ -222,23 +237,6 @@ fn action_binds_parse_suppress_chain() {
     // `suppress` is parsed like any other action and kept in the chain.
     let binds = parse_action_binds(["act-up:suppress+down"].into_iter());
     assert_eq!(binds.get("up"), Some(&vec![Suppress, Down(1)]));
-}
-
-#[test]
-fn action_name_round_trips_through_parse_action() {
-    // Every canonical name resolves back to an action with the same name.
-    for name in [
-        "abort",
-        "first",
-        "last",
-        "reload",
-        "suppress",
-        "backward-delete-char/eof",
-        "up",
-    ] {
-        let action = event::parse_action(name).unwrap_or_else(|| panic!("`{name}` should parse"));
-        assert_eq!(action.name(), name);
-    }
 }
 
 #[test]

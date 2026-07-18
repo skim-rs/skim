@@ -428,11 +428,15 @@ impl App {
     /// Each is edge-triggered by a flag so it fires once per read / search:
     /// `load` when the reader finishes, `result` (plus `zero`/`one` from the
     /// matcher's authoritative count) when a search completes. Called from the
-    /// heartbeat, not the render path.
+    /// heartbeat.
     fn poll_completion_events(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
 
-        if self.reader_done && !self.load_event_fired {
+        if self.reader_done
+            && !self.load_event_fired
+            && self.matcher_control.stopped()
+            && self.item_pool.num_not_taken() == 0
+        {
             self.load_event_fired = true;
             events.push(Event::Key(SkimEvent::Load.into()));
         }
@@ -623,6 +627,11 @@ impl App {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
+                // Matcher output is merged into the item list during rendering,
+                // so this is where result-driven focus changes become observable.
+                if let Some(event) = self.take_focus_event() {
+                    tui.event_tx.try_send(event)?;
+                }
             }
             Event::Heartbeat | Event::Tick => {
                 // Heartbeat is used for periodic UI updates
@@ -787,15 +796,11 @@ impl App {
         vec![]
     }
 
-    /// Runs an action, then appends any follow-up actions bound to it.
+    /// Runs an action, then directly dispatches any follow-up actions bound to it.
     ///
-    /// An action can be bound as if it were an event (e.g. `reload:first`): once
-    /// the action has run, the chain the user bound to its name is queued after
-    /// the action's own events. See [`Action::name`](crate::tui::event::Action::name).
-    ///
-    /// If that follow-up chain contains [`Action::Suppress`], the action's own
-    /// default behaviour is suppressed and only the rest of the chain runs, so
-    /// `act-up:suppress+down` remaps the `up` action to `down`.
+    /// Follow-ups use non-recursive (`noremap`) semantics: an action in the
+    /// follow-up chain does not trigger its own follow-up binding. If the chain
+    /// contains [`Action::Suppress`], the triggering action is skipped.
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         let follow = self.options.action_binds.get(act.name()).cloned();
         let suppress_default = follow
@@ -808,12 +813,9 @@ impl App {
             self.dispatch_action(act)?
         };
         if let Some(chain) = follow {
-            events.extend(
-                chain
-                    .into_iter()
-                    .filter(|a| !matches!(a, Action::Suppress))
-                    .map(Event::Action),
-            );
+            for action in chain.iter().filter(|a| !matches!(a, Action::Suppress)) {
+                events.extend(self.dispatch_action(action)?);
+            }
         }
         Ok(events)
     }

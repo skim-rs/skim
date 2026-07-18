@@ -318,17 +318,8 @@ impl Action {
     /// `Down(5)` alike.
     #[must_use]
     pub fn name(&self) -> &'static str {
-        use Action::{
-            Abort, Accept, AddChar, AppendAndSelect, BackwardChar, BackwardDeleteChar, BackwardDeleteCharEof,
-            BackwardKillWord, BackwardWord, BeginningOfLine, Bind, Cancel, ClearScreen, Custom, DeleteChar, DeleteCharEof,
-            DeselectAll, Down, EndOfLine, Execute, ExecuteSilent, First, ForwardChar, ForwardWord, HalfPageDown,
-            HalfPageUp, IfNonMatched, IfQueryEmpty, IfQueryNotEmpty, Ignore, KillLine, KillWord, Last, NextHistory,
-            PageDown, PageUp, PreviewDown, PreviewLeft, PreviewPageDown, PreviewPageUp, PreviewRight, PreviewUp,
-            PreviousHistory, Redraw, RefreshCmd, RefreshPreview, Reload, RestartMatcher, RotateMode, ScrollLeft,
-            ScrollRight, Select, SelectAll, SelectRow, SetHeader, SetPreviewCmd, SetQuery, Suppress, Toggle, ToggleAll,
-            ToggleIn, ToggleInteractive, ToggleOut, TogglePreview, TogglePreviewWrap, ToggleSort, Top, Unbind,
-            UnixLineDiscard, UnixWordRubout, Up, Yank,
-        };
+        #[allow(clippy::enum_glob_use)]
+        use Action::*;
         match self {
             Abort => "abort",
             Accept(_) => "accept",

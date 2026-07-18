@@ -168,7 +168,7 @@ const ACTIONS_SS: &str = "
 * select-row
 * set-preview-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * set-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
-* suppress: *if bound to an action (e.g. `act-up:suppress`), suppresses that action's default behavior so the rest of the chain runs in its place; if bound to a key, equivalent to `ignore`
+* suppress: *if bound to an action (e.g. `act-up:suppress`), suppresses that action's default behavior so the rest of the non-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`
 * toggle
 * toggle-all
 * toggle+down: ctrl-i  tab

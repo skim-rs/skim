@@ -31,6 +31,7 @@ const NO_ARG_ACTIONS: &[&str] = &[
     "rotate-mode",
     "select",
     "select-all",
+    "suppress",
     "toggle",
     "toggle-all",
     "toggle-in",
@@ -48,17 +49,33 @@ const NO_ARG_ACTIONS: &[&str] = &[
 #[test]
 fn parse_all_no_arg_actions() {
     for name in NO_ARG_ACTIONS {
-        assert!(parse_action(name).is_some(), "expected `{name}` to parse");
+        let action = parse_action(name).unwrap_or_else(|| panic!("expected `{name}` to parse"));
+        assert_eq!(action.name(), *name);
     }
 }
 
 #[test]
 fn parse_numeric_actions_default_to_one() {
-    assert_eq!(parse_action("down"), Some(Action::Down(1)));
-    assert_eq!(parse_action("up"), Some(Action::Up(1)));
-    assert_eq!(parse_action("page-down"), Some(Action::PageDown(1)));
-    assert_eq!(parse_action("scroll-left"), Some(Action::ScrollLeft(1)));
-    assert_eq!(parse_action("select-row"), Some(Action::SelectRow(0)));
+    for name in [
+        "down",
+        "up",
+        "half-page-down",
+        "half-page-up",
+        "page-down",
+        "page-up",
+        "preview-up",
+        "preview-down",
+        "preview-left",
+        "preview-right",
+        "preview-page-up",
+        "preview-page-down",
+        "scroll-left",
+        "scroll-right",
+        "select-row",
+    ] {
+        let action = parse_action(name).unwrap_or_else(|| panic!("expected `{name}` to parse"));
+        assert_eq!(action.name(), name);
+    }
 }
 
 #[test]
@@ -78,6 +95,16 @@ fn parse_numeric_actions_with_paren_arg() {
 
 #[test]
 fn parse_string_arg_actions() {
+    for (spec, name) in [
+        ("execute:ls -la", "execute"),
+        ("execute-silent:touch x", "execute-silent"),
+        ("set-query:hello", "set-query"),
+        ("set-preview-cmd:cat {}", "set-preview-cmd"),
+        ("add-char:z", "add-char"),
+    ] {
+        assert_eq!(parse_action(spec).map(|action| action.name()), Some(name));
+    }
+
     assert_eq!(
         parse_action("execute:ls -la"),
         Some(Action::Execute("ls -la".to_string()))
@@ -99,6 +126,10 @@ fn parse_string_arg_actions() {
 
 #[test]
 fn parse_optional_arg_actions() {
+    for name in ["accept", "set-header", "reload"] {
+        assert_eq!(parse_action(name).map(|action| action.name()), Some(name));
+    }
+
     assert_eq!(parse_action("accept"), Some(Action::Accept(None)));
     assert_eq!(
         parse_action("accept:enter"),
@@ -147,6 +178,11 @@ fn parse_bind_and_unbind_require_argument() {
 
 #[test]
 fn parse_if_chains_then_only() {
+    for name in ["if-query-empty", "if-query-not-empty", "if-non-matched"] {
+        let spec = format!("{name}:abort");
+        assert_eq!(parse_action(&spec).map(|action| action.name()), Some(name));
+    }
+
     assert_eq!(
         parse_action("if-query-empty:abort"),
         Some(Action::IfQueryEmpty("abort".to_string(), None))

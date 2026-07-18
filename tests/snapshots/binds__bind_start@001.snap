@@ -1,6 +1,6 @@
 ---
 source: tests/binds.rs
-description: "input: items [\"a\", \"b\", \"c\"]\noptions: --bind start:set-query(started)"
+description: "input: items [\"sl\"]\noptions: --bind start:add-char(s),load:add-char(l)"
 ---
 "                                                                                "
 "                                                                                "
@@ -23,7 +23,7 @@ description: "input: items [\"a\", \"b\", \"c\"]\noptions: --bind start:set-quer
 "                                                                                "
 "                                                                                "
 "                                                                                "
-"                                                                                "
-"  0/3                                                                        0/0"
-"> started                                                                       "
-cursor: (24, 10)
+"> sl                                                                            "
+"  1/1                                                                        0/0"
+"> sl                                                                            "
+cursor: (24, 5)
