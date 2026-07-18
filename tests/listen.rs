@@ -446,7 +446,8 @@ fn listen_unbind() -> std::io::Result<()> {
     sk_test!(@expand tmux;
         @keys Str("hello");
         @capture[0]trim().eq("> hello");
-        send(&mut stream, "unbind(ctrl-u)")?;
+        send(&mut stream, "unbind(ctrl-u)+set-header(ready)")?;
+        @capture[*]trim().eq("ready");
         @keys Ctrl(&Key('u')), Key('x');
         @capture[0]trim().eq("> hellox");
     );
