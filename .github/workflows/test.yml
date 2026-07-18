@@ -255,6 +255,25 @@ jobs:
 
   # Single aggregate status check for branch protection / repository rulesets,
   # so they don't need to enumerate every matrix leg by name individually.
+
+  public-api:
+    name: Check for public API breaking changes
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - *checkout
+      - *toolchain
+      - *cache
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-public-api@0.52
+      - run: rustup toolchain install nightly-x86_64-unknown-linux-gnu
+        name: Install nightly toolchain
+      - run: cargo public-api diff latest --deny removed --deny changed
+        name: Run cargo-public-api
+
+
   ci-success:
     name: CI Success
     if: always()
