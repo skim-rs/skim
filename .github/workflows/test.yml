@@ -268,7 +268,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-public-api@0.52
+      - run: rustup toolchain install nightly-x86_64-unknown-linux-gnu
+        name: Install nightly toolchain
       - run: cargo public-api diff latest --deny removed --deny changed
+        name: Run cargo-public-api
 
 
   ci-success:
