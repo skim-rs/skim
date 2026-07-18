@@ -130,14 +130,14 @@ pub struct App {
     currently_scrolling: bool,
     /// Set by [`Skim::check_reader`] once the reader has finished producing
     /// items. Reset on `reload`. Drives the one-shot `load` event.
-    pub reader_done: bool,
+    pub(crate) reader_done: bool,
     /// Whether the `load` event has been fired for the current read. Reset on
     /// `reload` so a new read fires `load` again.
-    pub load_event_fired: bool,
+    pub(crate) load_event_fired: bool,
     /// Set whenever a matcher run is (re)started; edge-triggers the one-shot
     /// `result` (and `zero`/`one`) events once that run completes, polled from
     /// the heartbeat.
-    pub result_pending: bool,
+    pub(crate) result_pending: bool,
     /// The last item that had focus, tracked so the `focus` event fires only
     /// when the focused item actually changes on cursor movement.
     last_focused: Option<Arc<dyn SkimItem>>,
@@ -892,10 +892,15 @@ impl App {
                 self.input.move_cursor_to(0);
             }
             Bind(spec) => {
-                // Bind one or more `key:action[+action]` pairs, reusing the same
-                // parsing/merging logic as the `--bind` CLI option. Existing
-                // bindings for the same keys are replaced.
+                // Bind one or more `trigger:action[+action]` pairs, reusing the
+                // same parsing/merging logic as the `--bind` CLI option: key
+                // triggers merge into the keymap, action triggers into the
+                // follow-up action bindings. Existing bindings for the same
+                // triggers are replaced.
                 self.options.keymap.add_keymaps_str(spec);
+                self.options.action_binds.extend(crate::binds::parse_action_binds(
+                    crate::binds::split_top_level(spec, ',').into_iter(),
+                ));
             }
             Cancel => {
                 self.matcher_control.kill();
@@ -1267,13 +1272,21 @@ impl App {
                 self.restart_matcher(true);
             }
             Unbind(spec) => {
-                // Remove the bindings for one or more keys.
-                for key in spec.split(',') {
-                    match crate::binds::parse_key(key) {
+                // Remove the bindings for one or more keys or action triggers.
+                // Keys win, mirroring `bind`: a name that parses as a real key
+                // unbinds the key; otherwise `act-up`/`first` style triggers are
+                // removed from the follow-up action bindings.
+                for trigger in crate::binds::split_top_level(spec, ',') {
+                    match crate::binds::parse_key(trigger) {
                         Ok(parsed) => {
                             self.options.keymap.remove(&parsed);
                         }
-                        Err(err) => debug!("Failed to unbind key {key}: {err}"),
+                        Err(err) => match crate::binds::action_trigger_name(trigger) {
+                            Some(name) => {
+                                self.options.action_binds.remove(name);
+                            }
+                            None => debug!("Failed to unbind {trigger}: {err}"),
+                        },
                     }
                 }
             }

@@ -339,21 +339,35 @@ where
         if parse_key(key).is_ok() {
             continue;
         }
-        // `act-<name>` explicitly targets the action `<name>`, even when `<name>`
-        // is also a key. Without the prefix, a bare action name still works as
-        // long as it isn't a key.
-        let action_name = key.strip_prefix("act-").unwrap_or(key);
-        // Some actions require an argument when executed, but their canonical
-        // name is still valid as a trigger. `()` supplies the parser's empty
-        // placeholder solely for name validation.
-        let action = event::parse_action(action_name).or_else(|| event::parse_action(&format!("{action_name}()")));
-        if let Some(action) = action
-            && let Ok(actions) = parse_action_chain(chain)
-        {
-            res.insert(action.name().to_string(), actions);
+        let Some(name) = action_trigger_name(key) else {
+            debug!("Ignoring bind `{map}`: `{key}` is neither a key nor an action");
+            continue;
+        };
+        match parse_action_chain(chain) {
+            Ok(actions) => {
+                res.insert(name.to_string(), actions);
+            }
+            Err(err) => debug!("Ignoring bind `{map}`: invalid action chain `{chain}`: {err}"),
         }
     }
     res
+}
+
+/// Resolves a bind trigger to the canonical name of the action it targets
+/// (see [`Action::name`](crate::tui::event::Action::name)). `act-<name>`
+/// explicitly targets the action `<name>`, even when `<name>` is also a key;
+/// without the prefix, a bare action name works too. Returns `None` if the
+/// name is not a known action.
+///
+/// This performs pure name resolution: callers that want "keys win" semantics
+/// (e.g. [`parse_action_binds`]) must check [`parse_key`] first.
+pub(crate) fn action_trigger_name(trigger: &str) -> Option<&'static str> {
+    let action_name = trigger.strip_prefix("act-").unwrap_or(trigger);
+    // Some actions require an argument when executed, but their canonical
+    // name is still valid as a trigger. `()` supplies the parser's empty
+    // placeholder solely for name validation.
+    let action = event::parse_action(action_name).or_else(|| event::parse_action(&format!("{action_name}()")))?;
+    Some(action.name())
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions

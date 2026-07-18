@@ -1015,6 +1015,10 @@ Follow-up chains are parsed by `binds::parse_action_binds` into
 per-variant `App::dispatch_action` without re-entering `handle_action`.
 Conditional actions likewise dispatch their selected subaction chain immediately
 through `dispatch_action`, preserving the same non-recursive semantics.
+The runtime `bind`/`unbind` actions manage action triggers as well as keys:
+`bind(act-up:last)` merges into `action_binds` and `unbind(act-up)` removes the
+trigger (resolved via `binds::action_trigger_name`), with the same keys-win
+precedence as `--bind`.
 
 ### Action Dispatch
 
@@ -1042,7 +1046,7 @@ Event::Action(a) → handle_action(a) → Vec<Event>
 | Conditional | `IfQueryEmpty(then, else?)`, `IfQueryNotEmpty(then, else?)`, `IfNonMatched(then, else?)` |
 | Lifecycle | `Accept(key?)`, `Abort`, `Cancel` |
 | UI | `ClearScreen`, `Redraw`, `SetHeader(text?)`, `SelectRow(n)` |
-| Bindings | `Bind(spec)` — add `key:action[+action]` bindings at runtime; `Unbind(keys)` — remove bindings for a comma-separated key list |
+| Bindings | `Bind(spec)` — add `trigger:action[+action]` bindings (keys or action triggers) at runtime; `Unbind(triggers)` — remove bindings for a comma-separated list of keys or action triggers |
 | Custom | `Custom(ActionCallback)` — async or sync closure receiving `&mut App` |
 
 `Action::Custom(ActionCallback)` is the library extension point: callers can inject arbitrary async logic into the action pipeline without forking skim.

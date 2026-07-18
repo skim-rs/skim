@@ -240,6 +240,27 @@ fn action_binds_parse_suppress_chain() {
 }
 
 #[test]
+fn action_trigger_name_resolves_actions() {
+    // `act-` targets the action explicitly; a bare action name works too.
+    assert_eq!(action_trigger_name("act-up"), Some("up"));
+    assert_eq!(action_trigger_name("first"), Some("first"));
+    // Argument-taking actions resolve by name alone.
+    assert_eq!(action_trigger_name("act-execute"), Some("execute"));
+    // Unknown names are not triggers.
+    assert_eq!(action_trigger_name("nope"), None);
+    assert_eq!(action_trigger_name("act-nope"), None);
+}
+
+#[test]
+fn action_binds_invalid_specs_are_skipped() {
+    // An unknown trigger and an invalid chain are both dropped (with a debug
+    // log) without affecting valid binds in the same list.
+    let binds = parse_action_binds(["nokey:last", "act-up:not-an-action", "first:last"].into_iter());
+    assert_eq!(binds.len(), 1);
+    assert_eq!(binds.get("first"), Some(&vec![Last]));
+}
+
+#[test]
 fn action_binds_split_top_level_preserves_commas_in_args() {
     // A single `--bind` spec containing a comma inside `(...)` must not be split
     // there: `options.rs` uses `split_top_level(part, ',')` so the comma stays

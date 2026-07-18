@@ -506,6 +506,37 @@ fn if_query_not_empty_branches() {
 }
 
 #[test]
+fn runtime_bind_and_unbind_manage_action_triggers() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+
+    // `bind(act-up:suppress+last)` registers an action trigger at runtime.
+    act(&mut app, Action::Bind("act-up:suppress+last".to_string()));
+    assert_eq!(
+        app.options.action_binds.get("up"),
+        Some(&vec![Action::Suppress, Action::Last])
+    );
+    act(&mut app, Action::Up(1));
+    assert_eq!(app.item_list.selected().unwrap().text(), "c");
+
+    // `unbind(up)` targets the *key*, leaving the action trigger in place.
+    act(&mut app, Action::Unbind("up".to_string()));
+    assert!(
+        app.options
+            .keymap
+            .get(&crate::binds::parse_key("up").unwrap())
+            .is_none()
+    );
+    assert!(app.options.action_binds.contains_key("up"));
+
+    // `unbind(act-up)` removes the action trigger; `up` acts normally again.
+    act(&mut app, Action::Unbind("act-up".to_string()));
+    assert!(!app.options.action_binds.contains_key("up"));
+    act(&mut app, Action::First);
+    act(&mut app, Action::Up(1));
+    assert_eq!(app.item_list.selected().unwrap().text(), "b");
+}
+
+#[test]
 fn conditional_subactions_are_dispatched_without_remapping() {
     let mut app = app_with_items(&["a", "b", "c"]);
     app.options.action_binds.insert("up".to_string(), vec![Action::Last]);
