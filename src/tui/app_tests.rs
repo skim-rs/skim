@@ -644,6 +644,76 @@ fn custom_action_runs_async_callback() {
 }
 
 #[test]
+fn bind_action_adds_action_chain() {
+    let mut app = App::default();
+    let key = crate::binds::parse_key("ctrl-x").unwrap();
+    // Not bound by default.
+    app.options.keymap.remove(&key);
+    assert!(app.options.keymap.get(&key).is_none());
+
+    act(&mut app, Action::Bind("ctrl-x:abort+up".to_string()));
+
+    assert_eq!(app.options.keymap.get(&key), Some(&vec![Action::Abort, Action::Up(1)]));
+}
+
+#[test]
+fn bind_action_binds_multiple_comma_separated_keys() {
+    let mut app = App::default();
+    act(&mut app, Action::Bind("ctrl-x:abort,ctrl-y:select-all".to_string()));
+
+    let key_x = crate::binds::parse_key("ctrl-x").unwrap();
+    let key_y = crate::binds::parse_key("ctrl-y").unwrap();
+    assert_eq!(app.options.keymap.get(&key_x), Some(&vec![Action::Abort]));
+    assert_eq!(app.options.keymap.get(&key_y), Some(&vec![Action::SelectAll]));
+}
+
+#[test]
+fn bind_action_replaces_existing_binding() {
+    let mut app = App::default();
+    // Enter is bound to Accept(None) by default.
+    let key = crate::binds::parse_key("enter").unwrap();
+    assert_eq!(app.options.keymap.get(&key), Some(&vec![Action::Accept(None)]));
+
+    act(&mut app, Action::Bind("enter:abort".to_string()));
+
+    assert_eq!(app.options.keymap.get(&key), Some(&vec![Action::Abort]));
+}
+
+#[test]
+fn unbind_action_removes_keymap_entry() {
+    let mut app = App::default();
+    let key = crate::binds::parse_key("enter").unwrap();
+    assert!(app.options.keymap.get(&key).is_some());
+
+    act(&mut app, Action::Unbind("enter".to_string()));
+
+    assert!(app.options.keymap.get(&key).is_none());
+}
+
+#[test]
+fn unbind_action_removes_multiple_comma_separated_keys() {
+    let mut app = App::default();
+    let key_up = crate::binds::parse_key("up").unwrap();
+    let key_down = crate::binds::parse_key("down").unwrap();
+    assert!(app.options.keymap.get(&key_up).is_some());
+    assert!(app.options.keymap.get(&key_down).is_some());
+
+    act(&mut app, Action::Unbind("up,down".to_string()));
+
+    assert!(app.options.keymap.get(&key_up).is_none());
+    assert!(app.options.keymap.get(&key_down).is_none());
+}
+
+#[test]
+fn unbind_action_ignores_unparseable_keys() {
+    let mut app = App::default();
+    // A bogus key name is skipped without panicking; valid keys are still removed.
+    let key = crate::binds::parse_key("enter").unwrap();
+    act(&mut app, Action::Unbind("not-a-key,enter".to_string()));
+    assert!(app.options.keymap.get(&key).is_none());
+}
+
+#[test]
 fn handle_key_maps_plain_char_to_add_char() {
     let mut app = App::default();
     let events = app.handle_key(&KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));

@@ -704,17 +704,8 @@ impl App {
 
     #[allow(clippy::too_many_lines)]
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
-        use Action::{
-            Abort, Accept, AddChar, AppendAndSelect, BackwardChar, BackwardDeleteChar, BackwardDeleteCharEof,
-            BackwardKillWord, BackwardWord, BeginningOfLine, Cancel, ClearScreen, Custom, DeleteChar, DeleteCharEof,
-            DeselectAll, Down, EndOfLine, Execute, ExecuteSilent, First, ForwardChar, ForwardWord, HalfPageDown,
-            HalfPageUp, IfNonMatched, IfQueryEmpty, IfQueryNotEmpty, Ignore, KillLine, KillWord, Last, NextHistory,
-            PageDown, PageUp, PreviewDown, PreviewLeft, PreviewPageDown, PreviewPageUp, PreviewRight, PreviewUp,
-            PreviousHistory, Redraw, RefreshCmd, RefreshPreview, Reload, RestartMatcher, RotateMode, ScrollLeft,
-            ScrollRight, Select, SelectAll, SelectRow, SetHeader, SetPreviewCmd, SetQuery, Toggle, ToggleAll, ToggleIn,
-            ToggleInteractive, ToggleOut, TogglePreview, TogglePreviewWrap, ToggleSort, Top, UnixLineDiscard,
-            UnixWordRubout, Up, Yank,
-        };
+        #[allow(clippy::enum_glob_use)]
+        use Action::*;
         use ratatui::widgets::ListDirection::{BottomToTop, TopToBottom};
         match act {
             Abort | Accept(_) => {
@@ -770,6 +761,12 @@ impl App {
             }
             BeginningOfLine => {
                 self.input.move_cursor_to(0);
+            }
+            Bind(spec) => {
+                // Bind one or more `key:action[+action]` pairs, reusing the same
+                // parsing/merging logic as the `--bind` CLI option. Existing
+                // bindings for the same keys are replaced.
+                self.options.keymap.add_keymaps_str(spec);
             }
             Cancel => {
                 self.matcher_control.kill();
@@ -1157,6 +1154,17 @@ impl App {
             ToggleSort => {
                 self.options.no_sort = !self.options.no_sort;
                 self.restart_matcher(true);
+            }
+            Unbind(spec) => {
+                // Remove the bindings for one or more keys.
+                for key in spec.split(',') {
+                    match crate::binds::parse_key(key) {
+                        Ok(parsed) => {
+                            self.options.keymap.remove(&parsed);
+                        }
+                        Err(err) => debug!("Failed to unbind key {key}: {err}"),
+                    }
+                }
             }
             UnixLineDiscard => {
                 if !self.input.delete_to_beginning().is_empty() {

@@ -113,6 +113,39 @@ fn parse_optional_arg_actions() {
 }
 
 #[test]
+fn parse_bind_and_unbind_actions() {
+    // `bind` captures the whole `key:action` spec as its string argument, using
+    // either the paren or colon form.
+    assert_eq!(
+        parse_action("bind(ctrl-a:accept)"),
+        Some(Action::Bind("ctrl-a:accept".to_string()))
+    );
+    assert_eq!(
+        parse_action("bind:ctrl-a:accept"),
+        Some(Action::Bind("ctrl-a:accept".to_string()))
+    );
+    // `unbind` captures a comma-separated list of keys, like fzf's `unbind(...)`.
+    assert_eq!(
+        parse_action("unbind(ctrl-a)"),
+        Some(Action::Unbind("ctrl-a".to_string()))
+    );
+    assert_eq!(
+        parse_action("unbind(ctrl-a,ctrl-b)"),
+        Some(Action::Unbind("ctrl-a,ctrl-b".to_string()))
+    );
+}
+
+#[test]
+fn parse_bind_and_unbind_require_argument() {
+    // Without an argument both actions are rejected rather than silently
+    // producing an empty binding.
+    assert_eq!(parse_action("bind"), None);
+    assert_eq!(parse_action("bind:"), None);
+    assert_eq!(parse_action("unbind"), None);
+    assert_eq!(parse_action("unbind:"), None);
+}
+
+#[test]
 fn parse_if_chains_then_only() {
     assert_eq!(
         parse_action("if-query-empty:abort"),

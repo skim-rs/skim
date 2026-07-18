@@ -150,6 +150,28 @@ fn keymap_from_str_parses_bindings() {
 }
 
 #[test]
+fn keymap_from_str_preserves_nested_bind_separators() {
+    let keymap = KeyMap::from("ctrl-z:bind(ctrl-x:abort+up),ctrl-w:unbind(ctrl-x,ctrl-y)");
+
+    assert_eq!(
+        keymap.get(&parse_key("ctrl-z").unwrap()),
+        Some(&vec![Bind("ctrl-x:abort+up".into())])
+    );
+    assert_eq!(
+        keymap.get(&parse_key("ctrl-w").unwrap()),
+        Some(&vec![Unbind("ctrl-x,ctrl-y".into())])
+    );
+}
+
+#[test]
+fn parse_action_chain_preserves_nested_bind_chain() {
+    assert_eq!(
+        parse_action_chain("bind(ctrl-x:abort+up)").unwrap(),
+        vec![Bind("ctrl-x:abort+up".into())]
+    );
+}
+
+#[test]
 fn parse_keymaps_collects_iterator() {
     let keymap = parse_keymaps(["ctrl-x:abort", "up:up"].into_iter());
     assert!(keymap.get(&parse_key("ctrl-x").unwrap()).is_some());

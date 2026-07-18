@@ -420,3 +420,36 @@ fn listen_yank() -> std::io::Result<()> {
     );
     Ok(())
 }
+
+// Bind a previously-unbound key over IPC, then trigger it from the keyboard.
+#[test]
+fn listen_bind() -> std::io::Result<()> {
+    let (tmux, mut stream) = setup("bind", &[])?;
+    sk_test!(@expand tmux;
+        @capture[2]starts_with("> a");
+        // The header acknowledges that the preceding bind has been processed
+        // before terminal key events are sent through a separate channel.
+        send(&mut stream, "bind(ctrl-x:up)+set-header(ready)")?;
+        @capture[*]trim().eq("ready");
+        @keys Ctrl(&Key('x')), Ctrl(&Key('x'));
+        @capture[*]starts_with("> c");
+    );
+    Ok(())
+}
+
+// Unbind a key over IPC so its keypress becomes a no-op. The trailing `x`
+// distinguishes the two cases: if ctrl-u were still bound to unix-line-discard
+// the query would read `> x`, but with it unbound the query is preserved.
+#[test]
+fn listen_unbind() -> std::io::Result<()> {
+    let (tmux, mut stream) = setup("unbind", &[])?;
+    sk_test!(@expand tmux;
+        @keys Str("hello");
+        @capture[0]trim().eq("> hello");
+        send(&mut stream, "unbind(ctrl-u)+set-header(ready)")?;
+        @capture[*]trim().eq("ready");
+        @keys Ctrl(&Key('u')), Key('x');
+        @capture[0]trim().eq("> hellox");
+    );
+    Ok(())
+}

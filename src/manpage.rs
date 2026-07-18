@@ -131,6 +131,7 @@ const ACTIONS_SS: &str = "
 * backward-kill-word: alt-bs
 * backward-word: alt-b   shift-left
 * beginning-of-line: ctrl-a  home
+* bind(...): *arg is a comma-separated list of `key:action[+action]` bindings to add (same syntax as --bind)
 * clear-screen: ctrl-l
 * delete-char: del
 * delete-char/eof: ctrl-d
@@ -178,6 +179,7 @@ const ACTIONS_SS: &str = "
 * toggle-sort
 * toggle+up: btab    shift-tab
 * top
+* unbind(...): *arg is a comma-separated list of keys to unbind
 * unix-line-discard: ctrl-u
 * unix-word-rubout: ctrl-w
 * up: ctrl-k  ctrl-p  up
