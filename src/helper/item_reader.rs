@@ -464,9 +464,9 @@ impl SkimItemReader {
                 opt.use_ansi_color,
                 &opt.transform_fields,
                 &opt.matching_fields,
-                &opt.hidden_fields,
                 &opt.delimiter,
-            );
+            )
+            .hidden_fields(&opt.hidden_fields, &opt.delimiter);
             if opt.disable_pattern.as_ref().is_some_and(|re| re.is_match(line)) {
                 item.disable();
             }

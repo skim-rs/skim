@@ -427,7 +427,8 @@ Source (stdin bytes or child process stdout)
         ├─ Thread 1: I/O reader — reads 256 KB chunks, splits at line boundaries,
         │             assigns monotonic sequence numbers, sends to MPMC channel
         ├─ Thread N: workers — receive chunks, validate UTF-8,
-        │             create DefaultSkimItem::new(line, ansi, trans_fields, matching_fields, hidden_fields, delimiter)
+        │             create DefaultSkimItem::new(line, ansi, trans_fields, matching_fields, delimiter)
+        │               .hidden_fields(hidden_fields, delimiter)
         │             (handles ANSI stripping, --nth / --with-nth / --hide-nth inline),
         │             send (seq, items) pairs
         ├─ Thread 1: reorder — collects (seq, items), emits in order through SkimItemReceiver;
@@ -458,11 +459,13 @@ SkimItemReceiver channel
 
 Fields `/0` bytes are stripped from `text` (used for display/matching) but preserved in `orig_text` (used for output).
 
-**`--hide-nth`** is orthogonal to the matrix above. The requested fields are resolved to byte
-ranges (in the same coordinate space as `text()` — the stripped text under `--ansi`, otherwise the
-`text` field) and stored as `hidden_ranges` in the item metadata, exposed via the
-`SkimItem::hidden_ranges()` trait method. The hidden fields **remain part of `text()`**, so they stay
-searchable and still participate in matching. They only affect rendering:
+**`--hide-nth`** is orthogonal to the matrix above and applied through the builder method
+`DefaultSkimItem::hidden_fields(hidden_fields, delimiter)` after construction (rather than a `new`
+parameter). The requested fields are resolved to byte ranges (in the same coordinate space as
+`text()` — the stripped text under `--ansi`, otherwise the `text` field) and stored as
+`hidden_ranges` in the item metadata, exposed via the `SkimItem::hidden_ranges()` trait method. The
+hidden fields **remain part of `text()`**, so they stay searchable and still participate in matching.
+They only affect rendering:
 
 - `DefaultSkimItem::display()` removes the hidden characters and remaps the match highlight
   positions into the visible coordinate space (`project_visible_text` / `project_match_indices` in
@@ -1230,7 +1233,7 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
 | `ItemPool::append` | `src/item.rs:469` | Add items, notify matcher |
 | `ItemPool::take` | `src/item.rs:502` | Take un-matched items for matcher |
-| `DefaultSkimItem::new` | `src/helper/item.rs:64` | ANSI strip, field transform, matching/hidden ranges, disable pattern |
+| `DefaultSkimItem::new` | `src/helper/item.rs:64` | ANSI strip, field transform, matching ranges (hidden ranges set later via `hidden_fields` builder) |
 | `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:287` | Unified parallel pipeline (all inputs) |
 | `spawn_io_reader` | `src/helper/item_reader.rs:378` | I/O reader thread: chunk reads + line splitting |
 | `spawn_reorder_thread` | `src/helper/item_reader.rs:483` | Reorder thread: ordered output + pipeline-done signal |

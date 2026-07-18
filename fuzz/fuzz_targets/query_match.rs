@@ -43,7 +43,7 @@ fuzz_target!(|input: QueryInput| {
     let engine = factory.create_engine_with_case(input.query, options.case);
 
     let delimiter = Regex::new(" ").unwrap();
-    let item = DefaultSkimItem::new(input.text, input.ansi, &[], &[], &[], &delimiter);
+    let item = DefaultSkimItem::new(input.text, input.ansi, &[], &[], &delimiter);
 
     if let Some(result) = engine.match_item(&item) {
         let matched_text = item.text();

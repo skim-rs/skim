@@ -66,7 +66,6 @@ impl DefaultSkimItem {
         ansi_enabled: bool,
         trans_fields: &[FieldRange],
         matching_fields: &[FieldRange],
-        hidden_fields: &[FieldRange],
         delimiter: &Regex,
     ) -> Self {
         let using_transform_fields = !trans_fields.is_empty();
@@ -162,44 +161,50 @@ impl DefaultSkimItem {
             }
         };
 
-        // Compute the byte ranges of fields that should be hidden from display.
-        // These are expressed in the same coordinate system as the text used for
-        // matching/display (the stripped text when ANSI is enabled, otherwise the
-        // temp text), so the renderer can remove them and remap match positions.
-        let hidden_ranges = if hidden_fields.is_empty() {
-            None
-        } else {
-            let text_for_hiding = if let Some(stripped) = stripped_text.as_ref() {
-                stripped.as_str()
+        let metadata =
+            if orig_text.is_some() || stripped_text.is_some() || ansi_info.is_some() || matching_ranges.is_some() {
+                Some(Box::new(DefaultSkimItemMetadata {
+                    orig_text: orig_text.map(std::string::String::into_boxed_str),
+                    stripped_text: stripped_text.map(std::string::String::into_boxed_str),
+                    ansi_info,
+                    matching_ranges,
+                    hidden_ranges: None,
+                    disabled: false,
+                }))
             } else {
-                temp_text.as_ref()
+                None
             };
-            let ranges = normalize_ranges(&parse_matching_fields(delimiter, text_for_hiding, hidden_fields));
-            if ranges.is_empty() { None } else { Some(ranges) }
-        };
-
-        let metadata = if orig_text.is_some()
-            || stripped_text.is_some()
-            || ansi_info.is_some()
-            || matching_ranges.is_some()
-            || hidden_ranges.is_some()
-        {
-            Some(Box::new(DefaultSkimItemMetadata {
-                orig_text: orig_text.map(std::string::String::into_boxed_str),
-                stripped_text: stripped_text.map(std::string::String::into_boxed_str),
-                ansi_info,
-                matching_ranges,
-                hidden_ranges,
-                disabled: false,
-            }))
-        } else {
-            None
-        };
 
         DefaultSkimItem {
             text: temp_text,
             metadata,
         }
+    }
+
+    /// Builder-style setter for the fields hidden from display (via `--hide-nth`).
+    ///
+    /// The fields are resolved against the item's display/matching text — which is
+    /// exactly what [`text()`](Self::text) returns (the ANSI-stripped text under
+    /// `--ansi`, otherwise the raw text) — so this must be called after construction.
+    /// The requested fields stay part of `text()` (and therefore searchable); they are
+    /// only removed from the rendered line and ignored for highlighting and hscroll.
+    ///
+    /// A no-op when `hidden_fields` is empty or resolves to no ranges.
+    #[must_use]
+    pub fn hidden_fields(mut self, hidden_fields: &[FieldRange], delimiter: &Regex) -> Self {
+        if hidden_fields.is_empty() {
+            return self;
+        }
+        // Resolve the ranges before touching `self.metadata`; the `text()` borrow must
+        // end before the mutable borrow below.
+        let ranges = {
+            let text = self.text();
+            normalize_ranges(&parse_matching_fields(delimiter, text.as_ref(), hidden_fields))
+        };
+        if !ranges.is_empty() {
+            self.metadata.get_or_insert_default().hidden_ranges = Some(ranges);
+        }
+        self
     }
 
     fn contains_ansi_escape(s: &str) -> bool {

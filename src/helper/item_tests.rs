@@ -147,7 +147,6 @@ fn test_ansi_matching_and_display() {
         true, // ansi_enabled
         &[],
         &[],
-        &[],
         &delimiter,
     );
 
@@ -189,7 +188,6 @@ fn test_ansi_char_indices_mapping() {
         true, // ansi_enabled
         &[],
         &[],
-        &[],
         &delimiter,
     );
 
@@ -223,7 +221,6 @@ fn test_text_returns_stripped() {
         true, // ansi_enabled
         &[],
         &[],
-        &[],
         &delimiter,
     );
     assert_eq!(
@@ -236,7 +233,6 @@ fn test_text_returns_stripped() {
     let item_no_ansi = DefaultSkimItem::new(
         "\x1b[31mred\x1b[0m",
         false, // ansi_enabled
-        &[],
         &[],
         &[],
         &delimiter,
@@ -260,7 +256,6 @@ fn test_highlighting_applied() {
     let item = DefaultSkimItem::new(
         "\x1b[32mgreen\x1b[0m",
         true, // ansi_enabled
-        &[],
         &[],
         &[],
         &delimiter,
@@ -299,7 +294,6 @@ fn test_char_range_highlighting() {
     let item = DefaultSkimItem::new(
         "\x1b[32mgreen\x1b[0m",
         true, // ansi_enabled
-        &[],
         &[],
         &[],
         &delimiter,
@@ -342,7 +336,6 @@ fn test_byte_range_highlighting() {
         true, // ansi_enabled
         &[],
         &[],
-        &[],
         &delimiter,
     );
 
@@ -382,7 +375,6 @@ fn test_matching_with_ansi_basic() {
         true, // ansi_enabled
         &[],
         &[], // no matching fields restriction
-        &[],
         &delimiter,
     );
 
@@ -414,7 +406,6 @@ fn test_null_delimiter_with_matching_fields() {
         false,                    // no ansi
         &[],                      // no transform fields
         &[FieldRange::Single(2)], // match field 2
-        &[],
         &delimiter,
     );
 
@@ -451,7 +442,6 @@ fn test_transform_fields_with_ansi_enabled() {
         true,
         &[FieldRange::Single(2)],
         &[],
-        &[],
         &delimiter,
     );
     // The display text is the second field.
@@ -468,7 +458,6 @@ fn test_matching_fields_with_ansi_uses_stripped_text() {
         true,
         &[],
         &[FieldRange::Single(2)],
-        &[],
         &delimiter,
     );
     assert_eq!(item.text(), "one two");
@@ -485,7 +474,7 @@ fn test_display_ansi_item_with_no_matches() {
     // An ANSI-enabled item displayed with `Matches::None` keeps the parsed
     // ANSI spans unchanged (the `Matches::None` arm of the ANSI branch).
     let delimiter = Regex::new(r"\s+").unwrap();
-    let item = DefaultSkimItem::new("\x1b[31mred\x1b[0m text", true, &[], &[], &[], &delimiter);
+    let item = DefaultSkimItem::new("\x1b[31mred\x1b[0m text", true, &[], &[], &delimiter);
     let context = DisplayContext {
         score: 0,
         matches: Matches::None,
@@ -546,7 +535,8 @@ fn test_hidden_ranges_keep_text_searchable() {
     use regex::Regex;
     let delimiter = Regex::new(r"\s+").unwrap();
     // Hide field 2 ("RED") but keep it searchable.
-    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &[FieldRange::Single(2)], &delimiter);
+    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &delimiter)
+        .hidden_fields(&[FieldRange::Single(2)], &delimiter);
     // text() (used for matching) retains the hidden field, so it stays searchable.
     assert_eq!(item.text(), "apple RED 001");
     // hidden_ranges exposes the field's byte range (including its trailing delimiter).
@@ -560,7 +550,8 @@ fn test_hidden_field_removed_from_display() {
     use ratatui::style::Style;
     use regex::Regex;
     let delimiter = Regex::new(r"\s+").unwrap();
-    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &[FieldRange::Single(2)], &delimiter);
+    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &delimiter)
+        .hidden_fields(&[FieldRange::Single(2)], &delimiter);
     let context = DisplayContext {
         score: 0,
         matches: Matches::None,
@@ -582,7 +573,8 @@ fn test_hidden_field_match_not_highlighted() {
     use ratatui::style::{Color, Style};
     use regex::Regex;
     let delimiter = Regex::new(r"\s+").unwrap();
-    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &[FieldRange::Single(2)], &delimiter);
+    let item = DefaultSkimItem::new("apple RED 001", false, &[], &[], &delimiter)
+        .hidden_fields(&[FieldRange::Single(2)], &delimiter);
     // Simulate a match on the hidden "RED" (chars 6,7,8 in the full text).
     let context = DisplayContext {
         score: 0,
@@ -611,9 +603,9 @@ fn test_hidden_field_preserves_ansi_colors() {
         true, // ansi_enabled
         &[],
         &[],
-        &[FieldRange::Single(1)], // hide the first (green) field
         &delimiter,
-    );
+    )
+    .hidden_fields(&[FieldRange::Single(1)], &delimiter); // hide the first (green) field
     // The hidden field is still part of the matchable text.
     assert_eq!(item.text(), "one two");
     let context = DisplayContext {
@@ -645,14 +637,8 @@ fn test_hidden_field_ansi_highlight_remapped() {
     use ratatui::style::{Color, Style};
     use regex::Regex;
     let delimiter = Regex::new(r"\s+").unwrap();
-    let item = DefaultSkimItem::new(
-        "\x1b[32mone\x1b[0m \x1b[31mtwo\x1b[0m",
-        true,
-        &[],
-        &[],
-        &[FieldRange::Single(1)], // hide green "one"
-        &delimiter,
-    );
+    let item = DefaultSkimItem::new("\x1b[32mone\x1b[0m \x1b[31mtwo\x1b[0m", true, &[], &[], &delimiter)
+        .hidden_fields(&[FieldRange::Single(1)], &delimiter); // hide green "one"
     // Match "two" — chars 4,5,6 in the full stripped text "one two".
     let context = DisplayContext {
         score: 0,
