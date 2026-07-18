@@ -30,6 +30,15 @@ pub enum SkimEvent {
     Load,
     /// Fired whenever the query changes.
     Change,
+    /// Fired when filtering for the current query completes and the result
+    /// list is ready.
+    Result,
+    /// Fired when the focused item changes (cursor movement or a result update).
+    Focus,
+    /// Fired when a completed search yields no matches.
+    Zero,
+    /// Fired when a completed search yields exactly one match.
+    One,
 }
 
 impl SkimEvent {
@@ -40,6 +49,10 @@ impl SkimEvent {
             SkimEvent::Change => KeyCode::F(255),
             SkimEvent::Start => KeyCode::F(254),
             SkimEvent::Load => KeyCode::F(253),
+            SkimEvent::Result => KeyCode::F(252),
+            SkimEvent::Focus => KeyCode::F(251),
+            SkimEvent::Zero => KeyCode::F(250),
+            SkimEvent::One => KeyCode::F(249),
         }
     }
 
@@ -58,6 +71,10 @@ impl SkimEvent {
             "start" => Some(SkimEvent::Start),
             "load" => Some(SkimEvent::Load),
             "change" => Some(SkimEvent::Change),
+            "result" => Some(SkimEvent::Result),
+            "focus" => Some(SkimEvent::Focus),
+            "zero" => Some(SkimEvent::Zero),
+            "one" => Some(SkimEvent::One),
             _ => None,
         }
     }
@@ -227,8 +244,11 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
         } else {
             keycode = KeyCode::Char(char);
         }
-    } else if let Some(f) = key.strip_prefix('f') {
-        let f_index = f.parse::<u8>()?;
+    } else if let Some(f) = key.strip_prefix('f')
+        && let Ok(f_index) = f.parse::<u8>()
+    {
+        // A function key like `f10`. If the suffix isn't numeric (e.g. `focus`,
+        // `first`), fall through to the named-key / event matching below.
         keycode = KeyCode::F(f_index);
     } else {
         keycode = match key.as_str() {
@@ -286,6 +306,45 @@ fn split_top_level(value: &str, separator: char) -> Vec<&str> {
     }
     parts.push(&value[start..]);
     parts
+}
+
+/// Parses follow-up action bindings from raw `--bind` specs.
+///
+/// Any action can be bound as if it were an event: when the "key" of a bind is
+/// not a real key but is a known action name, the bound chain becomes a
+/// *follow-up* that runs right after that action. For example `reload:first`
+/// queues `first` immediately after a `reload`. The returned map is keyed by the
+/// action's canonical name (see [`Action::name`](crate::tui::event::Action::name)),
+/// so it can be looked up directly from the action that just ran.
+///
+/// Keys take precedence: if the "key" resolves to a real key it is left to the
+/// key map, so a name shared by a key and an action (e.g. `up`) always binds the
+/// key. To target the action in that case, prefix it with `act-` (`act-up`).
+#[must_use]
+pub fn parse_action_binds<'a, T>(maps: T) -> HashMap<String, Vec<Action>>
+where
+    T: Iterator<Item = &'a str>,
+{
+    let mut res = HashMap::new();
+    for map in maps {
+        let Some((key, chain)) = map.split_once(':') else {
+            continue;
+        };
+        // Keys win: anything that parses as a real key is not an action trigger.
+        if parse_key(key).is_ok() {
+            continue;
+        }
+        // `act-<name>` explicitly targets the action `<name>`, even when `<name>`
+        // is also a key. Without the prefix, a bare action name still works as
+        // long as it isn't a key.
+        let action_name = key.strip_prefix("act-").unwrap_or(key);
+        if let Some(action) = event::parse_action(action_name)
+            && let Ok(actions) = parse_action_chain(chain)
+        {
+            res.insert(action.name().to_string(), actions);
+        }
+    }
+    res
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions

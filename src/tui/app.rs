@@ -22,6 +22,7 @@ use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::{Event, Tui, input, preview};
+use crate::binds::SkimEvent;
 use crate::thread_pool::{self, ThreadPool};
 use crossterm::event::{KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use eyre::{Result, bail};
@@ -133,6 +134,12 @@ pub struct App {
     /// Whether the `load` event has been fired for the current read. Reset on
     /// `reload` so a new read fires `load` again.
     pub load_event_fired: bool,
+    /// Set whenever a matcher run is (re)started; drives the one-shot `result`
+    /// (and `zero`/`one`) events once that run completes and is rendered.
+    pub result_pending: bool,
+    /// The item that currently has focus, tracked so the `focus` event fires
+    /// only when it actually changes (cursor movement or a result update).
+    last_focused: Option<Arc<dyn SkimItem>>,
 }
 
 impl Widget for &mut App {
@@ -258,6 +265,8 @@ impl Default for App {
             currently_scrolling: false,
             reader_done: false,
             load_event_fired: false,
+            result_pending: false,
+            last_focused: None,
         }
     }
 }
@@ -326,6 +335,8 @@ impl App {
             currently_scrolling: false,
             reader_done: false,
             load_event_fired: false,
+            result_pending: false,
+            last_focused: None,
         }
     }
 
@@ -561,15 +572,42 @@ impl App {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-                // The reader has finished and the freshly-read items have now
-                // been merged into the item list by the render above, so the
-                // list is stable: fire the one-shot `load` event. Routed through
-                // the keymap like any key, so `--bind load:<action>` runs and can
-                // safely inspect the fully-populated list.
+                // The synthetic finder events below are fired *after* the draw,
+                // once the item list reflects the latest reader/matcher output,
+                // so a binding can safely inspect a stable, up-to-date list. Each
+                // is routed through the keymap like any key press.
+
+                // `load`: the reader has finished and its items are now rendered.
                 if self.reader_done && !self.load_event_fired {
                     self.load_event_fired = true;
-                    tui.event_tx
-                        .try_send(Event::Key(crate::binds::SkimEvent::Load.into()))?;
+                    tui.event_tx.try_send(Event::Key(SkimEvent::Load.into()))?;
+                }
+
+                // `result` (+ `zero`/`one`): the in-flight search has completed
+                // and its results are on screen.
+                if self.result_pending && self.matcher_control.stopped() {
+                    self.result_pending = false;
+                    tui.event_tx.try_send(Event::Key(SkimEvent::Result.into()))?;
+                    // Use the matcher's own count, which is authoritative as soon
+                    // as it stops; the rendered `item_list` may briefly lag it.
+                    match self.matcher_control.get_num_matched() {
+                        0 => tui.event_tx.try_send(Event::Key(SkimEvent::Zero.into()))?,
+                        1 => tui.event_tx.try_send(Event::Key(SkimEvent::One.into()))?,
+                        _ => {}
+                    }
+                }
+
+                // `focus`: the focused item changed (cursor movement or a result
+                // update that shifted the current row to a different item).
+                let focused = self.item_list.selected().map(|m| m.item);
+                let focus_changed = match (&self.last_focused, &focused) {
+                    (Some(prev), Some(curr)) => !Arc::ptr_eq(prev, curr),
+                    (None, None) => false,
+                    _ => true,
+                };
+                if focus_changed {
+                    self.last_focused = focused;
+                    tui.event_tx.try_send(Event::Key(SkimEvent::Focus.into()))?;
                 }
             }
             Event::Heartbeat | Event::Tick => {
@@ -722,8 +760,39 @@ impl App {
         vec![]
     }
 
-    #[allow(clippy::too_many_lines)]
+    /// Runs an action, then appends any follow-up actions bound to it.
+    ///
+    /// An action can be bound as if it were an event (e.g. `reload:first`): once
+    /// the action has run, the chain the user bound to its name is queued after
+    /// the action's own events. See [`Action::name`](crate::tui::event::Action::name).
+    ///
+    /// If that follow-up chain contains [`Action::Skip`], the action's own
+    /// default behaviour is suppressed and only the rest of the chain runs, so
+    /// `act-up:skip+down` remaps the `up` action to `down`.
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
+        let follow = self.options.action_binds.get(act.name()).cloned();
+        let skip_default = follow
+            .as_ref()
+            .is_some_and(|chain| chain.iter().any(|a| matches!(a, Action::Skip)));
+
+        let mut events = if skip_default {
+            Vec::new()
+        } else {
+            self.dispatch_action(act)?
+        };
+        if let Some(chain) = follow {
+            events.extend(
+                chain
+                    .into_iter()
+                    .filter(|a| !matches!(a, Action::Skip))
+                    .map(Event::Action),
+            );
+        }
+        Ok(events)
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn dispatch_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         #[allow(clippy::enum_glob_use)]
         use Action::*;
         use ratatui::widgets::ListDirection::{BottomToTop, TopToBottom};
@@ -906,7 +975,10 @@ impl App {
                         .collect());
                 }
             }
-            Ignore => (),
+            // `ignore` is a no-op. `skip` is also a no-op on its own; its
+            // suppression effect is applied in `handle_action` when it appears in
+            // an action's follow-up chain.
+            Ignore | Skip => (),
             KillLine => {
                 let cursor = self.input.cursor_pos as usize;
                 let deleted = self.input.split_off(cursor);
@@ -1295,6 +1367,9 @@ impl App {
                 no_sort,
                 self.needs_render.clone(),
             );
+            // A new search is in flight; arm the `result`/`zero`/`one` events to
+            // fire once it completes and its results are rendered.
+            self.result_pending = true;
         }
     }
 

@@ -1112,6 +1112,14 @@ pub struct SkimOptions {
     /// The internal (parsed) keymap
     #[cfg_attr(feature = "cli", clap(skip))]
     pub keymap: KeyMap,
+
+    /// Follow-up action bindings, keyed by the canonical action name.
+    ///
+    /// Populated from `--bind` entries whose "key" is an action name rather than
+    /// a real key (e.g. `reload:first`). After an action runs, the chain bound to
+    /// its name is queued.
+    #[cfg_attr(feature = "cli", clap(skip))]
+    pub action_binds: std::collections::HashMap<String, Vec<Action>>,
 }
 
 impl Default for SkimOptions {
@@ -1267,6 +1275,7 @@ impl Default for SkimOptions {
             selector: Default::default(),
             preview_fn: Default::default(),
             keymap: Default::default(),
+            action_binds: Default::default(),
             #[cfg(feature = "cli")]
             shell: Default::default(),
             #[cfg(feature = "cli")]
@@ -1311,6 +1320,14 @@ impl SkimOptions {
             res.add_keymaps_str(part);
             res
         });
+
+        // Bindings whose "key" is an action name (e.g. `reload:first`) become
+        // follow-up actions that run right after that action.
+        self.action_binds = self
+            .bind
+            .iter()
+            .flat_map(|part| crate::binds::parse_action_binds(part.split(',')))
+            .collect();
 
         if self.reverse {
             self.layout = TuiLayout::Reverse;

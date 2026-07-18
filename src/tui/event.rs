@@ -260,6 +260,12 @@ pub enum Action {
     SelectRow(usize),
     /// Select current item
     Select,
+    /// Suppress the default behaviour of the action this is bound to.
+    ///
+    /// Only meaningful as a follow-up bound to an action (e.g. `act-up:skip`):
+    /// it cancels that action's own effect, so the remaining follow-up chain
+    /// runs in its place. On its own it is a no-op.
+    Skip,
     /// Set the header (or disable it on an empty value)
     SetHeader(Option<String>),
     /// Set the preview cmd and rerun preview
@@ -300,6 +306,104 @@ pub enum Action {
     #[partial_eq(skip)]
     #[cfg_attr(feature = "listen", serde(skip))]
     Custom(ActionCallback),
+}
+
+impl Action {
+    /// Returns the canonical kebab-case name of this action — the same spelling
+    /// [`parse_action`] accepts.
+    ///
+    /// This lets an action be bound as if it were an event (e.g. `reload:first`):
+    /// after the action runs, any follow-up chain keyed by this name is queued.
+    /// The name ignores the action's arguments, so `down` matches `Down(1)` and
+    /// `Down(5)` alike.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        use Action::{
+            Abort, Accept, AddChar, AppendAndSelect, BackwardChar, BackwardDeleteChar, BackwardDeleteCharEof,
+            BackwardKillWord, BackwardWord, BeginningOfLine, Bind, Cancel, ClearScreen, Custom, DeleteChar, DeleteCharEof,
+            DeselectAll, Down, EndOfLine, Execute, ExecuteSilent, First, ForwardChar, ForwardWord, HalfPageDown,
+            HalfPageUp, IfNonMatched, IfQueryEmpty, IfQueryNotEmpty, Ignore, KillLine, KillWord, Last, NextHistory,
+            PageDown, PageUp, PreviewDown, PreviewLeft, PreviewPageDown, PreviewPageUp, PreviewRight, PreviewUp,
+            PreviousHistory, Redraw, RefreshCmd, RefreshPreview, Reload, RestartMatcher, RotateMode, ScrollLeft,
+            ScrollRight, Select, SelectAll, SelectRow, SetHeader, SetPreviewCmd, SetQuery, Skip, Toggle, ToggleAll,
+            ToggleIn, ToggleInteractive, ToggleOut, TogglePreview, TogglePreviewWrap, ToggleSort, Top, Unbind,
+            UnixLineDiscard, UnixWordRubout, Up, Yank,
+        };
+        match self {
+            Abort => "abort",
+            Accept(_) => "accept",
+            AddChar(_) => "add-char",
+            AppendAndSelect => "append-and-select",
+            BackwardChar => "backward-char",
+            BackwardDeleteChar => "backward-delete-char",
+            BackwardDeleteCharEof => "backward-delete-char/eof",
+            BackwardKillWord => "backward-kill-word",
+            BackwardWord => "backward-word",
+            BeginningOfLine => "beginning-of-line",
+            Bind(_) => "bind",
+            Cancel => "cancel",
+            ClearScreen => "clear-screen",
+            DeleteChar => "delete-char",
+            DeleteCharEof => "delete-char/eof",
+            DeselectAll => "deselect-all",
+            Down(_) => "down",
+            EndOfLine => "end-of-line",
+            Execute(_) => "execute",
+            ExecuteSilent(_) => "execute-silent",
+            First => "first",
+            ForwardChar => "forward-char",
+            ForwardWord => "forward-word",
+            IfQueryEmpty(..) => "if-query-empty",
+            IfQueryNotEmpty(..) => "if-query-not-empty",
+            IfNonMatched(..) => "if-non-matched",
+            Ignore => "ignore",
+            KillLine => "kill-line",
+            KillWord => "kill-word",
+            Last => "last",
+            NextHistory => "next-history",
+            HalfPageDown(_) => "half-page-down",
+            HalfPageUp(_) => "half-page-up",
+            PageDown(_) => "page-down",
+            PageUp(_) => "page-up",
+            PreviewUp(_) => "preview-up",
+            PreviewDown(_) => "preview-down",
+            PreviewLeft(_) => "preview-left",
+            PreviewRight(_) => "preview-right",
+            PreviewPageUp(_) => "preview-page-up",
+            PreviewPageDown(_) => "preview-page-down",
+            PreviousHistory => "previous-history",
+            Redraw => "redraw",
+            RefreshCmd => "refresh-cmd",
+            RefreshPreview => "refresh-preview",
+            RestartMatcher => "restart-matcher",
+            Reload(_) => "reload",
+            RotateMode => "rotate-mode",
+            ScrollLeft(_) => "scroll-left",
+            ScrollRight(_) => "scroll-right",
+            SelectAll => "select-all",
+            SelectRow(_) => "select-row",
+            Select => "select",
+            SetHeader(_) => "set-header",
+            SetPreviewCmd(_) => "set-preview-cmd",
+            SetQuery(_) => "set-query",
+            Skip => "skip",
+            Toggle => "toggle",
+            ToggleAll => "toggle-all",
+            ToggleIn => "toggle-in",
+            ToggleInteractive => "toggle-interactive",
+            ToggleOut => "toggle-out",
+            TogglePreview => "toggle-preview",
+            TogglePreviewWrap => "toggle-preview-wrap",
+            ToggleSort => "toggle-sort",
+            Top => "top",
+            Unbind(_) => "unbind",
+            UnixLineDiscard => "unix-line-discard",
+            UnixWordRubout => "unix-word-rubout",
+            Up(_) => "up",
+            Yank => "yank",
+            Custom(_) => "custom",
+        }
+    }
 }
 
 /// Parses an action string into an Action enum
@@ -407,6 +511,7 @@ pub fn parse_action(raw_action: &str) -> Option<Action> {
                 "scroll-left" => Some(ScrollLeft(arg.and_then(|s| s.parse().ok()).unwrap_or(1))),
                 "scroll-right" => Some(ScrollRight(arg.and_then(|s| s.parse().ok()).unwrap_or(1))),
                 "select" => Some(Select),
+                "skip" => Some(Skip),
                 "select-all" => Some(SelectAll),
                 "select-row" => Some(SelectRow(arg.and_then(|s| s.parse().ok()).unwrap_or_default())),
                 "set-header" => Some(SetHeader(arg)),

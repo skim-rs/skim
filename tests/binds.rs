@@ -67,6 +67,60 @@ insta_test!(bind_load, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["-
     @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
 });
 
+// Any action can be bound as if it were an event: `first:last` runs `last`
+// right after `first`, so pressing the key ends on the last item.
+insta_test!(bind_action_followup, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "ctrl-a:first", "--bind", "first:last"], {
+    @ctrl 'a';
+    @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
+    @snap;
+});
+
+// `act-<name>` targets the *action* even when the name is also a key: `act-up`
+// binds the Up action (not the up key). Bound to `last`, running the Up action
+// appends a jump to the last item.
+insta_test!(bind_act_prefix, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "act-up:last"], {
+    @action Up(1);
+    @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
+    @snap;
+});
+
+// `skip` suppresses the triggering action's own effect. Here the First action is
+// remapped: instead of jumping to the first item it only sets the header, so the
+// cursor stays put (on the last item) and the header is updated.
+insta_test!(bind_skip, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "act-first:skip+set-header(skipped)"], {
+    @action Last;
+    @action First;
+    @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "skipped");
+    @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
+    @snap;
+});
+
+// Test result event: fires when filtering completes and the list is ready.
+insta_test!(bind_result, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "result:last"], {
+    @snap;
+    @assert(|h: &common::insta::TestHarness| h.skim.app().item_list.selected().unwrap().text() == "10");
+});
+
+// Test focus event: fires when the focused item changes (here, initial focus).
+insta_test!(bind_focus, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"], &["--bind", "focus:set-header(focused)"], {
+    @snap;
+    @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "focused");
+});
+
+// Test zero event: fires when a completed search has no matches.
+insta_test!(bind_zero, ["a", "b", "c"], &["--bind", "zero:set-header(none)"], {
+    @char 'z';
+    @snap;
+    @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "none");
+});
+
+// Test one event: fires when a completed search has exactly one match.
+insta_test!(bind_one, ["apple", "banana", "cherry"], &["--bind", "one:set-header(single)"], {
+    @type "app";
+    @snap;
+    @assert(|h: &common::insta::TestHarness| h.skim.app().header.header == "single");
+});
+
 insta_test!(bind_set_query_basic, ["a", "b", "c"], &["--bind", "ctrl-a:set-query(foo)"], {
     @snap;
     @ctrl 'a';

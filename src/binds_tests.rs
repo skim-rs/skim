@@ -136,6 +136,10 @@ fn skim_event_name_roundtrip() {
         ("start", SkimEvent::Start),
         ("load", SkimEvent::Load),
         ("change", SkimEvent::Change),
+        ("result", SkimEvent::Result),
+        ("focus", SkimEvent::Focus),
+        ("zero", SkimEvent::Zero),
+        ("one", SkimEvent::One),
     ] {
         assert_eq!(SkimEvent::from_name(name), Some(event));
         assert_eq!(parse_key(name).unwrap(), KeyEvent::from(event));
@@ -195,6 +199,46 @@ fn parse_action_chain_preserves_nested_bind_chain() {
 fn parse_keymaps_collects_iterator() {
     let keymap = parse_keymaps(["ctrl-x:abort", "up:up"].into_iter());
     assert!(keymap.get(&parse_key("ctrl-x").unwrap()).is_some());
+}
+
+#[test]
+fn action_binds_key_wins_over_action() {
+    // A bare action name that is not a key binds the action as a follow-up.
+    let binds = parse_action_binds(["first:last"].into_iter());
+    assert_eq!(binds.get("first"), Some(&vec![Last]));
+
+    // A name that is also a real key (`up`) is left to the key map, so it is
+    // NOT registered as an action trigger.
+    let binds = parse_action_binds(["up:down"].into_iter());
+    assert!(!binds.contains_key("up"));
+
+    // `act-` forces the action interpretation even for a key-shaped name.
+    let binds = parse_action_binds(["act-up:down"].into_iter());
+    assert_eq!(binds.get("up"), Some(&vec![Down(1)]));
+}
+
+#[test]
+fn action_binds_parse_skip_chain() {
+    // `skip` is parsed like any other action and kept in the chain.
+    let binds = parse_action_binds(["act-up:skip+down"].into_iter());
+    assert_eq!(binds.get("up"), Some(&vec![Skip, Down(1)]));
+}
+
+#[test]
+fn action_name_round_trips_through_parse_action() {
+    // Every canonical name resolves back to an action with the same name.
+    for name in [
+        "abort",
+        "first",
+        "last",
+        "reload",
+        "skip",
+        "backward-delete-char/eof",
+        "up",
+    ] {
+        let action = event::parse_action(name).unwrap_or_else(|| panic!("`{name}` should parse"));
+        assert_eq!(action.name(), name);
+    }
 }
 
 #[test]

@@ -965,15 +965,41 @@ and `parse_key` accepts the friendly names below:
 
 | Bind name | `SkimEvent` | Reserved code | Fired when |
 | --- | --- | --- | --- |
+| `change` | `SkimEvent::Change` | `F(255)` | the query changes |
 | `start` | `SkimEvent::Start` | `F(254)` | skim has started and entered its event loop (once) |
 | `load` | `SkimEvent::Load` | `F(253)` | the reader finishes producing items (once per read; a `reload` fires it again) |
-| `change` | `SkimEvent::Change` | `F(255)` | the query changes |
+| `result` | `SkimEvent::Result` | `F(252)` | filtering for the current query completes and its results are ready |
+| `focus` | `SkimEvent::Focus` | `F(251)` | the focused item changes (cursor movement or a result update) |
+| `zero` | `SkimEvent::Zero` | `F(250)` | a completed search has no matches |
+| `one` | `SkimEvent::One` | `F(249)` | a completed search has exactly one match |
 
-`change` is injected by `App::on_query_changed` (`src/tui/app.rs`); `start` and
-`load` are injected by `Skim::fire_start_event` / `Skim::check_reader`
-(`src/skim.rs`) via `Event::Key(SkimEvent::_.into())`. Each flows through
-`handle_key` and its keymap lookup like any other key, so an unbound event is a
-harmless no-op.
+`change` is injected by `App::on_query_changed`; `start` by
+`Skim::fire_start_event` and `load`/`reader_done` via `Skim::check_reader`
+(`src/skim.rs`). `result`, `zero`, `one` and `focus` are all injected from the
+`Event::Render` handler *after* the frame is drawn, so a binding sees a stable,
+up-to-date list; `zero`/`one` read `MatcherControl::get_num_matched()` (the
+matcher's authoritative count, which the rendered list may briefly lag). Each
+event flows through `handle_key` and its keymap lookup like any other key, so an
+unbound event is a harmless no-op.
+
+### Actions as Events (follow-up bindings)
+
+Any **action** can also be bound as if it were an event: after the action runs,
+a follow-up chain bound to its name is appended to `handle_action`'s result. For
+example `reload:first` runs `first` right after a `reload`, and `first:last`
+ends on the last item.
+
+- **Keys win.** If a bind's "key" resolves to a real key it stays in the key
+  map, so a name shared by a key and an action (e.g. `up`) always binds the key.
+  Prefix with `act-` to target the action instead: `act-up:down`.
+- **`skip`.** Including [`Action::Skip`] in the follow-up chain suppresses the
+  triggering action's own default behaviour, so `act-up:skip+down` remaps the
+  `up` action to `down`, and `up:skip` disables the up key. On its own `skip` is
+  a no-op.
+
+Follow-up chains are parsed by `binds::parse_action_binds` into
+`SkimOptions::action_binds` (keyed by `Action::name`), and applied in
+`App::handle_action`, which wraps the per-variant `App::dispatch_action`.
 
 ### Action Dispatch
 
@@ -1270,9 +1296,11 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
-| `SkimEvent` | `src/binds.rs:25` | `start`/`load`/`change` synthetic events → reserved `KeyEvent` |
-| `parse_key` | `src/binds.rs:196` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_chain` | `src/binds.rs:270` | `"down+select"` → `Vec<Action>` |
+| `SkimEvent` | `src/binds.rs:25` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
+| `parse_key` | `src/binds.rs:213` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_binds` | `src/binds.rs:299` | `"reload:first"`, `"act-up:skip+down"` → action follow-up map |
+| `parse_action_chain` | `src/binds.rs:329` | `"down+select"` → `Vec<Action>` |
+| `Action::name` | `src/tui/event.rs:316` | `Action` → canonical bind name (reverse of `parse_action`) |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |
 | `AndOrEngineFactory::parse_andor` | `src/engine/factory.rs:176` | Split query into AND/OR tree |
