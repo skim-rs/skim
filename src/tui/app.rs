@@ -766,7 +766,7 @@ impl App {
                 // Bind one or more `key:action[+action]` pairs, reusing the same
                 // parsing/merging logic as the `--bind` CLI option. Existing
                 // bindings for the same keys are replaced.
-                self.options.keymap.add_keymaps(spec.split(','));
+                self.options.keymap.add_keymaps_str(spec);
             }
             Cancel => {
                 self.matcher_control.kill();

@@ -1284,7 +1284,7 @@ impl SkimOptions {
         }
 
         self.keymap = self.bind.iter().fold(KeyMap::default(), |mut res, part| {
-            res.add_keymaps(part.split(','));
+            res.add_keymaps_str(part);
             res
         });
 

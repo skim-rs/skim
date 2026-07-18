@@ -30,7 +30,7 @@ impl DerefMut for KeyMap {
 
 impl From<&str> for KeyMap {
     fn from(value: &str) -> Self {
-        parse_keymaps(value.split(','))
+        parse_keymaps(split_top_level(value, ',').into_iter())
     }
 }
 
@@ -41,6 +41,11 @@ impl Default for KeyMap {
 }
 
 impl KeyMap {
+    /// Adds keymaps from a comma-separated string.
+    pub(crate) fn add_keymaps_str(&mut self, source: &str) {
+        self.add_keymaps(split_top_level(source, ',').into_iter());
+    }
+
     /// Adds keymaps from the source, parsing them using `parse_keymap`
     pub fn add_keymaps<'a, T>(&mut self, source: T)
     where
@@ -203,13 +208,33 @@ where
     res
 }
 
+fn split_top_level(value: &str, separator: char) -> Vec<&str> {
+    let mut depth = 0_u32;
+    let mut start = 0;
+    let mut parts = Vec::new();
+
+    for (index, ch) in value.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ if ch == separator && depth == 0 => {
+                parts.push(&value[start..index]);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&value[start..]);
+    parts
+}
+
 /// Parses an action chain, separated by '+'s into the corresponding actions
 ///
 /// # Errors
 /// Returns an error if the action chain is empty or contains only unknown actions.
 pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
     let mut actions: Vec<Action> = vec![];
-    let mut split = action_chain.split('+');
+    let mut split = split_top_level(action_chain, '+').into_iter();
 
     while let Some(mut s) = split.next().map(String::from) {
         if (s.starts_with("if-") || s.ends_with('{'))

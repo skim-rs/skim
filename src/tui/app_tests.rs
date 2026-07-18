@@ -644,16 +644,16 @@ fn custom_action_runs_async_callback() {
 }
 
 #[test]
-fn bind_action_adds_keymap_entry() {
+fn bind_action_adds_action_chain() {
     let mut app = App::default();
     let key = crate::binds::parse_key("ctrl-x").unwrap();
     // Not bound by default.
     app.options.keymap.remove(&key);
     assert!(app.options.keymap.get(&key).is_none());
 
-    act(&mut app, Action::Bind("ctrl-x:abort".to_string()));
+    act(&mut app, Action::Bind("ctrl-x:abort+up".to_string()));
 
-    assert_eq!(app.options.keymap.get(&key), Some(&vec![Action::Abort]));
+    assert_eq!(app.options.keymap.get(&key), Some(&vec![Action::Abort, Action::Up(1)]));
 }
 
 #[test]

@@ -427,11 +427,12 @@ fn listen_bind() -> std::io::Result<()> {
     let (tmux, mut stream) = setup("bind", &[])?;
     sk_test!(@expand tmux;
         @capture[2]starts_with("> a");
-        // ctrl-x is unbound by default; bind it to `up` over the socket.
-        send(&mut stream, "bind(ctrl-x:up)")?;
+        // The header acknowledges that the preceding bind has been processed
+        // before terminal key events are sent through a separate channel.
+        send(&mut stream, "bind(ctrl-x:up)+set-header(ready)")?;
+        @capture[*]trim().eq("ready");
         @keys Ctrl(&Key('x')), Ctrl(&Key('x'));
-        @capture[2]trim().starts_with("a");
-        @capture[4]starts_with("> c");
+        @capture[*]starts_with("> c");
     );
     Ok(())
 }
