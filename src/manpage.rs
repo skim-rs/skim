@@ -121,6 +121,22 @@ const KEYS_SS: &str = "
 * alt-shift-right
 * any single character
 ";
+const BINDABLE_EVENTS_SS: &str = "
+* change: the query changes
+* start: skim enters its event loop; fired once
+* load: the reader and matcher finish consuming the current input; fired once per read, including reloads
+* result: filtering for the current query completes
+* focus: the focused item changes because of cursor movement or a result update
+* zero: a completed search has no matches
+* one: a completed search has exactly one match
+";
+
+const ACTION_BINDINGS_SS: &str = "
+Actions can also be used as binding triggers. A follow-up chain bound to an action name runs immediately after that action. Use the `act-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action name is also a key, for example `act-up:last`.
+
+Follow-up chains use non-recursive (`noremap`) semantics: their actions do not trigger further action bindings. Add `suppress` to skip the triggering action's default behavior, for example `act-up:suppress+down`.
+";
+
 const ACTIONS_SS: &str = "
 * abort: ctrl-c  ctrl-q  esc
 * accept(...): enter *the argument will be printed when the binding is triggered*
@@ -286,11 +302,13 @@ Exact search can be enabled by default by the `--exact` command-line flag. In ex
         &mut custom,
         "KEYBINDS",
         "
-Keybinds can be set by the `--bind` option, which takes a comma-separated list of [key]:[action[+action2].
-Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon `reload:ls`
+Bindings can be set by the `--bind` option, which takes a comma-separated list of `<trigger>:<action>[+action2]` expressions. A trigger can be a key, a finder event, or an action name.
+Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon `reload:ls`.
 ",
     );
     subsection(&mut custom, "Available keys (aliases in parentheses)", KEYS_SS);
+    subsection(&mut custom, "Bindable finder events", BINDABLE_EVENTS_SS);
+    subsection(&mut custom, "Actions as binding triggers", ACTION_BINDINGS_SS);
     subsection(&mut custom, "Actions[:default keys][*notes]", ACTIONS_SS);
 
     section(
@@ -407,5 +425,17 @@ mod tests {
         for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
             assert!(out.contains(section), "manpage should contain section '{section}'");
         }
+    }
+
+    #[test]
+    fn manpage_documents_bindable_events_and_actions() {
+        let out = manpage_str();
+        for event in ["change", "start", "load", "result", "focus", "zero", "one"] {
+            assert!(out.contains(event), "manpage should document the '{event}' event");
+        }
+        assert!(out.contains("Actions as binding triggers"));
+        assert!(out.contains("act\\-"));
+        assert!(out.contains("noremap"));
+        assert!(out.contains("suppress"));
     }
 }

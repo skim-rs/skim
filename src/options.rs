@@ -319,13 +319,14 @@ pub struct SkimOptions {
     scheme: Option<MatchScheme>,
 
     //  --- Interface ---
-    /// Comma separated list of bindings
+    /// Comma-separated key, event, and action bindings
     ///
-    /// You can customize key bindings of sk with `--bind` option which takes a  comma-separated  list  of
-    /// key binding expressions. Each key binding expression follows the following format: `<key>:<action>`
-    /// See the [KEYBINDS] section for details
+    /// `--bind` takes comma-separated `<trigger>:<action>` expressions. A trigger can be a key, a finder
+    /// event (`change`, `start`, `load`, `result`, `focus`, `zero`, or `one`), or an action name. Use the
+    /// `act-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
+    /// name is also a key, for example `act-up:last`. See the [KEYBINDS] section for details.
     ///
-    /// **Example**: `sk --bind=ctrl-j:accept,ctrl-k:kill-line`
+    /// **Example**: `sk --bind=ctrl-j:accept,load:last,act-up:down`
     ///
     /// ## Multiple actions can be chained using + separator.
     ///

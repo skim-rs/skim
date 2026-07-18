@@ -197,13 +197,14 @@ history: History scheme: will force index as the first tiebreak
 .SH INTERFACE
 .TP
 \fB\-b\fR, \fB\-\-bind\fR [\fI<BIND>...\fR] [default: ]
-Comma separated list of bindings
+Comma\-separated key, event, and action bindings
 
-You can customize key bindings of sk with `\-\-bind` option which takes a  comma\-separated  list  of
-key binding expressions. Each key binding expression follows the following format: `<key>:<action>`
-See the [KEYBINDS] section for details
+`\-\-bind` takes comma\-separated `<trigger>:<action>` expressions. A trigger can be a key, a finder
+event (`change`, `start`, `load`, `result`, `focus`, `zero`, or `one`), or an action name. Use the
+`act\-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
+name is also a key, for example `act\-up:last`. See the [KEYBINDS] section for details.
 
-**Example**: `sk \-\-bind=ctrl\-j:accept,ctrl\-k:kill\-line`
+**Example**: `sk \-\-bind=ctrl\-j:accept,load:last,act\-up:down`
 
 ## Multiple actions can be chained using + separator.
 
@@ -752,9 +753,9 @@ If a term is prefixed by `!`, sk will exclude the items that match this term.
 .SH KEYBINDS
 
 .br
-Keybinds can be set by the `\-\-bind` option, which takes a comma\-separated list of [key]:[action[+action2].
+Bindings can be set by the `\-\-bind` option, which takes a comma\-separated list of `<trigger>:<action>[+action2]` expressions. A trigger can be a key, a finder event, or an action name.
 .br
-Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon `reload:ls`
+Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon `reload:ls`.
 .br
 
 .SS "Available keys (aliases in parentheses)"
@@ -835,6 +836,34 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 * alt\-shift\-right
 .br
 * any single character
+.br
+
+.SS "Bindable finder events"
+
+.br
+* change: the query changes
+.br
+* start: skim enters its event loop; fired once
+.br
+* load: the reader and matcher finish consuming the current input; fired once per read, including reloads
+.br
+* result: filtering for the current query completes
+.br
+* focus: the focused item changes because of cursor movement or a result update
+.br
+* zero: a completed search has no matches
+.br
+* one: a completed search has exactly one match
+.br
+
+.SS "Actions as binding triggers"
+
+.br
+Actions can also be used as binding triggers. A follow\-up chain bound to an action name runs immediately after that action. Use the `act\-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action name is also a key, for example `act\-up:last`.
+.br
+
+.br
+Follow\-up chains use non\-recursive (`noremap`) semantics: their actions do not trigger further action bindings. Add `suppress` to skip the triggering action\*(Aqs default behavior, for example `act\-up:suppress+down`.
 .br
 
 .SS "Actions[:default keys][*notes]"
@@ -931,6 +960,8 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 * set\-preview\-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 .br
 * set\-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
+.br
+* suppress: *if bound to an action (e.g. `act\-up:suppress`), suppresses that action\*(Aqs default behavior so the rest of the non\-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`
 .br
 * toggle
 .br
