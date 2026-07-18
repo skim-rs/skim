@@ -44,6 +44,7 @@ module completions {
     --tiebreak(-t): string@"nu-complete sk tiebreak" # Comma-separated list of sort criteria to apply when the scores are tied.
     --nth(-n): string         # Fields to be matched
     --with-nth: string        # Fields to be transformed
+    --hide-nth: string        # Fields to hide from display while keeping them searchable
     --delimiter(-d): string   # Delimiter between fields
     --exact(-e)               # Run in exact mode
     --regex                   # Start in regex mode instead of fuzzy-match

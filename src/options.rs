@@ -200,6 +200,27 @@ pub struct SkimOptions {
     )]
     pub with_nth: Vec<String>,
 
+    /// Fields to hide from display while keeping them searchable
+    ///
+    /// Takes the same comma-separated field index expressions as **nth**. The listed
+    /// fields are removed from the displayed line but remain part of the text used for
+    /// matching, so a query can still match them. Characters in the hidden fields are
+    /// ignored for match highlighting and horizontal scrolling.
+    ///
+    /// See **nth** for the field index expression syntax.
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long,
+            default_value = "",
+            help_heading = "Search",
+            verbatim_doc_comment,
+            value_delimiter = ',',
+            allow_hyphen_values = true,
+        )
+    )]
+    pub hide_nth: Vec<String>,
+
     /// Delimiter between fields
     ///
     /// In regex format, defaults to AWK-style. Escape sequences like \x00, \t, \n are supported.
@@ -1115,6 +1136,7 @@ impl Default for SkimOptions {
             tiebreak: vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End],
             nth: Default::default(),
             with_nth: Default::default(),
+            hide_nth: Default::default(),
             delimiter: Regex::new(r"[\t\n ]+").unwrap(),
             exact: Default::default(),
             regex: Default::default(),

@@ -92,8 +92,29 @@ impl<'a> ItemRenderer<'a> {
         out: &mut Vec<ListItem<'static>>,
     ) -> usize {
         let item_text = item.item.text();
-        let sub_lines = self.split_sub_lines(item_text.as_ref());
-        let (match_start_char, match_end_char) = Self::matched_range(item_text.as_ref(), item.matched_range.as_ref());
+        // When fields are hidden (--hide-nth), project the display text and match
+        // positions into the visible coordinate space so hidden characters are ignored
+        // for sub-line splitting, highlighting, and horizontal scrolling. `display()`
+        // performs the same projection, keeping the styled line consistent with these
+        // positions.
+        let (display_text, match_start_char, match_end_char): (std::borrow::Cow<'_, str>, usize, usize) =
+            match item.item.hidden_ranges() {
+                Some(hidden) if !hidden.is_empty() => {
+                    let (visible, map) = crate::helper::item::project_visible_text(item_text.as_ref(), hidden);
+                    let matches = Self::display_matches(item.matched_range.as_ref());
+                    let indices = crate::helper::item::project_match_indices(item_text.as_ref(), &matches, &map);
+                    let (start, end) = match (indices.first(), indices.last()) {
+                        (Some(first), Some(last)) => (*first, *last + 1),
+                        _ => (0, 0),
+                    };
+                    (std::borrow::Cow::Owned(visible), start, end)
+                }
+                _ => {
+                    let (start, end) = Self::matched_range(item_text.as_ref(), item.matched_range.as_ref());
+                    (item_text, start, end)
+                }
+            };
+        let sub_lines = self.split_sub_lines(display_text.as_ref());
 
         let mut added = 0usize;
         // Collect rows for this item into a temporary buffer so we can reverse
