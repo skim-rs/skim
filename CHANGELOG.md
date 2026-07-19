@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.0] - 2026-07-19
+
+### 🚀 Features
+
+- Add 'left' and `right` info display modes (#1120)
+- Add `--hide-nth` to hide fields from display but keep them searchable (#1122)
+- Add bind and unbind actions (#1121)
+
+### 🐛 Bug Fixes
+
+- Kitty keyboard protocol
+
+### 🤖 CI
+
+- Add public-api check (#1124)
+
 ## [5.2.0] - 2026-07-17
 
 ### 🚀 Features
