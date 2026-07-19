@@ -786,7 +786,7 @@ fn handle_key_ctrl_non_char_falls_through_to_empty() {
 fn handle_key_ignore_numlock() {
     let mut app = App::default();
     app.options.keymap.add_keymaps_str("ctrl-a:add-char(a)");
-    // Ctrl + a non-character key with no binding → empty.
+    // NUM_LOCK must not prevent the Ctrl+a binding from matching.
     let key = KeyEvent::new_with_kind_and_state(
         KeyCode::Char('a'),
         KeyModifiers::CONTROL,
