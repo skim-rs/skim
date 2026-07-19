@@ -638,6 +638,10 @@ where
                     self.app.handle_event(self.tui.as_mut().expect("TUI should be initialized before handling events"), &evt)?;
                 }
 
+                if let Some(action) = self.app.final_action.take() {
+                    self.final_event = Event::Action(action);
+                }
+
                 // Check reader status and update
                 self.check_reader();
             }

@@ -129,8 +129,8 @@ const BINDABLE_EVENTS_SS: &str = concat!(
     "fired once per read, including reloads\n",
     "* result: filtering for the current query completes\n",
     "* focus: the focused item changes because of cursor movement or a result update\n",
-    "* zero: a completed search has no matches\n",
-    "* one: a completed search has exactly one match\n",
+    "* zero: the input stream is complete and the final search has no matches\n",
+    "* one: the input stream is complete and the final search has exactly one match\n",
 );
 
 const ACTION_BINDINGS_SS: &str = concat!(

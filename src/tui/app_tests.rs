@@ -75,6 +75,31 @@ fn load_waits_until_all_items_are_consumed() {
 }
 
 #[test]
+fn cardinality_events_wait_for_reader_completion() {
+    let mut app = App::default();
+    app.result_pending = true;
+
+    let events = app.poll_completion_events();
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Result.key_event()))
+    );
+    assert!(events.iter().all(|event| {
+        !matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Zero.key_event()
+            || *key == crate::binds::SkimEvent::One.key_event())
+    }));
+
+    app.reader_done = true;
+    app.result_pending = true;
+    assert!(
+        app.poll_completion_events()
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Zero.key_event()))
+    );
+}
+
+#[test]
 fn add_char_updates_query_and_emits_events() {
     let mut app = App::default();
     let events = act(&mut app, Action::AddChar('x'));

@@ -55,6 +55,8 @@ pub struct App {
     pub reader_pool: Arc<ThreadPool>,
     /// Whether the application should quit
     pub should_quit: bool,
+    /// The terminating action, including one dispatched inside a follow-up or conditional chain.
+    pub(crate) final_action: Option<Action>,
 
     /// Current cursor position (x, y)
     pub cursor_pos: (u16, u16),
@@ -231,6 +233,7 @@ impl Default for App {
             item_pool: Arc::default(),
             theme,
             should_quit: false,
+            final_action: None,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
                 .case(crate::CaseMatching::default())
@@ -301,6 +304,7 @@ impl App {
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             should_quit: false,
+            final_action: None,
             cursor_pos: (0, 0),
             matcher: Matcher::from_options(&options),
             yank_register: String::new(),
@@ -444,10 +448,12 @@ impl App {
         if self.result_pending && self.matcher_control.stopped() {
             self.result_pending = false;
             events.push(Event::Key(SkimEvent::Result.into()));
-            match self.matcher_control.get_num_matched() {
-                0 => events.push(Event::Key(SkimEvent::Zero.into())),
-                1 => events.push(Event::Key(SkimEvent::One.into())),
-                _ => {}
+            if self.reader_done {
+                match self.matcher_control.get_num_matched() {
+                    0 => events.push(Event::Key(SkimEvent::Zero.into())),
+                    1 => events.push(Event::Key(SkimEvent::One.into())),
+                    _ => {}
+                }
             }
         }
 
@@ -850,6 +856,7 @@ impl App {
         match act {
             Abort | Accept(_) => {
                 self.should_quit = true;
+                self.final_action = Some(act.clone());
             }
             AddChar(c) => {
                 self.input.insert(*c);

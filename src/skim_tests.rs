@@ -109,6 +109,20 @@ fn output_collects_results_and_marks_abort() {
 }
 
 #[test]
+fn nested_accept_actions_are_reported_as_accepts() {
+    for binding in ["start:first,first:accept", "start:if-query-empty(accept)"] {
+        let mut options = SkimOptions::default();
+        options.bind = vec![binding.to_string()];
+        let mut skim = started_skim_with(options.build(), &["a"]);
+
+        tokio::runtime::Runtime::new().unwrap().block_on(skim.run()).unwrap();
+
+        assert!(matches!(skim.final_event(), Event::Action(Action::Accept(None))));
+        assert!(!skim.output().is_abort, "binding `{binding}` was reported as an abort");
+    }
+}
+
+#[test]
 fn output_uses_input_as_cmd_in_interactive_mode() {
     let mut options = SkimOptions::default();
     options.interactive = true;
