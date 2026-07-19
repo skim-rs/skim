@@ -783,6 +783,23 @@ fn handle_key_ctrl_non_char_falls_through_to_empty() {
 }
 
 #[test]
+fn handle_key_ignore_numlock() {
+    let mut app = App::default();
+    app.options.keymap.add_keymaps_str("ctrl-a:add-char(a)");
+    // NUM_LOCK must not prevent the Ctrl+a binding from matching.
+    let key = KeyEvent::new_with_kind_and_state(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+        crossterm::event::KeyEventKind::Press,
+        crossterm::event::KeyEventState::NUM_LOCK,
+    );
+    assert!(matches!(
+        app.handle_key(&key).as_slice(),
+        &[Event::Action(Action::AddChar('a'))]
+    ));
+}
+
+#[test]
 fn expand_cmd_substitutes_query() {
     let mut app = App::default();
     app.input.value = "myquery".to_string();

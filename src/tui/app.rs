@@ -675,9 +675,10 @@ impl App {
         self.on_items_updated();
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
-        debug!("key event: {key:?}");
+        let normalized_key = KeyEvent::new(key.code, key.modifiers);
+        debug!("key event: {key:?}, normalized: {normalized_key:?}");
 
-        if let Some(act) = &self.options.keymap.get(key) {
+        if let Some(act) = &self.options.keymap.get(&normalized_key) {
             debug!("{act:?}");
             return act.iter().map(|a| Event::Action(a.clone())).collect();
         }
