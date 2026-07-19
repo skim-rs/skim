@@ -4,6 +4,7 @@ use std::sync::Once;
 
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
+    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{self, cursor};
@@ -151,6 +152,10 @@ where
         if self.is_fullscreen {
             crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
+        crossterm::execute!(
+            std::io::stderr(),
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        )?;
         Ok(())
     }
 
@@ -298,6 +303,7 @@ pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
         std::io::stderr(),
         DisableMouseCapture,
         DisableBracketedPaste,
+        PopKeyboardEnhancementFlags,
         LeaveAlternateScreen,
         cursor::Show
     )?;
