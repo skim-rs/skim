@@ -1,0 +1,80 @@
+name: Build Linux packages
+
+# Custom dist job (wired in through `global-artifacts-jobs` in dist-workspace.toml).
+# Builds a `.deb` and a `.rpm` for amd64 and arm64, each containing the `sk`
+# executable, the man page and the shell completions, then uploads them under an
+# `artifacts-*` name so that dist's `host` job attaches them to the GitHub
+# Release. Both architectures build natively (no cross-compilation) on their
+# respective GitHub-hosted runners.
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  linux-packages:
+    name: Build .deb and .rpm (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - name: Install rust toolchain
+        run: rustup toolchain install
+      - name: Check the crate version matches the release plan
+        # These packages are built from the checked-out source (the same tree
+        # dist releases from), so the crate version must match the version dist
+        # planned for this release. Consume the plan to guard against drift.
+        env:
+          ANNOUNCEMENT_TAG: ${{ fromJson(inputs.plan).announcement_tag }}
+        run: |
+          plan_version="${ANNOUNCEMENT_TAG#v}"
+          crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          echo "release plan: '$plan_version' | crate: '$crate_version'"
+          if [ -n "$plan_version" ] && [ "$plan_version" != "$crate_version" ]; then
+            echo "::error::Cargo.toml version ($crate_version) does not match the release plan ($plan_version)"
+            exit 1
+          fi
+      - name: Install cargo-generate-rpm
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-generate-rpm@0.21
+      - name: Setup cargo cache
+        uses: Swatinem/rust-cache@v2
+      # cargo-deb's prebuilt binary links GLIBC_2.39, which ubuntu-22.04
+      # (glibc 2.35) lacks. Build it from source so it links the runner's
+      # glibc. We stay on 22.04 on purpose: the sk binary it packages must
+      # keep a low glibc floor for the .deb to run on older distros.
+      - name: Install cargo-deb
+        run: cargo install 'cargo-deb@^3' --locked
+      - name: Build release binary
+        run: cargo build --release --bin sk
+      - name: Build .deb package
+        run: cargo deb --no-build
+      - name: Build .rpm package
+        run: cargo generate-rpm
+      - name: Collect packages
+        run: |
+          mkdir -p target/linux-packages
+          cp target/debian/*.deb target/linux-packages/
+          cp target/generate-rpm/*.rpm target/linux-packages/
+          ls -l target/linux-packages/
+      - name: Upload packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: artifacts-linux-packages-${{ matrix.arch }}
+          path: target/linux-packages/*
+          if-no-files-found: error
