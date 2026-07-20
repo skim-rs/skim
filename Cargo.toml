@@ -154,7 +154,6 @@ extended-description = "skim is a general purpose fuzzy finder written in Rust, 
 assets = [
     ["target/release/sk", "usr/bin/", "755"],
     ["man/man1/sk.1", "usr/share/man/man1/", "644"],
-    ["man/man1/sk-tmux.1", "usr/share/man/man1/", "644"],
     ["shell/completion.bash", "usr/share/bash-completion/completions/sk", "644"],
     ["shell/completion.zsh", "usr/share/zsh/vendor-completions/_sk", "644"],
     ["shell/completion.fish", "usr/share/fish/vendor_completions.d/sk.fish", "644"],
@@ -167,7 +166,6 @@ assets = [
 assets = [
     { source = "target/release/sk", dest = "/usr/bin/sk", mode = "755" },
     { source = "man/man1/sk.1", dest = "/usr/share/man/man1/sk.1", mode = "644", doc = true },
-    { source = "man/man1/sk-tmux.1", dest = "/usr/share/man/man1/sk-tmux.1", mode = "644", doc = true },
     { source = "shell/completion.bash", dest = "/usr/share/bash-completion/completions/sk", mode = "644" },
     { source = "shell/completion.zsh", dest = "/usr/share/zsh/site-functions/_sk", mode = "644" },
     { source = "shell/completion.fish", dest = "/usr/share/fish/vendor_completions.d/sk.fish", mode = "644" },
