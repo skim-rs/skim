@@ -1,9 +1,11 @@
 name: Build Linux packages
 
 # Custom dist job (wired in through `global-artifacts-jobs` in dist-workspace.toml).
-# Builds a `.deb` and a `.rpm` containing the `sk` executable, the man page and
-# the shell completions, then uploads them under an `artifacts-*` name so that
-# dist's `host` job attaches them to the GitHub Release.
+# Builds a `.deb` and a `.rpm` for amd64 and arm64, each containing the `sk`
+# executable, the man page and the shell completions, then uploads them under an
+# `artifacts-*` name so that dist's `host` job attaches them to the GitHub
+# Release. Both architectures build natively (no cross-compilation) on their
+# respective GitHub-hosted runners.
 on:
   workflow_call:
     inputs:
@@ -13,8 +15,16 @@ on:
 
 jobs:
   linux-packages:
-    name: Build .deb and .rpm
-    runs-on: ubuntu-22.04
+    name: Build .deb and .rpm (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-22.04
+          - arch: arm64
+            runner: ubuntu-22.04-arm
     permissions:
       contents: read
     steps:
@@ -45,6 +55,6 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@v6
         with:
-          name: artifacts-linux-packages
+          name: artifacts-linux-packages-${{ matrix.arch }}
           path: target/linux-packages/*
           if-no-files-found: error
