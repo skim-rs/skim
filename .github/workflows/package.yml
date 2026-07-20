@@ -34,6 +34,19 @@ jobs:
           fetch-depth: 1
       - name: Install rust toolchain
         run: rustup toolchain install
+      - name: Check the crate version matches the release plan
+        # These packages are built from the checked-out source (the same tree
+        # dist releases from), so the crate version must match the version dist
+        # planned for this release. Consume the plan to guard against drift.
+        run: |
+          plan_version='${{ fromJson(inputs.plan).announcement_tag }}'
+          plan_version="${plan_version#v}"
+          crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          echo "release plan: '$plan_version' | crate: '$crate_version'"
+          if [ -n "$plan_version" ] && [ "$plan_version" != "$crate_version" ]; then
+            echo "::error::Cargo.toml version ($crate_version) does not match the release plan ($plan_version)"
+            exit 1
+          fi
       - name: Install cargo-deb and cargo-generate-rpm
         uses: taiki-e/install-action@v2
         with:
