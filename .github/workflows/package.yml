@@ -1,0 +1,51 @@
+name: Build Linux packages
+
+# Custom dist job (wired in through `build-global-jobs` in dist-workspace.toml).
+# Builds a `.deb` and a `.rpm` containing the `sk` executable, the man pages and
+# the shell completions, then uploads them under an `artifacts-*` name so that
+# dist's `host` job attaches them to the GitHub Release.
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  linux-packages:
+    name: Build .deb and .rpm
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install Rust
+        run: rustup toolchain install --profile minimal
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install cargo-deb and cargo-generate-rpm
+        run: |
+          cargo install cargo-deb --locked
+          cargo install cargo-generate-rpm --locked
+      - name: Build release binary
+        run: cargo build --release --bin sk
+      - name: Build .deb package
+        run: cargo deb --no-build --output target/debian
+      - name: Build .rpm package
+        run: cargo generate-rpm
+      - name: Collect packages
+        run: |
+          mkdir -p target/linux-packages
+          cp target/debian/*.deb target/linux-packages/
+          cp target/generate-rpm/*.rpm target/linux-packages/
+          ls -l target/linux-packages/
+      - name: Upload packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: artifacts-linux-packages
+          path: target/linux-packages/*
+          if-no-files-found: error
