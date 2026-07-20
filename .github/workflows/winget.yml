@@ -14,6 +14,10 @@ on:
       plan:
         required: true
         type: string
+    secrets:
+      WINGET_TOKEN:
+        required: true
+        description: "GitHub PAT with public_repo scope for winget-pkgs PR"
 
 jobs:
   winget:
