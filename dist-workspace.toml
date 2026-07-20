@@ -25,7 +25,7 @@ plan-jobs = ["./test"]
 # Extra build jobs to run in CI (build the .deb and .rpm packages)
 global-artifacts-jobs = ["./package"]
 # Publish jobs to run in CI
-publish-jobs = ["./publish"]
+publish-jobs = ["./publish", "./winget"]
 # Whether to publish prereleases to package managers
 publish-prereleases = true
 

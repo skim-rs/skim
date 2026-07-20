@@ -316,15 +316,30 @@ jobs:
       "id-token": "write"
       "packages": "write"
 
+  custom-winget:
+    needs:
+      - plan
+      - host
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
+    uses: ./.github/workflows/winget.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets: inherit
+    # publish jobs get escalated permissions
+    permissions:
+      "id-token": "write"
+      "packages": "write"
+
   announce:
     needs:
       - plan
       - host
       - custom-publish
+      - custom-winget
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
-    if: ${{ always() && needs.host.result == 'success' && (needs.custom-publish.result == 'skipped' || needs.custom-publish.result == 'success') }}
+    if: ${{ always() && needs.host.result == 'success' && (needs.custom-publish.result == 'skipped' || needs.custom-publish.result == 'success') && (needs.custom-winget.result == 'skipped' || needs.custom-winget.result == 'success') }}
     runs-on: "ubuntu-22.04"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
