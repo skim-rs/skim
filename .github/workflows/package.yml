@@ -59,7 +59,7 @@ jobs:
       # glibc. We stay on 22.04 on purpose: the sk binary it packages must
       # keep a low glibc floor for the .deb to run on older distros.
       - name: Install cargo-deb
-        run: cargo install cargo-deb@3 --locked
+        run: cargo install 'cargo-deb@^3' --locked
       - name: Build release binary
         run: cargo build --release --bin sk
       - name: Build .deb package

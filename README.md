@@ -91,7 +91,7 @@ The skim project contains several components:
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
 | Guix           | guix              | `guix install skim`          |
 | Void           | XBPS              | `xbps-install -S skim`       |
-| Windows        | winget            | `winget install skim-rs.skim`|
+| Windows        | winget            | `winget install skim`|
 | Windows        | Scoop             | `scoop install skim`         |
 | Debian/Ubuntu  | `.deb` package    |   see below                  |
 | Fedora/RHEL/SUSE | `.rpm` package  |   see below                  |
@@ -110,7 +110,7 @@ sudo dnf install skim
 ### Windows
 Using [winget](https://learn.microsoft.com/windows/package-manager/):
 ```powershell
-winget install skim-rs.skim
+winget install skim
 ```
 Or using [Scoop](https://scoop.sh/):
 ```powershell

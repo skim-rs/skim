@@ -24,11 +24,11 @@ jobs:
         build: [linux, macos, windows]
         include:
           - runner: ubuntu-latest
-            large_runner: blacksmith-4vcpu-ubuntu-2404
+            large_runner: blacksmith-2vcpu-ubuntu-2404
           - runner: macos-latest
             large_runner: blacksmith-6vcpu-macos-26
           - runner: windows-latest
-            large_runner: blacksmith-8vcpu-windows-2025
+            large_runner: blacksmith-4vcpu-windows-2025
     permissions:
       contents: read
     steps:
