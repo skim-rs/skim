@@ -18,20 +18,17 @@ concurrency:
 
 jobs:
   nextest:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.large_runner}}
     strategy:
       matrix: &matrix
         build: [linux, macos, windows]
         include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-          - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
-          - build: windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+          - runner: ubuntu-latest
+            large_runner: blacksmith-4vcpu-ubuntu-2404
+          - runner: macos-latest
+            large_runner: blacksmith-6vcpu-macos-26
+          - runner: windows-latest
+            large_runner: blacksmith-8vcpu-windows-2025
     permissions:
       contents: read
     steps:
@@ -153,7 +150,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   clippy:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -164,7 +161,7 @@ jobs:
         run: cargo clippy
 
   rustfmt:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -175,7 +172,7 @@ jobs:
           cargo fmt --all -- --check
 
   clippy-no-default-features:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -205,7 +202,7 @@ jobs:
   fuzz:
     permissions:
       contents: read
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -249,7 +246,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: fuzz-crashes-${{ matrix.build }}
+          name: fuzz-crashes-${{ runner.os }}
           path: fuzz/artifacts/
           if-no-files-found: ignore
 
