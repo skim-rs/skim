@@ -43,6 +43,74 @@ static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
 const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
 
+/// Build the stdin handle for an `execute` child process.
+///
+/// skim's own stdin (fd 0) is frequently a pipe carrying the item list
+/// (e.g. `find | sk`), which is useless as a keyboard source for an
+/// interactive child. Hand the child a fresh handle to the controlling
+/// terminal instead, so programs like `ncdu` or other ncurses TUIs can read
+/// the keyboard even when skim's stdin is a pipe. Falls back to inheriting
+/// skim's stdin if the terminal cannot be opened.
+fn execute_child_stdin() -> Stdio {
+    #[cfg(unix)]
+    let tty = std::fs::File::open("/dev/tty");
+    #[cfg(windows)]
+    let tty = std::fs::OpenOptions::new().read(true).write(true).open("CONIN$");
+    tty.map_or_else(|_| Stdio::inherit(), Stdio::from)
+}
+
+/// Run a command in the foreground, temporarily handing it the terminal.
+///
+/// This suspends skim's own input reader (via [`Tui::stop_and_join`]) so it
+/// does not compete with the child for terminal input — the cause of
+/// interactive TUIs freezing after a few keystrokes — leaves the alternate
+/// screen and raw mode, runs the command to completion, then restores skim's
+/// terminal state and restarts the reader. The child is given its own handle
+/// to the controlling terminal as stdin (see [`execute_child_stdin`]).
+fn run_foreground<B: Backend>(tui: &mut Tui<B>, cmd: &str) -> Result<()>
+where
+    B::Error: Send + Sync + 'static,
+{
+    use std::io::IsTerminal as _;
+
+    let has_tty = std::io::stderr().is_terminal();
+    let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+
+    // Stop skim's input reader and wait for it to release the terminal, so the
+    // child is the only reader of keystrokes while it runs.
+    tui.stop_and_join();
+
+    if has_tty {
+        if in_raw_mode {
+            crossterm::terminal::disable_raw_mode()?;
+        }
+        crossterm::execute!(
+            std::io::stderr(),
+            crossterm::terminal::LeaveAlternateScreen,
+            crossterm::event::DisableMouseCapture
+        )?;
+    }
+
+    let mut command = crate::shell_cmd(cmd);
+    command.stdin(execute_child_stdin());
+    let _ = command.spawn().and_then(|mut c| c.wait());
+
+    if has_tty {
+        if in_raw_mode {
+            crossterm::terminal::enable_raw_mode()?;
+        }
+        crossterm::execute!(
+            std::io::stderr(),
+            crossterm::terminal::EnterAlternateScreen,
+            crossterm::event::EnableMouseCapture
+        )?;
+    }
+
+    // Resume skim's input reader now that the terminal is ours again.
+    tui.start();
+    Ok(())
+}
+
 /// Application state for skim's TUI
 #[allow(clippy::struct_excessive_bools)]
 pub struct App {
@@ -583,6 +651,12 @@ impl App {
                     warn!("RunPreview: error {e:?}");
                 }
             }
+            Event::RunExecute(cmd) => {
+                run_foreground(tui, cmd)?;
+                // Repaint from scratch: the child scribbled over our screen.
+                tui.event_tx.try_send(Event::Redraw)?;
+                tui.event_tx.try_send(Event::Render)?;
+            }
             Event::Clear | Event::Redraw => {
                 tui.clear()?;
             }
@@ -806,35 +880,13 @@ impl App {
                 self.input.move_to_end();
             }
             Execute(cmd) => {
-                use std::io::IsTerminal as _;
-
+                // Running a foreground process needs the `Tui` (to suspend
+                // skim's input reader and toggle terminal modes), which this
+                // method does not have. Expand the command here and hand it to
+                // the event loop, which runs it via `Event::RunExecute`.
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {expanded_cmd}");
-                let mut command = crate::shell_cmd(&expanded_cmd);
-                let has_tty = std::io::stderr().is_terminal();
-                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
-                if has_tty {
-                    if in_raw_mode {
-                        crossterm::terminal::disable_raw_mode()?;
-                    }
-                    crossterm::execute!(
-                        std::io::stderr(),
-                        crossterm::terminal::LeaveAlternateScreen,
-                        crossterm::event::DisableMouseCapture
-                    )?;
-                }
-                let _ = command.spawn().and_then(|mut c| c.wait());
-                if has_tty {
-                    if in_raw_mode {
-                        crossterm::terminal::enable_raw_mode()?;
-                    }
-                    crossterm::execute!(
-                        std::io::stderr(),
-                        crossterm::terminal::EnterAlternateScreen,
-                        crossterm::event::EnableMouseCapture
-                    )?;
-                }
-                return Ok(vec![Event::Redraw]);
+                return Ok(vec![Event::RunExecute(expanded_cmd)]);
             }
             ExecuteSilent(cmd) => {
                 let expanded_cmd = self.expand_cmd(cmd, true);

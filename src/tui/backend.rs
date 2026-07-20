@@ -189,6 +189,30 @@ where
     pub fn stop(&self) {
         self.cancel();
     }
+    /// Stops the input reader and waits for it to release the terminal.
+    ///
+    /// Unlike [`stop`](Self::stop), this blocks until the background task has
+    /// observed the cancellation and dropped its `EventStream`, so crossterm's
+    /// internal reader thread has stopped reading the terminal before this
+    /// returns. Call this before handing the terminal to a foreground child
+    /// process (e.g. an `execute` action): otherwise skim's reader competes
+    /// with the child for keystrokes and interactive TUIs appear to freeze.
+    ///
+    /// Restart the reader afterwards with [`start`](Self::start).
+    ///
+    /// # Panics
+    ///
+    /// Panics if called from outside a multi-threaded Tokio runtime, since it
+    /// uses `block_in_place` to await the reader task from synchronous code.
+    pub fn stop_and_join(&mut self) {
+        self.cancel();
+        if let Some(task) = self.task.take() {
+            // We are on a synchronous call stack nested inside the async event
+            // loop. `block_in_place` moves this worker off the async pool so we
+            // can block on the task's completion without starving the runtime.
+            let _ = tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(task));
+        }
+    }
     /// Cancels all background tasks
     pub fn cancel(&self) {
         self.cancellation_token.cancel();
