@@ -5,9 +5,11 @@ name: Publish to winget
 # Windows Package Manager Community Repository (microsoft/winget-pkgs) using the
 # Windows .zip artifact that dist already builds and attaches to the release.
 #
-# Requires a `WINGET_TOKEN` repository secret: a GitHub PAT with the
+# Requires a `WINGET_TOKEN` repository secret: a *classic* GitHub PAT with the
 # `public_repo` scope that owns a fork of microsoft/winget-pkgs under the
-# `fork-user` account (see below). Without it the job fails at submission time.
+# `fork-user` account (see below). Fine-grained tokens are not supported -- they
+# can commit but cannot open the cross-fork PR to winget-pkgs. Without it the job
+# fails at submission time.
 on:
   workflow_call:
     inputs:

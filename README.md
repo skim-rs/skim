@@ -91,6 +91,10 @@ The skim project contains several components:
 | Gentoo         | Portage           | `emerge --ask app-misc/skim` |
 | Guix           | guix              | `guix install skim`          |
 | Void           | XBPS              | `xbps-install -S skim`       |
+| Windows        | winget            | `winget install skim-rs.skim`|
+| Windows        | Scoop             | `scoop install skim`         |
+| Debian/Ubuntu  | `.deb` package    |   see below                  |
+| Fedora/RHEL/SUSE | `.rpm` package  |   see below                  |
 
 <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
@@ -101,6 +105,31 @@ Up to date Fedora packages are provided via an unofficial community-maintained C
 ```bash
 sudo dnf copr enable sisyphus1813/skim
 sudo dnf install skim
+```
+
+### Windows
+Using [winget](https://learn.microsoft.com/windows/package-manager/):
+```powershell
+winget install skim-rs.skim
+```
+Or using [Scoop](https://scoop.sh/):
+```powershell
+scoop install skim
+```
+
+### Debian and RPM packages
+Every [release](https://github.com/skim-rs/skim/releases/latest) ships prebuilt
+`.deb` and `.rpm` packages for `amd64` and `arm64`. Each one installs the `sk`
+executable, its man page and the bash/zsh/fish completions.
+
+Download the package matching your distribution and architecture from the
+[latest release](https://github.com/skim-rs/skim/releases/latest), then install it:
+```sh
+# Debian / Ubuntu (use skim_*_arm64.deb on ARM machines)
+sudo dpkg -i skim_*_amd64.deb
+
+# Fedora / RHEL / openSUSE (use skim-*.aarch64.rpm on ARM machines)
+sudo rpm -i skim-*.x86_64.rpm
 ```
 
 
