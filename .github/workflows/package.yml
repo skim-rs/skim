@@ -48,12 +48,18 @@ jobs:
             echo "::error::Cargo.toml version ($crate_version) does not match the release plan ($plan_version)"
             exit 1
           fi
-      - name: Install cargo-deb and cargo-generate-rpm
+      - name: Install cargo-generate-rpm
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-deb@3,cargo-generate-rpm@0.21
+          tool: cargo-generate-rpm@0.21
       - name: Setup cargo cache
         uses: Swatinem/rust-cache@v2
+      # cargo-deb's prebuilt binary links GLIBC_2.39, which ubuntu-22.04
+      # (glibc 2.35) lacks. Build it from source so it links the runner's
+      # glibc. We stay on 22.04 on purpose: the sk binary it packages must
+      # keep a low glibc floor for the .deb to run on older distros.
+      - name: Install cargo-deb
+        run: cargo install cargo-deb@3 --locked
       - name: Build release binary
         run: cargo build --release --bin sk
       - name: Build .deb package
