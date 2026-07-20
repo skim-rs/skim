@@ -38,9 +38,10 @@ jobs:
         # These packages are built from the checked-out source (the same tree
         # dist releases from), so the crate version must match the version dist
         # planned for this release. Consume the plan to guard against drift.
+        env:
+          ANNOUNCEMENT_TAG: ${{ fromJson(inputs.plan).announcement_tag }}
         run: |
-          plan_version='${{ fromJson(inputs.plan).announcement_tag }}'
-          plan_version="${plan_version#v}"
+          plan_version="${ANNOUNCEMENT_TAG#v}"
           crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
           echo "release plan: '$plan_version' | crate: '$crate_version'"
           if [ -n "$plan_version" ] && [ "$plan_version" != "$crate_version" ]; then
