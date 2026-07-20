@@ -90,8 +90,6 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    permissions:
-      code-quality: write
     steps:
       - *linux-deps
       - *checkout
@@ -111,15 +109,6 @@ jobs:
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
-      - name: "Upload coverage report"
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        uses: actions/upload-code-coverage@v1
-        with:
-          file: coverage.xml
-          language: Rust
-          label: ${{ runner.os }}
-
       - name: "Generate coverage badge"
         if: &if-master github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: emibcn/badge-action@v2.0.4
