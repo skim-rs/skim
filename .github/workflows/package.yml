@@ -1,7 +1,7 @@
 name: Build Linux packages
 
-# Custom dist job (wired in through `build-global-jobs` in dist-workspace.toml).
-# Builds a `.deb` and a `.rpm` containing the `sk` executable, the man pages and
+# Custom dist job (wired in through `global-artifacts-jobs` in dist-workspace.toml).
+# Builds a `.deb` and a `.rpm` containing the `sk` executable, the man page and
 # the shell completions, then uploads them under an `artifacts-*` name so that
 # dist's `host` job attaches them to the GitHub Release.
 on:
@@ -19,22 +19,21 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
-          persist-credentials: false
-          submodules: recursive
-      - name: Install Rust
-        run: rustup toolchain install --profile minimal
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
+          fetch-depth: 1
+      - name: Install rust toolchain
+        run: rustup toolchain install
       - name: Install cargo-deb and cargo-generate-rpm
-        run: |
-          cargo install cargo-deb --locked
-          cargo install cargo-generate-rpm --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb@3,cargo-generate-rpm@0.21
+      - name: Setup cargo cache
+        uses: Swatinem/rust-cache@v2
       - name: Build release binary
         run: cargo build --release --bin sk
       - name: Build .deb package
-        run: cargo deb --no-build --output target/debian
+        run: cargo deb --no-build
       - name: Build .rpm package
         run: cargo generate-rpm
       - name: Collect packages
