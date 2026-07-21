@@ -145,17 +145,7 @@ where
         #[cfg(windows)]
         super::windows::install_ctrl_c_handler()?;
 
-        crossterm::execute!(stderr(), EnableBracketedPaste)?;
-        if self.enable_mouse {
-            crossterm::execute!(stderr(), EnableMouseCapture)?;
-        }
-        if self.is_fullscreen {
-            crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
-        }
-        crossterm::execute!(
-            stderr(),
-            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-        )?;
+        self.execute_enter()?;
         Ok(())
     }
 
@@ -295,6 +285,33 @@ where
         self.event_rx.recv().await
     }
 
+    fn execute_enter(&self) -> Result<()> {
+        crossterm::execute!(stderr(), EnableBracketedPaste)?;
+        if self.enable_mouse {
+            crossterm::execute!(stderr(), EnableMouseCapture)?;
+        }
+        if self.is_fullscreen {
+            crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
+        }
+        crossterm::execute!(
+            stderr(),
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        )?;
+        Ok(())
+    }
+
+    fn execute_leave(&self) -> Result<()> {
+        crossterm::execute!(stderr(), DisableBracketedPaste)?;
+        if self.enable_mouse {
+            crossterm::execute!(stderr(), DisableMouseCapture)?;
+        }
+        if self.is_fullscreen {
+            crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
+        }
+        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
+        Ok(())
+    }
+
     /// Pauses the TUI by disabling raw mode, exiting alternate screen etc.
     /// Returns true if we were in raw mode, false otherwise. Used to restore to the same state later.
     ///
@@ -306,14 +323,7 @@ where
         if in_raw_mode {
             crossterm::terminal::disable_raw_mode()?;
         }
-        crossterm::execute!(
-            stderr(),
-            DisableMouseCapture,
-            DisableBracketedPaste,
-            PopKeyboardEnhancementFlags,
-            LeaveAlternateScreen,
-            cursor::Show
-        )?;
+        self.execute_leave()?;
 
         Ok(in_raw_mode)
     }
@@ -327,12 +337,7 @@ where
         if in_raw_mode {
             crossterm::terminal::enable_raw_mode()?;
         }
-        crossterm::execute!(
-            stderr(),
-            crossterm::terminal::EnterAlternateScreen,
-            crossterm::event::EnableMouseCapture,
-            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-        )?;
+        self.execute_enter()?;
         Ok(())
     }
 }
