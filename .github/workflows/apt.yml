@@ -3,6 +3,27 @@ name: Deploy APT repo
 # Publishes the release's .deb packages as a (flat) APT repository under
 # /apt on the gh-pages branch, alongside the coverage report at /coverage.
 # keep_files preserves the coverage content (and vice versa).
+#
+# Requires APT_GPG_PRIVATE_KEY to be set :
+#
+# ```sh
+# export GNUPGHOME=$(mktemp -d)
+# cat > "$GNUPGHOME/skim-key" <<'EOF'
+# %no-protection
+# Key-Type: eddsa
+# Key-Curve: ed25519
+# Subkey-Type: ecdh
+# Subkey-Curve: cv25519
+# Name-Real: skim apt repo
+# Name-Email: apt@skim-rs.github.io
+# Expire-Date: 0
+# %commit
+# EOF
+# gpg --batch --gen-key "$GNUPGHOME/skim-key" 2>&1 | tail -3
+# KEYID=$(gpg --list-secret-keys --with-colons apt@skim-rs.github.io | awk -F: '/^sec:/{print $5; exit}')
+# # Copy the output of the line below
+# gpg --export-secret-keys --armor "$KEYID"
+# ```
 on:
   workflow_call:
     inputs:
@@ -38,7 +59,6 @@ jobs:
         # key) to enable signed-by verification.
         env:
           GPG_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
-        if: ${{ env.GPG_KEY != '' }}
         run: |
           echo "$GPG_KEY" | gpg --batch --import
           KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/{print $5; exit}')

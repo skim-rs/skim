@@ -102,7 +102,7 @@ The skim project contains several components:
 
 ### Debian/Ubuntu
 
-A custom APT repositoy is available and updated automatically during each release:
+A custom APT repository is available and updated automatically during each release:
 
 1. Import the signing key
 
@@ -139,7 +139,7 @@ Download the one matching your architecture and run `sudo dpkg -i skim_*_amd64.d
 
 ### Fedora/RHEL
 
-Up to date Fedora/RHEL packages are provided via an unofficial community-maintained COPR repository.
+Up-to-date Fedora/RHEL packages are provided via an unofficial community-maintained COPR repository.
 ```bash
 sudo dnf copr enable sisyphus1813/skim
 sudo dnf install skim
