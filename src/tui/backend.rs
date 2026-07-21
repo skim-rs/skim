@@ -306,10 +306,10 @@ where
         if self.enable_mouse {
             crossterm::execute!(stderr(), DisableMouseCapture)?;
         }
+        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
         if self.is_fullscreen {
             crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
         }
-        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
         Ok(())
     }
 
