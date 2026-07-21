@@ -17,11 +17,10 @@ use crate::tui::event::{self, Action};
 /// The keymap is keyed by crossterm's [`KeyEvent`], which cannot express
 /// "the query changed" or "reading finished" directly. Each variant is
 /// therefore represented *transparently* as a reserved function-key code in the
-/// high-`F` range (`F(249)`–`F(255)`) that no real terminal ever emits. The
-/// seven variants are `change`, `start`, `load`, `result`, `focus`, `zero`, and
-/// `one`. Giving these reserved codes named variants keeps them in one place
-/// instead of scattering magic function-key literals across the codebase, and
-/// lets [`parse_key`] accept every friendly event name.
+/// high-`F` range (`F(248)`–`F(255)`) that no real terminal ever emits.
+/// Giving these reserved codes named variants keeps them in one place instead
+/// of scattering magic function-key literals across the codebase, and lets
+/// [`parse_key`] accept every friendly event name.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SkimEvent {
     /// Fired once, when skim has started up and entered its event loop.
@@ -40,6 +39,8 @@ pub enum SkimEvent {
     Zero,
     /// Fired when a completed search yields exactly one match.
     One,
+    /// Fired after two left mouse-button presses no more than 500 ms apart.
+    DoubleClick,
 }
 
 impl SkimEvent {
@@ -54,6 +55,7 @@ impl SkimEvent {
             SkimEvent::Focus => KeyCode::F(251),
             SkimEvent::Zero => KeyCode::F(250),
             SkimEvent::One => KeyCode::F(249),
+            SkimEvent::DoubleClick => KeyCode::F(248),
         }
     }
 
@@ -76,6 +78,7 @@ impl SkimEvent {
             "focus" => Some(SkimEvent::Focus),
             "zero" => Some(SkimEvent::Zero),
             "one" => Some(SkimEvent::One),
+            "double-click" => Some(SkimEvent::DoubleClick),
             _ => None,
         }
     }
@@ -166,6 +169,7 @@ pub fn get_default_key_map() -> KeyMap {
     ret.insert(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE), vec![Action::BackwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE), vec![Action::ForwardChar]);
     ret.insert(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE), vec![Action::BackwardDeleteChar]);
+    ret.insert(SkimEvent::DoubleClick.key_event(), vec![Action::Accept(None)]);
 
 
     ret.insert(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT), vec![Action::BackwardWord]);
@@ -213,9 +217,8 @@ pub fn get_default_key_map() -> KeyMap {
 
 /// Parses a key str into a crossterm `KeyEvent`.
 ///
-/// In addition to keyboard names, accepts all seven names recognized by
-/// [`SkimEvent::from_name`]: `change`, `start`, `load`, `result`, `focus`,
-/// `zero`, and `one`.
+/// In addition to keyboard names, accepts all names recognized by
+/// [`SkimEvent::from_name`], including `change`, `start`, and `double-click`.
 ///
 /// # Errors
 /// Returns an error if the key string is empty, contains an unknown modifier,
@@ -223,6 +226,9 @@ pub fn get_default_key_map() -> KeyMap {
 pub fn parse_key(key: &str) -> Result<KeyEvent> {
     if key.is_empty() {
         return Err(eyre!("Cannot parse empty key"));
+    }
+    if let Some(event) = SkimEvent::from_name(key) {
+        return Ok(event.key_event());
     }
     let parts = key.split('-').collect::<Vec<&str>>();
     let mut mods = KeyModifiers::NONE;

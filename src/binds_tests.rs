@@ -140,6 +140,7 @@ fn skim_event_name_roundtrip() {
         ("focus", SkimEvent::Focus),
         ("zero", SkimEvent::Zero),
         ("one", SkimEvent::One),
+        ("double-click", SkimEvent::DoubleClick),
     ] {
         assert_eq!(SkimEvent::from_name(name), Some(event));
         assert_eq!(parse_key(name).unwrap(), KeyEvent::from(event));
@@ -147,10 +148,23 @@ fn skim_event_name_roundtrip() {
     // Unknown names are not events.
     assert_eq!(SkimEvent::from_name("nope"), None);
     // A binding referencing an event name resolves to an action chain.
-    let keymap = KeyMap::from("start:first,load:last,change:first");
-    assert!(keymap.get(&SkimEvent::Start.key_event()).is_some());
-    assert!(keymap.get(&SkimEvent::Load.key_event()).is_some());
-    assert!(keymap.get(&SkimEvent::Change.key_event()).is_some());
+    let keymap = KeyMap::from("start:first,load:last,change:first,double-click:accept");
+    for event in [
+        SkimEvent::Start,
+        SkimEvent::Load,
+        SkimEvent::Change,
+        SkimEvent::DoubleClick,
+    ] {
+        assert!(keymap.get(&event.key_event()).is_some());
+    }
+}
+
+#[test]
+fn double_click_accepts_by_default() {
+    assert_eq!(
+        get_default_key_map().get(&SkimEvent::DoubleClick.key_event()),
+        Some(&vec![Accept(None)])
+    );
 }
 
 #[test]

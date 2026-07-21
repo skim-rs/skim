@@ -703,6 +703,7 @@ Frame rate is capped at 120 fps (`FRAME_TIME_MS = 1000/120`). `App::handle_event
 | `needs_render` | `Arc<AtomicBool>` | Signal from matcher → event loop |
 | `yank_register` | `String` | Cut/yank buffer |
 | `query_history` / `cmd_history` | `Vec<String>` | History for ↑/↓ navigation |
+| `last_left_click` | `Option<Instant>` | Detect two left clicks within the 500 ms `double-click` window |
 
 **`App::handle_event()`** dispatches on `Event`:
 
@@ -715,7 +716,7 @@ Event::Key(k)     → handle_key(k) → [Action…] → tui.event_tx.send(Event:
 Event::Action(a)  → handle_action(a) → [Event…] → tui.event_tx.send(…)
 Event::Paste(t)   → input.insert_str(cleaned); on_query_changed()
 Event::Resize(…)  → app.resize(); run_preview()
-Event::Mouse(…)   → handle_mouse()
+Event::Mouse(…)   → handle_mouse() → normal handling + optional `double-click` key event
 Event::PreviewReady → apply preview offset; needs_render()
 Event::AppendItems  → item_pool.append(); restart_matcher(false)
 Event::ClearItems   → item_pool.clear(); restart_matcher(true)
@@ -957,6 +958,15 @@ Notable defaults:
 | `Alt-H` / `Alt-L` | `ScrollLeft(1)` / `ScrollRight(1)` |
 
 User bindings from `--bind key:action[+action]` are parsed at startup and merged via `KeyMap::add_keymaps()`.
+
+### Mouse Bindings
+
+| Bind | Default | Fired when |
+| --- | --- | --- |
+| `double-click` | `Accept(None)` | two left-button presses occur within 500 ms; the first press still performs normal item selection |
+
+`App::handle_mouse` recognizes the gesture after normal click handling and routes
+it through the keymap using the reserved `SkimEvent::DoubleClick` key code.
 
 ### Synthetic Events (`SkimEvent`)
 
@@ -1307,16 +1317,17 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `Skim::should_enter` | `src/skim.rs:434` | Filter/select-1/exit-0/sync gate |
 | `Skim::output` | `src/skim.rs:539` | Collect & return SkimOutput |
 | `Skim::tick` | `src/skim.rs:620` | Single async event loop iteration |
-| `App::from_options` | `src/tui/app.rs:285` | Build all widgets from options |
-| `App::run_preview` | `src/tui/app.rs:498` | Expand cmd, debounce, call Preview::spawn |
-| `App::handle_event` | `src/tui/app.rs:623` | Dispatch all Event variants |
-| `App::handle_action` | `src/tui/app.rs:828` | Apply action follow-up bindings |
-| `App::dispatch_conditional` | `src/tui/app.rs:847` | Dispatch the selected conditional subaction chain without follow-up bindings |
-| `App::dispatch_action` | `src/tui/app.rs:870` | Dispatch one Action variant without follow-up bindings |
+| `App::from_options` | `src/tui/app.rs:289` | Build all widgets from options |
+| `App::run_preview` | `src/tui/app.rs:503` | Expand cmd, debounce, call Preview::spawn |
+| `App::handle_event` | `src/tui/app.rs:628` | Dispatch all Event variants |
+| `App::handle_action` | `src/tui/app.rs:833` | Apply action follow-up bindings |
+| `App::dispatch_conditional` | `src/tui/app.rs:852` | Dispatch the selected conditional subaction chain without follow-up bindings |
+| `App::dispatch_action` | `src/tui/app.rs:875` | Dispatch one Action variant without follow-up bindings |
 | `Tui::run_execute` | `src/tui/backend.rs:353` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
-| `App::restart_matcher` | `src/tui/app.rs:1355` | Kill old match pass, start new one |
-| `App::expand_cmd` | `src/tui/app.rs:1431` | Substitute `{}`, `{q}`, `{n}` etc. |
-| `Widget::render (App)` | `src/tui/app.rs:149` | Root render; calls all sub-widgets |
+| `App::restart_matcher` | `src/tui/app.rs:1352` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1428` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `App::handle_mouse` | `src/tui/app.rs:1496` | Handle mouse behavior and emit `double-click` |
+| `Widget::render (App)` | `src/tui/app.rs:151` | Root render; calls all sub-widgets |
 | `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
 | `ItemPool::append` | `src/item.rs:469` | Add items, notify matcher |
@@ -1335,10 +1346,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
-| `SkimEvent` | `src/binds.rs:26` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
-| `parse_key` | `src/binds.rs:223` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_binds` | `src/binds.rs:329` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
-| `parse_action_chain` | `src/binds.rs:377` | `"down+select"` → `Vec<Action>` |
+| `SkimEvent` | `src/binds.rs:25` | Bindable synthetic events, including `double-click`, routed through reserved `KeyEvent`s |
+| `parse_key` | `src/binds.rs:226` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_binds` | `src/binds.rs:335` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
+| `parse_action_chain` | `src/binds.rs:383` | `"down+select"` → `Vec<Action>` |
 | `Action::name` | `src/tui/event.rs:331` | `Action` → canonical bind name (shared catalog with `parse_action`) |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |

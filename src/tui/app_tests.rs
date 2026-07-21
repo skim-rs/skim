@@ -1483,6 +1483,39 @@ fn mouse_selection_change_requests_preview() -> Result<()> {
 }
 
 #[test]
+fn double_click_keeps_first_click_and_emits_binding_event() -> Result<()> {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    let _ = render(&mut app, 40, 6);
+    let inner = app.list_inner_area();
+    let item_one_row = inner.y + inner.height - 2;
+
+    let first = app.handle_mouse(mouse_down(inner.x, item_one_row))?;
+    assert_eq!(app.item_list.current, 1);
+    assert!(first.iter().any(|event| matches!(event, Event::RunPreview)));
+    assert!(
+        !first
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == SkimEvent::DoubleClick.key_event()))
+    );
+
+    let second = app.handle_mouse(mouse_down(inner.x, item_one_row))?;
+    assert!(
+        second
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == SkimEvent::DoubleClick.key_event()))
+    );
+
+    app.last_left_click = past_instant(std::time::Duration::from_millis(501));
+    let late = app.handle_mouse(mouse_down(inner.x, item_one_row))?;
+    assert!(
+        !late
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == SkimEvent::DoubleClick.key_event()))
+    );
+    Ok(())
+}
+
+#[test]
 fn mouse_selection_same_item_only_requests_render() -> Result<()> {
     let mut app = app_with_items(&["a", "b", "c", "d", "e", "f"]);
     let _ = render(&mut app, 40, 6);

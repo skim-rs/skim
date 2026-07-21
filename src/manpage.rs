@@ -119,6 +119,7 @@ const KEYS_SS: &str = "
 * alt-shift-down
 * alt-shift-left
 * alt-shift-right
+* double-click
 * any single character
 ";
 const BINDABLE_EVENTS_SS: &str = concat!(
@@ -145,7 +146,7 @@ const ACTION_BINDINGS_SS: &str = concat!(
 
 const ACTIONS_SS: &str = concat!(
     "\n* abort: ctrl-c  ctrl-q  esc
-* accept(...): enter *the argument will be printed when the binding is triggered*
+* accept(...): enter double-click *the argument will be printed when the binding is triggered*
 * append-and-select
 * backward-char: ctrl-b  left
 * backward-delete-char: ctrl-h  bspace

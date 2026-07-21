@@ -321,8 +321,9 @@ pub struct SkimOptions {
     //  --- Interface ---
     /// Comma-separated key, event, and action bindings
     ///
-    /// `--bind` takes comma-separated `<trigger>:<action>` expressions. A trigger can be a key, a finder
-    /// event (`change`, `start`, `load`, `result`, `focus`, `zero`, or `one`), or an action name. Use the
+    /// `--bind` takes comma-separated `<trigger>:<action>` expressions. A trigger can be a key, the
+    /// `double-click` mouse binding, a finder event (`change`, `start`, `load`, `result`, `focus`, `zero`, or
+    /// `one`), or an action name. Use the
     /// `act-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
     /// name is also a key, for example `act-up:last`. See the [KEYBINDS] section for details.
     ///
