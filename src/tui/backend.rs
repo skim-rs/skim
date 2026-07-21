@@ -1,5 +1,6 @@
-use std::io::BufWriter;
+use std::io::{BufWriter, stderr};
 use std::ops::{Deref, DerefMut};
+use std::process::Stdio;
 use std::sync::Once;
 
 use crossterm::event::{
@@ -51,7 +52,7 @@ impl Tui {
     ///
     /// Returns an error if the TUI backend cannot be initialized.
     pub fn new_with_height(height: Size) -> Result<Self> {
-        let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
+        let backend = CrosstermBackend::new(std::io::BufWriter::new(stderr()));
         Self::new_with_height_and_backend(backend, height)
     }
     /// Disable mouse handling.
@@ -93,7 +94,7 @@ where
             height = height.min(term_height);
             if term_height - cursor_pos.1 < height {
                 let to_scroll = height - (term_height - cursor_pos.1) - 1;
-                crossterm::execute!(std::io::stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
+                crossterm::execute!(stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
                 y = y.saturating_sub(to_scroll);
             }
             Viewport::Fixed(Rect::new(
@@ -145,17 +146,7 @@ where
         #[cfg(windows)]
         super::windows::install_ctrl_c_handler()?;
 
-        crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
-        if self.enable_mouse {
-            crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
-        }
-        if self.is_fullscreen {
-            crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
-        }
-        crossterm::execute!(
-            std::io::stderr(),
-            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-        )?;
+        self.execute_enter()?;
         Ok(())
     }
 
@@ -176,7 +167,7 @@ where
             let area = self.get_frame().area();
             let orig = ratatui::layout::Position { x: area.x, y: area.y };
             crossterm::execute!(
-                std::io::stderr(),
+                stderr(),
                 cursor::MoveTo(orig.x, orig.y),
                 Clear(ClearType::FromCursorDown)
             )?;
@@ -189,6 +180,47 @@ where
     pub fn stop(&self) {
         self.cancel();
     }
+    /// Forces the next [`draw`](ratatui::Terminal::draw) to repaint every cell.
+    ///
+    /// ratatui only writes cells that differ from the previously drawn buffer.
+    /// After the display has been disturbed out from under it — e.g. an
+    /// `execute` action that ran a child program and re-entered the alternate
+    /// screen — that cached buffer is stale and a normal draw would leave the
+    /// screen partially blank. Resetting *both* double buffers makes the next
+    /// draw diff against an empty buffer and thus repaint everything.
+    ///
+    /// Unlike [`ratatui::Terminal::clear`], this performs no cursor-position
+    /// query (which crossterm writes to stdout and which stalls when stdout is
+    /// redirected), and it is viewport-agnostic (works for fullscreen and
+    /// inline layouts alike).
+    pub fn force_full_redraw(&mut self) {
+        self.terminal.swap_buffers();
+        self.terminal.swap_buffers();
+    }
+    /// Stops the input reader and waits for it to release the terminal.
+    ///
+    /// Unlike [`stop`](Self::stop), this blocks until the background task has
+    /// observed the cancellation and dropped its `EventStream`, so crossterm's
+    /// internal reader thread has stopped reading the terminal before this
+    /// returns. Call this before handing the terminal to a foreground child
+    /// process (e.g. an `execute` action): otherwise skim's reader competes
+    /// with the child for keystrokes and interactive TUIs appear to freeze.
+    ///
+    /// Restart the reader afterwards with [`start`](Self::start).
+    ///
+    /// # Panics
+    ///
+    /// Panics if called from outside a multi-threaded Tokio runtime, since it
+    /// uses `block_in_place` to await the reader task from synchronous code.
+    pub fn stop_and_join(&mut self) {
+        self.cancel();
+        if let Some(task) = self.task.take() {
+            // We are on a synchronous call stack nested inside the async event
+            // loop. `block_in_place` moves this worker off the async pool so we
+            // can block on the task's completion without starving the runtime.
+            let _ = tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(task));
+        }
+    }
     /// Cancels all background tasks
     pub fn cancel(&self) {
         self.cancellation_token.cancel();
@@ -197,10 +229,17 @@ where
     pub fn start(&mut self) {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let event_tx_clone = self.event_tx.clone();
-        let cancellation_token_clone = self.cancellation_token.clone();
+        // Cancel any previously running reader before spawning a new one.
         if self.task.is_some() {
             self.cancel();
         }
+        // Install a fresh cancellation token: a `CancellationToken` stays
+        // cancelled once cancelled, so reusing the old one (after `stop`,
+        // `stop_and_join`, or a prior `start`) would make the new task observe
+        // the cancellation immediately and exit without reading any input.
+        // This is what lets the reader resume after an `execute` action.
+        self.cancellation_token = CancellationToken::new();
+        let cancellation_token_clone = self.cancellation_token.clone();
         self.task = Some(tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);
@@ -245,6 +284,98 @@ where
     /// Gets the next event from the event queue
     pub async fn next(&mut self) -> Option<Event> {
         self.event_rx.recv().await
+    }
+
+    fn execute_enter(&self) -> Result<()> {
+        crossterm::execute!(stderr(), EnableBracketedPaste)?;
+        if self.enable_mouse {
+            crossterm::execute!(stderr(), EnableMouseCapture)?;
+        }
+        if self.is_fullscreen {
+            crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
+        }
+        crossterm::execute!(
+            stderr(),
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        )?;
+        Ok(())
+    }
+
+    fn execute_leave(&self) -> Result<()> {
+        crossterm::execute!(stderr(), DisableBracketedPaste)?;
+        if self.enable_mouse {
+            crossterm::execute!(stderr(), DisableMouseCapture)?;
+        }
+        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
+        if self.is_fullscreen {
+            crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
+        }
+        Ok(())
+    }
+
+    /// Pauses the TUI by disabling raw mode, exiting alternate screen etc.
+    /// Returns true if we were in raw mode, false otherwise. Used to restore to the same state later.
+    ///
+    /// # Errors
+    ///
+    /// This propagates the errors of the `disable_raw_mode` and `crossterm::execute` calls.
+    pub fn pause(&mut self) -> Result<bool> {
+        let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+        if in_raw_mode {
+            crossterm::terminal::disable_raw_mode()?;
+        }
+        self.execute_leave()?;
+
+        Ok(in_raw_mode)
+    }
+
+    /// Resumes the TUI after a `pause()`
+    /// Takes `in_raw_mode`, the boolean returned by `pause()`
+    ///
+    /// # Errors
+    /// This propagates the errors of the `disable_raw_mode` and `crossterm::execute` calls.
+    pub fn resume(&mut self, in_raw_mode: bool) -> Result<()> {
+        if in_raw_mode {
+            crossterm::terminal::enable_raw_mode()?;
+        }
+        self.execute_enter()?;
+        Ok(())
+    }
+
+    /// Run a command in the foreground, temporarily handing it the terminal.
+    ///
+    /// This suspends skim's own input reader (via [`Tui::stop_and_join`]) so it
+    /// does not compete with the child for terminal input — the cause of
+    /// interactive TUIs freezing after a few keystrokes — leaves the alternate
+    /// screen and raw mode, runs the command to completion, then restores skim's
+    /// terminal state and restarts the reader. The child is given its own handle
+    /// to the controlling terminal as stdin (see [`execute_child_stdin`]).
+    pub(crate) fn run_execute(&mut self, cmd: &str) -> Result<()> {
+        use std::io::IsTerminal as _;
+
+        let has_tty = std::io::stderr().is_terminal();
+        let mut in_raw_mode = false;
+
+        // Stop skim's input reader and wait for it to release the terminal, so the
+        // child is the only reader of keystrokes while it runs.
+        self.stop_and_join();
+
+        if has_tty {
+            in_raw_mode = self.pause()?;
+        }
+
+        let mut command = crate::shell_cmd(cmd);
+        command.stdin(execute_child_stdin());
+        let _ = command.spawn().and_then(|mut c| c.wait());
+
+        let mut restore_result = Ok(());
+        if has_tty {
+            restore_result = self.resume(in_raw_mode);
+        }
+
+        // Resume skim's input reader now that the terminal is ours again.
+        self.start();
+        restore_result
     }
 }
 
@@ -300,7 +431,7 @@ fn set_panic_hook() {
 /// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
 pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     crossterm::execute!(
-        std::io::stderr(),
+        stderr(),
         DisableMouseCapture,
         DisableBracketedPaste,
         PopKeyboardEnhancementFlags,
@@ -309,6 +440,22 @@ pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     )?;
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
+}
+
+/// Build the stdin handle for an `execute` child process.
+///
+/// skim's own stdin (fd 0) is frequently a pipe carrying the item list
+/// (e.g. `find | sk`), which is useless as a keyboard source for an
+/// interactive child. Hand the child a fresh handle to the controlling
+/// terminal instead, so programs like `ncdu` or other ncurses TUIs can read
+/// the keyboard even when skim's stdin is a pipe. Falls back to inheriting
+/// skim's stdin if the terminal cannot be opened.
+fn execute_child_stdin() -> std::process::Stdio {
+    #[cfg(unix)]
+    let tty = std::fs::File::open("/dev/tty");
+    #[cfg(windows)]
+    let tty = std::fs::OpenOptions::new().read(true).write(true).open("CONIN$");
+    tty.map_or_else(|_| Stdio::inherit(), Stdio::from)
 }
 
 #[cfg(test)]

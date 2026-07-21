@@ -18,20 +18,20 @@ concurrency:
 
 jobs:
   nextest:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.large_runner}}
     strategy:
       matrix: &matrix
         build: [linux, macos, windows]
         include:
           - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            large_runner: blacksmith-2vcpu-ubuntu-2404
           - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
+            runner: macos-latest
+            large_runner: blacksmith-6vcpu-macos-26
           - build: windows
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            large_runner: blacksmith-4vcpu-windows-2025
     permissions:
       contents: read
     steps:
@@ -93,8 +93,6 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    permissions:
-      code-quality: write
     steps:
       - *linux-deps
       - *checkout
@@ -114,15 +112,6 @@ jobs:
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
-      - name: "Upload coverage report"
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        uses: actions/upload-code-coverage@v1
-        with:
-          file: coverage.xml
-          language: Rust
-          label: ${{ runner.os }}
-
       - name: "Generate coverage badge"
         if: &if-master github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: emibcn/badge-action@v2.0.4
@@ -153,7 +142,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   clippy:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -164,7 +153,7 @@ jobs:
         run: cargo clippy
 
   rustfmt:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -175,7 +164,7 @@ jobs:
           cargo fmt --all -- --check
 
   clippy-no-default-features:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -205,7 +194,7 @@ jobs:
   fuzz:
     permissions:
       contents: read
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: *matrix
     steps:
@@ -249,7 +238,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: fuzz-crashes-${{ matrix.build }}
+          name: fuzz-crashes-${{ runner.os }}
           path: fuzz/artifacts/
           if-no-files-found: ignore
 

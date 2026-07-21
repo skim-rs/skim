@@ -610,14 +610,47 @@ fn next_history_at_most_recent_is_noop() {
 }
 
 #[test]
-fn execute_action_runs_command() {
-    // Execute spawns a foreground command (toggling raw mode / alt screen) and
-    // returns a Redraw event. Use a no-op that exists in each platform's shell:
-    // `true` for `sh`, `rem` (a comment builtin) for `cmd`.
-    let noop = if cfg!(windows) { "rem" } else { "true" };
+fn execute_action_expands_and_defers_to_event_loop() {
+    // `Execute` expands the command and hands it to the event loop via
+    // `Event::RunExecute`, rather than spawning it here (spawning needs the
+    // `Tui` to suspend skim's input reader). `{}` expands to the query since no
+    // item is selected.
     let mut app = App::default();
-    let events = act(&mut app, Action::Execute(noop.to_string()));
-    assert!(events.iter().any(|e| matches!(e, Event::Redraw)));
+    app.input.value = "hello".to_string();
+    let events = act(&mut app, Action::Execute("echo {q}".to_string()));
+    assert!(
+        matches!(events.as_slice(), [Event::RunExecute(cmd)] if cmd.contains("hello")),
+        "expected RunExecute with expanded query, got {events:?}"
+    );
+}
+
+#[test]
+fn run_execute_event_runs_command_and_restarts_reader() {
+    // Driving `Event::RunExecute` through `handle_event` should run the command
+    // to completion, restart skim's input reader, and queue a repaint. Under
+    // the test harness stderr is not a tty, so the raw-mode / alt-screen
+    // toggles are skipped and only the reader-suspend + spawn path is exercised.
+    use crate::tui::{Size, Tui};
+    use ratatui::backend::TestBackend;
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+
+    let mut app = App::default();
+    let mut tui = Tui::new_with_height_and_backend(TestBackend::new(80, 24), Size::Percent(100))
+        .expect("failed to build test TUI");
+
+    let noop = if cfg!(windows) { "rem" } else { "true" };
+    rt.block_on(async {
+        app.handle_event(&mut tui, &Event::RunExecute(noop.to_string()))
+            .expect("handle_event failed");
+    });
+
+    // The reader task is (re)started after the child exits.
+    assert!(tui.task.is_some(), "reader task should be running after execute");
 }
 
 #[test]
@@ -885,6 +918,23 @@ fn handle_key_ctrl_non_char_falls_through_to_empty() {
     let key = KeyEvent::new(KeyCode::F(6), KeyModifiers::CONTROL);
     app.options.keymap.remove(&key);
     assert!(app.handle_key(&key).is_empty());
+}
+
+#[test]
+fn handle_key_ignore_numlock() {
+    let mut app = App::default();
+    app.options.keymap.add_keymaps_str("ctrl-a:add-char(a)");
+    // NUM_LOCK must not prevent the Ctrl+a binding from matching.
+    let key = KeyEvent::new_with_kind_and_state(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+        crossterm::event::KeyEventKind::Press,
+        crossterm::event::KeyEventState::NUM_LOCK,
+    );
+    assert!(matches!(
+        app.handle_key(&key).as_slice(),
+        &[Event::Action(Action::AddChar('a'))]
+    ));
 }
 
 #[test]

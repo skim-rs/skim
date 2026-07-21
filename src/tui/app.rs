@@ -683,8 +683,25 @@ impl App {
                     warn!("RunPreview: error {e:?}");
                 }
             }
-            Event::Clear | Event::Redraw => {
+            Event::RunExecute(cmd) => {
+                tui.run_execute(cmd)?;
+                self.handle_event(tui, &Event::Redraw)?;
+            }
+            Event::Clear => {
                 tui.clear()?;
+            }
+            Event::Redraw => {
+                // Avoid `Event::Redraw` (which calls `tui.clear()`): ratatui's
+                // `Terminal::clear` first queries the cursor position, and
+                // crossterm writes that query (`ESC [ 6 n`) to *stdout*. skim
+                // renders to stderr and its stdout is frequently redirected
+                // (`sk > file`, `find | sk | …`); there the query reaches no
+                // terminal, no reply ever comes, and the UI stalls for seconds
+                // before erroring out. Resetting both of ratatui's diff buffers
+                // instead makes the next draw repaint every cell — no cursor
+                // query, and it works for both fullscreen and inline viewports.
+                tui.force_full_redraw();
+                self.handle_event(tui, &Event::Render)?;
             }
             Event::Quit | Event::Close => {
                 tui.exit()?;
@@ -775,9 +792,10 @@ impl App {
         self.on_items_updated();
     }
     fn handle_key(&mut self, key: &KeyEvent) -> Vec<Event> {
-        debug!("key event: {key:?}");
+        let normalized_key = KeyEvent::new(key.code, key.modifiers);
+        debug!("key event: {key:?}, normalized: {normalized_key:?}");
 
-        if let Some(act) = &self.options.keymap.get(key) {
+        if let Some(act) = &self.options.keymap.get(&normalized_key) {
             debug!("{act:?}");
             return act.iter().map(|a| Event::Action(a.clone())).collect();
         }
@@ -957,35 +975,13 @@ impl App {
                 self.input.move_to_end();
             }
             Execute(cmd) => {
-                use std::io::IsTerminal as _;
-
+                // Running a foreground process needs the `Tui` (to suspend
+                // skim's input reader and toggle terminal modes), which this
+                // method does not have. Expand the command here and hand it to
+                // the event loop, which runs it via `Event::RunExecute`.
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {expanded_cmd}");
-                let mut command = crate::shell_cmd(&expanded_cmd);
-                let has_tty = std::io::stderr().is_terminal();
-                let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
-                if has_tty {
-                    if in_raw_mode {
-                        crossterm::terminal::disable_raw_mode()?;
-                    }
-                    crossterm::execute!(
-                        std::io::stderr(),
-                        crossterm::terminal::LeaveAlternateScreen,
-                        crossterm::event::DisableMouseCapture
-                    )?;
-                }
-                let _ = command.spawn().and_then(|mut c| c.wait());
-                if has_tty {
-                    if in_raw_mode {
-                        crossterm::terminal::enable_raw_mode()?;
-                    }
-                    crossterm::execute!(
-                        std::io::stderr(),
-                        crossterm::terminal::EnterAlternateScreen,
-                        crossterm::event::EnableMouseCapture
-                    )?;
-                }
-                return Ok(vec![Event::Redraw]);
+                return Ok(vec![Event::RunExecute(expanded_cmd)]);
             }
             ExecuteSilent(cmd) => {
                 let expanded_cmd = self.expand_cmd(cmd, true);

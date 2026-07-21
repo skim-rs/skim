@@ -141,6 +141,13 @@ pub enum Event {
     Heartbeat,
     /// Run the preview command
     RunPreview,
+    /// Run a command in the foreground, handing it the terminal
+    ///
+    /// Carries the already-expanded command line. Handled by the TUI event
+    /// loop (which has access to the [`Tui`](crate::tui::Tui)) rather than by
+    /// `handle_action`, because running a foreground process requires
+    /// suspending skim's own input reader and toggling terminal modes.
+    RunExecute(String),
     /// Redraw the screen
     Redraw,
     /// Reload with a new command

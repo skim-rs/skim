@@ -1,0 +1,38 @@
+name: Publish to winget
+
+# Custom dist publish job (wired in through `publish-jobs` in dist-workspace.toml).
+# After dist creates the GitHub Release, this submits the new version to the
+# Windows Package Manager Community Repository (microsoft/winget-pkgs) using the
+# Windows .zip artifact that dist already builds and attaches to the release.
+#
+# Requires a `WINGET_TOKEN` repository secret: a *classic* GitHub PAT with the
+# `public_repo` scope that owns a fork of microsoft/winget-pkgs under the
+# `fork-user` account (see below). Fine-grained tokens are not supported -- they
+# can commit but cannot open the cross-fork PR to winget-pkgs. Without it the job
+# fails at submission time.
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+    secrets:
+      WINGET_TOKEN:
+        required: true
+        description: "GitHub PAT with public_repo scope for winget-pkgs PR"
+
+jobs:
+  winget:
+    name: Publish winget package
+    # winget-pkgs only accepts stable versions; never submit prereleases.
+    if: ${{ !fromJson(inputs.plan).announcement_is_prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit skim to the Windows Package Manager Community Repository
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: skim-rs.skim
+          installers-regex: '-pc-windows-msvc\.zip$'
+          release-tag: ${{ fromJson(inputs.plan).announcement_tag }}
+          fork-user: skim-rs
+          token: ${{ secrets.WINGET_TOKEN }}
