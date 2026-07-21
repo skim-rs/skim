@@ -980,11 +980,11 @@ Events are injected from the nearest state-change site:
   `Event::Render` checks again after matcher output is merged into the list so
   result-driven focus changes are also observed. `take_focus_event` de-duplicates
   both paths.
-- **`start`** — `Skim::fire_start_event`; **`load`**/`reader_done` — set by
-  `Skim::check_reader` (`src/skim.rs`).
+- **`start`** — `Skim::fire_start_event` (`src/skim.rs`). `Skim::check_reader`
+  only records the `reader_done` state; it does not itself emit `load`.
 - **`load`/`result`/`zero`/`one`** — these track *async* reader/matcher
   completion, which has no synchronous callback, so `App::poll_completion_events`
-  edge-triggers them from the `Heartbeat` handler (not the render path). A
+  owns and edge-triggers them from the `Heartbeat` handler (not the render path). A
   `Render` is queued just before them so a binding that inspects the list (e.g.
   `load:first`) sees the finished results. `result` may fire for intermediate
   matcher passes while input is streaming; `zero`/`one` wait for `reader_done`

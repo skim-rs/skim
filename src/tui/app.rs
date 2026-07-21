@@ -837,7 +837,7 @@ impl App {
         let actions = match crate::binds::parse_action_chain(chain) {
             Ok(actions) => actions,
             Err(err) => {
-                debug!("Ignoring conditional action chain `{chain}`: {err}");
+                warn!("Ignoring conditional action chain `{chain}`: {err}");
                 return Ok(Vec::new());
             }
         };

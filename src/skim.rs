@@ -618,6 +618,11 @@ where
     /// }
     /// ```
     pub async fn tick(&mut self) -> Result<bool> {
+        // Retry the one-shot `start` event until the (bounded) event channel
+        // accepts it. `start()`/`enter()` fire it eagerly, but if the channel was
+        // momentarily full there, this guarantees it is not lost. Idempotent: the
+        // `start_fired` guard makes every call after the first a no-op.
+        self.fire_start_event();
         let matcher_interval = &mut self.matcher_interval;
         let items_available = self.app.item_pool.items_available.clone();
         select! {
