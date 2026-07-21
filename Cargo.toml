@@ -108,7 +108,7 @@ criterion = { version = "0.8.2", features = ["async_tokio"] }
 gnuplot = "0.0.46"
 insta = "1.47"
 rand = "0.10.0"
-serde_json = { version = "=1.0.150" }
+serde_json = { version = "=1.0.151" }
 serial_test = "=3.5.0"
 
 [[bench]]
