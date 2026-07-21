@@ -1,4 +1,4 @@
-use std::io::BufWriter;
+use std::io::{BufWriter, stderr};
 use std::ops::{Deref, DerefMut};
 use std::sync::Once;
 
@@ -51,7 +51,7 @@ impl Tui {
     ///
     /// Returns an error if the TUI backend cannot be initialized.
     pub fn new_with_height(height: Size) -> Result<Self> {
-        let backend = CrosstermBackend::new(std::io::BufWriter::new(std::io::stderr()));
+        let backend = CrosstermBackend::new(std::io::BufWriter::new(stderr()));
         Self::new_with_height_and_backend(backend, height)
     }
     /// Disable mouse handling.
@@ -93,7 +93,7 @@ where
             height = height.min(term_height);
             if term_height - cursor_pos.1 < height {
                 let to_scroll = height - (term_height - cursor_pos.1) - 1;
-                crossterm::execute!(std::io::stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
+                crossterm::execute!(stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
                 y = y.saturating_sub(to_scroll);
             }
             Viewport::Fixed(Rect::new(
@@ -145,15 +145,15 @@ where
         #[cfg(windows)]
         super::windows::install_ctrl_c_handler()?;
 
-        crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;
+        crossterm::execute!(stderr(), EnableBracketedPaste)?;
         if self.enable_mouse {
-            crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+            crossterm::execute!(stderr(), EnableMouseCapture)?;
         }
         if self.is_fullscreen {
-            crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;
+            crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
         crossterm::execute!(
-            std::io::stderr(),
+            stderr(),
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
         )?;
         Ok(())
@@ -176,7 +176,7 @@ where
             let area = self.get_frame().area();
             let orig = ratatui::layout::Position { x: area.x, y: area.y };
             crossterm::execute!(
-                std::io::stderr(),
+                stderr(),
                 cursor::MoveTo(orig.x, orig.y),
                 Clear(ClearType::FromCursorDown)
             )?;
@@ -294,6 +294,47 @@ where
     pub async fn next(&mut self) -> Option<Event> {
         self.event_rx.recv().await
     }
+
+    /// Pauses the TUI by disabling raw mode, exiting alternate screen etc.
+    /// Returns true if we were in raw mode, false otherwise. Used to restore to the same state later.
+    ///
+    /// # Errors
+    ///
+    /// This propagates the errors of the `disable_raw_mode` and `crossterm::execute` calls.
+    pub fn pause(&mut self) -> Result<bool> {
+        let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+        if in_raw_mode {
+            crossterm::terminal::disable_raw_mode()?;
+        }
+        crossterm::execute!(
+            stderr(),
+            DisableMouseCapture,
+            DisableBracketedPaste,
+            PopKeyboardEnhancementFlags,
+            LeaveAlternateScreen,
+            cursor::Show
+        )?;
+
+        Ok(in_raw_mode)
+    }
+
+    /// Resumes the TUI after a `pause()`
+    /// Takes `in_raw_mode`, the boolean returned by `pause()`
+    ///
+    /// # Errors
+    /// This propagates the errors of the `disable_raw_mode` and `crossterm::execute` calls.
+    pub fn resume(&mut self, in_raw_mode: bool) -> Result<()> {
+        if in_raw_mode {
+            crossterm::terminal::enable_raw_mode()?;
+        }
+        crossterm::execute!(
+            stderr(),
+            crossterm::terminal::EnterAlternateScreen,
+            crossterm::event::EnableMouseCapture,
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        )?;
+        Ok(())
+    }
 }
 
 impl<B: Backend> Deref for Tui<B>
@@ -348,7 +389,7 @@ fn set_panic_hook() {
 /// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
 pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     crossterm::execute!(
-        std::io::stderr(),
+        stderr(),
         DisableMouseCapture,
         DisableBracketedPaste,
         PopKeyboardEnhancementFlags,

@@ -74,21 +74,14 @@ where
     use std::io::IsTerminal as _;
 
     let has_tty = std::io::stderr().is_terminal();
-    let in_raw_mode = crossterm::terminal::is_raw_mode_enabled().unwrap_or(false);
+    let mut in_raw_mode = false;
 
     // Stop skim's input reader and wait for it to release the terminal, so the
     // child is the only reader of keystrokes while it runs.
     tui.stop_and_join();
 
     if has_tty {
-        if in_raw_mode {
-            crossterm::terminal::disable_raw_mode()?;
-        }
-        crossterm::execute!(
-            std::io::stderr(),
-            crossterm::terminal::LeaveAlternateScreen,
-            crossterm::event::DisableMouseCapture
-        )?;
+        in_raw_mode = tui.pause()?;
     }
 
     let mut command = crate::shell_cmd(cmd);
@@ -96,14 +89,7 @@ where
     let _ = command.spawn().and_then(|mut c| c.wait());
 
     if has_tty {
-        if in_raw_mode {
-            crossterm::terminal::enable_raw_mode()?;
-        }
-        crossterm::execute!(
-            std::io::stderr(),
-            crossterm::terminal::EnterAlternateScreen,
-            crossterm::event::EnableMouseCapture
-        )?;
+        tui.resume(in_raw_mode)?;
     }
 
     // Resume skim's input reader now that the terminal is ours again.
