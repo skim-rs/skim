@@ -43,60 +43,6 @@ static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
 const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
 
-/// Build the stdin handle for an `execute` child process.
-///
-/// skim's own stdin (fd 0) is frequently a pipe carrying the item list
-/// (e.g. `find | sk`), which is useless as a keyboard source for an
-/// interactive child. Hand the child a fresh handle to the controlling
-/// terminal instead, so programs like `ncdu` or other ncurses TUIs can read
-/// the keyboard even when skim's stdin is a pipe. Falls back to inheriting
-/// skim's stdin if the terminal cannot be opened.
-fn execute_child_stdin() -> Stdio {
-    #[cfg(unix)]
-    let tty = std::fs::File::open("/dev/tty");
-    #[cfg(windows)]
-    let tty = std::fs::OpenOptions::new().read(true).write(true).open("CONIN$");
-    tty.map_or_else(|_| Stdio::inherit(), Stdio::from)
-}
-
-/// Run a command in the foreground, temporarily handing it the terminal.
-///
-/// This suspends skim's own input reader (via [`Tui::stop_and_join`]) so it
-/// does not compete with the child for terminal input — the cause of
-/// interactive TUIs freezing after a few keystrokes — leaves the alternate
-/// screen and raw mode, runs the command to completion, then restores skim's
-/// terminal state and restarts the reader. The child is given its own handle
-/// to the controlling terminal as stdin (see [`execute_child_stdin`]).
-fn run_foreground<B: Backend>(tui: &mut Tui<B>, cmd: &str) -> Result<()>
-where
-    B::Error: Send + Sync + 'static,
-{
-    use std::io::IsTerminal as _;
-
-    let has_tty = std::io::stderr().is_terminal();
-    let mut in_raw_mode = false;
-
-    // Stop skim's input reader and wait for it to release the terminal, so the
-    // child is the only reader of keystrokes while it runs.
-    tui.stop_and_join();
-
-    if has_tty {
-        in_raw_mode = tui.pause()?;
-    }
-
-    let mut command = crate::shell_cmd(cmd);
-    command.stdin(execute_child_stdin());
-    let _ = command.spawn().and_then(|mut c| c.wait());
-
-    if has_tty {
-        tui.resume(in_raw_mode)?;
-    }
-
-    // Resume skim's input reader now that the terminal is ours again.
-    tui.start();
-    Ok(())
-}
-
 /// Application state for skim's TUI
 #[allow(clippy::struct_excessive_bools)]
 pub struct App {
@@ -638,11 +584,13 @@ impl App {
                 }
             }
             Event::RunExecute(cmd) => {
-                run_foreground(tui, cmd)?;
-                // Force a full repaint: the child scribbled over the screen and
-                // the alternate-screen re-entry left it blank, so ratatui's
-                // cached buffer no longer matches the display.
-                //
+                tui.run_execute(cmd)?;
+                self.handle_event(tui, &Event::Redraw)?;
+            }
+            Event::Clear => {
+                tui.clear()?;
+            }
+            Event::Redraw => {
                 // Avoid `Event::Redraw` (which calls `tui.clear()`): ratatui's
                 // `Terminal::clear` first queries the cursor position, and
                 // crossterm writes that query (`ESC [ 6 n`) to *stdout*. skim
@@ -653,10 +601,7 @@ impl App {
                 // instead makes the next draw repaint every cell — no cursor
                 // query, and it works for both fullscreen and inline viewports.
                 tui.force_full_redraw();
-                tui.event_tx.try_send(Event::Render)?;
-            }
-            Event::Clear | Event::Redraw => {
-                tui.clear()?;
+                self.handle_event(tui, &Event::Render)?;
             }
             Event::Quit | Event::Close => {
                 tui.exit()?;

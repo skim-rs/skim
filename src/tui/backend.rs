@@ -1,5 +1,6 @@
 use std::io::{BufWriter, stderr};
 use std::ops::{Deref, DerefMut};
+use std::process::Stdio;
 use std::sync::Once;
 
 use crossterm::event::{
@@ -340,6 +341,42 @@ where
         self.execute_enter()?;
         Ok(())
     }
+
+    /// Run a command in the foreground, temporarily handing it the terminal.
+    ///
+    /// This suspends skim's own input reader (via [`Tui::stop_and_join`]) so it
+    /// does not compete with the child for terminal input — the cause of
+    /// interactive TUIs freezing after a few keystrokes — leaves the alternate
+    /// screen and raw mode, runs the command to completion, then restores skim's
+    /// terminal state and restarts the reader. The child is given its own handle
+    /// to the controlling terminal as stdin (see [`execute_child_stdin`]).
+    pub(crate) fn run_execute(&mut self, cmd: &str) -> Result<()> {
+        use std::io::IsTerminal as _;
+
+        let has_tty = std::io::stderr().is_terminal();
+        let mut in_raw_mode = false;
+
+        // Stop skim's input reader and wait for it to release the terminal, so the
+        // child is the only reader of keystrokes while it runs.
+        self.stop_and_join();
+
+        if has_tty {
+            in_raw_mode = self.pause()?;
+        }
+
+        let mut command = crate::shell_cmd(cmd);
+        command.stdin(execute_child_stdin());
+        let _ = command.spawn().and_then(|mut c| c.wait());
+
+        let mut restore_result = Ok(());
+        if has_tty {
+            restore_result = self.resume(in_raw_mode);
+        }
+
+        // Resume skim's input reader now that the terminal is ours again.
+        self.start();
+        restore_result
+    }
 }
 
 impl<B: Backend> Deref for Tui<B>
@@ -403,6 +440,22 @@ pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     )?;
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
+}
+
+/// Build the stdin handle for an `execute` child process.
+///
+/// skim's own stdin (fd 0) is frequently a pipe carrying the item list
+/// (e.g. `find | sk`), which is useless as a keyboard source for an
+/// interactive child. Hand the child a fresh handle to the controlling
+/// terminal instead, so programs like `ncdu` or other ncurses TUIs can read
+/// the keyboard even when skim's stdin is a pipe. Falls back to inheriting
+/// skim's stdin if the terminal cannot be opened.
+fn execute_child_stdin() -> std::process::Stdio {
+    #[cfg(unix)]
+    let tty = std::fs::File::open("/dev/tty");
+    #[cfg(windows)]
+    let tty = std::fs::OpenOptions::new().read(true).write(true).open("CONIN$");
+    tty.map_or_else(|_| Stdio::inherit(), Stdio::from)
 }
 
 #[cfg(test)]
