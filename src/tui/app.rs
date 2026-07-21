@@ -1002,16 +1002,13 @@ impl App {
                 self.input.move_cursor_forward_word();
             }
             IfQueryEmpty(then, otherwise) => {
-                let condition = self.input.is_empty();
-                return self.dispatch_conditional(condition, then, otherwise.as_deref());
+                return self.dispatch_conditional(self.input.is_empty(), then, otherwise.as_deref());
             }
             IfQueryNotEmpty(then, otherwise) => {
-                let condition = !self.input.is_empty();
-                return self.dispatch_conditional(condition, then, otherwise.as_deref());
+                return self.dispatch_conditional(!self.input.is_empty(), then, otherwise.as_deref());
             }
             IfNonMatched(then, otherwise) => {
-                let condition = self.item_list.items.is_empty();
-                return self.dispatch_conditional(condition, then, otherwise.as_deref());
+                return self.dispatch_conditional(self.item_list.items.is_empty(), then, otherwise.as_deref());
             }
             // `ignore` is a no-op. `suppress` is also a no-op on its own; its
             // suppression effect is applied in `handle_action` when it appears in
