@@ -548,12 +548,13 @@ fn run_execute_event_runs_command_and_restarts_reader() {
     // The reader task is (re)started after the child exits.
     assert!(tui.task.is_some(), "reader task should be running after execute");
 
-    // A repaint (Redraw + Render) is queued so the screen is restored.
+    // A Render is queued so the screen is restored. (The full-redraw reset is
+    // applied directly via `Tui::force_full_redraw`, not as a queued event, so
+    // it does not query the cursor position over a possibly-redirected stdout.)
     let mut queued = Vec::new();
     while let Ok(evt) = tui.event_rx.try_recv() {
         queued.push(evt);
     }
-    assert!(queued.iter().any(|e| matches!(e, Event::Redraw)));
     assert!(queued.iter().any(|e| matches!(e, Event::Render)));
 }
 

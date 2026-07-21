@@ -653,8 +653,20 @@ impl App {
             }
             Event::RunExecute(cmd) => {
                 run_foreground(tui, cmd)?;
-                // Repaint from scratch: the child scribbled over our screen.
-                tui.event_tx.try_send(Event::Redraw)?;
+                // Force a full repaint: the child scribbled over the screen and
+                // the alternate-screen re-entry left it blank, so ratatui's
+                // cached buffer no longer matches the display.
+                //
+                // Avoid `Event::Redraw` (which calls `tui.clear()`): ratatui's
+                // `Terminal::clear` first queries the cursor position, and
+                // crossterm writes that query (`ESC [ 6 n`) to *stdout*. skim
+                // renders to stderr and its stdout is frequently redirected
+                // (`sk > file`, `find | sk | …`); there the query reaches no
+                // terminal, no reply ever comes, and the UI stalls for seconds
+                // before erroring out. Resetting both of ratatui's diff buffers
+                // instead makes the next draw repaint every cell — no cursor
+                // query, and it works for both fullscreen and inline viewports.
+                tui.force_full_redraw();
                 tui.event_tx.try_send(Event::Render)?;
             }
             Event::Clear | Event::Redraw => {

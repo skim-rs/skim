@@ -189,6 +189,23 @@ where
     pub fn stop(&self) {
         self.cancel();
     }
+    /// Forces the next [`draw`](ratatui::Terminal::draw) to repaint every cell.
+    ///
+    /// ratatui only writes cells that differ from the previously drawn buffer.
+    /// After the display has been disturbed out from under it — e.g. an
+    /// `execute` action that ran a child program and re-entered the alternate
+    /// screen — that cached buffer is stale and a normal draw would leave the
+    /// screen partially blank. Resetting *both* double buffers makes the next
+    /// draw diff against an empty buffer and thus repaint everything.
+    ///
+    /// Unlike [`ratatui::Terminal::clear`], this performs no cursor-position
+    /// query (which crossterm writes to stdout and which stalls when stdout is
+    /// redirected), and it is viewport-agnostic (works for fullscreen and
+    /// inline layouts alike).
+    pub fn force_full_redraw(&mut self) {
+        self.terminal.swap_buffers();
+        self.terminal.swap_buffers();
+    }
     /// Stops the input reader and waits for it to release the terminal.
     ///
     /// Unlike [`stop`](Self::stop), this blocks until the background task has
@@ -221,10 +238,17 @@ where
     pub fn start(&mut self) {
         let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);
         let event_tx_clone = self.event_tx.clone();
-        let cancellation_token_clone = self.cancellation_token.clone();
+        // Cancel any previously running reader before spawning a new one.
         if self.task.is_some() {
             self.cancel();
         }
+        // Install a fresh cancellation token: a `CancellationToken` stays
+        // cancelled once cancelled, so reusing the old one (after `stop`,
+        // `stop_and_join`, or a prior `start`) would make the new task observe
+        // the cancellation immediately and exit without reading any input.
+        // This is what lets the reader resume after an `execute` action.
+        self.cancellation_token = CancellationToken::new();
+        let cancellation_token_clone = self.cancellation_token.clone();
         self.task = Some(tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
             let mut tick_interval = tokio::time::interval(tick_delay);

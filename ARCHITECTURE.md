@@ -656,6 +656,8 @@ A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_termi
 
 **Foreground `execute` actions:** the `execute(cmd)` action must hand the terminal to a child process (e.g. an editor or an interactive TUI like `ncdu`). `handle_action` only expands the command and returns `Event::RunExecute(cmd)`; the actual run happens in `App::handle_event` (which owns the `Tui`) via the `run_foreground(tui, cmd)` helper in `src/tui/app.rs`. `run_foreground` calls `Tui::stop_and_join()` — which cancels the event-pump task **and blocks until it has dropped its `EventStream`** — so skim's reader stops consuming terminal input before the child starts; otherwise the two race for keystrokes and interactive children appear to freeze. It then leaves the alternate screen / raw mode, spawns the child with its **own** stdin opened from the controlling terminal (`/dev/tty`, or `CONIN$` on Windows; falls back to inheriting skim's stdin), waits for it, restores terminal modes, and calls `Tui::start()` to respawn the reader. Giving the child its own tty stdin is what lets `execute` work when skim's own stdin is a pipe (`find | sk`). `execute-silent(cmd)` needs no terminal and is still spawned directly inside `handle_action` with stdout/stderr sent to `/dev/null`.
 
+Two subtleties make the resume correct. First, `Tui::start` installs a **fresh** `CancellationToken` on every call: a token stays cancelled once cancelled, so reusing the one `stop_and_join` cancelled would make the respawned reader observe the cancellation immediately and exit without reading input. Second, the post-execute repaint uses `Tui::force_full_redraw` (which resets both of ratatui's diff buffers) followed by `Event::Render`, rather than `Event::Redraw`/`tui.clear()`: ratatui's `Terminal::clear` first queries the cursor position, and crossterm writes that query (`ESC [ 6 n`) to **stdout**. Since skim renders to stderr and its stdout is routinely redirected (`sk > file`, `find | sk | …`), that query would reach no terminal, get no reply, and stall the UI for seconds before erroring out. `force_full_redraw` performs no cursor query and works for both fullscreen and inline viewports.
+
 Image preview protocol detection is owned by `Skim::enter()`, not `Tui::enter_terminal()`: `--image=detect` temporarily ensures an alternate screen is active, queries `ratatui_image::picker::Picker::from_query_stdio()`, falls back to `Picker::halfblocks()` on failure, then stores the picker in both `SkimOptions.image_picker` and the `Preview` widget. `--image=halfblocks` skips detection and installs `Picker::halfblocks()` directly.
 
 ### Event Loop
@@ -708,7 +710,7 @@ Frame rate is capped at 120 fps (`FRAME_TIME_MS = 1000/120`). `App::handle_event
 Event::Render     → tui.draw(|f| f.render_widget(&mut self, f.area()))
 Event::Heartbeat  → update_spinner(); check pending_matcher_restart; throttled render
 Event::RunPreview → run_preview(tui)
-Event::RunExecute(cmd) → run_foreground(tui, cmd); send Redraw + Render
+Event::RunExecute(cmd) → run_foreground(tui, cmd); force_full_redraw(); send Render
 Event::Key(k)     → handle_key(k) → [Action…] → tui.event_tx.send(Event::Action)
 Event::Action(a)  → handle_action(a) → [Event…] → tui.event_tx.send(…)
 Event::Paste(t)   → input.insert_str(cleaned); on_query_changed()
@@ -1231,10 +1233,10 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `App::from_options` | `src/tui/app.rs:332` | Build all widgets from options |
 | `App::run_preview` | `src/tui/app.rs:484` | Expand cmd, debounce, call Preview::spawn |
 | `App::handle_event` | `src/tui/app.rs:609` | Dispatch all Event variants |
-| `App::handle_action` | `src/tui/app.rs:781` | Dispatch all Action variants |
+| `App::handle_action` | `src/tui/app.rs:793` | Dispatch all Action variants |
 | `run_foreground` | `src/tui/app.rs:70` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
-| `App::restart_matcher` | `src/tui/app.rs:1270` | Kill old match pass, start new one |
-| `App::expand_cmd` | `src/tui/app.rs:1343` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `App::restart_matcher` | `src/tui/app.rs:1282` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1355` | Substitute `{}`, `{q}`, `{n}` etc. |
 | `Widget::render (App)` | `src/tui/app.rs:200` | Root render; calls all sub-widgets |
 | `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
@@ -1247,8 +1249,9 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `Preview::spawn` | `src/tui/preview.rs:319` | Start image, PTY, or plain preview worker |
 | `Tui::new_with_height_and_backend` | `src/tui/backend.rs:78` | Terminal init + viewport sizing |
 | `Tui::enter` | `src/tui/backend.rs:127` | Enable raw mode + terminal setup |
-| `Tui::start` | `src/tui/backend.rs:221` | Spawn crossterm EventStream task |
-| `Tui::stop_and_join` | `src/tui/backend.rs:207` | Cancel event pump and block until `EventStream` is dropped (before `execute`) |
+| `Tui::start` | `src/tui/backend.rs:238` | Spawn crossterm EventStream task (fresh cancellation token each call) |
+| `Tui::stop_and_join` | `src/tui/backend.rs:224` | Cancel event pump and block until `EventStream` is dropped (before `execute`) |
+| `Tui::force_full_redraw` | `src/tui/backend.rs:205` | Reset ratatui diff buffers for a full repaint with no cursor query (after `execute`) |
 | `popup::run_with` | `src/popup/mod.rs:86` | Delegate to multiplexer popup + parse output |
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
