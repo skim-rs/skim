@@ -18,20 +18,17 @@ concurrency:
 
 jobs:
   nextest:
-    runs-on: ${{matrix.large_runner}}
+    runs-on: ${{matrix.runner}}
     strategy:
       matrix: &matrix
         build: [linux, macos, windows]
         include:
           - build: linux
             runner: ubuntu-latest
-            large_runner: blacksmith-2vcpu-ubuntu-2404
           - build: macos
             runner: macos-latest
-            large_runner: blacksmith-6vcpu-macos-26
           - build: windows
             runner: windows-latest
-            large_runner: blacksmith-4vcpu-windows-2025
     permissions:
       contents: read
     steps:

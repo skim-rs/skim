@@ -1,0 +1,55 @@
+name: Deploy APT repo
+
+# Publishes the release's .deb packages as a (flat) APT repository under
+# /apt on the gh-pages branch, alongside the coverage report at /coverage.
+# keep_files preserves the coverage content (and vice versa).
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  apt:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release .deb packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ fromJson(inputs.plan).announcement_tag }}
+        run: |
+          mkdir -p apt
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir apt
+          ls -l apt
+      - name: Build APT index
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils
+          cd apt
+          dpkg-scanpackages --multiversion . > Packages
+          gzip -k -f Packages
+          apt-ftparchive release . > Release
+      - name: Sign the repo
+        # Skipped when the secret is absent; the repo then stays unsigned
+        # ([trusted=yes]). Add APT_GPG_PRIVATE_KEY (an ASCII-armored private
+        # key) to enable signed-by verification.
+        env:
+          GPG_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        if: ${{ env.GPG_KEY != '' }}
+        run: |
+          echo "$GPG_KEY" | gpg --batch --import
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/{print $5; exit}')
+          cd apt
+          gpg --batch --yes --default-key "$KEYID" --clearsign -o InRelease Release
+          gpg --batch --yes --default-key "$KEYID" -abs -o Release.gpg Release
+          gpg --export --armor "$KEYID" > skim-archive-keyring.asc
+      - name: Deploy to gh-pages under /apt
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: apt
+          destination_dir: apt
+          keep_files: true
