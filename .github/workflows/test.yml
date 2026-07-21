@@ -23,11 +23,14 @@ jobs:
       matrix: &matrix
         build: [linux, macos, windows]
         include:
-          - runner: ubuntu-latest
+          - build: linux
+            runner: ubuntu-latest
             large_runner: blacksmith-2vcpu-ubuntu-2404
-          - runner: macos-latest
+          - build: macos
+            runner: macos-latest
             large_runner: blacksmith-6vcpu-macos-26
-          - runner: windows-latest
+          - build: windows
+            runner: windows-latest
             large_runner: blacksmith-4vcpu-windows-2025
     permissions:
       contents: read
