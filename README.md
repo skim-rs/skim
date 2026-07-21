@@ -81,77 +81,72 @@ The skim project contains several components:
 
 ## Package Managers
 
-| OS             | Package Manager   | Command                      |
-| -------------- | ----------------- | ---------------------------- |
-| macOS          | Homebrew          | `brew install sk`            |
-| macOS          | MacPorts          | `sudo port install skim`     |
-| Alpine         | apk               | `apk add skim`               |
-| Arch           | pacman            | `pacman -S skim`             |
-| Fedora         | COPR              |   see below                  |
-| Gentoo         | Portage           | `emerge --ask app-misc/skim` |
-| Guix           | guix              | `guix install skim`          |
-| Void           | XBPS              | `xbps-install -S skim`       |
-| Windows        | winget            | `winget install skim`|
-| Windows        | Scoop             | `scoop install skim`         |
-| Debian/Ubuntu  | `.deb` package    |   see below                  |
-| Fedora/RHEL/SUSE | `.rpm` package  |   see below                  |
+| OS             | Package Manager | Command                      |
+| -------------- | --------------- | ---------------------------- |
+| macOS          | Homebrew        | `brew install sk`            |
+| macOS          | MacPorts        | `sudo port install skim`     |
+| Alpine         | apk             | `apk add skim`               |
+| Arch           | pacman          | `pacman -S skim`             |
+| Fedora         | COPR            |   see below                  |
+| Gentoo         | Portage         | `emerge --ask app-misc/skim` |
+| Guix           | guix            | `guix install skim`          |
+| Void           | XBPS            | `xbps-install -S skim`       |
+| Windows        | winget          | `winget install skim`        |
+| Windows        | Scoop           | `scoop install skim`         |
+| Debian/Ubuntu  | apt             |   see below                  |
+| Fedora/RHEL    | dnf             |   see below                  |
 
 <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/vertical-allrepos/skim-fuzzy-finder.svg?columns=4" alt="Packaging status">
 </a>
 
-### Fedora
+### Debian/Ubuntu
 
-Up to date Fedora packages are provided via an unofficial community-maintained COPR repository.
+A custom APT repository is available and updated automatically during each release:
+
+1. Import the signing key
+
+With wget:
+
+```sh
+sudo mkdir -p /etc/apt/keyrings
+sudo wget -O /etc/apt/keyrings/skim.asc https://skim-rs.github.io/skim/apt/skim-archive-keyring.asc
+```
+
+Or with cURL:
+
+```sh
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://skim-rs.github.io/skim/apt/skim-archive-keyring.asc | sudo tee /etc/apt/keyrings/skim.asc > /dev/null
+```
+
+2. Add the repository
+
+```sh
+echo 'deb [signed-by=/etc/apt/keyrings/skim.asc] https://skim-rs.github.io/skim/apt ./' | sudo tee /etc/apt/sources.list.d/skim.list
+sudo apt-get update
+```
+
+3. Install
+
+```sh
+sudo apt-get install skim
+```
+
+Alternatively, `.deb` packages are attached directly to every [release](https://github.com/skim-rs/skim/releases/latest).
+Download the one matching your architecture and run `sudo dpkg -i skim_*_amd64.deb`
+
+
+### Fedora/RHEL
+
+Up-to-date Fedora/RHEL packages are provided via an unofficial community-maintained COPR repository.
 ```bash
 sudo dnf copr enable sisyphus1813/skim
 sudo dnf install skim
 ```
 
-### Windows
-
-Using [winget](https://learn.microsoft.com/windows/package-manager/):
-```powershell
-winget install skim
-```
-Or using [Scoop](https://scoop.sh/):
-```powershell
-scoop install skim
-```
-
-### Debian and RPM packages
-
-Every [release](https://github.com/skim-rs/skim/releases/latest) ships prebuilt
-`.deb` and `.rpm` packages for `amd64` and `arm64`. Each one installs the `sk`
-executable, its man page and the bash/zsh/fish completions.
-
-Download the package matching your distribution and architecture from the
-[latest release](https://github.com/skim-rs/skim/releases/latest), then install it:
-```sh
-# Debian / Ubuntu (use skim_*_arm64.deb on ARM machines)
-sudo dpkg -i skim_*_amd64.deb
-
-# Fedora / RHEL / openSUSE (use skim-*.aarch64.rpm on ARM machines)
-sudo rpm -i skim-*.x86_64.rpm
-```
-
-### APT repository (Debian/Ubuntu)
-
-Instead of downloading a `.deb` manually, add the hosted APT repository to get
-`sk` from `apt` and receive updates:
-```sh
-# Import the signing key
-sudo mkdir -p /etc/apt/keyrings
-sudo wget -O /etc/apt/keyrings/skim.asc https://skim-rs.github.io/skim/apt/skim-archive-keyring.asc
-# ...or with curl:
-# curl -fsSL https://skim-rs.github.io/skim/apt/skim-archive-keyring.asc | sudo tee /etc/apt/keyrings/skim.asc > /dev/null
-
-# Add the repository
-echo 'deb [signed-by=/etc/apt/keyrings/skim.asc] https://skim-rs.github.io/skim/apt ./' | sudo tee /etc/apt/sources.list.d/skim.list
-sudo apt-get update
-sudo apt-get install skim
-```
-
+Alternatively, `.rpm` packages are attached directly to every [release](https://github.com/skim-rs/skim/releases/latest).
+Download it and run `sudo rpm -i skim-*.x86_64.rpm`
 
 ## Manually
 

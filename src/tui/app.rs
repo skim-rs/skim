@@ -43,6 +43,7 @@ static NUM_THREADS: LazyLock<usize> = LazyLock::new(|| {
 
 const MATCHER_DEBOUNCE_MS: u128 = 200;
 const HIDE_GRACE_MS: u128 = 500;
+const DOUBLE_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// Application state for skim's TUI
 #[allow(clippy::struct_excessive_bools)]
@@ -130,6 +131,8 @@ pub struct App {
     items_just_updated: bool,
     /// Records if we are scrolling (mouse down on the scrollbar and no mouse up yet)
     currently_scrolling: bool,
+    /// Time of the previous left click, used to recognize `double-click` bindings.
+    last_left_click: std::time::Instant,
     /// Set by [`Skim::check_reader`] once the reader has finished producing
     /// items. Reset on `reload`. Drives the one-shot `load` event.
     pub(crate) reader_done: bool,
@@ -267,6 +270,9 @@ impl Default for App {
             reader_timer: std::time::Instant::now(),
             items_just_updated: false,
             currently_scrolling: false,
+            last_left_click: std::time::Instant::now()
+                .checked_sub(DOUBLE_CLICK_INTERVAL * 2)
+                .unwrap(),
             reader_done: false,
             load_event_fired: false,
             result_pending: false,
@@ -338,6 +344,9 @@ impl App {
                 .unwrap(),
             pending_preview_run: false,
             currently_scrolling: false,
+            last_left_click: std::time::Instant::now()
+                .checked_sub(DOUBLE_CLICK_INTERVAL * 2)
+                .unwrap(),
             reader_done: false,
             load_event_fired: false,
             result_pending: false,
@@ -929,10 +938,8 @@ impl App {
             }
             Bind(spec) => {
                 // Bind one or more `trigger:action[+action]` pairs, reusing the
-                // same parsing/merging logic as the `--bind` CLI option: key
-                // triggers merge into the keymap, action triggers into the
-                // follow-up action bindings. Existing bindings for the same
-                // triggers are replaced.
+                // same parsing/merging logic as the `--bind` CLI option.
+                // Existing bindings for the same triggers are replaced.
                 self.options.keymap.add_keymaps_str(spec);
                 self.options.action_binds.extend(crate::binds::parse_action_binds(
                     crate::binds::split_top_level(spec, ',').into_iter(),
@@ -1284,9 +1291,6 @@ impl App {
             }
             Unbind(spec) => {
                 // Remove the bindings for one or more keys or action triggers.
-                // Keys win, mirroring `bind`: a name that parses as a real key
-                // unbinds the key; otherwise `act-up`/`first` style triggers are
-                // removed from the follow-up action bindings.
                 for trigger in crate::binds::split_top_level(spec, ',') {
                     match crate::binds::parse_key(trigger) {
                         Ok(parsed) => {
@@ -1501,6 +1505,7 @@ impl App {
         trace!("Got mouse event {mouse_event:?}");
 
         let old_current = self.item_list.current;
+        let mut double_click = false;
 
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
@@ -1526,6 +1531,10 @@ impl App {
                 return self.handle_action(&Action::Down(1));
             }
             MouseEventKind::Down(MouseButton::Left) => {
+                let now = std::time::Instant::now();
+                double_click = now.duration_since(self.last_left_click) <= DOUBLE_CLICK_INTERVAL;
+                self.last_left_click = now;
+
                 if let Some((inner, scrollbar_col)) = self.scrollbar_column()
                     && mouse_pos.x == scrollbar_col
                     && inner.contains(mouse_pos)
@@ -1562,10 +1571,15 @@ impl App {
 
         self.needs_render();
 
-        if self.item_list.current != old_current {
-            return Ok(self.on_selection_changed());
+        let mut events = if self.item_list.current == old_current {
+            Vec::new()
+        } else {
+            self.on_selection_changed()
+        };
+        if double_click {
+            events.push(Event::Key(SkimEvent::DoubleClick.into()));
         }
-        Ok(vec![])
+        Ok(events)
     }
     fn toggle_spinner(&mut self) {
         self.show_spinner = !self.show_spinner;

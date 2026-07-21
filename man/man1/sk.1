@@ -199,8 +199,9 @@ history: History scheme: will force index as the first tiebreak
 \fB\-b\fR, \fB\-\-bind\fR [\fI<BIND>...\fR] [default: ]
 Comma\-separated key, event, and action bindings
 
-`\-\-bind` takes comma\-separated `<trigger>:<action>` expressions. A trigger can be a key, a finder
-event (`change`, `start`, `load`, `result`, `focus`, `zero`, or `one`), or an action name. Use the
+`\-\-bind` takes comma\-separated `<trigger>:<action>` expressions. A trigger can be a key, the
+`double\-click` mouse binding, a finder event (`change`, `start`, `load`, `result`, `focus`, `zero`, or
+`one`), or an action name. Use the
 `act\-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
 name is also a key, for example `act\-up:last`. See the [KEYBINDS] section for details.
 
@@ -835,6 +836,8 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 .br
 * alt\-shift\-right
 .br
+* double\-click
+.br
 * any single character
 .br
 
@@ -871,7 +874,7 @@ Follow\-up chains use non\-recursive (`noremap`) semantics: their actions do not
 .br
 * abort: ctrl\-c  ctrl\-q  esc
 .br
-* accept(...): enter *the argument will be printed when the binding is triggered*
+* accept(...): enter double\-click *the argument will be printed when the binding is triggered*
 .br
 * append\-and\-select
 .br
