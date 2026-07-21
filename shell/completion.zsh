@@ -37,8 +37,8 @@ smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
 '--scheme=[]:SCHEME:((default\:"Default scheme, no modifications to the options"
 path\:"Path scheme\: will find the furthest match in the item and set pathname as the main tiebreak"
 history\:"History scheme\: will force index as the first tiebreak"))' \
-'*-b+[Comma separated list of bindings]::BIND:_default' \
-'*--bind=[Comma separated list of bindings]::BIND:_default' \
+'*-b+[Comma-separated key, event, and action bindings]::BIND:_default' \
+'*--bind=[Comma-separated key, event, and action bindings]::BIND:_default' \
 '-c+[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '--cmd=[Command to invoke dynamically in interactive mode]:CMD:_default' \
 '-I+[Replace replstr with the selected item in commands]:REPLSTR:_default' \

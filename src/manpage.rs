@@ -121,8 +121,30 @@ const KEYS_SS: &str = "
 * alt-shift-right
 * any single character
 ";
-const ACTIONS_SS: &str = "
-* abort: ctrl-c  ctrl-q  esc
+const BINDABLE_EVENTS_SS: &str = concat!(
+    "\n",
+    "* change: the query changes\n",
+    "* start: skim enters its event loop; fired once\n",
+    "* load: the reader and matcher finish consuming the current input; ",
+    "fired once per read, including reloads\n",
+    "* result: filtering for the current query completes\n",
+    "* focus: the focused item changes because of cursor movement or a result update\n",
+    "* zero: the input stream is complete and the final search has no matches\n",
+    "* one: the input stream is complete and the final search has exactly one match\n",
+);
+
+const ACTION_BINDINGS_SS: &str = concat!(
+    "\n",
+    "Actions can also be used as binding triggers. A follow-up chain bound to an action name runs immediately ",
+    "after that action. Use the `act-` prefix for action triggers; it is recommended to avoid ambiguity and ",
+    "required when the action name is also a key, for example `act-up:last`.\n\n",
+    "Follow-up chains use non-recursive (`noremap`) semantics: their actions do not trigger further action ",
+    "bindings. Add `suppress` to skip the triggering action's default behavior, for example ",
+    "`act-up:suppress+down`.\n",
+);
+
+const ACTIONS_SS: &str = concat!(
+    "\n* abort: ctrl-c  ctrl-q  esc
 * accept(...): enter *the argument will be printed when the binding is triggered*
 * append-and-select
 * backward-char: ctrl-b  left
@@ -131,7 +153,7 @@ const ACTIONS_SS: &str = "
 * backward-kill-word: alt-bs
 * backward-word: alt-b   shift-left
 * beginning-of-line: ctrl-a  home
-* bind(...): *arg is a comma-separated list of `key:action[+action]` bindings to add (same syntax as --bind)
+* bind(...): *arg is a comma-separated list of `trigger:action[+action]` bindings to add (same syntax as --bind, including action triggers such as `act-up:last`)
 * clear-screen: ctrl-l
 * delete-char: del
 * delete-char/eof: ctrl-d
@@ -168,7 +190,10 @@ const ACTIONS_SS: &str = "
 * select-row
 * set-preview-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
 * set-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
-* toggle
+",
+    "* suppress: *if bound to an action (e.g. `act-up:suppress`), suppresses that action's default behavior ",
+    "so the rest of the non-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`\n",
+    "* toggle
 * toggle-all
 * toggle+down: ctrl-i  tab
 * toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
@@ -179,12 +204,13 @@ const ACTIONS_SS: &str = "
 * toggle-sort
 * toggle+up: btab    shift-tab
 * top
-* unbind(...): *arg is a comma-separated list of keys to unbind
+* unbind(...): *arg is a comma-separated list of keys or action triggers (e.g. `act-up`) to unbind
 * unix-line-discard: ctrl-u
 * unix-word-rubout: ctrl-w
 * up: ctrl-k  ctrl-p  up
 * yank: ctrl-y
-";
+",
+);
 
 #[cfg(feature = "listen")]
 const REMOTE_SECTION: &str = "
@@ -284,12 +310,17 @@ Exact search can be enabled by default by the `--exact` command-line flag. In ex
     section(
         &mut custom,
         "KEYBINDS",
-        "
-Keybinds can be set by the `--bind` option, which takes a comma-separated list of [key]:[action[+action2].
-Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon `reload:ls`
-",
+        concat!(
+            "\nBindings can be set by the `--bind` option, which takes a comma-separated list of ",
+            "`<trigger>:<action>[+action2]` expressions. A trigger can be a key, a finder event, or an action ",
+            "name.\n",
+            "Actions can take arguments, specified either between parentheses `reload(ls)` or after a colon ",
+            "`reload:ls`.\n",
+        ),
     );
     subsection(&mut custom, "Available keys (aliases in parentheses)", KEYS_SS);
+    subsection(&mut custom, "Bindable finder events", BINDABLE_EVENTS_SS);
+    subsection(&mut custom, "Actions as binding triggers", ACTION_BINDINGS_SS);
     subsection(&mut custom, "Actions[:default keys][*notes]", ACTIONS_SS);
 
     section(
@@ -406,5 +437,17 @@ mod tests {
         for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
             assert!(out.contains(section), "manpage should contain section '{section}'");
         }
+    }
+
+    #[test]
+    fn manpage_documents_bindable_events_and_actions() {
+        let out = manpage_str();
+        for event in ["change", "start", "load", "result", "focus", "zero", "one"] {
+            assert!(out.contains(event), "manpage should document the '{event}' event");
+        }
+        assert!(out.contains("Actions as binding triggers"));
+        assert!(out.contains("act\\-"));
+        assert!(out.contains("noremap"));
+        assert!(out.contains("suppress"));
     }
 }

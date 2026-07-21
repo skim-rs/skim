@@ -56,7 +56,7 @@ module completions {
     --split-match: string     # Enable split matching and set delimiter
     --last-match              # Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
     --scheme: string@"nu-complete sk scheme"
-    --bind(-b): string        # Comma separated list of bindings
+    --bind(-b): string        # Comma-separated key, event, and action bindings
     --multi(-m)               # Enable multiple selection
     --no-multi                # Disable multiple selection
     --no-mouse                # Disable mouse

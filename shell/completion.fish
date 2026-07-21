@@ -28,7 +28,7 @@ complete -c sk -l split-match -d 'Enable split matching and set delimiter' -r
 complete -c sk -l scheme -r -f -a "default\t'Default scheme, no modifications to the options'
 path\t'Path scheme: will find the furthest match in the item and set pathname as the main tiebreak'
 history\t'History scheme: will force index as the first tiebreak'"
-complete -c sk -s b -l bind -d 'Comma separated list of bindings' -r
+complete -c sk -s b -l bind -d 'Comma-separated key, event, and action bindings' -r
 complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode' -r
 complete -c sk -s I -d 'Replace replstr with the selected item in commands' -r
 complete -c sk -l color -d 'Set color theme' -r

@@ -319,13 +319,14 @@ pub struct SkimOptions {
     scheme: Option<MatchScheme>,
 
     //  --- Interface ---
-    /// Comma separated list of bindings
+    /// Comma-separated key, event, and action bindings
     ///
-    /// You can customize key bindings of sk with `--bind` option which takes a  comma-separated  list  of
-    /// key binding expressions. Each key binding expression follows the following format: `<key>:<action>`
-    /// See the [KEYBINDS] section for details
+    /// `--bind` takes comma-separated `<trigger>:<action>` expressions. A trigger can be a key, a finder
+    /// event (`change`, `start`, `load`, `result`, `focus`, `zero`, or `one`), or an action name. Use the
+    /// `act-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
+    /// name is also a key, for example `act-up:last`. See the [KEYBINDS] section for details.
     ///
-    /// **Example**: `sk --bind=ctrl-j:accept,ctrl-k:kill-line`
+    /// **Example**: `sk --bind=ctrl-j:accept,load:last,act-up:down`
     ///
     /// ## Multiple actions can be chained using + separator.
     ///
@@ -1112,6 +1113,14 @@ pub struct SkimOptions {
     /// The internal (parsed) keymap
     #[cfg_attr(feature = "cli", clap(skip))]
     pub keymap: KeyMap,
+
+    /// Follow-up action bindings, keyed by the canonical action name.
+    ///
+    /// Populated from `--bind` entries whose "key" is an action name rather than
+    /// a real key (e.g. `reload:first`). After an action runs, the chain bound to
+    /// its name is queued.
+    #[cfg_attr(feature = "cli", clap(skip))]
+    pub action_binds: std::collections::HashMap<String, Vec<Action>>,
 }
 
 impl Default for SkimOptions {
@@ -1267,6 +1276,7 @@ impl Default for SkimOptions {
             selector: Default::default(),
             preview_fn: Default::default(),
             keymap: Default::default(),
+            action_binds: Default::default(),
             #[cfg(feature = "cli")]
             shell: Default::default(),
             #[cfg(feature = "cli")]
@@ -1311,6 +1321,14 @@ impl SkimOptions {
             res.add_keymaps_str(part);
             res
         });
+
+        // Bindings whose "key" is an action name (e.g. `reload:first`) become
+        // follow-up actions that run right after that action.
+        self.action_binds = self
+            .bind
+            .iter()
+            .flat_map(|part| crate::binds::parse_action_binds(crate::binds::split_top_level(part, ',').into_iter()))
+            .collect();
 
         if self.reverse {
             self.layout = TuiLayout::Reverse;

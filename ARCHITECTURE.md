@@ -958,6 +958,78 @@ Notable defaults:
 
 User bindings from `--bind key:action[+action]` are parsed at startup and merged via `KeyMap::add_keymaps()`.
 
+### Synthetic Events (`SkimEvent`)
+
+Besides real key presses, skim fires a few *synthetic* events that can be bound
+to actions just like keys. Because the keymap is keyed by
+`crossterm::event::KeyEvent`, these events are represented *transparently* as
+reserved function-key codes in the high-`F` range that no real terminal emits.
+The [`SkimEvent`](src/binds.rs) enum gives them named variants so the reserved
+codes live in one place rather than being scattered as magic `F(255)` literals,
+and `parse_key` accepts the friendly names below:
+
+| Bind name | `SkimEvent` | Reserved code | Fired when |
+| --- | --- | --- | --- |
+| `change` | `SkimEvent::Change` | `F(255)` | the query changes |
+| `start` | `SkimEvent::Start` | `F(254)` | skim has started and entered its event loop (once) |
+| `load` | `SkimEvent::Load` | `F(253)` | the reader finishes producing items (once per read; a `reload` fires it again) |
+| `result` | `SkimEvent::Result` | `F(252)` | filtering for the current query completes and its results are ready |
+| `focus` | `SkimEvent::Focus` | `F(251)` | the focused item changes on cursor movement or a result update |
+| `zero` | `SkimEvent::Zero` | `F(250)` | the reader is done and the final search has no matches |
+| `one` | `SkimEvent::One` | `F(249)` | the reader is done and the final search has exactly one match |
+
+Events are injected from the nearest state-change site:
+
+- **`change`** — `App::on_query_changed`.
+- **`focus`** — `App::on_selection_changed` handles cursor movement;
+  `Event::Render` checks again after matcher output is merged into the list so
+  result-driven focus changes are also observed. `take_focus_event` de-duplicates
+  both paths.
+- **`start`** — `Skim::fire_start_event` (`src/skim.rs`). `Skim::check_reader`
+  only records the `reader_done` state; it does not itself emit `load`.
+- **`load`/`result`/`zero`/`one`** — these track *async* reader/matcher
+  completion, which has no synchronous callback, so `App::poll_completion_events`
+  owns and edge-triggers them from the `Heartbeat` handler (not the render path). A
+  `Render` is queued just before them so a binding that inspects the list (e.g.
+  `load:first`) sees the finished results. `result` may fire for intermediate
+  matcher passes while input is streaming; `zero`/`one` wait for `reader_done`
+  before reading `MatcherControl::get_num_matched()`, so a transient empty or
+  one-item pass cannot terminate the finder before later input arrives.
+
+Each event flows through `handle_key` and its keymap lookup like any other key,
+so an unbound event is a harmless no-op.
+
+### Actions as Events (follow-up bindings)
+
+Any **action** can also be bound as if it were an event: after the action runs,
+a follow-up chain bound to its name is dispatched directly. For example,
+`reload:first` runs `first` right after a `reload`, and `first:last` ends on the
+last item.
+
+- **Keys win.** If a bind's "key" resolves to a real key it stays in the key
+  map, so a name shared by a key and an action (e.g. `up`) always binds the key.
+  Prefix with `act-` to target the action instead: `act-up:down`.
+- **Non-recursive.** Follow-up actions use `noremap` semantics: actions in the
+  right-hand chain do not trigger their own follow-up bindings.
+- **`suppress`.** Including [`Action::Suppress`] in the follow-up chain cancels
+  only the triggering action's default behaviour. Thus
+  `act-up:suppress+down+up` executes `down` then `up` once. On its own,
+  `suppress` is a no-op (equivalent to `ignore`).
+
+Follow-up chains are parsed by `binds::parse_action_binds` into
+`SkimOptions::action_binds` (keyed by `Action::name`), and applied in
+`App::handle_action`, which dispatches each chain member through the private
+per-variant `App::dispatch_action` without re-entering `handle_action`.
+Conditional actions likewise dispatch their selected subaction chain immediately
+through `dispatch_action`, preserving the same non-recursive semantics. When a
+directly dispatched subaction accepts or aborts, `App::final_action` records it
+and `Skim::tick` copies it to `Skim::final_event`, so output and exit status
+reflect the actual terminating action rather than its outer trigger.
+The runtime `bind`/`unbind` actions manage action triggers as well as keys:
+`bind(act-up:last)` merges into `action_binds` and `unbind(act-up)` removes the
+trigger (resolved via `binds::action_trigger_name`), with the same keys-win
+precedence as `--bind`.
+
 ### Action Dispatch
 
 ```
@@ -970,7 +1042,9 @@ Event::Key(k) → handle_key(k)
 Event::Action(a) → handle_action(a) → Vec<Event>
 ```
 
-`handle_action` is a large match statement covering all ~70+ `Action` variants. Key action categories:
+`handle_action` is a large match statement covering all ~70+ `Action` variants. The local
+`define_action_catalog!` macro is the single source for each variant's canonical bind name and parser arm, so
+`Action::name` and `parse_action` cannot drift. Key action categories:
 
 | Category | Actions |
 | --- | --- |
@@ -984,7 +1058,7 @@ Event::Action(a) → handle_action(a) → Vec<Event>
 | Conditional | `IfQueryEmpty(then, else?)`, `IfQueryNotEmpty(then, else?)`, `IfNonMatched(then, else?)` |
 | Lifecycle | `Accept(key?)`, `Abort`, `Cancel` |
 | UI | `ClearScreen`, `Redraw`, `SetHeader(text?)`, `SelectRow(n)` |
-| Bindings | `Bind(spec)` — add `key:action[+action]` bindings at runtime; `Unbind(keys)` — remove bindings for a comma-separated key list |
+| Bindings | `Bind(spec)` — add `trigger:action[+action]` bindings (keys or action triggers) at runtime; `Unbind(triggers)` — remove bindings for a comma-separated list of keys or action triggers |
 | Custom | `Custom(ActionCallback)` — async or sync closure receiving `&mut App` |
 
 `Action::Custom(ActionCallback)` is the library extension point: callers can inject arbitrary async logic into the action pipeline without forking skim.
@@ -1026,6 +1100,9 @@ pub enum ItemPreview {
 `Skim::output()` is called after the event loop exits:
 
 ```
+Skim::tick()
+  └─ app.final_action.take() → final_event   ← includes nested follow-up/conditional actions
+
 Skim::output()
   ├─ reader_control.kill()        ← stop reader threads
   ├─ is_abort = !matches!(final_event, Action::Accept)
@@ -1219,25 +1296,27 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 
 | Call site | File | What it does |
 | --- | --- | --- |
-| `Skim::run_with` | `src/skim.rs:58` | Top-level library entry point |
-| `Skim::run_items` | `src/skim.rs:100` | Convenience wrapper for iterator inputs |
-| `Skim::init_tui` | `src/skim.rs:124` | Initialize default crossterm TUI backend |
-| `Skim::init` | `src/skim.rs:143` | Constructs all subsystems from options |
-| `Skim::start` | `src/skim.rs:185` | Starts reader + initial matcher pass |
-| `Skim::handle_reload` | `src/skim.rs:195` | Kills reader, clears pool, restarts |
-| `Skim::init_tui_with` | `src/skim.rs:258` | Install a caller-provided TUI backend |
-| `Skim::enter` | `src/skim.rs:345` | Enter terminal, resolve image picker, start listener/event pump |
-| `Skim::should_enter` | `src/skim.rs:385` | Filter/select-1/exit-0/sync gate |
-| `Skim::output` | `src/skim.rs:488` | Collect & return SkimOutput |
-| `Skim::tick` | `src/skim.rs:569` | Single async event loop iteration |
-| `App::from_options` | `src/tui/app.rs:332` | Build all widgets from options |
-| `App::run_preview` | `src/tui/app.rs:484` | Expand cmd, debounce, call Preview::spawn |
-| `App::handle_event` | `src/tui/app.rs:609` | Dispatch all Event variants |
-| `App::handle_action` | `src/tui/app.rs:793` | Dispatch all Action variants |
-| `run_foreground` | `src/tui/app.rs:70` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
-| `App::restart_matcher` | `src/tui/app.rs:1282` | Kill old match pass, start new one |
-| `App::expand_cmd` | `src/tui/app.rs:1355` | Substitute `{}`, `{q}`, `{n}` etc. |
-| `Widget::render (App)` | `src/tui/app.rs:200` | Root render; calls all sub-widgets |
+| `Skim::run_with` | `src/skim.rs:70` | Top-level library entry point |
+| `Skim::run_items` | `src/skim.rs:112` | Convenience wrapper for iterator inputs |
+| `Skim::init_tui` | `src/skim.rs:136` | Initialize default crossterm TUI backend |
+| `Skim::init` | `src/skim.rs:155` | Constructs all subsystems from options |
+| `Skim::start` | `src/skim.rs:199` | Starts reader + initial matcher pass |
+| `Skim::handle_reload` | `src/skim.rs:231` | Kills reader, clears pool, restarts |
+| `Skim::init_tui_with` | `src/skim.rs:303` | Install a caller-provided TUI backend |
+| `Skim::enter` | `src/skim.rs:390` | Enter terminal, resolve image picker, start listener/event pump |
+| `Skim::should_enter` | `src/skim.rs:434` | Filter/select-1/exit-0/sync gate |
+| `Skim::output` | `src/skim.rs:539` | Collect & return SkimOutput |
+| `Skim::tick` | `src/skim.rs:620` | Single async event loop iteration |
+| `App::from_options` | `src/tui/app.rs:285` | Build all widgets from options |
+| `App::run_preview` | `src/tui/app.rs:498` | Expand cmd, debounce, call Preview::spawn |
+| `App::handle_event` | `src/tui/app.rs:623` | Dispatch all Event variants |
+| `App::handle_action` | `src/tui/app.rs:828` | Apply action follow-up bindings |
+| `App::dispatch_conditional` | `src/tui/app.rs:847` | Dispatch the selected conditional subaction chain without follow-up bindings |
+| `App::dispatch_action` | `src/tui/app.rs:870` | Dispatch one Action variant without follow-up bindings |
+| `Tui::run_execute` | `src/tui/backend.rs:353` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
+| `App::restart_matcher` | `src/tui/app.rs:1355` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1431` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `Widget::render (App)` | `src/tui/app.rs:149` | Root render; calls all sub-widgets |
 | `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
 | `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
 | `ItemPool::append` | `src/item.rs:469` | Add items, notify matcher |
@@ -1256,8 +1335,11 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |
 | `sk_main` | `src/bin/main.rs:144` | CLI orchestration + output printing |
-| `parse_key` | `src/binds.rs:139` | `"ctrl-a"` → `KeyEvent` |
-| `parse_action_chain` | `src/binds.rs:211` | `"down+select"` → `Vec<Action>` |
+| `SkimEvent` | `src/binds.rs:26` | `change`/`start`/`load`/`result`/`focus`/`zero`/`one` synthetic events → reserved `KeyEvent` |
+| `parse_key` | `src/binds.rs:223` | `"ctrl-a"` → `KeyEvent` |
+| `parse_action_binds` | `src/binds.rs:329` | `"reload:first"`, `"act-up:suppress+down"` → action follow-up map |
+| `parse_action_chain` | `src/binds.rs:377` | `"down+select"` → `Vec<Action>` |
+| `Action::name` | `src/tui/event.rs:331` | `Action` → canonical bind name (shared catalog with `parse_action`) |
 | `Matcher::create_engine_factory_with_builder` | `src/matcher.rs:189` | Build engine factory chain from options |
 | `ExactOrFuzzyEngineFactory::create_engine_with_case` | `src/engine/factory.rs:93` | Parse query prefixes, build engine |
 | `AndOrEngineFactory::parse_andor` | `src/engine/factory.rs:176` | Split query into AND/OR tree |

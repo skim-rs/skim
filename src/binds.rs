@@ -11,6 +11,82 @@ use eyre::{Result, eyre};
 
 use crate::tui::event::{self, Action};
 
+/// Synthetic events that skim fires internally and that can be bound to actions
+/// via the keymap, exactly like a real key press.
+///
+/// The keymap is keyed by crossterm's [`KeyEvent`], which cannot express
+/// "the query changed" or "reading finished" directly. Each variant is
+/// therefore represented *transparently* as a reserved function-key code in the
+/// high-`F` range (`F(249)`–`F(255)`) that no real terminal ever emits. The
+/// seven variants are `change`, `start`, `load`, `result`, `focus`, `zero`, and
+/// `one`. Giving these reserved codes named variants keeps them in one place
+/// instead of scattering magic function-key literals across the codebase, and
+/// lets [`parse_key`] accept every friendly event name.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum SkimEvent {
+    /// Fired once, when skim has started up and entered its event loop.
+    Start,
+    /// Fired when the reader finishes producing items (once per read; a
+    /// `reload` starts a new read and fires it again).
+    Load,
+    /// Fired whenever the query changes.
+    Change,
+    /// Fired when filtering for the current query completes and the result
+    /// list is ready.
+    Result,
+    /// Fired when the focused item changes (cursor movement or a result update).
+    Focus,
+    /// Fired when a completed search yields no matches.
+    Zero,
+    /// Fired when a completed search yields exactly one match.
+    One,
+}
+
+impl SkimEvent {
+    /// The reserved [`KeyCode`] used to route this event through the keymap.
+    #[must_use]
+    pub const fn key_code(self) -> KeyCode {
+        match self {
+            SkimEvent::Change => KeyCode::F(255),
+            SkimEvent::Start => KeyCode::F(254),
+            SkimEvent::Load => KeyCode::F(253),
+            SkimEvent::Result => KeyCode::F(252),
+            SkimEvent::Focus => KeyCode::F(251),
+            SkimEvent::Zero => KeyCode::F(250),
+            SkimEvent::One => KeyCode::F(249),
+        }
+    }
+
+    /// The reserved [`KeyEvent`] used to route this event through the keymap.
+    #[must_use]
+    pub const fn key_event(self) -> KeyEvent {
+        KeyEvent::new(self.key_code(), KeyModifiers::NONE)
+    }
+
+    /// Parses an event name (`start`, `load`, `change`) into a [`SkimEvent`].
+    ///
+    /// Returns `None` if the name is not a recognised event.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "start" => Some(SkimEvent::Start),
+            "load" => Some(SkimEvent::Load),
+            "change" => Some(SkimEvent::Change),
+            "result" => Some(SkimEvent::Result),
+            "focus" => Some(SkimEvent::Focus),
+            "zero" => Some(SkimEvent::Zero),
+            "one" => Some(SkimEvent::One),
+            _ => None,
+        }
+    }
+}
+
+impl From<SkimEvent> for KeyEvent {
+    fn from(event: SkimEvent) -> Self {
+        event.key_event()
+    }
+}
+
 /// A map of key events to their associated actions
 #[derive(Clone, Debug)]
 pub struct KeyMap(pub HashMap<KeyEvent, Vec<Action>>);
@@ -135,7 +211,11 @@ pub fn get_default_key_map() -> KeyMap {
     KeyMap(ret)
 }
 
-/// Parses a key str into a crossterm `KeyEvent`
+/// Parses a key str into a crossterm `KeyEvent`.
+///
+/// In addition to keyboard names, accepts all seven names recognized by
+/// [`SkimEvent::from_name`]: `change`, `start`, `load`, `result`, `focus`,
+/// `zero`, and `one`.
 ///
 /// # Errors
 /// Returns an error if the key string is empty, contains an unknown modifier,
@@ -169,8 +249,11 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
         } else {
             keycode = KeyCode::Char(char);
         }
-    } else if let Some(f) = key.strip_prefix('f') {
-        let f_index = f.parse::<u8>()?;
+    } else if let Some(f) = key.strip_prefix('f')
+        && let Ok(f_index) = f.parse::<u8>()
+    {
+        // A function key like `f10`. If the suffix isn't numeric (e.g. `focus`,
+        // `first`), fall through to the named-key / event matching below.
         keycode = KeyCode::F(f_index);
     } else {
         keycode = match key.as_str() {
@@ -188,8 +271,10 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             "end" => KeyCode::End,
             "pgup" => KeyCode::PageUp,
             "pgdown" => KeyCode::PageDown,
-            "change" => KeyCode::F(255),
-            s => return Err(eyre!("Unknown key {}", s)),
+            s => match SkimEvent::from_name(s) {
+                Some(event) => event.key_code(),
+                None => return Err(eyre!("Unknown key {}", s)),
+            },
         }
     }
 
@@ -208,7 +293,7 @@ where
     res
 }
 
-fn split_top_level(value: &str, separator: char) -> Vec<&str> {
+pub(crate) fn split_top_level(value: &str, separator: char) -> Vec<&str> {
     let mut depth = 0_u32;
     let mut start = 0;
     let mut parts = Vec::new();
@@ -226,6 +311,63 @@ fn split_top_level(value: &str, separator: char) -> Vec<&str> {
     }
     parts.push(&value[start..]);
     parts
+}
+
+/// Parses follow-up action bindings from raw `--bind` specs.
+///
+/// Any action can be bound as if it were an event: when the "key" of a bind is
+/// not a real key but is a known action name, the bound chain becomes a
+/// *follow-up* that runs right after that action. For example `reload:first`
+/// queues `first` immediately after a `reload`. The returned map is keyed by the
+/// action's canonical name (see [`Action::name`](crate::tui::event::Action::name)),
+/// so it can be looked up directly from the action that just ran.
+///
+/// Keys take precedence: if the "key" resolves to a real key it is left to the
+/// key map, so a name shared by a key and an action (e.g. `up`) always binds the
+/// key. To target the action in that case, prefix it with `act-` (`act-up`).
+#[must_use]
+pub fn parse_action_binds<'a, T>(maps: T) -> HashMap<String, Vec<Action>>
+where
+    T: Iterator<Item = &'a str>,
+{
+    let mut res = HashMap::new();
+    for map in maps {
+        let Some((key, chain)) = map.split_once(':') else {
+            continue;
+        };
+        // Keys win: anything that parses as a real key is not an action trigger.
+        if parse_key(key).is_ok() {
+            continue;
+        }
+        let Some(name) = action_trigger_name(key) else {
+            debug!("Ignoring bind `{map}`: `{key}` is neither a key nor an action");
+            continue;
+        };
+        match parse_action_chain(chain) {
+            Ok(actions) => {
+                res.insert(name.to_string(), actions);
+            }
+            Err(err) => debug!("Ignoring bind `{map}`: invalid action chain `{chain}`: {err}"),
+        }
+    }
+    res
+}
+
+/// Resolves a bind trigger to the canonical name of the action it targets
+/// (see [`Action::name`](crate::tui::event::Action::name)). `act-<name>`
+/// explicitly targets the action `<name>`, even when `<name>` is also a key;
+/// without the prefix, a bare action name works too. Returns `None` if the
+/// name is not a known action.
+///
+/// This performs pure name resolution: callers that want "keys win" semantics
+/// (e.g. [`parse_action_binds`]) must check [`parse_key`] first.
+pub(crate) fn action_trigger_name(trigger: &str) -> Option<&'static str> {
+    let action_name = trigger.strip_prefix("act-").unwrap_or(trigger);
+    // Some actions require an argument when executed, but their canonical
+    // name is still valid as a trigger. `()` supplies the parser's empty
+    // placeholder solely for name validation.
+    let action = event::parse_action(action_name).or_else(|| event::parse_action(&format!("{action_name}()")))?;
+    Some(action.name())
 }
 
 /// Parses an action chain, separated by '+'s into the corresponding actions

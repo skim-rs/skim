@@ -22,8 +22,9 @@ use super::event::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::{Event, Tui, input, preview};
+use crate::binds::SkimEvent;
 use crate::thread_pool::{self, ThreadPool};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use eyre::{Result, bail};
 use input::Input;
 use preview::Preview;
@@ -54,6 +55,8 @@ pub struct App {
     pub reader_pool: Arc<ThreadPool>,
     /// Whether the application should quit
     pub should_quit: bool,
+    /// The terminating action, including one dispatched inside a follow-up or conditional chain.
+    pub(crate) final_action: Option<Action>,
 
     /// Current cursor position (x, y)
     pub cursor_pos: (u16, u16),
@@ -127,6 +130,19 @@ pub struct App {
     items_just_updated: bool,
     /// Records if we are scrolling (mouse down on the scrollbar and no mouse up yet)
     currently_scrolling: bool,
+    /// Set by [`Skim::check_reader`] once the reader has finished producing
+    /// items. Reset on `reload`. Drives the one-shot `load` event.
+    pub(crate) reader_done: bool,
+    /// Whether the `load` event has been fired for the current read. Reset on
+    /// `reload` so a new read fires `load` again.
+    pub(crate) load_event_fired: bool,
+    /// Set whenever a matcher run is (re)started; edge-triggers the one-shot
+    /// `result` (and `zero`/`one`) events once that run completes, polled from
+    /// the heartbeat.
+    pub(crate) result_pending: bool,
+    /// The last item that had focus, tracked so the `focus` event fires only
+    /// when the focused item actually changes on cursor movement.
+    last_focused: Option<Arc<dyn SkimItem>>,
 }
 
 impl Widget for &mut App {
@@ -217,6 +233,7 @@ impl Default for App {
             item_pool: Arc::default(),
             theme,
             should_quit: false,
+            final_action: None,
             cursor_pos: (0, 0),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
                 .case(crate::CaseMatching::default())
@@ -250,6 +267,10 @@ impl Default for App {
             reader_timer: std::time::Instant::now(),
             items_just_updated: false,
             currently_scrolling: false,
+            reader_done: false,
+            load_event_fired: false,
+            result_pending: false,
+            last_focused: None,
         }
     }
 }
@@ -283,6 +304,7 @@ impl App {
             item_list: ItemList::from_options(&options, theme.clone()),
             theme,
             should_quit: false,
+            final_action: None,
             cursor_pos: (0, 0),
             matcher: Matcher::from_options(&options),
             yank_register: String::new(),
@@ -316,6 +338,10 @@ impl App {
                 .unwrap(),
             pending_preview_run: false,
             currently_scrolling: false,
+            reader_done: false,
+            load_event_fired: false,
+            result_pending: false,
+            last_focused: None,
         }
     }
 
@@ -373,9 +399,65 @@ impl App {
         self.items_just_updated = true;
     }
 
-    /// Call after selection changes (e.g., selection actions, `Event::Key`)
-    fn on_selection_changed() -> Vec<Event> {
-        vec![Event::RunPreview]
+    /// Call after selection changes (e.g., selection actions, `Event::Key`).
+    ///
+    /// Emits the `focus` event when the focused item actually changed, so a
+    /// `focus:<action>` binding runs on cursor movement.
+    fn on_selection_changed(&mut self) -> Vec<Event> {
+        let mut events = vec![Event::RunPreview];
+        events.extend(self.take_focus_event());
+        events
+    }
+
+    /// Returns a `focus` event if the focused item changed since the last call,
+    /// updating the tracked item. Used by [`Self::on_selection_changed`].
+    fn take_focus_event(&mut self) -> Option<Event> {
+        let focused = self.item_list.selected().map(|m| m.item);
+        let changed = match (&self.last_focused, &focused) {
+            (Some(prev), Some(curr)) => !Arc::ptr_eq(prev, curr),
+            (None, None) => false,
+            _ => true,
+        };
+        if changed {
+            self.last_focused = focused;
+            Some(Event::Key(SkimEvent::Focus.into()))
+        } else {
+            None
+        }
+    }
+
+    /// Polls the async reader/matcher state and returns any newly-due
+    /// completion events (`load`, `result`, `zero`, `one`).
+    ///
+    /// Each is edge-triggered by a flag so it fires once per read / search:
+    /// `load` when the reader finishes, `result` (plus `zero`/`one` from the
+    /// matcher's authoritative count) when a search completes. Called from the
+    /// heartbeat.
+    fn poll_completion_events(&mut self) -> Vec<Event> {
+        let mut events = Vec::new();
+
+        if self.reader_done
+            && !self.load_event_fired
+            && self.matcher_control.stopped()
+            && self.item_pool.num_not_taken() == 0
+        {
+            self.load_event_fired = true;
+            events.push(Event::Key(SkimEvent::Load.into()));
+        }
+
+        if self.result_pending && self.matcher_control.stopped() {
+            self.result_pending = false;
+            events.push(Event::Key(SkimEvent::Result.into()));
+            if self.reader_done {
+                match self.matcher_control.get_num_matched() {
+                    0 => events.push(Event::Key(SkimEvent::Zero.into())),
+                    1 => events.push(Event::Key(SkimEvent::One.into())),
+                    _ => {}
+                }
+            }
+        }
+
+        events
     }
 
     /// Call when query changes (e.g., `AddChar`, `BackwardDeleteChar`, etc.)
@@ -387,7 +469,7 @@ impl App {
         }
         self.restart_matcher_debounced();
         vec![
-            Event::Key(KeyEvent::new(KeyCode::F(255), KeyModifiers::NONE)), // Send F255 which is the change bind
+            Event::Key(crate::binds::SkimEvent::Change.into()), // fire the `change` event binding
             Event::RunPreview,
         ]
     }
@@ -551,6 +633,11 @@ impl App {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
+                // Matcher output is merged into the item list during rendering,
+                // so this is where result-driven focus changes become observable.
+                if let Some(event) = self.take_focus_event() {
+                    tui.event_tx.try_send(event)?;
+                }
             }
             Event::Heartbeat | Event::Tick => {
                 // Heartbeat is used for periodic UI updates
@@ -569,6 +656,19 @@ impl App {
                     self.needs_render.store(false, Ordering::Relaxed);
                     self.last_render_timer = std::time::Instant::now();
                     tui.event_tx.try_send(Event::Render)?;
+                }
+
+                // Fire the reader/matcher-completion events (`load`, `result`,
+                // `zero`, `one`). These track async state that has no synchronous
+                // callback, so they are polled here on the heartbeat rather than
+                // in the render path. A `Render` is queued first so a binding
+                // that inspects the list (e.g. `load:first`) sees the final one.
+                let completion_events = self.poll_completion_events();
+                if !completion_events.is_empty() {
+                    tui.event_tx.try_send(Event::Render)?;
+                    for evt in completion_events {
+                        tui.event_tx.try_send(evt)?;
+                    }
                 }
 
                 // Check if a debounced preview run needs to be executed
@@ -720,14 +820,61 @@ impl App {
         vec![]
     }
 
-    #[allow(clippy::too_many_lines)]
+    /// Runs an action, then directly dispatches any follow-up actions bound to it.
+    ///
+    /// Follow-ups use non-recursive (`noremap`) semantics: an action in the
+    /// follow-up chain does not trigger its own follow-up binding. If the chain
+    /// contains [`Action::Suppress`], the triggering action is skipped.
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
+        let follow = self.options.action_binds.get(act.name()).cloned();
+        let suppress_default = follow
+            .as_ref()
+            .is_some_and(|chain| chain.iter().any(|a| matches!(a, Action::Suppress)));
+
+        let mut events = if suppress_default {
+            Vec::new()
+        } else {
+            self.dispatch_action(act)?
+        };
+        if let Some(chain) = follow {
+            for action in chain.iter().filter(|a| !matches!(a, Action::Suppress)) {
+                events.extend(self.dispatch_action(action)?);
+            }
+        }
+        Ok(events)
+    }
+
+    fn dispatch_conditional(&mut self, condition: bool, then: &str, otherwise: Option<&str>) -> Result<Vec<Event>> {
+        let Some(chain) = condition.then_some(then).or(otherwise) else {
+            return Ok(Vec::new());
+        };
+        // `if-*` branch chains are stored unparsed (see `parse_action`), so an
+        // invalid action name only surfaces here, at dispatch time. Log and
+        // skip the chain instead of erroring out of the event loop, matching
+        // the invalid-chain handling of `parse_action_binds`.
+        let actions = match crate::binds::parse_action_chain(chain) {
+            Ok(actions) => actions,
+            Err(err) => {
+                warn!("Ignoring conditional action chain `{chain}`: {err}");
+                return Ok(Vec::new());
+            }
+        };
+        let mut events = Vec::new();
+        for action in actions {
+            events.extend(self.dispatch_action(&action)?);
+        }
+        Ok(events)
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn dispatch_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         #[allow(clippy::enum_glob_use)]
         use Action::*;
         use ratatui::widgets::ListDirection::{BottomToTop, TopToBottom};
         match act {
             Abort | Accept(_) => {
                 self.should_quit = true;
+                self.final_action = Some(act.clone());
             }
             AddChar(c) => {
                 self.input.insert(*c);
@@ -749,7 +896,7 @@ impl App {
                 )]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher_debounced();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             BackwardChar => {
                 self.input.move_cursor(-1);
@@ -781,10 +928,15 @@ impl App {
                 self.input.move_cursor_to(0);
             }
             Bind(spec) => {
-                // Bind one or more `key:action[+action]` pairs, reusing the same
-                // parsing/merging logic as the `--bind` CLI option. Existing
-                // bindings for the same keys are replaced.
+                // Bind one or more `trigger:action[+action]` pairs, reusing the
+                // same parsing/merging logic as the `--bind` CLI option: key
+                // triggers merge into the keymap, action triggers into the
+                // follow-up action bindings. Existing bindings for the same
+                // triggers are replaced.
                 self.options.keymap.add_keymaps_str(spec);
+                self.options.action_binds.extend(crate::binds::parse_action_binds(
+                    crate::binds::split_top_level(spec, ',').into_iter(),
+                ));
             }
             Cancel => {
                 self.matcher_control.kill();
@@ -809,7 +961,7 @@ impl App {
             DeselectAll => {
                 if !self.item_list.selection.is_empty() {
                     self.item_list.selection = Default::default();
-                    return Ok(Self::on_selection_changed());
+                    return Ok(self.on_selection_changed());
                 }
             }
             Down(n) => {
@@ -817,7 +969,7 @@ impl App {
                     TopToBottom => self.item_list.scroll_by(i32::from(*n)),
                     BottomToTop => self.item_list.scroll_by(-i32::from(*n)),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             EndOfLine => {
                 self.input.move_to_end();
@@ -841,7 +993,7 @@ impl App {
             First | Top => {
                 // Jump to first item (considering reserved items)
                 self.item_list.jump_to_first();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ForwardChar => {
                 self.input.move_cursor(1);
@@ -850,39 +1002,18 @@ impl App {
                 self.input.move_cursor_forward_word();
             }
             IfQueryEmpty(then, otherwise) => {
-                let inner = crate::binds::parse_action_chain(then)?;
-                if self.input.is_empty() {
-                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else if let Some(o) = otherwise {
-                    return Ok(crate::binds::parse_action_chain(o)?
-                        .iter()
-                        .map(|e| Event::Action(e.to_owned()))
-                        .collect());
-                }
+                return self.dispatch_conditional(self.input.is_empty(), then, otherwise.as_deref());
             }
             IfQueryNotEmpty(then, otherwise) => {
-                let inner = crate::binds::parse_action_chain(then)?;
-                if !self.input.is_empty() {
-                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else if let Some(o) = otherwise {
-                    return Ok(crate::binds::parse_action_chain(o)?
-                        .iter()
-                        .map(|e| Event::Action(e.to_owned()))
-                        .collect());
-                }
+                return self.dispatch_conditional(!self.input.is_empty(), then, otherwise.as_deref());
             }
             IfNonMatched(then, otherwise) => {
-                let inner = crate::binds::parse_action_chain(then)?;
-                if self.item_list.items.is_empty() {
-                    return Ok(inner.iter().map(|e| Event::Action(e.to_owned())).collect());
-                } else if let Some(o) = otherwise {
-                    return Ok(crate::binds::parse_action_chain(o)?
-                        .iter()
-                        .map(|e| Event::Action(e.to_owned()))
-                        .collect());
-                }
+                return self.dispatch_conditional(self.item_list.items.is_empty(), then, otherwise.as_deref());
             }
-            Ignore => (),
+            // `ignore` is a no-op. `suppress` is also a no-op on its own; its
+            // suppression effect is applied in `handle_action` when it appears in
+            // an action's follow-up chain.
+            Ignore | Suppress => (),
             KillLine => {
                 let cursor = self.input.cursor_pos as usize;
                 let deleted = self.input.split_off(cursor);
@@ -897,7 +1028,7 @@ impl App {
             Last => {
                 // Jump to last item
                 self.item_list.jump_to_last();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             NextHistory => {
                 // Use cmd_history in interactive mode, query_history otherwise
@@ -944,7 +1075,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             HalfPageUp(n) => {
                 let offset = i32::from(self.item_list.height) / 2;
@@ -953,7 +1084,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(-offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             PageDown(n) => {
                 let offset = i32::from(self.item_list.height);
@@ -962,7 +1093,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             PageUp(n) => {
                 let offset = i32::from(self.item_list.height);
@@ -971,7 +1102,7 @@ impl App {
                 } else {
                     self.item_list.scroll_by_rows(-offset * n);
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             PreviewUp(n) => {
                 self.preview.scroll_up(u16::try_from(*n).unwrap_or(u16::MAX));
@@ -1083,15 +1214,15 @@ impl App {
             }
             SelectAll => {
                 self.item_list.select_all();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             SelectRow(row) => {
                 self.item_list.select_row(*row);
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             Select => {
                 self.item_list.select();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             SetHeader(opt_header) => {
                 opt_header.clone_into(&mut self.options.header);
@@ -1111,11 +1242,11 @@ impl App {
             }
             Toggle => {
                 self.item_list.toggle();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ToggleAll => {
                 self.item_list.toggle_all();
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ToggleIn => {
                 self.item_list.toggle();
@@ -1123,7 +1254,7 @@ impl App {
                     TopToBottom => self.item_list.select_next(),
                     BottomToTop => self.item_list.select_previous(),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             ToggleInteractive => {
                 self.options.interactive = !self.options.interactive;
@@ -1136,7 +1267,7 @@ impl App {
                     TopToBottom => self.item_list.select_previous(),
                     BottomToTop => self.item_list.select_next(),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             TogglePreview => {
                 self.options.preview_window.hidden = !self.options.preview_window.hidden;
@@ -1152,13 +1283,21 @@ impl App {
                 self.restart_matcher(true);
             }
             Unbind(spec) => {
-                // Remove the bindings for one or more keys.
-                for key in spec.split(',') {
-                    match crate::binds::parse_key(key) {
+                // Remove the bindings for one or more keys or action triggers.
+                // Keys win, mirroring `bind`: a name that parses as a real key
+                // unbinds the key; otherwise `act-up`/`first` style triggers are
+                // removed from the follow-up action bindings.
+                for trigger in crate::binds::split_top_level(spec, ',') {
+                    match crate::binds::parse_key(trigger) {
                         Ok(parsed) => {
                             self.options.keymap.remove(&parsed);
                         }
-                        Err(err) => debug!("Failed to unbind key {key}: {err}"),
+                        Err(err) => match crate::binds::action_trigger_name(trigger) {
+                            Some(name) => {
+                                self.options.action_binds.remove(name);
+                            }
+                            None => debug!("Failed to unbind {trigger}: {err}"),
+                        },
                     }
                 }
             }
@@ -1177,7 +1316,7 @@ impl App {
                     TopToBottom => self.item_list.scroll_by(-i32::from(*n)),
                     BottomToTop => self.item_list.scroll_by(i32::from(*n)),
                 }
-                return Ok(Self::on_selection_changed());
+                return Ok(self.on_selection_changed());
             }
             Yank => {
                 // Insert from yank register at cursor position
@@ -1271,6 +1410,9 @@ impl App {
                 no_sort,
                 self.needs_render.clone(),
             );
+            // A new search is in flight; arm the `result`/`zero`/`one` events to
+            // fire once it completes and its results are rendered.
+            self.result_pending = true;
         }
     }
 
@@ -1421,7 +1563,7 @@ impl App {
         self.needs_render();
 
         if self.item_list.current != old_current {
-            return Ok(Self::on_selection_changed());
+            return Ok(self.on_selection_changed());
         }
         Ok(vec![])
     }

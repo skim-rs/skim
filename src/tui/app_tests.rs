@@ -58,11 +58,58 @@ fn act(app: &mut App, action: Action) -> Vec<Event> {
 }
 
 #[test]
+fn load_waits_until_all_items_are_consumed() {
+    let mut app = App::default();
+    app.reader_done = true;
+    app.item_pool.append(vec![Arc::new("item".to_string())]);
+
+    assert!(app.poll_completion_events().is_empty());
+
+    assert_eq!(app.item_pool.take().len(), 1);
+    assert!(
+        app.poll_completion_events()
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Load.key_event()))
+    );
+    assert!(app.poll_completion_events().is_empty());
+}
+
+#[test]
+fn cardinality_events_wait_for_reader_completion() {
+    let mut app = App::default();
+    app.result_pending = true;
+
+    let events = app.poll_completion_events();
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Result.key_event()))
+    );
+    assert!(events.iter().all(|event| {
+        !matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Zero.key_event()
+            || *key == crate::binds::SkimEvent::One.key_event())
+    }));
+
+    app.reader_done = true;
+    app.result_pending = true;
+    assert!(
+        app.poll_completion_events()
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Zero.key_event()))
+    );
+}
+
+#[test]
 fn add_char_updates_query_and_emits_events() {
     let mut app = App::default();
     let events = act(&mut app, Action::AddChar('x'));
     assert_eq!(app.input.value, "x");
-    // on_query_changed emits a F255 change-key event and a RunPreview
+    // on_query_changed emits a `change` event key (SkimEvent::Change) and a RunPreview
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, Event::Key(key) if *key == crate::binds::SkimEvent::Change.key_event()))
+    );
     assert!(events.iter().any(|e| matches!(e, Event::RunPreview)));
 }
 
@@ -450,32 +497,89 @@ fn toggle_in_out_in_bottom_to_top_layout() {
 #[test]
 fn if_query_empty_branches() {
     let mut app = App::default();
-    // Query empty -> "then" branch (ignore action).
-    let events = act(&mut app, Action::IfQueryEmpty("ignore".to_string(), None));
-    assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+    assert!(act(&mut app, Action::IfQueryEmpty("abort".to_string(), None)).is_empty());
+    assert!(app.should_quit);
 
-    // Query non-empty -> "otherwise" branch.
+    let mut app = App::default();
     app.input.value = "x".to_string();
-    let events = act(
-        &mut app,
-        Action::IfQueryEmpty("ignore".to_string(), Some("abort".to_string())),
+    assert!(
+        act(
+            &mut app,
+            Action::IfQueryEmpty("ignore".to_string(), Some("abort".to_string())),
+        )
+        .is_empty()
     );
-    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+    assert!(app.should_quit);
 }
 
 #[test]
 fn if_query_not_empty_branches() {
     let mut app = App::default();
     app.input.value = "x".to_string();
-    let events = act(&mut app, Action::IfQueryNotEmpty("abort".to_string(), None));
-    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+    assert!(act(&mut app, Action::IfQueryNotEmpty("abort".to_string(), None)).is_empty());
+    assert!(app.should_quit);
 
     let mut app = App::default();
-    let events = act(
-        &mut app,
-        Action::IfQueryNotEmpty("abort".to_string(), Some("ignore".to_string())),
+    assert!(
+        act(
+            &mut app,
+            Action::IfQueryNotEmpty("ignore".to_string(), Some("abort".to_string())),
+        )
+        .is_empty()
     );
-    assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+    assert!(app.should_quit);
+}
+
+#[test]
+fn runtime_bind_and_unbind_manage_action_triggers() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+
+    // `bind(act-up:suppress+last)` registers an action trigger at runtime.
+    act(&mut app, Action::Bind("act-up:suppress+last".to_string()));
+    assert_eq!(
+        app.options.action_binds.get("up"),
+        Some(&vec![Action::Suppress, Action::Last])
+    );
+    act(&mut app, Action::Up(1));
+    assert_eq!(app.item_list.selected().unwrap().text(), "c");
+
+    // `unbind(up)` targets the *key*, leaving the action trigger in place.
+    act(&mut app, Action::Unbind("up".to_string()));
+    assert!(
+        app.options
+            .keymap
+            .get(&crate::binds::parse_key("up").unwrap())
+            .is_none()
+    );
+    assert!(app.options.action_binds.contains_key("up"));
+
+    // `unbind(act-up)` removes the action trigger; `up` acts normally again.
+    act(&mut app, Action::Unbind("act-up".to_string()));
+    assert!(!app.options.action_binds.contains_key("up"));
+    act(&mut app, Action::First);
+    act(&mut app, Action::Up(1));
+    assert_eq!(app.item_list.selected().unwrap().text(), "b");
+}
+
+#[test]
+fn conditional_invalid_chain_is_ignored() {
+    // Branch chains are unvalidated at parse time; a bad action name must be
+    // logged and skipped at dispatch time, not abort the event loop.
+    let mut app = App::default();
+    let events = act(&mut app, Action::IfQueryEmpty("not-a-real-action".to_string(), None));
+    assert!(events.is_empty());
+    assert!(!app.should_quit);
+}
+
+#[test]
+fn conditional_subactions_are_dispatched_without_remapping() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.options.action_binds.insert("up".to_string(), vec![Action::Last]);
+
+    let events = act(&mut app, Action::IfQueryEmpty("up".to_string(), None));
+
+    assert_eq!(app.item_list.selected().unwrap().text(), "b");
+    assert!(events.iter().all(|event| !matches!(event, Event::Action(_))));
 }
 
 #[test]
@@ -551,18 +655,19 @@ fn run_execute_event_runs_command_and_restarts_reader() {
 
 #[test]
 fn if_non_matched_branches() {
-    // Empty item list -> "then".
     let mut app = App::default();
-    let events = act(&mut app, Action::IfNonMatched("abort".to_string(), None));
-    assert!(events.iter().any(|e| matches!(e, Event::Action(Action::Abort))));
+    assert!(act(&mut app, Action::IfNonMatched("abort".to_string(), None)).is_empty());
+    assert!(app.should_quit);
 
-    // Non-empty list -> "otherwise".
     let mut app = app_with_items(&["a"]);
-    let events = act(
-        &mut app,
-        Action::IfNonMatched("abort".to_string(), Some("ignore".to_string())),
+    assert!(
+        act(
+            &mut app,
+            Action::IfNonMatched("ignore".to_string(), Some("abort".to_string())),
+        )
+        .is_empty()
     );
-    assert!(events.iter().all(|e| matches!(e, Event::Action(Action::Ignore))));
+    assert!(app.should_quit);
 }
 
 #[test]
