@@ -6,7 +6,7 @@
     <img src="https://github.com/skim-rs/skim/actions/workflows/test.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
   <a href="https://skim-rs.github.io/skim" >
-    <img src="https://skim-rs.github.io/skim/coverage.svg" alt="coverage badge" />
+    <img src="https://skim-rs.github.io/skim/coverage/coverage.svg" alt="coverage badge" />
   </a>
   <a href="https://repology.org/project/skim-fuzzy-finder/versions">
     <img src="https://repology.org/badge/tiny-repos/skim-fuzzy-finder.svg" alt="Packaging status" />
@@ -101,6 +101,7 @@ The skim project contains several components:
 </a>
 
 ### Fedora
+
 Up to date Fedora packages are provided via an unofficial community-maintained COPR repository.
 ```bash
 sudo dnf copr enable sisyphus1813/skim
@@ -108,6 +109,7 @@ sudo dnf install skim
 ```
 
 ### Windows
+
 Using [winget](https://learn.microsoft.com/windows/package-manager/):
 ```powershell
 winget install skim
@@ -118,6 +120,7 @@ scoop install skim
 ```
 
 ### Debian and RPM packages
+
 Every [release](https://github.com/skim-rs/skim/releases/latest) ships prebuilt
 `.deb` and `.rpm` packages for `amd64` and `arm64`. Each one installs the `sk`
 executable, its man page and the bash/zsh/fish completions.
@@ -130,6 +133,23 @@ sudo dpkg -i skim_*_amd64.deb
 
 # Fedora / RHEL / openSUSE (use skim-*.aarch64.rpm on ARM machines)
 sudo rpm -i skim-*.x86_64.rpm
+```
+
+### APT repository (Debian/Ubuntu)
+
+Instead of downloading a `.deb` manually, add the hosted APT repository to get
+`sk` from `apt` and receive updates:
+```sh
+# Import the signing key
+sudo mkdir -p /etc/apt/keyrings
+sudo wget -O /etc/apt/keyrings/skim.asc https://skim-rs.github.io/skim/apt/skim-archive-keyring.asc
+# ...or with curl:
+# curl -fsSL https://skim-rs.github.io/skim/apt/skim-archive-keyring.asc | sudo tee /etc/apt/keyrings/skim.asc > /dev/null
+
+# Add the repository
+echo 'deb [signed-by=/etc/apt/keyrings/skim.asc] https://skim-rs.github.io/skim/apt ./' | sudo tee /etc/apt/sources.list.d/skim.list
+sudo apt-get update
+sudo apt-get install skim
 ```
 
 

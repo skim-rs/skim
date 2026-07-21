@@ -91,9 +91,8 @@ jobs:
     uses: ./.github/workflows/test.yml
     secrets: inherit
     permissions:
-      "contents": "read"
+      "contents": "write"
       "id-token": "write"
-      "pages": "write"
 
   # Build and packages all the platform-specific things
   build-local-artifacts:
@@ -325,16 +324,31 @@ jobs:
       "id-token": "write"
       "packages": "write"
 
+  custom-apt:
+    needs:
+      - plan
+      - host
+    if: ${{ !fromJson(needs.plan.outputs.val).announcement_is_prerelease || fromJson(needs.plan.outputs.val).publish_prereleases }}
+    uses: ./.github/workflows/apt.yml
+    with:
+      plan: ${{ needs.plan.outputs.val }}
+    secrets: inherit
+    # publish jobs get escalated permissions
+    permissions:
+      "contents": "write"
+      "id-token": "write"
+
   announce:
     needs:
       - plan
       - host
       - custom-publish
       - custom-winget
+      - custom-apt
     # use "always() && ..." to allow us to wait for all publish jobs while
     # still allowing individual publish jobs to skip themselves (for prereleases).
     # "host" however must run to completion, no skipping allowed!
-    if: ${{ always() && needs.host.result == 'success' && (needs.custom-publish.result == 'skipped' || needs.custom-publish.result == 'success') && (needs.custom-winget.result == 'skipped' || needs.custom-winget.result == 'success') }}
+    if: ${{ always() && needs.host.result == 'success' && (needs.custom-publish.result == 'skipped' || needs.custom-publish.result == 'success') && (needs.custom-winget.result == 'skipped' || needs.custom-winget.result == 'success') && (needs.custom-apt.result == 'skipped' || needs.custom-apt.result == 'success') }}
     runs-on: "ubuntu-22.04"
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

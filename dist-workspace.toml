@@ -22,11 +22,14 @@ plan-jobs = ["./test"]
 # Global artifacts jobs to run in CI
 global-artifacts-jobs = ["./package"]
 # Publish jobs to run in CI
-publish-jobs = ["./publish", "./winget"]
+publish-jobs = ["./publish", "./winget", "./apt"]
 # Whether to publish prereleases to package managers
 publish-prereleases = true
 
 [dist.github-custom-job-permissions.test]
-contents = "read"
-pages = "write"
+contents = "write"
+id-token = "write"
+
+[dist.github-custom-job-permissions.apt]
+contents = "write"
 id-token = "write"

@@ -93,6 +93,8 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - *linux-deps
       - *checkout
@@ -120,26 +122,14 @@ jobs:
           status: ${{ env.COVERAGE_PERCENT }}
           color: 'blue'
           path: 'target/llvm-cov/html/coverage.svg'
-      - name: "Upload default branch results to gh pages"
+      - name: "Deploy coverage to gh-pages under /coverage"
         if: *if-master
-        uses: actions/upload-pages-artifact@v5
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: target/llvm-cov/html
-
-  deploy-coverage-page:
-    if: *if-master
-    needs: coverage
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: "Deploy gh pages"
-        id: deployment
-        uses: actions/deploy-pages@v5
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: target/llvm-cov/html
+          destination_dir: coverage
+          keep_files: true
 
   clippy:
     runs-on: ${{matrix.runner}}
@@ -269,7 +259,6 @@ jobs:
     needs:
       - nextest
       - coverage
-      - deploy-coverage-page
       - clippy
       - rustfmt
       - clippy-no-default-features
@@ -284,4 +273,4 @@ jobs:
             echo "One or more required jobs failed or were cancelled."
             exit 1
           fi
-          echo "All required jobs passed (deploy-coverage-page is expected to skip off master)."
+          echo "All required jobs passed."
