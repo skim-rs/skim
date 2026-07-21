@@ -5,7 +5,7 @@
   <a href="https://github.com/skim-rs/skim/actions?query=workflow%3A%22Build+%26+Test%22+event%3Apush">
     <img src="https://github.com/skim-rs/skim/actions/workflows/test.yml/badge.svg?event=push" alt="Build & Test" />
   </a>
-  <a href="https://skim-rs.github.io/skim" >
+  <a href="https://skim-rs.github.io/skim/coverage" >
     <img src="https://skim-rs.github.io/skim/coverage/coverage.svg" alt="coverage badge" />
   </a>
   <a href="https://repology.org/project/skim-fuzzy-finder/versions">
