@@ -32,21 +32,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - &linux-deps
-        name: "[linux] Install dependencies"
-        run: |
-          sudo apt-get install tmux
-          tmux -V
-          locale
-        if: runner.os == 'Linux'
-      - name: "[macos] Install dependencies"
-        run: |
-          brew install tmux
-          tmux -V
-          locale
-        if: runner.os == 'macOS'
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
+      - &zellij-install
+        # The end-to-end tests drive `sk` inside a Zellij session (Zellij 0.44+
+        # runs on Linux, macOS and Windows). taiki-e/install-action fetches a
+        # prebuilt binary for every OS in the matrix.
+        name: Install zellij
+        uses: taiki-e/install-action@v2
+        with:
+          tool: zellij@0.44.3
+      - &locale
+        name: Show locale
+        run: locale
+        if: runner.os != 'Windows'
 
       - &checkout
         name: Checkout repository
@@ -93,7 +90,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - *linux-deps
+      - *zellij-install
       - *checkout
       - *toolchain
       - *nextest-install

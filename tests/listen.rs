@@ -6,13 +6,13 @@
 #[macro_use]
 mod common;
 
-use common::tmux::Keys::*;
+use common::zellij::Keys::*;
 use rand::RngExt as _;
 use rand::distr::Alphabetic;
 use std::io::{Result, Write as _};
 use std::process::{Child, Command, Stdio};
 
-use common::tmux::TmuxController;
+use common::zellij::ZellijController;
 
 use crate::common::{SK, SKIM_ENV_REMOVES};
 
@@ -30,8 +30,8 @@ fn send(child: &mut Child, msg: &str) -> Result<()> {
     Ok(())
 }
 
-fn setup(name: &str, extra_args: &[&str]) -> Result<(TmuxController, Child)> {
-    let mut tmux = TmuxController::new_named(name)?;
+fn setup(name: &str, extra_args: &[&str]) -> Result<(ZellijController, Child)> {
+    let mut tmux = ZellijController::new_named(name)?;
     let socket_name = format!(
         "sk-test-{name}{}",
         rand::rng()

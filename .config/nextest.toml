@@ -1,9 +1,8 @@
-experimental = ["setup-scripts", "wrapper-scripts"]
+experimental = ["wrapper-scripts"]
 
-[scripts.setup.stop-tmux]
-command = "sh -c 'tmux kill-session -t skim_e2e || true'"
-[scripts.setup.start-tmux]
-command = "tmux new-session -d -s skim_e2e -n skim_e2e"
+# The end-to-end tests drive `sk` inside a Zellij session that each test creates
+# and tears down itself (see tests/common/zellij.rs), so — unlike the previous
+# tmux-based harness — no shared multiplexer session needs to be set up here.
 
 # Valgrind wrapper for memory leak detection
 [scripts.wrapper.valgrind]
@@ -16,17 +15,28 @@ command = [
     "--suppressions=.config/valgrind.supp"
 ]
 
+# The end-to-end tests each spin up a full Zellij session (server + client +
+# PTY). Running many concurrently overwhelms the machine and makes the
+# timing-sensitive tests flaky, so serialize everything in this group while the
+# rest of the suite keeps running in parallel. (Under raw `cargo test`, pass
+# `--test-threads=1` for the e2e test binaries instead.)
+[test-groups]
+e2e = { max-threads = 1 }
+
 [profile.default]
 fail-fast = false
 retries = 2
-[[profile.default.scripts]]
-platform = "cfg(unix)"
-setup = ["stop-tmux", "start-tmux"]
+[[profile.default.overrides]]
+filter = 'binary(interactive) | binary(listen) | binary(popup) | binary(execute)'
+test-group = 'e2e'
 [profile.default.junit]
 path = "junit.xml"
 
 [profile.ci]
 retries = 9
+[[profile.ci.overrides]]
+filter = 'binary(interactive) | binary(listen) | binary(popup) | binary(execute)'
+test-group = 'e2e'
 
 # Valgrind profile for memory leak detection
 # Usage: cargo nextest run --profile valgrind
@@ -39,7 +49,6 @@ retries = 2
 test-threads = 1  # Run tests serially to avoid interleaved valgrind output
 [[profile.valgrind.scripts]]
 platform = "cfg(unix)"
-setup = ["stop-tmux", "start-tmux"]
 run-wrapper = "valgrind"
 
 # ThreadSanitizer profile for detecting data races and thread issues
@@ -68,6 +77,3 @@ run-wrapper = "valgrind"
 fail-fast = false
 retries = 3
 test-threads = 1  # TSan requires running tests serially
-[[profile.tsan.scripts]]
-platform = "cfg(unix)"
-setup = ["stop-tmux", "start-tmux"]

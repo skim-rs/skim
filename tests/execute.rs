@@ -1,4 +1,7 @@
 #![allow(missing_docs, clippy::pedantic)]
+// The Zellij harness itself is cross-platform, but this file stays unix-only for
+// reasons unrelated to the multiplexer: it builds an executable bash helper via
+// `std::os::unix::fs::PermissionsExt` and drives it with a POSIX shell script.
 #![cfg(unix)]
 #[allow(dead_code)]
 mod common;
@@ -8,8 +11,8 @@ use std::io::{Read, Result, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use common::tmux::Keys::*;
-use common::tmux::{TmuxController, wait};
+use common::zellij::Keys::*;
+use common::zellij::{ZellijController, wait};
 
 /// Read the whole file at `path` into a `String`.
 fn read_file(path: &Path) -> Result<String> {
@@ -35,7 +38,7 @@ fn read_file(path: &Path) -> Result<String> {
 /// exercised for both the fullscreen and inline layouts, since the post-execute
 /// repaint path differs from a normal render.
 fn run_interactive_execute(name: &str, extra_opts: &[&str]) -> Result<()> {
-    let mut tmux = TmuxController::new_named(name)?;
+    let mut tmux = ZellijController::new_named(name)?;
 
     let dir = tmux.tempdir.path().to_path_buf();
     let script = dir.join("interactive.sh");

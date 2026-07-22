@@ -1,17 +1,61 @@
+//! Zellij-backed end-to-end test harness.
+//!
+//! This is a drop-in replacement for the old tmux-based harness. It drives a
+//! real `sk` process running inside a [Zellij](https://zellij.dev) pane and
+//! observes it exactly like a user would: by sending keystrokes and reading the
+//! rendered screen back.
+//!
+//! Unlike tmux, Zellij has no detached-server model, so the harness spawns a
+//! Zellij client attached to an in-process pseudo-terminal (via `portable-pty`,
+//! which uses `openpty` on Unix and ConPTY on Windows). Because `portable-pty`
+//! and Zellij 0.44+ are both cross-platform, this harness — and every test that
+//! uses it — is available on Windows as well as Unix.
+//!
+//! The public surface (`ZellijController`, `Keys`, `wait`, `sk`, the `sk_test!`
+//! DSL and the `line!`/`keys!`/`out!` helpers) mirrors the previous tmux
+//! harness so existing tests port over unchanged.
+
 use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read, Result};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use rand::RngExt as _;
 use rand::distr::Alphanumeric;
 use tempfile::{NamedTempFile, TempDir, tempdir};
 use which::which;
 
-use crate::common::{SK, SKIM_SHELL_ENV_CLEAR};
+use crate::common::{SK, SKIM_ENV_REMOVES, SKIM_SHELL_ENV_CLEAR};
+
+/// Minimal Zellij config used for every test session.
+///
+/// - startup tips / release notes off: they spawn a floating plugin pane that
+///   steals focus, so keys and screen dumps would target the wrong pane.
+/// - pane frames / mouse off: keep the captured pane free of decorations.
+/// - kitty keyboard protocol off: with it on, `sk` negotiates the CSI-u key
+///   encoding and ignores the legacy escape sequences the harness injects, so
+///   arrow keys (Up/Down/…) would silently do nothing.
+/// - `bash` as the default shell: the tests drive it with POSIX shell syntax
+///   (`echo -n -e`, `printf`, pipelines). Bash ships with the Windows CI
+///   runners as well, keeping the harness cross-platform.
+const ZELLIJ_CONFIG: &str = r#"show_startup_tips false
+show_release_notes false
+pane_frames false
+mouse_mode false
+session_serialization false
+support_kitty_keyboard_protocol false
+default_shell "bash"
+"#;
+
+/// Shell prompt installed once the pane comes up. It is deterministic (so the
+/// harness can detect readiness) and always contains a literal `$` regardless
+/// of the user, matching the assumptions the ported tests make about a returned
+/// shell prompt.
+const PROMPT: &str = "skim$ ";
 
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
@@ -25,17 +69,71 @@ pub fn sk(outfile: &str, opts: &[&str]) -> String {
     )
 }
 
+/// Longest a single `zellij` CLI invocation may take before it is killed. Well
+/// above a healthy call (tens of ms) but bounded, so a wedged Zellij server
+/// (e.g. after a session was force-killed) surfaces as a retryable error
+/// instead of blocking the test forever.
+const ZELLIJ_CMD_TIMEOUT: Duration = Duration::from_secs(8);
+
+/// Overall wall-clock budget for a [`wait`] loop. Generous enough for a slow
+/// machine under load, bounded so a genuinely failing assertion (or a dead
+/// session) fails in seconds rather than minutes.
+const WAIT_BUDGET: Duration = Duration::from_secs(20);
+
 pub fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
-    for _ in 1..500 {
+    let deadline = Instant::now() + WAIT_BUDGET;
+    loop {
         if let Ok(t) = pred() {
             return Ok(t);
         }
+        if Instant::now() >= deadline {
+            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out"));
+        }
         sleep(Duration::from_millis(10));
     }
-    Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out"))
+}
+
+/// Run a `Command`, returning its captured stdout/stderr, but kill it and return
+/// a `TimedOut` error if it does not finish within `timeout`. Output pipes are
+/// drained on threads so a chatty process cannot deadlock on a full pipe.
+fn output_with_timeout(mut cmd: Command, timeout: Duration) -> Result<(Vec<u8>, Vec<u8>)> {
+    let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    let mut out = child.stdout.take().expect("piped stdout");
+    let mut err = child.stderr.take().expect("piped stderr");
+    let out_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = out.read_to_end(&mut buf);
+        buf
+    });
+    let err_handle = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = err.read_to_end(&mut buf);
+        buf
+    });
+
+    let deadline = Instant::now() + timeout;
+    let timed_out = loop {
+        match child.try_wait()? {
+            Some(_) => break false,
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break true;
+            }
+            None => sleep(Duration::from_millis(20)),
+        }
+    };
+
+    let stdout = out_handle.join().unwrap_or_default();
+    let stderr = err_handle.join().unwrap_or_default();
+    if timed_out {
+        Err(std::io::Error::new(ErrorKind::TimedOut, "zellij command timed out"))
+    } else {
+        Ok((stdout, stderr))
+    }
 }
 
 pub enum Keys<'a> {
@@ -75,67 +173,169 @@ impl Display for Keys<'_> {
     }
 }
 
-pub struct TmuxController {
-    pub window: String,
-    pub tempdir: TempDir,
-    pub outfile: Option<String>,
-}
-
-impl Default for TmuxController {
-    fn default() -> Self {
-        Self {
-            window: String::new(),
-            tempdir: tempfile::tempdir().expect("Failed to create tempdir"),
-            outfile: None,
+impl Keys<'_> {
+    /// The raw bytes a terminal would deliver for this key, appended to `out`.
+    fn encode(&self, out: &mut Vec<u8>) {
+        use Keys::*;
+        match self {
+            Str(s) => out.extend_from_slice(s.as_bytes()),
+            Key(c) => {
+                let mut buf = [0u8; 4];
+                out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+            }
+            Ctrl(inner) => {
+                let mut inner_bytes = Vec::new();
+                inner.encode(&mut inner_bytes);
+                // Ctrl masks the low 5 bits of the (upper-cased) ASCII byte.
+                if let Some(&b) = inner_bytes.first() {
+                    out.push(b.to_ascii_uppercase() & 0x1f);
+                }
+            }
+            Alt(inner) => {
+                out.push(0x1b);
+                inner.encode(out);
+            }
+            Enter => out.push(b'\r'),
+            Tab => out.push(b'\t'),
+            BTab => out.extend_from_slice(&[0x1b, b'[', b'Z']),
+            Left => out.extend_from_slice(&[0x1b, b'[', b'D']),
+            Right => out.extend_from_slice(&[0x1b, b'[', b'C']),
+            BSpace => out.push(0x7f),
+            Up => out.extend_from_slice(&[0x1b, b'[', b'A']),
+            Down => out.extend_from_slice(&[0x1b, b'[', b'B']),
+            Escape => out.push(0x1b),
         }
     }
 }
 
-impl TmuxController {
+/// Drives a single `sk` process inside its own Zellij session.
+///
+/// The `window` field is retained (holding the Zellij session name) so the
+/// public shape matches the previous tmux controller.
+pub struct ZellijController {
+    pub window: String,
+    pub tempdir: TempDir,
+    pub outfile: Option<String>,
+    // The client process and its master PTY must stay alive for the session's
+    // lifetime: dropping the master hangs up the pane and tears the session
+    // down early.
+    _master: Box<dyn MasterPty + Send>,
+    child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+}
+
+fn io_err<E: std::fmt::Display>(e: E) -> std::io::Error {
+    std::io::Error::other(e.to_string())
+}
+
+impl ZellijController {
+    fn zellij_bin() -> std::path::PathBuf {
+        which("zellij").expect("Please install zellij (>= 0.44) to $PATH")
+    }
+
+    /// Run `zellij <args>` with no session targeting and return stdout lines.
     pub fn run(args: &[&str]) -> Result<Vec<String>> {
-        let output = Command::new(which("tmux").expect("Please install tmux to $PATH"))
-            .args(args)
-            .output()?
-            .stdout
-            .split(|c| *c == b'\n')
-            .map(|bytes| String::from_utf8(bytes.to_vec()).expect("Failed to parse bytes as UTF8 string"))
-            .collect::<Vec<String>>();
-        Ok(output[0..output.len() - 1].to_vec())
+        let mut cmd = Command::new(Self::zellij_bin());
+        cmd.args(args);
+        let (stdout, _) = output_with_timeout(cmd, ZELLIJ_CMD_TIMEOUT)?;
+        Ok(String::from_utf8_lossy(&stdout).lines().map(str::to_string).collect())
+    }
+
+    /// Run `zellij --session <this> action <args>` and return stdout as a String.
+    ///
+    /// Returns an error while the session/pane is not yet available (or if the
+    /// call is killed for taking too long) so callers wrapped in [`wait`] retry
+    /// instead of observing a bogus "no session" message as pane content or
+    /// hanging on a wedged server.
+    fn action(&self, args: &[&str]) -> Result<String> {
+        let mut cmd = Command::new(Self::zellij_bin());
+        cmd.args(["--session", &self.window, "action"]).args(args);
+        let (stdout_bytes, stderr_bytes) = output_with_timeout(cmd, ZELLIJ_CMD_TIMEOUT)?;
+        let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
+        let stderr = String::from_utf8_lossy(&stderr_bytes);
+        if stderr.contains("not found") || stdout.contains("no active session") {
+            return Err(std::io::Error::new(ErrorKind::NotConnected, "zellij session not ready"));
+        }
+        Ok(stdout)
+    }
+
+    /// Inject raw terminal input bytes into the focused pane.
+    fn write_bytes(&self, bytes: &[u8]) -> Result<()> {
+        let mut args: Vec<String> = vec!["write".to_string()];
+        args.extend(bytes.iter().map(|b| b.to_string()));
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.action(&refs)?;
+        Ok(())
     }
 
     pub fn new_named(name: &str) -> Result<Self> {
-        let unset_cmd = "unset SKIM_DEFAULT_COMMAND SKIM_DEFAULT_OPTIONS PS1 PROMPT_COMMAND HISTFILE";
+        let suffix: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(6)
+            .map(char::from)
+            .collect();
+        // Zellij session names may not contain many punctuation characters;
+        // keep to alphanumerics and underscores.
+        let sanitized: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect();
+        let session = format!("skim_e2e_{sanitized}_{suffix}");
 
-        let full_name = format!(
-            "{name}-{}",
-            rand::rng()
-                .sample_iter(&Alphanumeric)
-                .take(4)
-                .map(char::from)
-                .collect::<String>()
-        );
-        let shell_cmd = "bash --rcfile None";
+        let tempdir = tempdir()?;
+        let config = tempdir.path().join("zellij.kdl");
+        std::fs::write(&config, ZELLIJ_CONFIG)?;
 
-        Self::run(&[
-            "new-window",
-            "-d",
-            "-P",
-            "-F",
-            "#I",
-            "-t",
-            "skim_e2e:",
-            "-n",
-            &full_name,
-            &format!("{}; {}", unset_cmd, shell_cmd),
-        ])?;
+        let pty = native_pty_system();
+        let pair = pty
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(io_err)?;
 
-        Self::run(&["set-window-option", "-t", &full_name, "pane-base-index", "0"])?;
+        let mut cmd = CommandBuilder::new(Self::zellij_bin());
+        cmd.args([
+            "--config",
+            config.to_str().expect("config path is not valid UTF-8"),
+            "--session",
+            &session,
+            "attach",
+            "--create",
+            &session,
+        ]);
+        // Match the env hygiene the shell wrapper applies inline, so nothing
+        // leaks in from the outer test environment via the session server.
+        for var in SKIM_ENV_REMOVES {
+            cmd.env_remove(var);
+        }
+        if let Ok(dir) = std::env::current_dir() {
+            cmd.cwd(dir);
+        }
 
-        Ok(Self {
-            window: format!("skim_e2e:{full_name}"),
-            tempdir: tempdir()?,
+        let child = pair.slave.spawn_command(cmd).map_err(io_err)?;
+        // The child keeps its own handles to the slave; drop ours.
+        drop(pair.slave);
+
+        // Continuously drain the client's output or its PTY buffer fills and the
+        // Zellij client blocks (freezing rendering and input handling).
+        let mut reader = pair.master.try_clone_reader().map_err(io_err)?;
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 4096];
+            while let Ok(n) = reader.read(&mut buf) {
+                if n == 0 {
+                    break;
+                }
+            }
+        });
+
+        let controller = Self {
+            window: session,
+            tempdir,
             outfile: None,
-        })
+            _master: pair.master,
+            child: Some(child),
+        };
+        controller.wait_ready()?;
+        Ok(controller)
     }
 
     pub fn new() -> Result<Self> {
@@ -147,10 +347,43 @@ impl TmuxController {
         Self::new_named(&name)
     }
 
+    /// Block until the session server and pane are up and a clean, deterministic
+    /// shell prompt is showing.
+    fn wait_ready(&self) -> Result<()> {
+        // Session server + pane are up once a screen dump succeeds.
+        wait(|| {
+            let dump = self.action(&["dump-screen"])?;
+            if dump.trim().is_empty() {
+                Err(std::io::Error::new(ErrorKind::WouldBlock, "pane not rendered yet"))
+            } else {
+                Ok(())
+            }
+        })?;
+
+        // Install a deterministic prompt and clear the screen. The keys are
+        // buffered by the pane PTY even if bash is still starting up. Re-send on
+        // each retry in case the very first keystrokes raced shell startup.
+        wait(|| {
+            self.write_bytes(
+                format!("unset PROMPT_COMMAND HISTFILE HISTCONTROL; PS1='{PROMPT}'; clear\r").as_bytes(),
+            )?;
+            let lines = self.capture()?;
+            if lines.first().is_some_and(|l| l.starts_with(PROMPT.trim_end()))
+                && !lines.iter().any(|l| l.contains("PROMPT_COMMAND"))
+            {
+                Ok(())
+            } else {
+                Err(std::io::Error::new(ErrorKind::WouldBlock, "prompt not ready yet"))
+            }
+        })
+    }
+
     pub fn send_keys(&self, keys: &[Keys]) -> std::io::Result<()> {
         print!("typing `");
         for key in keys {
-            Self::run(&["send-keys", "-t", &self.window, &key.to_string()])?;
+            let mut bytes = Vec::new();
+            key.encode(&mut bytes);
+            self.write_bytes(&bytes)?;
             print!("{}", key);
         }
         println!("`");
@@ -165,64 +398,28 @@ impl TmuxController {
             .to_string())
     }
 
-    // Returns the lines in reverted order
+    /// Screen contents of the pane, most-recent (bottom) line first.
+    ///
+    /// The reversed ordering mirrors the old tmux harness so existing tests
+    /// index the same way: `capture()[0]` is the bottom line, where `sk` draws
+    /// its query prompt in the default (bottom-anchored) layout.
     pub fn capture(&self) -> Result<Vec<String>> {
-        let tempfile = wait(|| {
-            let tempfile = self.tempfile()?;
-            Self::run(&[
-                "capture-pane",
-                "-J",
-                "-b",
-                &self.window,
-                "-t",
-                &format!("{}.0", self.window),
-            ])?;
-            Self::run(&["save-buffer", "-b", &self.window, &tempfile])?;
-            Ok(tempfile)
-        })?;
-
-        let mut string_lines = String::new();
-        BufReader::new(File::open(tempfile)?).read_to_string(&mut string_lines)?;
-
-        let str_lines = string_lines.trim();
-        Ok(str_lines
-            .split("\n")
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>()
-            .into_iter()
-            .rev()
-            .collect())
+        let dump = wait(|| self.action(&["dump-screen"]))?;
+        Ok(Self::to_lines(&dump))
     }
 
-    // Capture with ANSI escape sequences preserved (using -e flag)
-    // Returns the lines in reverted order with ANSI codes
+    /// Like [`capture`], but preserves ANSI styling (colors / attributes).
     pub fn capture_colored(&self) -> Result<Vec<String>> {
-        let tempfile = wait(|| {
-            let tempfile = self.tempfile()?;
-            Self::run(&[
-                "capture-pane",
-                "-e",
-                "-J",
-                "-b",
-                &self.window,
-                "-t",
-                &format!("{}.0", self.window),
-            ])?;
-            Self::run(&["save-buffer", "-b", &self.window, &tempfile])?;
-            Ok(tempfile)
-        })?;
+        let dump = wait(|| self.action(&["dump-screen", "--ansi"]))?;
+        Ok(Self::to_lines(&dump))
+    }
 
-        let mut string_lines = String::new();
-        BufReader::new(File::open(tempfile)?).read_to_string(&mut string_lines)?;
-
-        let str_lines = string_lines.trim();
-        Ok(str_lines
-            .split("\n")
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>()
-            .into_iter()
+    fn to_lines(dump: &str) -> Vec<String> {
+        dump.trim()
+            .split('\n')
+            .map(str::to_string)
             .rev()
-            .collect())
+            .collect::<Vec<String>>()
     }
 
     pub fn until<F>(&self, pred: F) -> std::io::Result<()>
@@ -293,12 +490,15 @@ impl TmuxController {
     }
 }
 
-impl Drop for TmuxController {
+impl Drop for ZellijController {
     fn drop(&mut self) {
-        let _ = Self::run(&["kill-window", "-t", &self.window]);
+        // Kill the client first, then remove the (now dead) session.
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+        }
+        let _ = Self::run(&["delete-session", &self.window, "--force"]);
     }
 }
-
 // ============================================================================
 // sk_test! - Macro for writing compact tmux-based integration tests
 // ============================================================================
@@ -326,7 +526,7 @@ impl Drop for TmuxController {
 //   @dbg;                                    // Debug print current capture
 // });
 //
-// NOTE: All methods use wait() for consistent retry behavior. Any TmuxController
+// NOTE: All methods use wait() for consistent retry behavior. Any ZellijController
 //       method that takes no args and returns Result<Vec<String>> can be used:
 //       capture, output, capture_colored, etc.
 //
@@ -429,7 +629,7 @@ impl Drop for TmuxController {
 // @METHOD[N] method_chain     Wait until METHOD[N].method_chain is true (N = line number)
 // @METHOD[-N] method_chain    Wait until METHOD[-N].method_chain is true (negative index)
 // @METHOD[*] method_chain     Wait until any line matches (uses .iter().any())
-//   where METHOD is any TmuxController method returning Result<Vec<String>>:
+//   where METHOD is any ZellijController method returning Result<Vec<String>>:
 //     - capture: Wait until condition is true
 //     - output: Wait until condition is true
 //     - capture_colored: Wait until condition is true on colored capture
@@ -456,7 +656,7 @@ macro_rules! sk_test {
       #[test]
       #[allow(unused_variables)]
       fn $name() -> std::io::Result<()> {
-        let mut $tmux = crate::common::tmux::TmuxController::new()?;
+        let mut $tmux = crate::common::zellij::ZellijController::new()?;
         $tmux.start_sk(Some(&format!("echo -n -e '{}'", $input)), $options)?;
 
         $content
@@ -470,7 +670,7 @@ macro_rules! sk_test {
       #[test]
       #[allow(unused_variables)]
       fn $name() -> std::io::Result<()> {
-        let mut $tmux = crate::common::tmux::TmuxController::new()?;
+        let mut $tmux = crate::common::zellij::ZellijController::new()?;
         $tmux.start_sk(Some($cmd), $options)?;
 
         $content
@@ -484,7 +684,7 @@ macro_rules! sk_test {
       #[test]
       #[allow(unused_variables)]
       fn $name() -> std::io::Result<()> {
-        let mut tmux = crate::common::tmux::TmuxController::new_named(stringify!($name))?;
+        let mut tmux = crate::common::zellij::ZellijController::new_named(stringify!($name))?;
         tmux.start_sk(Some(&format!("echo -n -e '{}'", $input)), $options)?;
 
         sk_test!(@expand tmux; $($content)*);
@@ -498,7 +698,7 @@ macro_rules! sk_test {
       #[test]
       #[allow(unused_variables)]
       fn $name() -> std::io::Result<()> {
-        let mut tmux = crate::common::tmux::TmuxController::new_named(stringify!($name))?;
+        let mut tmux = crate::common::zellij::ZellijController::new_named(stringify!($name))?;
         tmux.start_sk(Some($cmd), $options)?;
 
         sk_test!(@expand tmux; $($content)*);
@@ -510,7 +710,7 @@ macro_rules! sk_test {
     // Token processing rules
     (@expand $tmux:ident; ) => {};
 
-    // Generic method patterns - works with any TmuxController method
+    // Generic method patterns - works with any ZellijController method
     // @method[*] - check if any line matches (uses .iter().any())
     (@expand $tmux:ident; @ $method:ident [ * ] $($rest:tt)*) => {
         sk_test!(@method_any_collect $tmux, $method, [] ; $($rest)*);
@@ -538,7 +738,7 @@ macro_rules! sk_test {
     // Dispatch for positive index - all methods use wait()
     (@method_pos_dispatch $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*]) => {
         {
-            if crate::common::tmux::wait(|| {
+            if crate::common::zellij::wait(|| {
                 let lines = $tmux.$method()?;
                 if lines.len() > $idx && lines[$idx].$($methods)* {
                     Ok(true)
@@ -568,7 +768,7 @@ macro_rules! sk_test {
     // Dispatch for negative index - all methods use wait()
     (@method_neg_dispatch $tmux:ident, $method:ident, $idx:expr, [$($methods:tt)*]) => {
         {
-            if crate::common::tmux::wait(|| {
+            if crate::common::zellij::wait(|| {
                 let lines = $tmux.$method()?;
                 if lines.len() >= $idx {
                     let actual_idx = lines.len() - $idx;
@@ -604,7 +804,7 @@ macro_rules! sk_test {
     // Dispatch for wildcard - all methods use wait()
     (@method_any_dispatch $tmux:ident, $method:ident, [$($methods:tt)*]) => {
         {
-            if crate::common::tmux::wait(|| {
+            if crate::common::zellij::wait(|| {
                 let lines = $tmux.$method()?;
                 if lines.iter().any(|line| line.$($methods)*) {
                     Ok(true)

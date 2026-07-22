@@ -153,7 +153,8 @@ skim/                  ← workspace root
 │       └── util.rs           ← cursor helpers, style merging
 ├── tests/             ← integration & snapshot tests
 │   ├── common/
-│   │   └── insta.rs   ← snap! / insta_test! macros for TUI snapshot testing
+│   │   ├── insta.rs   ← snap! / insta_test! macros for TUI snapshot testing
+│   │   └── zellij.rs  ← ZellijController + sk_test! DSL: cross-platform e2e harness driving sk in a Zellij pane
 │   ├── snapshots/     ← committed .snap files
 │   ├── ansi.rs        ← ANSI rendering tests
 │   ├── options.rs     ← option coverage tests

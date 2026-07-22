@@ -1,14 +1,17 @@
 #![allow(missing_docs, clippy::pedantic)]
-#![cfg(unix)]
+// These end-to-end tests were previously gated to unix because the test harness
+// depended on tmux. The harness now drives Zellij through an in-process PTY
+// (see tests/common/zellij.rs), which is cross-platform, and none of the checks
+// below use unix-only APIs — so they run on Windows as well.
 #[allow(dead_code)]
 #[macro_use]
 mod common;
-use common::tmux::Keys::*;
+use common::zellij::Keys::*;
 
-sk_test!(tmux_version_long, "", &["--version"], {
+sk_test!(sk_version_long, "", &["--version"], {
   @output[0] starts_with("sk ");
 });
-sk_test!(tmux_version_short, "", &["-V"], {
+sk_test!(sk_version_short, "", &["-V"], {
   @output[0] starts_with("sk ");
 });
 
