@@ -1,7 +1,7 @@
 use std::io::{BufWriter, stderr};
 use std::ops::{Deref, DerefMut};
 use std::process::Stdio;
-use std::sync::{Once, OnceLock};
+use std::sync::Once;
 
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
@@ -294,12 +294,7 @@ where
         if self.is_fullscreen {
             crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
-        if keyboard_enhancement_supported() {
-            crossterm::execute!(
-                stderr(),
-                PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-            )?;
-        }
+        push_keyboard_enhancement_flags();
         Ok(())
     }
 
@@ -308,9 +303,7 @@ where
         if self.enable_mouse {
             crossterm::execute!(stderr(), DisableMouseCapture)?;
         }
-        if keyboard_enhancement_supported() {
-            crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
-        }
+        pop_keyboard_enhancement_flags();
         if self.is_fullscreen {
             crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
         }
@@ -435,30 +428,46 @@ fn set_panic_hook() {
 /// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
 pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
     crossterm::execute!(stderr(), DisableMouseCapture, DisableBracketedPaste)?;
-    if keyboard_enhancement_supported() {
-        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
-    }
+    pop_keyboard_enhancement_flags();
     crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
 }
 
-/// Whether the terminal supports the Kitty keyboard protocol (progressive
-/// enhancement). Queried once via crossterm and cached for the process.
+/// Enable the Kitty keyboard protocol's escape-code disambiguation, tolerating
+/// terminals that don't support it.
 ///
-/// The query is a terminal round-trip on Unix, and on Windows crossterm has no
-/// WinAPI implementation for `Push`/`PopKeyboardEnhancementFlags` — it routes
-/// them to a stub that returns `ErrorKind::Unsupported` ("Keyboard progressive
-/// enhancement not implemented for the legacy Windows API") on *every* Windows
-/// terminal, including modern ConPTY/Windows Terminal. Pushing/popping the
-/// flags unconditionally therefore aborts the picker at startup on Windows.
-/// Guarding every push/pop site on this cached value keeps them balanced and
-/// skips them wherever the protocol is unsupported (all of Windows, plus any
-/// Unix terminal without Kitty-protocol support), while querying the terminal
-/// at most once rather than on each enter/leave.
-fn keyboard_enhancement_supported() -> bool {
-    static SUPPORTED: OnceLock<bool> = OnceLock::new();
-    *SUPPORTED.get_or_init(|| crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false))
+/// crossterm has no Windows API backend for `Push`/`PopKeyboardEnhancementFlags`:
+/// because their `is_ansi_code_supported()` is `false` on Windows, `execute!`
+/// always routes them through `execute_winapi`, which writes nothing and
+/// returns `ErrorKind::Unsupported` on *every* Windows terminal (including
+/// modern ConPTY/Windows Terminal). Propagating that error aborts the picker at
+/// startup on Windows. The flags are a progressive enhancement, so we log the
+/// failure and continue with the legacy key encoding instead of failing.
+///
+/// On Unix the escape is written to stderr unconditionally (as before) and is
+/// silently ignored by terminals that don't implement the protocol, so this
+/// never errors there. Ignoring the error is preferred over probing with
+/// `supports_keyboard_enhancement()`, which performs a `/dev/tty` round-trip
+/// (falling back to stdout) and toggles raw mode — I/O that can interfere with
+/// skim's own terminal handling.
+fn push_keyboard_enhancement_flags() {
+    if let Err(err) = crossterm::execute!(
+        stderr(),
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+    ) {
+        warn!("could not enable keyboard enhancement flags: {err}");
+    }
+}
+
+/// Pop the flag pushed by [`push_keyboard_enhancement_flags`], tolerating
+/// terminals that don't support it (see that function for why the error is
+/// non-fatal). Kept balanced with every push site so a supporting terminal is
+/// always restored.
+fn pop_keyboard_enhancement_flags() {
+    if let Err(err) = crossterm::execute!(stderr(), PopKeyboardEnhancementFlags) {
+        warn!("could not disable keyboard enhancement flags: {err}");
+    }
 }
 
 /// Build the stdin handle for an `execute` child process.
