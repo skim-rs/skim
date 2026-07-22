@@ -1,7 +1,7 @@
 use std::io::{BufWriter, stderr};
 use std::ops::{Deref, DerefMut};
 use std::process::Stdio;
-use std::sync::Once;
+use std::sync::{Once, OnceLock};
 
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, KeyEventKind,
@@ -294,10 +294,12 @@ where
         if self.is_fullscreen {
             crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
-        crossterm::execute!(
-            stderr(),
-            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-        )?;
+        if keyboard_enhancement_supported() {
+            crossterm::execute!(
+                stderr(),
+                PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+            )?;
+        }
         Ok(())
     }
 
@@ -306,7 +308,9 @@ where
         if self.enable_mouse {
             crossterm::execute!(stderr(), DisableMouseCapture)?;
         }
-        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
+        if keyboard_enhancement_supported() {
+            crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
+        }
         if self.is_fullscreen {
             crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
         }
@@ -430,16 +434,31 @@ fn set_panic_hook() {
 /// - Escape sequences are written atomically to stderr
 /// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
 pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
-    crossterm::execute!(
-        stderr(),
-        DisableMouseCapture,
-        DisableBracketedPaste,
-        PopKeyboardEnhancementFlags,
-        LeaveAlternateScreen,
-        cursor::Show
-    )?;
+    crossterm::execute!(stderr(), DisableMouseCapture, DisableBracketedPaste)?;
+    if keyboard_enhancement_supported() {
+        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
+    }
+    crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
+}
+
+/// Whether the terminal supports the Kitty keyboard protocol (progressive
+/// enhancement). Queried once via crossterm and cached for the process.
+///
+/// The query is a terminal round-trip on Unix, and on Windows crossterm has no
+/// WinAPI implementation for `Push`/`PopKeyboardEnhancementFlags` — it routes
+/// them to a stub that returns `ErrorKind::Unsupported` ("Keyboard progressive
+/// enhancement not implemented for the legacy Windows API") on *every* Windows
+/// terminal, including modern ConPTY/Windows Terminal. Pushing/popping the
+/// flags unconditionally therefore aborts the picker at startup on Windows.
+/// Guarding every push/pop site on this cached value keeps them balanced and
+/// skips them wherever the protocol is unsupported (all of Windows, plus any
+/// Unix terminal without Kitty-protocol support), while querying the terminal
+/// at most once rather than on each enter/leave.
+fn keyboard_enhancement_supported() -> bool {
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+    *SUPPORTED.get_or_init(|| crossterm::terminal::supports_keyboard_enhancement().unwrap_or(false))
 }
 
 /// Build the stdin handle for an `execute` child process.
