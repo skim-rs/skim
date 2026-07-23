@@ -13,7 +13,7 @@ fn main() {
             .build()
             .unwrap();
         let res = Skim::run_with(opts, None).unwrap();
-        #[cfg(target_os = "linux")]
+        #[cfg(all(target_os = "linux", target_env = "gnu"))]
         unsafe {
             nix::libc::malloc_trim(0);
         }
