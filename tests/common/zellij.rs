@@ -164,21 +164,21 @@ const CPR_REPLY: &[u8] = b"\x1b[24;80R";
 const SESSION_SPAWN_ATTEMPTS: usize = 4;
 
 /// Poll `pred` until it succeeds or [`WAIT_BUDGET`] elapses. On timeout the most
-/// recent error returned by `pred` is surfaced (so a persistent failure keeps
-/// its diagnostic cause), falling back to a generic timeout if `pred` never ran.
+/// recent error returned by `pred` is surfaced, so a persistent failure keeps its
+/// diagnostic cause.
 pub fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
     let deadline = Instant::now() + WAIT_BUDGET;
-    let mut last_err: Option<std::io::Error> = None;
     loop {
         match pred() {
             Ok(t) => return Ok(t),
-            Err(e) => last_err = Some(e),
-        }
-        if Instant::now() >= deadline {
-            return Err(last_err.unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out")));
+            Err(e) => {
+                if Instant::now() >= deadline {
+                    return Err(e);
+                }
+            }
         }
         sleep(Duration::from_millis(10));
     }
