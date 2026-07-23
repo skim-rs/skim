@@ -294,10 +294,12 @@ where
         if self.is_fullscreen {
             crossterm::execute!(stderr(), EnterAlternateScreen, cursor::Hide)?;
         }
-        crossterm::execute!(
+        if let Err(e) = crossterm::execute!(
             stderr(),
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-        )?;
+        ) {
+            warn!("Failed to enable keyboard enhancement flags: {e}");
+        }
         Ok(())
     }
 
@@ -306,7 +308,9 @@ where
         if self.enable_mouse {
             crossterm::execute!(stderr(), DisableMouseCapture)?;
         }
-        crossterm::execute!(stderr(), PopKeyboardEnhancementFlags)?;
+        if let Err(e) = crossterm::execute!(stderr(), PopKeyboardEnhancementFlags) {
+            warn!("Failed to remove keyboard enhancement flags: {e}");
+        }
         if self.is_fullscreen {
             crossterm::execute!(stderr(), LeaveAlternateScreen, cursor::Show)?;
         }
@@ -430,11 +434,13 @@ fn set_panic_hook() {
 /// - Escape sequences are written atomically to stderr
 /// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
 pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
+    if let Err(e) = crossterm::execute!(stderr(), PopKeyboardEnhancementFlags) {
+        warn!("Failed to remove keyboard enhancement flags: {e}");
+    }
     crossterm::execute!(
         stderr(),
         DisableMouseCapture,
         DisableBracketedPaste,
-        PopKeyboardEnhancementFlags,
         LeaveAlternateScreen,
         cursor::Show
     )?;
