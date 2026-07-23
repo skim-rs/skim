@@ -1,7 +1,9 @@
 // TODO: automate listen tests on windows
 // Maybe using smaller tests ? actions processing is already tested, only the IPC part needs testing
 #![allow(missing_docs, clippy::pedantic)]
-#![cfg(all(unix, feature = "listen"))]
+// Gated to Linux: the Zellij e2e harness (tests/common/zellij.rs) only renders
+// reliably on the Linux CI runner (see interactive.rs).
+#![cfg(all(target_os = "linux", feature = "listen"))]
 #[allow(dead_code)]
 #[macro_use]
 mod common;

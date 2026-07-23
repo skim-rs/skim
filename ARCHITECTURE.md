@@ -154,7 +154,7 @@ skim/                  ← workspace root
 ├── tests/             ← integration & snapshot tests
 │   ├── common/
 │   │   ├── insta.rs   ← snap! / insta_test! macros for TUI snapshot testing
-│   │   └── zellij.rs  ← ZellijController + sk_test! DSL: cross-platform e2e harness driving sk in a Zellij pane
+│   │   └── zellij.rs  ← ZellijController + sk_test! DSL: e2e harness driving sk in a Zellij pane (tests gated to Linux)
 │   ├── snapshots/     ← committed .snap files
 │   ├── ansi.rs        ← ANSI rendering tests
 │   ├── options.rs     ← option coverage tests

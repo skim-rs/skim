@@ -1,13 +1,11 @@
 #![allow(missing_docs, clippy::pedantic)]
-// The Zellij harness (tests/common/zellij.rs) is written to be cross-platform,
-// and none of the checks below use unix-only APIs, so these tests are not gated
-// to unix in principle. In practice they are skipped on Windows for now: under
-// the Windows runner's ConPTY the Zellij session never renders (`dump-screen`
-// stays empty and `wait_ready` times out with "pane not rendered yet"), and sk's
-// escape-code disambiguation on Windows is a further known gap. Re-enable once
-// the Zellij session comes up under ConPTY.
-// TODO(windows): drive the Zellij e2e harness on Windows.
-#![cfg(not(windows))]
+// Gated to Linux: the Zellij harness (tests/common/zellij.rs) is written to be
+// cross-platform, but the Zellij session only comes up reliably on the Linux CI
+// runner. On the macOS and Windows runners `wait_ready` mostly times out with
+// "pane not rendered yet" (the session's pane never renders under their PTY),
+// so the e2e suite runs on Linux only for now.
+// TODO(macos, windows): make the Zellij e2e harness render reliably in CI.
+#![cfg(target_os = "linux")]
 #[allow(dead_code)]
 #[macro_use]
 mod common;

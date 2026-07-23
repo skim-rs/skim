@@ -36,18 +36,19 @@ jobs:
       contents: read
     steps:
       - &zellij-install
-        # The e2e tests drive `sk` inside a Zellij session on Linux and macOS.
-        # Windows runs only the non-e2e tests: the Zellij session doesn't come up
-        # under the Windows runner's ConPTY yet, so interactive.rs is gated off
-        # Windows (`#![cfg(not(windows))]`) and no Zellij install is needed there.
+        # The e2e tests drive `sk` inside a Zellij session. They run on Linux
+        # only: the session comes up reliably under the Linux runner, but on the
+        # macOS and Windows runners the pane never renders under their PTY, so
+        # the e2e test files are gated `#![cfg(target_os = "linux")]` and no
+        # Zellij install is needed off Linux.
         name: Install zellij
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
         uses: taiki-e/install-action@v2
         with:
           tool: zellij@0.44.3
       - name: Show locale
         run: locale
-        if: runner.os != 'Windows'
+        if: runner.os == 'Linux'
 
       - &checkout
         name: Checkout repository

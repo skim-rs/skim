@@ -8,10 +8,11 @@
 //! Unlike tmux, Zellij has no detached-server model, so the harness spawns a
 //! Zellij client attached to an in-process pseudo-terminal (via `portable-pty`,
 //! which uses `openpty` on Unix and ConPTY on Windows). The harness itself is
-//! cross-platform, but the e2e tests currently run on Unix only: under the
-//! Windows runner's ConPTY the Zellij session does not render (`dump-screen`
-//! stays empty), so `interactive.rs` is gated `#![cfg(not(windows))]` until that
-//! is resolved.
+//! cross-platform, but the e2e tests currently run on **Linux only**: the Zellij
+//! session comes up reliably under the Linux CI runner, but on the macOS and
+//! Windows runners the pane never renders under their PTY (`dump-screen` stays
+//! empty and `wait_ready` times out with "pane not rendered yet"), so every e2e
+//! test file is gated `#![cfg(target_os = "linux")]` until that is resolved.
 //!
 //! The public surface (`ZellijController`, `Keys`, `wait`, `sk`, the `sk_test!`
 //! DSL and the `line!`/`keys!`/`out!` helpers) mirrors the previous tmux

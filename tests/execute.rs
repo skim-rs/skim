@@ -1,8 +1,9 @@
 #![allow(missing_docs, clippy::pedantic)]
-// The Zellij harness itself is cross-platform, but this file stays unix-only for
-// reasons unrelated to the multiplexer: it builds an executable bash helper via
+// Gated to Linux for two reasons: the Zellij e2e harness (tests/common/zellij.rs)
+// only renders reliably on the Linux CI runner (see interactive.rs), and this file
+// additionally builds an executable bash helper via
 // `std::os::unix::fs::PermissionsExt` and drives it with a POSIX shell script.
-#![cfg(unix)]
+#![cfg(target_os = "linux")]
 #[allow(dead_code)]
 mod common;
 
