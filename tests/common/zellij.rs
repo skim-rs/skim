@@ -92,13 +92,13 @@ default_shell "{shell}"
 /// must be less than 0 characters" (zellij-org/zellij#4211) and the client exits
 /// before it attaches. Forcing a short base (`/tmp`) keeps the whole path well
 /// under the cap on Linux and macOS alike.
-fn zellij_socket_dir() -> std::path::PathBuf {
+fn zellij_socket_dir() -> Result<std::path::PathBuf> {
     #[cfg(unix)]
     let dir = std::path::PathBuf::from("/tmp/skim-zj");
     #[cfg(not(unix))]
     let dir = std::env::temp_dir().join("skim-zj");
-    let _ = std::fs::create_dir_all(&dir);
-    dir
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
 }
 
 /// Shell prompt installed once the pane comes up. It is deterministic (so the
@@ -351,7 +351,7 @@ impl ZellijController {
     /// Run `zellij <args>` with no session targeting and return stdout lines.
     pub fn run(args: &[&str]) -> Result<Vec<String>> {
         let mut cmd = Command::new(Self::zellij_bin());
-        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir()).args(args);
+        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir()?).args(args);
         let (stdout, _) = output_with_timeout(cmd, ZELLIJ_CMD_TIMEOUT)?;
         Ok(String::from_utf8_lossy(&stdout).lines().map(str::to_string).collect())
     }
@@ -364,7 +364,7 @@ impl ZellijController {
     /// hanging on a wedged server.
     fn action(&self, args: &[&str]) -> Result<String> {
         let mut cmd = Command::new(Self::zellij_bin());
-        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir())
+        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir()?)
             .args(["--session", &self.window, "action"])
             .args(args);
         let (stdout_bytes, stderr_bytes) = output_with_timeout(cmd, ZELLIJ_CMD_TIMEOUT)?;
@@ -454,7 +454,7 @@ impl ZellijController {
             cmd.env_remove(var);
         }
         // Keep the session's unix socket path short (see `zellij_socket_dir`).
-        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir());
+        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir()?);
         if let Ok(dir) = std::env::current_dir() {
             cmd.cwd(dir);
         }
@@ -660,7 +660,7 @@ impl ZellijController {
         Ok(NamedTempFile::new_in(&self.tempdir)?
             .path()
             .to_str()
-            .unwrap()
+            .ok_or_else(|| std::io::Error::new(ErrorKind::InvalidData, "temp file path is not valid UTF-8"))?
             .to_string())
     }
 
@@ -1135,7 +1135,7 @@ macro_rules! assert_line {
       if $tmux.until(|l| l.len() > $line_nr && l[$line_nr] $($expression)+).is_err() {
           let lines = $tmux.capture().unwrap_or_default();
           let actual = if lines.len() > $line_nr { &lines[$line_nr] } else { "<no line>" };
-          Err(std::io::std::io::Error::new(std::io::std::io::ErrorKind::TimedOut, format!("Timed out waiting for condition on line {}, got {} but expected it to {}", $line_nr, actual, stringify!($($expression)+))))
+          Err(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timed out waiting for condition on line {}, got {} but expected it to {}", $line_nr, actual, stringify!($($expression)+))))
         } else {
           Ok(())
         }
