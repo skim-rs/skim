@@ -57,6 +57,9 @@ default_shell "bash"
 /// shell prompt.
 const PROMPT: &str = "skim$ ";
 
+/// Build the shell command that runs `sk` with `opts`, clears the `SKIM_*`
+/// environment inline, and atomically writes its selection to `outfile` (via a
+/// `.part` rename) so readers never observe a half-written result file.
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
     format!(
         "{}{} {} > {}.part; mv {}.part {}",
@@ -80,25 +83,37 @@ const ZELLIJ_CMD_TIMEOUT: Duration = Duration::from_secs(8);
 /// session) fails in seconds rather than minutes.
 const WAIT_BUDGET: Duration = Duration::from_secs(20);
 
+/// Poll `pred` until it succeeds or [`WAIT_BUDGET`] elapses. On timeout the most
+/// recent error returned by `pred` is surfaced (so a persistent failure keeps
+/// its diagnostic cause), falling back to a generic timeout if `pred` never ran.
 pub fn wait<F, T>(pred: F) -> Result<T>
 where
     F: Fn() -> Result<T>,
 {
     let deadline = Instant::now() + WAIT_BUDGET;
+    let mut last_err: Option<std::io::Error> = None;
     loop {
-        if let Ok(t) = pred() {
-            return Ok(t);
+        match pred() {
+            Ok(t) => return Ok(t),
+            Err(e) => last_err = Some(e),
         }
         if Instant::now() >= deadline {
-            return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out"));
+            return Err(last_err.unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::TimedOut, "wait timed out")));
         }
         sleep(Duration::from_millis(10));
     }
 }
 
-/// Run a `Command`, returning its captured stdout/stderr, but kill it and return
-/// a `TimedOut` error if it does not finish within `timeout`. Output pipes are
-/// drained on threads so a chatty process cannot deadlock on a full pipe.
+/// Run a `Command`, returning its captured stdout/stderr. The child is killed and
+/// a `TimedOut` error returned if it does not finish within `timeout`. Output
+/// pipes are drained on threads so a chatty process cannot deadlock on a full
+/// pipe, and the child/readers are always torn down before returning — including
+/// on a `try_wait` failure.
+///
+/// The exit status is intentionally *not* turned into an error: some `zellij
+/// action` calls exit non-zero in transient states (e.g. while an inline `sk`
+/// tears its viewport down) yet still return usable output, so callers rely on
+/// [`ZellijController::action`]'s content checks instead.
 fn output_with_timeout(mut cmd: Command, timeout: Duration) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
     let mut out = child.stdout.take().expect("piped stdout");
@@ -115,27 +130,39 @@ fn output_with_timeout(mut cmd: Command, timeout: Duration) -> Result<(Vec<u8>, 
     });
 
     let deadline = Instant::now() + timeout;
-    let timed_out = loop {
-        match child.try_wait()? {
-            Some(_) => break false,
-            None if Instant::now() >= deadline => {
+    // Some(status) => the child exited; None => it was killed for timing out.
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) if Instant::now() >= deadline => {
                 let _ = child.kill();
                 let _ = child.wait();
-                break true;
+                break None;
             }
-            None => sleep(Duration::from_millis(20)),
+            Ok(None) => sleep(Duration::from_millis(20)),
+            Err(e) => {
+                // Can't poll the child; don't leave it or the reader threads dangling.
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = out_handle.join();
+                let _ = err_handle.join();
+                return Err(e);
+            }
         }
     };
 
     let stdout = out_handle.join().unwrap_or_default();
     let stderr = err_handle.join().unwrap_or_default();
-    if timed_out {
-        Err(std::io::Error::new(ErrorKind::TimedOut, "zellij command timed out"))
-    } else {
-        Ok((stdout, stderr))
+    match status {
+        None => Err(std::io::Error::new(ErrorKind::TimedOut, "zellij command timed out")),
+        Some(_) => Ok((stdout, stderr)),
     }
 }
 
+/// A keystroke (or run of characters) to inject into the pane. Each variant
+/// encodes to the raw terminal bytes a real terminal would send (see
+/// [`Keys::encode`]): literal text, a single char, a modified key
+/// (`Ctrl`/`Alt`), or a named special key.
 pub enum Keys<'a> {
     Str(&'a str),
     Key(char),
@@ -267,6 +294,9 @@ impl ZellijController {
         Ok(())
     }
 
+    /// Create a controller running its own Zellij session named after `name`
+    /// (plus a random suffix for uniqueness), with the pane's shell brought to a
+    /// clean, deterministic prompt. The session is torn down on drop.
     pub fn new_named(name: &str) -> Result<Self> {
         let suffix: String = rand::rng().sample_iter(&Alphanumeric).take(6).map(char::from).collect();
         // Zellij session names may not contain many punctuation characters;
@@ -337,6 +367,7 @@ impl ZellijController {
         Ok(controller)
     }
 
+    /// Like [`new_named`](Self::new_named) but with a random session name.
     pub fn new() -> Result<Self> {
         let name: String = rand::rng()
             .sample_iter(&Alphanumeric)
@@ -375,6 +406,8 @@ impl ZellijController {
         })
     }
 
+    /// Send a sequence of keystrokes to the pane, each encoded to the raw
+    /// terminal bytes a real terminal would deliver.
     pub fn send_keys(&self, keys: &[Keys]) -> std::io::Result<()> {
         print!("typing `");
         for key in keys {
@@ -387,6 +420,7 @@ impl ZellijController {
         Ok(())
     }
 
+    /// Allocate a fresh temp file path inside this controller's tempdir.
     pub fn tempfile(&self) -> Result<String> {
         Ok(NamedTempFile::new_in(&self.tempdir)?
             .path()
@@ -419,6 +453,8 @@ impl ZellijController {
             .collect::<Vec<String>>()
     }
 
+    /// Poll [`capture`](Self::capture) until `pred` accepts the screen contents,
+    /// erroring with the last captured screen if the budget elapses first.
     pub fn until<F>(&self, pred: F) -> std::io::Result<()>
     where
         F: Fn(&[String]) -> bool,
@@ -472,6 +508,9 @@ impl ZellijController {
             .collect())
     }
 
+    /// Launch `sk` in the pane with `opts`, optionally piping `stdin_cmd` into
+    /// it, recording the result file so [`output`](Self::output) can read it.
+    /// Returns the path of that output file.
     pub fn start_sk(&mut self, stdin_cmd: Option<&str>, opts: &[&str]) -> Result<String> {
         let outfile = self.tempfile()?;
         let sk_cmd = sk(&outfile, opts);

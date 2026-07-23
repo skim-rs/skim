@@ -50,14 +50,13 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          winget install --exact --id Zellij.Zellij --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity
+          winget install --exact --id Zellij.Zellij --version 0.44.3 --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity
           # winget drops a shim in its Links dir; expose it to this and later steps.
           $links = "$env:LOCALAPPDATA\Microsoft\WinGet\Links"
           "$links" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $env:PATH = "$links;$env:PATH"
           zellij --version
-      - &locale
-        name: Show locale
+      - name: Show locale
         run: locale
         if: runner.os != 'Windows'
 
