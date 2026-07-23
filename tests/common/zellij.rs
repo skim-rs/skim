@@ -1135,7 +1135,15 @@ macro_rules! assert_line {
       if $tmux.until(|l| l.len() > $line_nr && l[$line_nr] $($expression)+).is_err() {
           let lines = $tmux.capture().unwrap_or_default();
           let actual = if lines.len() > $line_nr { &lines[$line_nr] } else { "<no line>" };
-          Err(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timed out waiting for condition on line {}, got {} but expected it to {}", $line_nr, actual, stringify!($($expression)+))))
+          Err(std::io::Error::new(
+              std::io::ErrorKind::TimedOut,
+              format!(
+                  "Timed out waiting for condition on line {}, got {} but expected it to {}",
+                  $line_nr,
+                  actual,
+                  stringify!($($expression)+)
+              ),
+          ))
         } else {
           Ok(())
         }
