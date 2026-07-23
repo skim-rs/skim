@@ -46,11 +46,14 @@ harness is cross-platform (Linux, macOS and Windows). The pure-harness tests in
 `interactive.rs` run on all three platforms; `execute.rs`, `popup.rs` and
 `listen.rs` stay `#![cfg(unix)]` for reasons unrelated to the multiplexer (they
 install POSIX mock binaries / bind a unix socket), so they run on Linux and
-macOS. Two harness details make the non-Linux runners work: the pane's shell is
-resolved to an absolute `bash` path (the Zellij server's environment may lack
-`bash` on `PATH`), and `wait_ready` nudges the client's terminal size until the
-server gives the pane a non-zero geometry to render into. The harness drives
-Zellij with:
+macOS. A few harness details make the non-Linux runners work: the pane's shell
+is resolved to an absolute `bash` path (the Zellij server's environment may lack
+`bash` on `PATH`); `ZELLIJ_SOCKET_DIR` is forced to a short path so the session's
+unix socket path stays under the OS cap (macOS's default `$TMPDIR` is too long);
+the drain thread answers the client's cursor-position report (`ESC[6n`), which
+the Windows ConPTY client blocks on to learn the terminal size; and `wait_ready`
+nudges the client's terminal size until the server gives the pane a non-zero
+geometry to render into. The harness drives Zellij with:
 - `zellij attach --create <session>` (spawned on an in-process PTY via
   `portable-pty`) to start a detached session; `SKIM_DEFAULT_OPTIONS` and friends
   are cleared on the spawned process.

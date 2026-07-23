@@ -8,15 +8,22 @@
 //! Unlike tmux, Zellij has no detached-server model, so the harness spawns a
 //! Zellij client attached to an in-process pseudo-terminal (via `portable-pty`,
 //! which uses `openpty` on Unix and ConPTY on Windows). The harness is
-//! cross-platform (Linux, macOS and Windows). Two details are load-bearing for
-//! the non-Linux runners: the pane's shell is resolved to an absolute `bash`
-//! path (the Zellij server's own environment may not have `bash` on `PATH`), and
-//! [`ZellijController::wait_ready`] nudges the client's terminal size until the
-//! server hands the pane a non-zero geometry to render into (the initial size
-//! can otherwise be dropped under ConPTY / a cold macOS runner). The pure-harness
-//! e2e tests (`interactive.rs`) therefore run on all three platforms; the tests
-//! that additionally install POSIX mock binaries (`execute.rs`, `popup.rs`,
-//! `listen.rs`) stay `#![cfg(unix)]` for that reason, not the multiplexer's.
+//! cross-platform (Linux, macOS and Windows). A few details are load-bearing for
+//! the non-Linux runners:
+//! - the pane's shell is resolved to an absolute `bash` path (the Zellij
+//!   server's own environment may not have `bash` on `PATH`);
+//! - `ZELLIJ_SOCKET_DIR` is forced to a short path so the session's unix socket
+//!   path stays under the OS cap (macOS's default `$TMPDIR` is too long — see
+//!   [`zellij_socket_dir`]);
+//! - the drain thread answers the client's cursor-position report (`ESC[6n`),
+//!   which the Windows ConPTY client blocks on to learn the terminal size;
+//! - [`ZellijController::wait_ready`] nudges the client's terminal size until the
+//!   server hands the pane a non-zero geometry to render into.
+//!
+//! The pure-harness e2e tests (`interactive.rs`) therefore run on all three
+//! platforms; the tests that additionally install POSIX mock binaries
+//! (`execute.rs`, `popup.rs`, `listen.rs`) stay `#![cfg(unix)]` for that reason,
+//! not the multiplexer's.
 //!
 //! The public surface (`ZellijController`, `Keys`, `wait`, `sk`, the `sk_test!`
 //! DSL and the `line!`/`keys!`/`out!` helpers) mirrors the previous tmux
@@ -24,7 +31,7 @@
 
 use std::fmt::{Display, Formatter};
 use std::fs::File;
-use std::io::{BufReader, ErrorKind, Read, Result};
+use std::io::{BufReader, ErrorKind, Read, Result, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -137,6 +144,17 @@ const FIRST_RENDER_BUDGET: Duration = Duration::from_secs(60);
 /// diagnostics (the tail is the most useful part — recent errors, the shell
 /// prompt, etc.).
 const CLIENT_OUTPUT_CAP: usize = 64 * 1024;
+
+/// Device Status Report requesting the cursor position (`ESC [ 6 n`). The Zellij
+/// client emits this to probe the terminal; on the Windows ConPTY it *blocks*
+/// until it receives the reply below (on Unix the size comes from the PTY ioctl,
+/// so it never waits). We are the terminal, so the drain thread answers it.
+const DSR_CPR_REQUEST: &[u8] = b"\x1b[6n";
+
+/// Our reply to [`DSR_CPR_REQUEST`]: a Cursor Position Report placing the cursor
+/// at the bottom-right of the 24x80 pane (`ESC [ 24 ; 80 R`), i.e. reporting a
+/// 24x80 terminal to the client's size probe.
+const CPR_REPLY: &[u8] = b"\x1b[24;80R";
 
 /// How many times to (re)spawn the Zellij session before giving up. Zellij's
 /// client/server handshake is occasionally racy at startup — the client dies
@@ -449,22 +467,42 @@ impl ZellijController {
         // Zellij client blocks (freezing rendering and input handling). We keep a
         // bounded tail of that output for diagnostics (see `client_output`).
         let mut reader = pair.master.try_clone_reader().map_err(io_err)?;
+        let mut writer = pair.master.take_writer().map_err(io_err)?;
         let client_output = Arc::new(Mutex::new(Vec::new()));
         let client_exited = Arc::new(AtomicBool::new(false));
         let sink = Arc::clone(&client_output);
         let exited = Arc::clone(&client_exited);
         std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
+            // Rolling window so a DSR request split across two reads is still
+            // matched. Only needs to span one marker's worth of bytes.
+            let mut window: Vec<u8> = Vec::new();
             while let Ok(n) = reader.read(&mut buf) {
                 if n == 0 {
                     break;
                 }
+                let chunk = &buf[..n];
                 if let Ok(mut tail) = sink.lock() {
-                    tail.extend_from_slice(&buf[..n]);
+                    tail.extend_from_slice(chunk);
                     let overflow = tail.len().saturating_sub(CLIENT_OUTPUT_CAP);
                     if overflow > 0 {
                         tail.drain(0..overflow);
                     }
+                }
+                // Reply to every cursor-position report the client requests, or
+                // it blocks forever on the Windows ConPTY and never renders.
+                window.extend_from_slice(chunk);
+                while let Some(pos) = window.windows(DSR_CPR_REQUEST.len()).position(|w| w == DSR_CPR_REQUEST) {
+                    let _ = writer.write_all(CPR_REPLY);
+                    let _ = writer.flush();
+                    window.drain(0..pos + DSR_CPR_REQUEST.len());
+                }
+                // Retain a marker-minus-one tail in case the next request
+                // straddles the read boundary.
+                let keep = DSR_CPR_REQUEST.len().saturating_sub(1);
+                if window.len() > keep {
+                    let cut = window.len() - keep;
+                    window.drain(0..cut);
                 }
             }
             // PTY EOF: the Zellij client has exited (cleanly or by dying).
