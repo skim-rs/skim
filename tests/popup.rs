@@ -1,10 +1,10 @@
 #![allow(missing_docs, clippy::pedantic)]
-// Gated to Linux for two reasons: the Zellij e2e harness (tests/common/zellij.rs)
-// only renders reliably on the Linux CI runner (see interactive.rs), and this file
-// additionally installs a mock `tmux`/`sh` binary (made executable via
-// `std::os::unix::fs::PermissionsExt`) to assert how skim shells out for its
-// `--tmux` popup feature.
-#![cfg(target_os = "linux")]
+// The Zellij harness is cross-platform, but this file stays unix-only for
+// reasons unrelated to the multiplexer: it installs a mock `tmux`/`sh` binary
+// (made executable via `std::os::unix::fs::PermissionsExt`) to assert how skim
+// shells out for its `--tmux` popup feature.
+// (`#![cfg(unix)]` already covers both Linux and macOS.)
+#![cfg(unix)]
 #[allow(dead_code)]
 mod common;
 

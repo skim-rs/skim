@@ -7,12 +7,16 @@
 //!
 //! Unlike tmux, Zellij has no detached-server model, so the harness spawns a
 //! Zellij client attached to an in-process pseudo-terminal (via `portable-pty`,
-//! which uses `openpty` on Unix and ConPTY on Windows). The harness itself is
-//! cross-platform, but the e2e tests currently run on **Linux only**: the Zellij
-//! session comes up reliably under the Linux CI runner, but on the macOS and
-//! Windows runners the pane never renders under their PTY (`dump-screen` stays
-//! empty and `wait_ready` times out with "pane not rendered yet"), so every e2e
-//! test file is gated `#![cfg(target_os = "linux")]` until that is resolved.
+//! which uses `openpty` on Unix and ConPTY on Windows). The harness is
+//! cross-platform (Linux, macOS and Windows). Two details are load-bearing for
+//! the non-Linux runners: the pane's shell is resolved to an absolute `bash`
+//! path (the Zellij server's own environment may not have `bash` on `PATH`), and
+//! [`ZellijController::wait_ready`] nudges the client's terminal size until the
+//! server hands the pane a non-zero geometry to render into (the initial size
+//! can otherwise be dropped under ConPTY / a cold macOS runner). The pure-harness
+//! e2e tests (`interactive.rs`) therefore run on all three platforms; the tests
+//! that additionally install POSIX mock binaries (`execute.rs`, `popup.rs`,
+//! `listen.rs`) stay `#![cfg(unix)]` for that reason, not the multiplexer's.
 //!
 //! The public surface (`ZellijController`, `Keys`, `wait`, `sk`, the `sk_test!`
 //! DSL and the `line!`/`keys!`/`out!` helpers) mirrors the previous tmux
@@ -23,6 +27,8 @@ use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -34,7 +40,7 @@ use which::which;
 
 use crate::common::{SK, SKIM_ENV_REMOVES, SKIM_SHELL_ENV_CLEAR};
 
-/// Minimal Zellij config used for every test session.
+/// Build the minimal Zellij config used for every test session.
 ///
 /// - startup tips / release notes off: they spawn a floating plugin pane that
 ///   steals focus, so keys and screen dumps would target the wrong pane.
@@ -43,16 +49,30 @@ use crate::common::{SK, SKIM_ENV_REMOVES, SKIM_SHELL_ENV_CLEAR};
 ///   encoding and ignores the legacy escape sequences the harness injects, so
 ///   arrow keys (Up/Down/…) would silently do nothing.
 /// - `bash` as the default shell: the tests drive it with POSIX shell syntax
-///   (`echo -n -e`, `printf`, pipelines). Bash ships with the Windows CI
-///   runners as well, keeping the harness cross-platform.
-const ZELLIJ_CONFIG: &str = r#"show_startup_tips false
+///   (`echo -n -e`, `printf`, pipelines). Bash ships with the macOS and Windows
+///   CI runners as well, keeping the harness cross-platform. We resolve it to an
+///   absolute path via `which` and hand that to Zellij: the Zellij *server*
+///   spawns the pane's shell from its own environment, which on the Windows and
+///   macOS runners does not necessarily have `bash` on `PATH`, so a bare
+///   `default_shell "bash"` would leave the pane with no shell and nothing to
+///   render. Backslashes are forward-slashed so the path survives KDL's string
+///   escaping on Windows.
+fn zellij_config() -> String {
+    let shell = which("bash")
+        .ok()
+        .and_then(|p| p.to_str().map(|s| s.replace('\\', "/")))
+        .unwrap_or_else(|| "bash".to_string());
+    format!(
+        r#"show_startup_tips false
 show_release_notes false
 pane_frames false
 mouse_mode false
 session_serialization false
 support_kitty_keyboard_protocol false
-default_shell "bash"
-"#;
+default_shell "{shell}"
+"#
+    )
+}
 
 /// Shell prompt installed once the pane comes up. It is deterministic (so the
 /// harness can detect readiness) and always contains a literal `$` regardless
@@ -85,6 +105,25 @@ const ZELLIJ_CMD_TIMEOUT: Duration = Duration::from_secs(8);
 /// machine under load, bounded so a genuinely failing assertion (or a dead
 /// session) fails in seconds rather than minutes.
 const WAIT_BUDGET: Duration = Duration::from_secs(20);
+
+/// Budget for the pane's *first* render (see [`ZellijController::wait_ready`]).
+/// Larger than [`WAIT_BUDGET`]: on a cold macOS/Windows runner the Zellij server
+/// extracts its bundled plugin assets and starts a shell on first use, which can
+/// take considerably longer than a warm session's steady-state calls. Bounded so
+/// a genuinely dead session still fails within a minute rather than hanging.
+const FIRST_RENDER_BUDGET: Duration = Duration::from_secs(60);
+
+/// Cap on how many bytes of the Zellij client's PTY output we retain for
+/// diagnostics (the tail is the most useful part — recent errors, the shell
+/// prompt, etc.).
+const CLIENT_OUTPUT_CAP: usize = 64 * 1024;
+
+/// How many times to (re)spawn the Zellij session before giving up. Zellij's
+/// client/server handshake is occasionally racy at startup — the client dies
+/// with "Received empty unknown from server" and the session never renders. This
+/// is rare on Linux but frequent on the cold macOS/Windows runners, so a fresh
+/// session is spawned instead of failing the test outright.
+const SESSION_SPAWN_ATTEMPTS: usize = 4;
 
 /// Poll `pred` until it succeeds or [`WAIT_BUDGET`] elapses. On timeout the most
 /// recent error returned by `pred` is surfaced (so a persistent failure keeps
@@ -249,8 +288,17 @@ pub struct ZellijController {
     // The client process and its master PTY must stay alive for the session's
     // lifetime: dropping the master hangs up the pane and tears the session
     // down early.
-    _master: Box<dyn MasterPty + Send>,
+    master: Box<dyn MasterPty + Send>,
     child: Option<Box<dyn portable_pty::Child + Send + Sync>>,
+    // Rolling tail of the Zellij client's PTY output, captured by the drain
+    // thread. Purely for diagnostics: when the pane fails to come up on a runner
+    // we can't reproduce locally, its tail (shell errors, plugin failures) is
+    // surfaced in the timeout error.
+    client_output: Arc<Mutex<Vec<u8>>>,
+    // Set by the drain thread when the client's PTY reaches EOF, i.e. the Zellij
+    // client process has exited. Lets `wait_ready` abort a dead session fast
+    // (and respawn) instead of waiting out the whole render budget.
+    client_exited: Arc<AtomicBool>,
 }
 
 fn io_err<E: std::fmt::Display>(e: E) -> std::io::Error {
@@ -300,19 +348,41 @@ impl ZellijController {
     /// Create a controller running its own Zellij session named after `name`
     /// (plus a random suffix for uniqueness), with the pane's shell brought to a
     /// clean, deterministic prompt. The session is torn down on drop.
+    ///
+    /// Zellij's startup handshake is occasionally racy (see
+    /// [`SESSION_SPAWN_ATTEMPTS`]); a session that dies before it renders is torn
+    /// down and a fresh one is spawned, up to that many attempts.
     pub fn new_named(name: &str) -> Result<Self> {
-        let suffix: String = rand::rng().sample_iter(&Alphanumeric).take(6).map(char::from).collect();
         // Zellij session names may not contain many punctuation characters;
         // keep to alphanumerics and underscores.
         let sanitized: String = name
             .chars()
             .map(|c| if c.is_alphanumeric() { c } else { '_' })
             .collect();
+
+        let mut last_err: Option<std::io::Error> = None;
+        for _ in 0..SESSION_SPAWN_ATTEMPTS {
+            match Self::spawn_once(&sanitized) {
+                Ok(controller) => return Ok(controller),
+                Err(e) => last_err = Some(e),
+            }
+            // The failed attempt's controller has been dropped here, tearing the
+            // dead session down before the next attempt spawns a fresh one.
+        }
+        Err(last_err.unwrap_or_else(|| std::io::Error::new(ErrorKind::Other, "failed to start zellij session")))
+    }
+
+    /// Spawn a single Zellij session + client and bring it to a ready prompt.
+    /// Returns the wired-up controller on success; on failure the transient
+    /// controller is dropped (cleaning up the session) and the error is returned
+    /// so [`new_named`](Self::new_named) can retry with a fresh session.
+    fn spawn_once(sanitized: &str) -> Result<Self> {
+        let suffix: String = rand::rng().sample_iter(&Alphanumeric).take(6).map(char::from).collect();
         let session = format!("skim_e2e_{sanitized}_{suffix}");
 
         let tempdir = tempdir()?;
         let config = tempdir.path().join("zellij.kdl");
-        std::fs::write(&config, ZELLIJ_CONFIG)?;
+        std::fs::write(&config, zellij_config())?;
 
         let pty = native_pty_system();
         let pair = pty
@@ -348,23 +418,39 @@ impl ZellijController {
         drop(pair.slave);
 
         // Continuously drain the client's output or its PTY buffer fills and the
-        // Zellij client blocks (freezing rendering and input handling).
+        // Zellij client blocks (freezing rendering and input handling). We keep a
+        // bounded tail of that output for diagnostics (see `client_output`).
         let mut reader = pair.master.try_clone_reader().map_err(io_err)?;
+        let client_output = Arc::new(Mutex::new(Vec::new()));
+        let client_exited = Arc::new(AtomicBool::new(false));
+        let sink = Arc::clone(&client_output);
+        let exited = Arc::clone(&client_exited);
         std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
             while let Ok(n) = reader.read(&mut buf) {
                 if n == 0 {
                     break;
                 }
+                if let Ok(mut tail) = sink.lock() {
+                    tail.extend_from_slice(&buf[..n]);
+                    let overflow = tail.len().saturating_sub(CLIENT_OUTPUT_CAP);
+                    if overflow > 0 {
+                        tail.drain(0..overflow);
+                    }
+                }
             }
+            // PTY EOF: the Zellij client has exited (cleanly or by dying).
+            exited.store(true, Ordering::SeqCst);
         });
 
         let controller = Self {
             window: session,
             tempdir,
             outfile: None,
-            _master: pair.master,
+            master: pair.master,
             child: Some(child),
+            client_output,
+            client_exited,
         };
         controller.wait_ready()?;
         Ok(controller)
@@ -380,33 +466,113 @@ impl ZellijController {
         Self::new_named(&name)
     }
 
+    /// Bytes we want the pane sized to for the tests (mirrors the initial
+    /// `openpty`). A screen dump reflects the *pane* geometry, which the Zellij
+    /// server derives from the attached client's terminal size.
+    const ROWS: u16 = 24;
+    const COLS: u16 = 80;
+
+    /// Ask the client PTY to report `cols`×[`ROWS`]. Resizing (even to the same
+    /// size) makes `portable-pty` deliver a `SIGWINCH`/ConPTY resize to the
+    /// attached Zellij client, which then (re-)reports its geometry to the
+    /// server. On the macOS and Windows runners the client's *initial* size can
+    /// be lost, leaving the pane at zero size with nothing to render; nudging it
+    /// forces a non-zero geometry so the pane actually draws.
+    fn resize_client(&self, cols: u16) {
+        let _ = self.master.resize(PtySize {
+            rows: Self::ROWS,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        });
+    }
+
+    /// A best-effort, human-readable tail of what the Zellij client has printed
+    /// to its PTY. Used to explain first-render timeouts on runners we can't
+    /// reproduce locally.
+    fn client_output_tail(&self) -> String {
+        self.client_output
+            .lock()
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+            .unwrap_or_default()
+    }
+
     /// Block until the session server and pane are up and a clean, deterministic
     /// shell prompt is showing.
     fn wait_ready(&self) -> Result<()> {
-        // Session server + pane are up once a screen dump succeeds.
-        wait(|| {
-            let dump = self.action(&["dump-screen"])?;
-            if dump.trim().is_empty() {
-                Err(std::io::Error::new(ErrorKind::WouldBlock, "pane not rendered yet"))
-            } else {
-                Ok(())
+        // Session server + pane are up once a screen dump comes back non-empty.
+        // Give this its own (longer) budget for cold-start runners, and on each
+        // empty poll nudge the client's terminal size so the server always has a
+        // non-zero pane geometry to render into.
+        let deadline = Instant::now() + FIRST_RENDER_BUDGET;
+        let mut wide = false;
+        loop {
+            if let Ok(dump) = self.action(&["dump-screen"]) {
+                if !dump.trim().is_empty() {
+                    break;
+                }
             }
-        })?;
+            // A dead client will never render; fail fast so `new_named` respawns.
+            if self.client_exited.load(Ordering::SeqCst) {
+                return Err(std::io::Error::new(
+                    ErrorKind::ConnectionReset,
+                    format!(
+                        "zellij client exited before the pane rendered. output tail:\n{}",
+                        self.client_output_tail()
+                    ),
+                ));
+            }
+            if Instant::now() >= deadline {
+                return Err(std::io::Error::new(
+                    ErrorKind::WouldBlock,
+                    format!(
+                        "pane not rendered within {:?}. zellij client output tail:\n{}",
+                        FIRST_RENDER_BUDGET,
+                        self.client_output_tail()
+                    ),
+                ));
+            }
+            // Toggle the width so every poll delivers a fresh resize event.
+            self.resize_client(if wide { Self::COLS + 1 } else { Self::COLS });
+            wide = !wide;
+            sleep(Duration::from_millis(100));
+        }
+        // Settle on the canonical size before the tests read the pane.
+        self.resize_client(Self::COLS);
 
         // Install a deterministic prompt and clear the screen. The keys are
         // buffered by the pane PTY even if bash is still starting up. Re-send on
         // each retry in case the very first keystrokes raced shell startup.
-        wait(|| {
+        let deadline = Instant::now() + FIRST_RENDER_BUDGET;
+        loop {
             self.write_bytes(format!("unset PROMPT_COMMAND HISTFILE HISTCONTROL; PS1='{PROMPT}'; clear\r").as_bytes())?;
             let lines = self.capture()?;
             if lines.first().is_some_and(|l| l.starts_with(PROMPT.trim_end()))
                 && !lines.iter().any(|l| l.contains("PROMPT_COMMAND"))
             {
-                Ok(())
-            } else {
-                Err(std::io::Error::new(ErrorKind::WouldBlock, "prompt not ready yet"))
+                return Ok(());
             }
-        })
+            if self.client_exited.load(Ordering::SeqCst) {
+                return Err(std::io::Error::new(
+                    ErrorKind::ConnectionReset,
+                    format!(
+                        "zellij client exited before the prompt came up. output tail:\n{}",
+                        self.client_output_tail()
+                    ),
+                ));
+            }
+            if Instant::now() >= deadline {
+                return Err(std::io::Error::new(
+                    ErrorKind::WouldBlock,
+                    format!(
+                        "shell prompt did not come up within {:?}. zellij client output tail:\n{}",
+                        FIRST_RENDER_BUDGET,
+                        self.client_output_tail()
+                    ),
+                ));
+            }
+            sleep(Duration::from_millis(50));
+        }
     }
 
     /// Send a sequence of keystrokes to the pane, each encoded to the raw

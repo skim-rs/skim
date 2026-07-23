@@ -1,11 +1,8 @@
 #![allow(missing_docs, clippy::pedantic)]
-// Gated to Linux: the Zellij harness (tests/common/zellij.rs) is written to be
-// cross-platform, but the Zellij session only comes up reliably on the Linux CI
-// runner. On the macOS and Windows runners `wait_ready` mostly times out with
-// "pane not rendered yet" (the session's pane never renders under their PTY),
-// so the e2e suite runs on Linux only for now.
-// TODO(macos, windows): make the Zellij e2e harness render reliably in CI.
-#![cfg(target_os = "linux")]
+// Pure Zellij-harness e2e tests: they drive `sk` entirely through the terminal
+// and depend on nothing OS-specific beyond the harness itself, which is
+// cross-platform (see tests/common/zellij.rs). So these run on Linux, macOS and
+// Windows.
 #[allow(dead_code)]
 #[macro_use]
 mod common;

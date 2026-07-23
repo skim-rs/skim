@@ -19,6 +19,10 @@ concurrency:
 jobs:
   nextest:
     runs-on: ${{matrix.runner}}
+    # Cap the wall-clock so a harness regression that makes the Zellij pane never
+    # render (each `wait_ready` then burning its full budget) fails the leg in
+    # minutes instead of letting a serialized e2e run drag on for hours.
+    timeout-minutes: 45
     strategy:
       # Report every OS independently: a failure on one (e.g. Windows) must not
       # cancel the others, so we still get a clear signal from Linux and macOS.
@@ -36,19 +40,38 @@ jobs:
       contents: read
     steps:
       - &zellij-install
-        # The e2e tests drive `sk` inside a Zellij session. They run on Linux
-        # only: the session comes up reliably under the Linux runner, but on the
-        # macOS and Windows runners the pane never renders under their PTY, so
-        # the e2e test files are gated `#![cfg(target_os = "linux")]` and no
-        # Zellij install is needed off Linux.
-        name: Install zellij
-        if: runner.os == 'Linux'
+        # The e2e tests drive `sk` inside a Zellij session (Zellij 0.44+ runs on
+        # Linux, macOS and Windows). taiki-e/install-action fetches a prebuilt
+        # binary on Linux and macOS; it has no Windows binary and `cargo install
+        # zellij` fails building openssl from source on the runner, so Windows
+        # installs via winget below.
+        name: Install zellij (Linux/macOS)
+        if: runner.os != 'Windows'
         uses: taiki-e/install-action@v2
         with:
           tool: zellij@0.44.3
+      - name: Install zellij (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          winget install --exact --id Zellij.Zellij --version 0.44.3 --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity
+          # The winget package is an MSI that installs zellij and adds its dir to
+          # the machine PATH in the registry. Neither the current process nor
+          # GITHUB_PATH sees that until reloaded, so refresh PATH from the
+          # registry (with a Program Files fallback), then expose zellij's dir to
+          # later steps.
+          $env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:PATH
+          $exe = (Get-Command zellij.exe -ErrorAction SilentlyContinue).Source
+          if (-not $exe) { $exe = (Get-ChildItem 'C:\Program Files' -Recurse -Filter zellij.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          if (-not $exe) { throw "zellij.exe not found after winget install" }
+          $dir = Split-Path -Parent $exe
+          Write-Host "zellij installed at: $dir"
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+          & $exe --version
       - name: Show locale
         run: locale
-        if: runner.os == 'Linux'
+        if: runner.os != 'Windows'
 
       - &checkout
         name: Checkout repository

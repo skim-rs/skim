@@ -42,13 +42,15 @@
 The end-to-end tests drive a real `sk` process through a terminal, using the
 Zellij-backed harness in `tests/common/zellij.rs` (`ZellijController` + the
 `sk_test!` DSL). It requires `zellij` (>= 0.44) and `bash` on `$PATH`. The
-harness code is cross-platform (Zellij 0.44+ and the in-process PTY both build on
-Windows and macOS), but the e2e tests currently run on **Linux only**: the
-Zellij session comes up reliably under the Linux CI runner, but on the macOS and
-Windows runners the pane never renders under their PTY (`wait_ready` times out
-with "pane not rendered yet"). All e2e test files are therefore gated
-`#![cfg(target_os = "linux")]`. TODO(macos, windows): make the harness render
-reliably in CI so these can be re-enabled. The harness drives Zellij with:
+harness is cross-platform (Linux, macOS and Windows). The pure-harness tests in
+`interactive.rs` run on all three platforms; `execute.rs`, `popup.rs` and
+`listen.rs` stay `#![cfg(unix)]` for reasons unrelated to the multiplexer (they
+install POSIX mock binaries / bind a unix socket), so they run on Linux and
+macOS. Two harness details make the non-Linux runners work: the pane's shell is
+resolved to an absolute `bash` path (the Zellij server's environment may lack
+`bash` on `PATH`), and `wait_ready` nudges the client's terminal size until the
+server gives the pane a non-zero geometry to render into. The harness drives
+Zellij with:
 - `zellij attach --create <session>` (spawned on an in-process PTY via
   `portable-pty`) to start a detached session; `SKIM_DEFAULT_OPTIONS` and friends
   are cleared on the spawned process.

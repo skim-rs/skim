@@ -1,9 +1,10 @@
 // TODO: automate listen tests on windows
 // Maybe using smaller tests ? actions processing is already tested, only the IPC part needs testing
 #![allow(missing_docs, clippy::pedantic)]
-// Gated to Linux: the Zellij e2e harness (tests/common/zellij.rs) only renders
-// reliably on the Linux CI runner (see interactive.rs).
-#![cfg(all(target_os = "linux", feature = "listen"))]
+// The Zellij harness is cross-platform, but this file stays unix-only for
+// reasons unrelated to the multiplexer: skim's `--listen`/`--remote` IPC binds a
+// unix domain socket here. (`#![cfg(unix)]` already covers both Linux and macOS.)
+#![cfg(all(unix, feature = "listen"))]
 #[allow(dead_code)]
 #[macro_use]
 mod common;
