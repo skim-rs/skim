@@ -52,14 +52,19 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           winget install --exact --id Zellij.Zellij --version 0.44.3 --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity
-          # winget's Links shim isn't reliably on later steps' PATH, so add the
-          # directory of the actual installed zellij.exe to PATH for the test step.
-          $zj = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter zellij.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $zj) { throw "zellij.exe not found under WinGet Packages after install" }
-          $dir = Split-Path -Parent $zj.FullName
+          # The winget package is an MSI that installs zellij and adds its dir to
+          # the machine PATH in the registry. Neither the current process nor
+          # GITHUB_PATH sees that until reloaded, so refresh PATH from the
+          # registry (with a Program Files fallback), then expose zellij's dir to
+          # later steps.
+          $env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:PATH
+          $exe = (Get-Command zellij.exe -ErrorAction SilentlyContinue).Source
+          if (-not $exe) { $exe = (Get-ChildItem 'C:\Program Files' -Recurse -Filter zellij.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
+          if (-not $exe) { throw "zellij.exe not found after winget install" }
+          $dir = Split-Path -Parent $exe
           Write-Host "zellij installed at: $dir"
           Add-Content -Path $env:GITHUB_PATH -Value $dir
-          & $zj.FullName --version
+          & $exe --version
       - name: Show locale
         run: locale
         if: runner.os != 'Windows'
