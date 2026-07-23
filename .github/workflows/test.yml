@@ -38,11 +38,24 @@ jobs:
       - &zellij-install
         # The end-to-end tests drive `sk` inside a Zellij session (Zellij 0.44+
         # runs on Linux, macOS and Windows). taiki-e/install-action fetches a
-        # prebuilt binary for every OS in the matrix.
-        name: Install zellij
+        # prebuilt binary on Linux and macOS; it has no Windows binary and
+        # `cargo install zellij` fails building openssl from source on the
+        # runner, so Windows installs via winget below.
+        name: Install zellij (Linux/macOS)
+        if: runner.os != 'Windows'
         uses: taiki-e/install-action@v2
         with:
           tool: zellij@0.44.3
+      - name: Install zellij (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          winget install --exact --id Zellij.Zellij --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity
+          # winget drops a shim in its Links dir; expose it to this and later steps.
+          $links = "$env:LOCALAPPDATA\Microsoft\WinGet\Links"
+          "$links" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:PATH = "$links;$env:PATH"
+          zellij --version
       - &locale
         name: Show locale
         run: locale
