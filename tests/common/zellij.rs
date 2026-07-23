@@ -268,14 +268,13 @@ impl ZellijController {
     }
 
     pub fn new_named(name: &str) -> Result<Self> {
-        let suffix: String = rand::rng()
-            .sample_iter(&Alphanumeric)
-            .take(6)
-            .map(char::from)
-            .collect();
+        let suffix: String = rand::rng().sample_iter(&Alphanumeric).take(6).map(char::from).collect();
         // Zellij session names may not contain many punctuation characters;
         // keep to alphanumerics and underscores.
-        let sanitized: String = name.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect();
+        let sanitized: String = name
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
         let session = format!("skim_e2e_{sanitized}_{suffix}");
 
         let tempdir = tempdir()?;
@@ -364,9 +363,7 @@ impl ZellijController {
         // buffered by the pane PTY even if bash is still starting up. Re-send on
         // each retry in case the very first keystrokes raced shell startup.
         wait(|| {
-            self.write_bytes(
-                format!("unset PROMPT_COMMAND HISTFILE HISTCONTROL; PS1='{PROMPT}'; clear\r").as_bytes(),
-            )?;
+            self.write_bytes(format!("unset PROMPT_COMMAND HISTFILE HISTCONTROL; PS1='{PROMPT}'; clear\r").as_bytes())?;
             let lines = self.capture()?;
             if lines.first().is_some_and(|l| l.starts_with(PROMPT.trim_end()))
                 && !lines.iter().any(|l| l.contains("PROMPT_COMMAND"))

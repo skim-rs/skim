@@ -20,6 +20,9 @@ jobs:
   nextest:
     runs-on: ${{matrix.runner}}
     strategy:
+      # Report every OS independently: a failure on one (e.g. Windows) must not
+      # cancel the others, so we still get a clear signal from Linux and macOS.
+      fail-fast: false
       matrix: &matrix
         build: [linux, macos, windows]
         include:
