@@ -771,9 +771,11 @@ impl ZellijController {
 
 impl Drop for ZellijController {
     fn drop(&mut self) {
-        // Kill the client first, then remove the (now dead) session.
+        // Kill the client first, then reap it so it doesn't linger as a zombie
+        // (many controllers are created per test binary), then remove the session.
         if let Some(mut child) = self.child.take() {
             let _ = child.kill();
+            let _ = child.wait();
         }
         let _ = Self::run(&["delete-session", &self.window, "--force"]);
     }
