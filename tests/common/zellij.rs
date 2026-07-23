@@ -110,15 +110,23 @@ const PROMPT: &str = "skim$ ";
 /// Build the shell command that runs `sk` with `opts`, clears the `SKIM_*`
 /// environment inline, and atomically writes its selection to `outfile` (via a
 /// `.part` rename) so readers never observe a half-written result file.
+///
+/// The pane shell is `bash`, which treats `\` as an escape, so any native
+/// Windows path embedded here (the `sk` binary, the outfile) must use forward
+/// slashes — bash on Windows accepts `./target/release/sk.exe` and `C:/Users/…`.
+/// On Unix these paths have no backslashes, so the conversion is a no-op. The
+/// stored `outfile` the caller reads back is left untouched (native separators).
 pub fn sk(outfile: &str, opts: &[&str]) -> String {
+    let sk_bin = SK.replace('\\', "/");
+    let out = outfile.replace('\\', "/");
     format!(
         "{}{} {} > {}.part; mv {}.part {}",
         SKIM_SHELL_ENV_CLEAR,
-        SK,
+        sk_bin,
         opts.join(" "),
-        outfile,
-        outfile,
-        outfile
+        out,
+        out,
+        out
     )
 }
 
