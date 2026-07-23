@@ -1041,7 +1041,7 @@ macro_rules! sk_test {
         {
             if crate::common::zellij::wait(|| {
                 let lines = $tmux.$method()?;
-                if lines.len() >= $idx {
+                if $idx > 0 && lines.len() >= $idx {
                     let actual_idx = lines.len() - $idx;
                     if lines[actual_idx].$($methods)* {
                         Ok(true)
@@ -1054,7 +1054,7 @@ macro_rules! sk_test {
             }).is_err() {
                 let lines = $tmux.$method().unwrap_or_default();
                 let actual_idx = lines.len().saturating_sub($idx);
-                let actual = if lines.len() >= $idx { &lines[actual_idx] } else { "<no line>" };
+                let actual = if $idx > 0 && lines.len() >= $idx { &lines[actual_idx] } else { "<no line>" };
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     format!("Timed out waiting for {}[-{}].{}, got: {}", stringify!($method), $idx, stringify!($($methods)*), actual)
