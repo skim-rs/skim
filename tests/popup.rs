@@ -1,16 +1,21 @@
 #![allow(missing_docs, clippy::pedantic)]
+// The Zellij harness is cross-platform, but this file stays unix-only for
+// reasons unrelated to the multiplexer: it installs a mock `tmux`/`sh` binary
+// (made executable via `std::os::unix::fs::PermissionsExt`) to assert how skim
+// shells out for its `--tmux` popup feature.
+// (`#![cfg(unix)]` already covers both Linux and macOS.)
 #![cfg(unix)]
 #[allow(dead_code)]
 mod common;
 
-use common::tmux::Keys::*;
-use common::tmux::TmuxController;
+use common::zellij::Keys::*;
+use common::zellij::ZellijController;
 use std::fs::{File, Permissions};
 use std::io::{Read, Result, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-fn setup_tmux_mock(tmux: &TmuxController) -> Result<String> {
+fn setup_tmux_mock(tmux: &ZellijController) -> Result<String> {
     let dir = &tmux.tempdir;
     let path = dir.path().join("tmux");
     let mock_bin = Path::new(&path);
@@ -24,8 +29,15 @@ echo \"$@\" > {}
         outfile.to_str().unwrap()
     ))?;
     std::fs::set_permissions(mock_bin, Permissions::from_mode(0o777))?;
+    // These tests exercise skim's *tmux* popup backend, but the harness runs
+    // skim inside a Zellij pane (so `$ZELLIJ` is set and Zellij would otherwise
+    // take priority). Unset `$ZELLIJ` and advertise a `$TMUX` so skim selects
+    // the tmux backend and shells out to the mock `tmux` installed on `$PATH`.
     tmux.send_keys(&[
-        Str(&format!("export PATH={}:$PATH", dir.path().to_str().unwrap())),
+        Str(&format!(
+            "export PATH={}:$PATH; unset ZELLIJ; export TMUX=tmux-mock,0,0",
+            dir.path().to_str().unwrap()
+        )),
         Enter,
     ])?;
 
@@ -44,7 +56,7 @@ fn get_tmux_cmd(outfile: &str) -> Result<String> {
 /// sk process must not re-enter the popup path (infinite recursion guard).
 #[test]
 fn tmux_via_skim_default_options() -> Result<()> {
-    let tmux = TmuxController::new()?;
+    let tmux = ZellijController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     // Run sk with SKIM_DEFAULT_OPTIONS=--tmux set inline so the popup path is exercised.
     let cmd = format!("SKIM_DEFAULT_OPTIONS='--tmux' {}", crate::common::SK);
@@ -61,7 +73,7 @@ fn tmux_via_skim_default_options() -> Result<()> {
 
 #[test]
 fn tmux_vanilla() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
+    let mut tmux = ZellijController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.start_sk(None, &["--tmux"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
@@ -79,7 +91,7 @@ fn tmux_vanilla() -> Result<()> {
 
 #[test]
 fn tmux_output_format() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
+    let mut tmux = ZellijController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.start_sk(
         None,
@@ -107,7 +119,7 @@ fn tmux_output_format() -> Result<()> {
 
 #[test]
 fn tmux_stdin() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
+    let mut tmux = ZellijController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.start_sk(Some("ls"), &["--tmux"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
@@ -120,7 +132,7 @@ fn tmux_stdin() -> Result<()> {
 
 #[test]
 fn tmux_quote() -> Result<()> {
-    let mut tmux = TmuxController::new()?;
+    let mut tmux = ZellijController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
     tmux.send_keys(&[Str("export SHELL=/bin/sh"), Enter])?;
     tmux.send_keys(&[Str("export SKIM_ESCAPED_VAR=';;'"), Enter])?;

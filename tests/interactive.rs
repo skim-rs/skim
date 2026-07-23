@@ -1,14 +1,17 @@
 #![allow(missing_docs, clippy::pedantic)]
-#![cfg(unix)]
+// Pure Zellij-harness e2e tests: they drive `sk` entirely through the terminal
+// and depend on nothing OS-specific beyond the harness itself, which is
+// cross-platform (see tests/common/zellij.rs). So these run on Linux, macOS and
+// Windows.
 #[allow(dead_code)]
 #[macro_use]
 mod common;
-use common::tmux::Keys::*;
+use common::zellij::Keys::*;
 
-sk_test!(tmux_version_long, "", &["--version"], {
+sk_test!(sk_version_long, "", &["--version"], {
   @output[0] starts_with("sk ");
 });
-sk_test!(tmux_version_short, "", &["-V"], {
+sk_test!(sk_version_short, "", &["-V"], {
   @output[0] starts_with("sk ");
 });
 

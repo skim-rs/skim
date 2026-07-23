@@ -1,8 +1,9 @@
 #[macro_use]
 pub mod insta;
+// Zellij-backed end-to-end harness. Cross-platform (Zellij 0.44+ and the
+// in-process PTY both run on Windows), so it is not gated to unix.
 #[macro_use]
-#[cfg(unix)]
-pub mod tmux;
+pub mod zellij;
 
 /// Raw binary path. Use `Command::new(SK)` to spawn directly; apply
 /// `SKIM_ENV_REMOVES` via `.env_remove()` on the command when needed.

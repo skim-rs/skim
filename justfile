@@ -29,7 +29,8 @@ auto-release:
 test target="":
     cargo test --doc
     cargo nextest run {{ target }}
-    tmux kill-session -t skim_e2e
+    # Each e2e test creates and tears down its own Zellij session, so there is
+    # no shared multiplexer session to clean up here.
 
 bench-plot bins="./target/release/sk sk fzf":
     #!/usr/bin/env bash

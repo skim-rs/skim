@@ -5,7 +5,7 @@
 - Run: `cargo run [--release]`
 - Test (all): `cargo nextest run`
 - Test (single): `cargo nextest test_name`
-- Integration/E2E tests: `cargo nextest --tests` (will need tmux under the hood)
+- Integration/E2E tests: `cargo nextest run --tests` (drives `sk` through Zellij under the hood; needs `zellij` >= 0.44 and `bash` on `$PATH`)
 - Memory leak detection: `cargo nextest run --profile valgrind`
 - Thread leak/race detection:
   1. Build: `RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests -Zbuild-std --target x86_64-unknown-linux-gnu`
@@ -39,11 +39,30 @@
 
 ## Testing
 
-This application can be tested by :
-- creating a new `tmux` session in the background (`tmux new-session -s <session name> -d`). Make sure to clear the `SKIM_DEFAULT_OPTIONS` env var.
-- creating a new named tmux window in that session : `tmux new-window -d -P -F '#I' -n <window name> -t <session name>` and configuring the pane naming using `tmux set-window-option -t <window name> pane-base-index 0`
-- sending the command to run and input using `tmux send-keys -t <window name> <keys>`
-- when ready, capturing the window using `tmux capture-pane -b <window name> -t <window name>.0` and then saving the capture to a file using `tmux save-buffer -b <window name> <output file>`
+The end-to-end tests drive a real `sk` process through a terminal, using the
+Zellij-backed harness in `tests/common/zellij.rs` (`ZellijController` + the
+`sk_test!` DSL). It requires `zellij` (>= 0.44) and `bash` on `$PATH`. The
+harness is cross-platform (Linux, macOS and Windows). The pure-harness tests in
+`interactive.rs` run on all three platforms; `execute.rs`, `popup.rs` and
+`listen.rs` stay `#![cfg(unix)]` for reasons unrelated to the multiplexer (they
+install POSIX mock binaries / bind a unix socket), so they run on Linux and
+macOS. A few harness details make the non-Linux runners work: the pane's shell
+is resolved to an absolute `bash` path (the Zellij server's environment may lack
+`bash` on `PATH`); `ZELLIJ_SOCKET_DIR` is forced to a short path so the session's
+unix socket path stays under the OS cap (macOS's default `$TMPDIR` is too long);
+the drain thread answers the client's cursor-position report (`ESC[6n`), which
+the Windows ConPTY client blocks on to learn the terminal size; and `wait_ready`
+nudges the client's terminal size until the server gives the pane a non-zero
+geometry to render into. The harness drives Zellij with:
+- `zellij attach --create <session>` (spawned on an in-process PTY via
+  `portable-pty`) to start a detached session; `SKIM_DEFAULT_OPTIONS` and friends
+  are cleared on the spawned process.
+- `zellij --session <session> action write <bytes...>` to inject keystrokes.
+- `zellij --session <session> action dump-screen [--ansi]` to capture the pane.
+
+When exploring manually you can reproduce the same flow with those commands; the
+config the harness writes disables startup tips, pane frames and the kitty
+keyboard protocol (so injected legacy escape sequences reach `sk`).
 
 ## Insta Snapshot Tests
 
