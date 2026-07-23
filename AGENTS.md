@@ -41,9 +41,13 @@
 
 The end-to-end tests drive a real `sk` process through a terminal, using the
 Zellij-backed harness in `tests/common/zellij.rs` (`ZellijController` + the
-`sk_test!` DSL). It requires `zellij` (>= 0.44) and `bash` on `$PATH`. Because
-Zellij 0.44+ and the in-process PTY the harness uses are cross-platform, these
-tests run on Windows as well as Unix. The harness drives Zellij with:
+`sk_test!` DSL). It requires `zellij` (>= 0.44) and `bash` on `$PATH`. The
+harness code is cross-platform (Zellij 0.44+ and the in-process PTY both build on
+Windows), but the e2e tests currently run on Unix only: under the Windows
+runner's ConPTY the Zellij session doesn't render yet, so `interactive.rs` is
+gated `#![cfg(not(windows))]` (the other e2e files stay unix-only for their own
+reasons — unix sockets, a mock `sh` binary, `PermissionsExt`). The harness drives
+Zellij with:
 - `zellij attach --create <session>` (spawned on an in-process PTY via
   `portable-pty`) to start a detached session; `SKIM_DEFAULT_OPTIONS` and friends
   are cleared on the spawned process.

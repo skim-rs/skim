@@ -36,35 +36,15 @@ jobs:
       contents: read
     steps:
       - &zellij-install
-        # The end-to-end tests drive `sk` inside a Zellij session (Zellij 0.44+
-        # runs on Linux, macOS and Windows). taiki-e/install-action fetches a
-        # prebuilt binary on Linux and macOS; it has no Windows binary and
-        # `cargo install zellij` fails building openssl from source on the
-        # runner, so Windows installs via winget below.
-        name: Install zellij (Linux/macOS)
+        # The e2e tests drive `sk` inside a Zellij session on Linux and macOS.
+        # Windows runs only the non-e2e tests: the Zellij session doesn't come up
+        # under the Windows runner's ConPTY yet, so interactive.rs is gated off
+        # Windows (`#![cfg(not(windows))]`) and no Zellij install is needed there.
+        name: Install zellij
         if: runner.os != 'Windows'
         uses: taiki-e/install-action@v2
         with:
           tool: zellij@0.44.3
-      - name: Install zellij (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          winget install --exact --id Zellij.Zellij --version 0.44.3 --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity
-          # The winget package is an MSI that installs zellij and adds its dir to
-          # the machine PATH in the registry. Neither the current process nor
-          # GITHUB_PATH sees that until reloaded, so refresh PATH from the
-          # registry (with a Program Files fallback), then expose zellij's dir to
-          # later steps.
-          $env:PATH = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + $env:PATH
-          $exe = (Get-Command zellij.exe -ErrorAction SilentlyContinue).Source
-          if (-not $exe) { $exe = (Get-ChildItem 'C:\Program Files' -Recurse -Filter zellij.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName }
-          if (-not $exe) { throw "zellij.exe not found after winget install" }
-          $dir = Split-Path -Parent $exe
-          Write-Host "zellij installed at: $dir"
-          Add-Content -Path $env:GITHUB_PATH -Value $dir
-          & $exe --version
       - name: Show locale
         run: locale
         if: runner.os != 'Windows'

@@ -7,9 +7,11 @@
 //!
 //! Unlike tmux, Zellij has no detached-server model, so the harness spawns a
 //! Zellij client attached to an in-process pseudo-terminal (via `portable-pty`,
-//! which uses `openpty` on Unix and ConPTY on Windows). Because `portable-pty`
-//! and Zellij 0.44+ are both cross-platform, this harness — and every test that
-//! uses it — is available on Windows as well as Unix.
+//! which uses `openpty` on Unix and ConPTY on Windows). The harness itself is
+//! cross-platform, but the e2e tests currently run on Unix only: under the
+//! Windows runner's ConPTY the Zellij session does not render (`dump-screen`
+//! stays empty), so `interactive.rs` is gated `#![cfg(not(windows))]` until that
+//! is resolved.
 //!
 //! The public surface (`ZellijController`, `Keys`, `wait`, `sk`, the `sk_test!`
 //! DSL and the `line!`/`keys!`/`out!` helpers) mirrors the previous tmux

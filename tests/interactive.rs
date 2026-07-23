@@ -1,8 +1,13 @@
 #![allow(missing_docs, clippy::pedantic)]
-// These end-to-end tests were previously gated to unix because the test harness
-// depended on tmux. The harness now drives Zellij through an in-process PTY
-// (see tests/common/zellij.rs), which is cross-platform, and none of the checks
-// below use unix-only APIs — so they run on Windows as well.
+// The Zellij harness (tests/common/zellij.rs) is written to be cross-platform,
+// and none of the checks below use unix-only APIs, so these tests are not gated
+// to unix in principle. In practice they are skipped on Windows for now: under
+// the Windows runner's ConPTY the Zellij session never renders (`dump-screen`
+// stays empty and `wait_ready` times out with "pane not rendered yet"), and sk's
+// escape-code disambiguation on Windows is a further known gap. Re-enable once
+// the Zellij session comes up under ConPTY.
+// TODO(windows): drive the Zellij e2e harness on Windows.
+#![cfg(not(windows))]
 #[allow(dead_code)]
 #[macro_use]
 mod common;
