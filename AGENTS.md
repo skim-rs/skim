@@ -5,7 +5,7 @@
 - Run: `cargo run [--release]`
 - Test (all): `cargo nextest run`
 - Test (single): `cargo nextest test_name`
-- Integration/E2E tests: `cargo nextest --tests` (drives `sk` through Zellij under the hood; needs `zellij` >= 0.44 and `bash` on `$PATH`)
+- Integration/E2E tests: `cargo nextest run --tests` (drives `sk` through Zellij under the hood; needs `zellij` >= 0.44 and `bash` on `$PATH`)
 - Memory leak detection: `cargo nextest run --profile valgrind`
 - Thread leak/race detection:
   1. Build: `RUSTFLAGS="-Zsanitizer=thread" cargo +nightly build --tests -Zbuild-std --target x86_64-unknown-linux-gnu`

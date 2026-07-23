@@ -74,6 +74,26 @@ default_shell "{shell}"
     )
 }
 
+/// Directory Zellij should place its per-session unix sockets in, exported as
+/// `ZELLIJ_SOCKET_DIR` on every `zellij` invocation.
+///
+/// A unix-domain socket path is length-capped by the OS (~104 bytes on macOS,
+/// 108 on Linux), and Zellij's socket path is `<this dir>/<protocol-version>/
+/// <session name>`. Zellij's default base is `$TMPDIR/zellij-<uid>`, and on the
+/// macOS runners `$TMPDIR` is a long `/var/folders/…` path that leaves ~0 bytes
+/// for the session name — Zellij then rejects *every* session with "session name
+/// must be less than 0 characters" (zellij-org/zellij#4211) and the client exits
+/// before it attaches. Forcing a short base (`/tmp`) keeps the whole path well
+/// under the cap on Linux and macOS alike.
+fn zellij_socket_dir() -> std::path::PathBuf {
+    #[cfg(unix)]
+    let dir = std::path::PathBuf::from("/tmp/skim-zj");
+    #[cfg(not(unix))]
+    let dir = std::env::temp_dir().join("skim-zj");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 /// Shell prompt installed once the pane comes up. It is deterministic (so the
 /// harness can detect readiness) and always contains a literal `$` regardless
 /// of the user, matching the assumptions the ported tests make about a returned
@@ -313,7 +333,7 @@ impl ZellijController {
     /// Run `zellij <args>` with no session targeting and return stdout lines.
     pub fn run(args: &[&str]) -> Result<Vec<String>> {
         let mut cmd = Command::new(Self::zellij_bin());
-        cmd.args(args);
+        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir()).args(args);
         let (stdout, _) = output_with_timeout(cmd, ZELLIJ_CMD_TIMEOUT)?;
         Ok(String::from_utf8_lossy(&stdout).lines().map(str::to_string).collect())
     }
@@ -326,7 +346,9 @@ impl ZellijController {
     /// hanging on a wedged server.
     fn action(&self, args: &[&str]) -> Result<String> {
         let mut cmd = Command::new(Self::zellij_bin());
-        cmd.args(["--session", &self.window, "action"]).args(args);
+        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir())
+            .args(["--session", &self.window, "action"])
+            .args(args);
         let (stdout_bytes, stderr_bytes) = output_with_timeout(cmd, ZELLIJ_CMD_TIMEOUT)?;
         let stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
         let stderr = String::from_utf8_lossy(&stderr_bytes);
@@ -353,12 +375,11 @@ impl ZellijController {
     /// [`SESSION_SPAWN_ATTEMPTS`]); a session that dies before it renders is torn
     /// down and a fresh one is spawned, up to that many attempts.
     pub fn new_named(name: &str) -> Result<Self> {
-        // Zellij session names may not contain many punctuation characters;
-        // keep to alphanumerics and underscores.
-        let sanitized: String = name
-            .chars()
-            .map(|c| if c.is_alphanumeric() { c } else { '_' })
-            .collect();
+        // Keep session names short: Zellij caps them (~36 chars) and they also
+        // count against the unix socket path budget (see `zellij_socket_dir`).
+        // Drop non-alphanumerics (Zellij rejects most punctuation) and truncate;
+        // the random suffix added in `spawn_once` keeps them unique regardless.
+        let sanitized: String = name.chars().filter(char::is_ascii_alphanumeric).take(10).collect();
 
         let mut last_err: Option<std::io::Error> = None;
         for _ in 0..SESSION_SPAWN_ATTEMPTS {
@@ -378,7 +399,12 @@ impl ZellijController {
     /// so [`new_named`](Self::new_named) can retry with a fresh session.
     fn spawn_once(sanitized: &str) -> Result<Self> {
         let suffix: String = rand::rng().sample_iter(&Alphanumeric).take(6).map(char::from).collect();
-        let session = format!("skim_e2e_{sanitized}_{suffix}");
+        // Kept short on purpose — see `new_named` and `zellij_socket_dir`.
+        let session = if sanitized.is_empty() {
+            format!("sk_{suffix}")
+        } else {
+            format!("sk_{sanitized}_{suffix}")
+        };
 
         let tempdir = tempdir()?;
         let config = tempdir.path().join("zellij.kdl");
@@ -409,6 +435,8 @@ impl ZellijController {
         for var in SKIM_ENV_REMOVES {
             cmd.env_remove(var);
         }
+        // Keep the session's unix socket path short (see `zellij_socket_dir`).
+        cmd.env("ZELLIJ_SOCKET_DIR", zellij_socket_dir());
         if let Ok(dir) = std::env::current_dir() {
             cmd.cwd(dir);
         }
