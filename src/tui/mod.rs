@@ -17,7 +17,9 @@ pub(crate) mod util;
 #[cfg(windows)]
 mod windows;
 pub use backend::Tui;
-/// Event handling and action definitions
+/// Action definitions, catalog and parsing
+pub mod actions;
+/// Event handling
 pub mod event;
 /// Header display components
 pub mod header;

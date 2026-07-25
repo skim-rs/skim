@@ -1,4 +1,5 @@
 //! Provides what's needed to generate skim's man page
+use std::fmt::Write as _;
 use std::io::Write;
 
 use clap::CommandFactory;
@@ -7,6 +8,7 @@ use eyre::Result;
 use roff::{Inline, Roff};
 
 use crate::SkimOptions;
+use crate::tui::actions::ACTION_CATALOG;
 
 const THEME_SECTION: &str = "
 Available themes:
@@ -144,75 +146,6 @@ const ACTION_BINDINGS_SS: &str = concat!(
     "`act-up:suppress+down`.\n",
 );
 
-const ACTIONS_SS: &str = concat!(
-    "\n* abort: ctrl-c  ctrl-q  esc
-* accept(...): enter double-click *the argument will be printed when the binding is triggered*
-* append-and-select
-* backward-char: ctrl-b  left
-* backward-delete-char: ctrl-h  bspace
-* backward-delete-char/eof
-* backward-kill-word: alt-bs
-* backward-word: alt-b   shift-left
-* beginning-of-line: ctrl-a  home
-* bind(...): *arg is a comma-separated list of `trigger:action[+action]` bindings to add (same syntax as --bind, including action triggers such as `act-up:last`)
-* clear-screen: ctrl-l
-* delete-char: del
-* delete-char/eof: ctrl-d
-* deselect-all
-* down: ctrl-j  ctrl-n  down
-* end-of-line: ctrl-e  end
-* execute(...): *arg will be a command, see COMMAND EXPANSION for details
-* execute-silent(...): *arg will be a command, see COMMAND EXPANSION for details
-* forward-char: ctrl-f  right
-* forward-word: alt-f   shift-right
-* if-non-matched
-* if-query-empty
-* if-query-not-empty
-* ignore
-* kill-line
-* kill-word: alt-d
-* next-history: ctrl-n with `--history` or `--cmd-history`
-* page-down: pgdn
-* page-up: pgup
-* half-page-down
-* half-page-up
-* preview-up: shift-up
-* preview-down: shift-down
-* preview-left
-* preview-right
-* preview-page-down
-* preview-page-up
-* previous-history: ctrl-p with `--history` or `--cmd-history`
-* redraw
-* refresh-cmd
-* refresh-preview
-* reload(...)
-* select-all
-* select-row
-* set-preview-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
-* set-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
-",
-    "* suppress: *if bound to an action (e.g. `act-up:suppress`), suppresses that action's default behavior ",
-    "so the rest of the non-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`\n",
-    "* toggle
-* toggle-all
-* toggle+down: ctrl-i  tab
-* toggle-in: (--layout=reverse ? toggle+up:  toggle+down)
-* toggle-interactive
-* toggle-out: (--layout=reverse ? toggle+down:  toggle+up)
-* toggle-preview
-* toggle-preview-wrap
-* toggle-sort
-* toggle+up: btab    shift-tab
-* top
-* unbind(...): *arg is a comma-separated list of keys or action triggers (e.g. `act-up`) to unbind
-* unix-line-discard: ctrl-u
-* unix-word-rubout: ctrl-w
-* up: ctrl-k  ctrl-p  up
-* yank: ctrl-y
-",
-);
-
 #[cfg(feature = "listen")]
 const REMOTE_SECTION: &str = "
 skim can be controlled from other processes, using the `--listen` (and optionally `--remote`) flags.
@@ -224,6 +157,18 @@ To send instructions, you can use `sk --remote optional_address` or any other to
 such as `socat` on linux: `echo 'ToggleIn' | socat -u STDIN ABSTRACT-CONNECT:optional_address`. Instructions correspond to skim's Actions and need to be sent in Ron format.
 When using `sk --remote`, pipe in action chains (see the KEYBINDS section), for instance `echo 'up+select-row' | sk --remote optional_address`
 ";
+
+/// Renders the list of bindable actions from the action catalog.
+///
+/// The list is generated from `define_action_catalog!` in `src/tui/actions.rs`,
+/// so a new action shows up here (with its doc comment) automatically.
+fn actions_ss() -> String {
+    let mut res = String::from("\n");
+    for action in ACTION_CATALOG.iter().filter(|action| action.is_bindable()) {
+        let _ = writeln!(res, "* {}: {}", action.display_name(), action.summary());
+    }
+    res
+}
 
 fn parse_str(src: &str) -> Vec<Inline> {
     let mut res = Vec::new();
@@ -322,7 +267,7 @@ Exact search can be enabled by default by the `--exact` command-line flag. In ex
     subsection(&mut custom, "Available keys (aliases in parentheses)", KEYS_SS);
     subsection(&mut custom, "Bindable finder events", BINDABLE_EVENTS_SS);
     subsection(&mut custom, "Actions as binding triggers", ACTION_BINDINGS_SS);
-    subsection(&mut custom, "Actions[:default keys][*notes]", ACTIONS_SS);
+    subsection(&mut custom, "Actions", &actions_ss());
 
     section(
         &mut custom,
@@ -438,6 +383,27 @@ mod tests {
         for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
             assert!(out.contains(section), "manpage should contain section '{section}'");
         }
+    }
+
+    #[test]
+    fn manpage_documents_every_bindable_action() {
+        let out = manpage_str();
+        for action in ACTION_CATALOG.iter().filter(|action| action.is_bindable()) {
+            // roff escapes dashes in the rendered output
+            let rendered = format!("* {}", action.display_name().replace('-', "\\-"));
+            assert!(
+                out.contains(&rendered),
+                "manpage should document the '{}' action",
+                action.name
+            );
+            assert!(
+                !action.summary().is_empty(),
+                "action '{}' needs a doc comment to document it",
+                action.name
+            );
+        }
+        // `custom` only exists for library users, it cannot be bound by name.
+        assert!(!out.contains("* custom"), "the custom action should not be listed");
     }
 
     #[test]

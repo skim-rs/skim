@@ -13,7 +13,7 @@ use tokio::task::block_in_place;
 
 use crate::binds::SkimEvent;
 use crate::reader::{Reader, ReaderControl};
-use crate::tui::event::Action;
+use crate::tui::actions::Action;
 use crate::tui::{App, Event, Size, TICK_RATE, Tui};
 use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
 

@@ -9,7 +9,7 @@ use std::ops::{Deref, DerefMut};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use eyre::{Result, eyre};
 
-use crate::tui::event::{self, Action};
+use crate::tui::actions::{self, Action};
 
 /// Synthetic events that skim fires internally and that can be bound to actions
 /// via the keymap, exactly like a real key press.
@@ -325,7 +325,7 @@ pub(crate) fn split_top_level(value: &str, separator: char) -> Vec<&str> {
 /// not a real key but is a known action name, the bound chain becomes a
 /// *follow-up* that runs right after that action. For example `reload:first`
 /// queues `first` immediately after a `reload`. The returned map is keyed by the
-/// action's canonical name (see [`Action::name`](crate::tui::event::Action::name)),
+/// action's canonical name (see [`Action::name`](crate::tui::actions::Action::name)),
 /// so it can be looked up directly from the action that just ran.
 ///
 /// Keys take precedence: if the "key" resolves to a real key it is left to the
@@ -360,7 +360,7 @@ where
 }
 
 /// Resolves a bind trigger to the canonical name of the action it targets
-/// (see [`Action::name`](crate::tui::event::Action::name)). `act-<name>`
+/// (see [`Action::name`](crate::tui::actions::Action::name)). `act-<name>`
 /// explicitly targets the action `<name>`, even when `<name>` is also a key;
 /// without the prefix, a bare action name works too. Returns `None` if the
 /// name is not a known action.
@@ -372,7 +372,7 @@ pub(crate) fn action_trigger_name(trigger: &str) -> Option<&'static str> {
     // Some actions require an argument when executed, but their canonical
     // name is still valid as a trigger. `()` supplies the parser's empty
     // placeholder solely for name validation.
-    let action = event::parse_action(action_name).or_else(|| event::parse_action(&format!("{action_name}()")))?;
+    let action = actions::parse_action(action_name).or_else(|| actions::parse_action(&format!("{action_name}()")))?;
     Some(action.name())
 }
 
@@ -390,7 +390,7 @@ pub fn parse_action_chain(action_chain: &str) -> Result<Vec<Action>> {
         {
             s += &(String::from("+") + otherwise);
         }
-        if let Some(act) = event::parse_action(&s) {
+        if let Some(act) = actions::parse_action(&s) {
             actions.push(act);
         }
     }

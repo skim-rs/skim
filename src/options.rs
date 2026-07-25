@@ -16,7 +16,7 @@ use crate::binds::KeyMap;
 use crate::item::RankCriteria;
 use crate::prelude::SkimItemReader;
 use crate::reader::CommandCollector;
-use crate::tui::event::Action;
+use crate::tui::actions::Action;
 use crate::tui::options::{PreviewLayout, TuiLayout};
 use crate::tui::statusline::{Info, InfoDisplay};
 use crate::tui::{BorderType, PreviewCallback};

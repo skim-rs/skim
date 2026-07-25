@@ -869,134 +869,152 @@ Actions can also be used as binding triggers. A follow\-up chain bound to an act
 Follow\-up chains use non\-recursive (`noremap`) semantics: their actions do not trigger further action bindings. Add `suppress` to skip the triggering action\*(Aqs default behavior, for example `act\-up:suppress+down`.
 .br
 
-.SS "Actions[:default keys][*notes]"
+.SS Actions
 
 .br
-* abort: ctrl\-c  ctrl\-q  esc
+* abort: Abort and exit with error
 .br
-* accept(...): enter double\-click *the argument will be printed when the binding is triggered*
+* accept(...): Accept selection and exit with optional key. The argument is printed when the binding is triggered.
 .br
-* append\-and\-select
+* add\-char(...): Add a character to the query
 .br
-* backward\-char: ctrl\-b  left
+* append\-and\-select: Append to selection and select
 .br
-* backward\-delete\-char: ctrl\-h  bspace
+* backward\-char: Move cursor backward one character
 .br
-* backward\-delete\-char/eof
+* backward\-delete\-char: Delete character before cursor
 .br
-* backward\-kill\-word: alt\-bs
+* backward\-delete\-char/eof: Delete character before cursor or exit if the query is empty
 .br
-* backward\-word: alt\-b   shift\-left
+* backward\-kill\-word: Delete word before cursor
 .br
-* beginning\-of\-line: ctrl\-a  home
+* backward\-word: Move cursor backward one word
 .br
-* bind(...): *arg is a comma\-separated list of `trigger:action[+action]` bindings to add (same syntax as \-\-bind, including action triggers such as `act\-up:last`)
+* beginning\-of\-line: Move cursor to beginning of line
 .br
-* clear\-screen: ctrl\-l
+* bind(...): Bind one or more keys to action chains. The argument is a comma\-separated list of `trigger:action[+action]` bindings to add, using the same syntax as `\-\-bind`, including action triggers such as `act\-up:last`.
 .br
-* delete\-char: del
+* cancel: Cancel current operation
 .br
-* delete\-char/eof: ctrl\-d
+* clear\-screen: Clear the screen
 .br
-* deselect\-all
+* delete\-char: Delete character under cursor
 .br
-* down: ctrl\-j  ctrl\-n  down
+* delete\-char/eof: Delete character or exit if empty
 .br
-* end\-of\-line: ctrl\-e  end
+* deselect\-all: Deselect all items
 .br
-* execute(...): *arg will be a command, see COMMAND EXPANSION for details
+* down(...): Move selection down by N items
 .br
-* execute\-silent(...): *arg will be a command, see COMMAND EXPANSION for details
+* end\-of\-line: Move cursor to end of line
 .br
-* forward\-char: ctrl\-f  right
+* execute(...): Execute a command. The argument is a command, see COMMAND EXPANSION for details.
 .br
-* forward\-word: alt\-f   shift\-right
+* execute\-silent(...): Execute a command silently. The argument is a command, see COMMAND EXPANSION for details.
 .br
-* if\-non\-matched
+* first: Jump to first item in list
 .br
-* if\-query\-empty
+* forward\-char: Move cursor forward one character
 .br
-* if\-query\-not\-empty
+* forward\-word: Move cursor forward one word
 .br
-* ignore
+* if\-query\-empty(...): Execute action if query is empty
 .br
-* kill\-line
+* if\-query\-not\-empty(...): Execute action if query is not empty
 .br
-* kill\-word: alt\-d
+* if\-non\-matched(...): Execute action if no items match
 .br
-* next\-history: ctrl\-n with `\-\-history` or `\-\-cmd\-history`
+* ignore: Ignore the action
 .br
-* page\-down: pgdn
+* kill\-line: Delete from cursor to end of line
 .br
-* page\-up: pgup
+* kill\-word: Delete word after cursor
 .br
-* half\-page\-down
+* last: Jump to last item in list
 .br
-* half\-page\-up
+* next\-history: Move to next history entry (requires `\-\-history` or `\-\-cmd\-history`)
 .br
-* preview\-up: shift\-up
+* half\-page\-down(...): Scroll down by half a page
 .br
-* preview\-down: shift\-down
+* half\-page\-up(...): Scroll up by half a page
 .br
-* preview\-left
+* page\-down(...): Scroll down by a page
 .br
-* preview\-right
+* page\-up(...): Scroll up by a page
 .br
-* preview\-page\-down
+* preview\-up(...): Scroll preview up
 .br
-* preview\-page\-up
+* preview\-down(...): Scroll preview down
 .br
-* previous\-history: ctrl\-p with `\-\-history` or `\-\-cmd\-history`
+* preview\-left(...): Scroll preview left
 .br
-* redraw
+* preview\-right(...): Scroll preview right
 .br
-* refresh\-cmd
+* preview\-page\-up(...): Scroll preview up by a page
 .br
-* refresh\-preview
+* preview\-page\-down(...): Scroll preview down by a page
 .br
-* reload(...)
+* previous\-history: Move to previous history entry (requires `\-\-history` or `\-\-cmd\-history`)
 .br
-* select\-all
+* redraw: Redraw the screen
 .br
-* select\-row
+* refresh\-cmd: Refresh the command
 .br
-* set\-preview\-cmd(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
+* refresh\-preview: Refresh the preview
 .br
-* set\-query(...): *arg will be a expanded expression, see COMMAND EXPANSION for details
+* restart\-matcher: Restart the matcher
 .br
-* suppress: *if bound to an action (e.g. `act\-up:suppress`), suppresses that action\*(Aqs default behavior so the rest of the non\-recursive chain runs once in its place; if bound to a key, equivalent to `ignore`
+* reload(...): Reload with optional new command
 .br
-* toggle
+* rotate\-mode: Rotate through matching modes
 .br
-* toggle\-all
+* scroll\-left(...): Scroll item list left
 .br
-* toggle+down: ctrl\-i  tab
+* scroll\-right(...): Scroll item list right
 .br
-* toggle\-in: (\-\-layout=reverse ? toggle+up:  toggle+down)
+* select\-all: Select all items
 .br
-* toggle\-interactive
+* select\-row(...): Select a specific row
 .br
-* toggle\-out: (\-\-layout=reverse ? toggle+down:  toggle+up)
+* select: Select current item
 .br
-* toggle\-preview
+* suppress: Suppress the default behaviour of the action this is bound to. Only meaningful as a follow\-up bound to an action (e.g. `act\-up:suppress`): it cancels that action\*(Aqs own effect, so the remaining follow\-up chain runs in its place. On its own it is a no\-op (equivalent to `ignore`).
 .br
-* toggle\-preview\-wrap
+* set\-cmd(...): Set the interactive\-mode command and rerun it. The argument is an expanded expression, see COMMAND EXPANSION for details.
 .br
-* toggle\-sort
+* set\-header(...): Set the header (or disable it on an empty value)
 .br
-* toggle+up: btab    shift\-tab
+* set\-preview\-cmd(...): Set the preview cmd and rerun preview. The argument is an expanded expression, see COMMAND EXPANSION for details.
 .br
-* top
+* set\-query(...): Set the query to the expanded value. The argument is an expanded expression, see COMMAND EXPANSION for details.
 .br
-* unbind(...): *arg is a comma\-separated list of keys or action triggers (e.g. `act\-up`) to unbind
+* toggle: Toggle selection of current item
 .br
-* unix\-line\-discard: ctrl\-u
+* toggle\-all: Toggle selection of all items
 .br
-* unix\-word\-rubout: ctrl\-w
+* toggle\-in: Toggle and move in
 .br
-* up: ctrl\-k  ctrl\-p  up
+* toggle\-interactive: Toggle interactive mode
 .br
-* yank: ctrl\-y
+* toggle\-out: Toggle and move out
+.br
+* toggle\-preview: Toggle preview visibility
+.br
+* toggle\-preview\-wrap: Toggle preview line wrapping
+.br
+* toggle\-sort: Toggle sorting
+.br
+* top: Jump to first item in list (alias for First)
+.br
+* unbind(...): Unbind one or more keys. The argument is a comma\-separated list of keys or action triggers (e.g. `act\-up`) to unbind.
+.br
+* unix\-line\-discard: Discard line (unix\-style)
+.br
+* unix\-word\-rubout: Delete word backward (unix\-style)
+.br
+* up(...): Move selection up by N items
+.br
+* yank: Yank (paste)
 .br
 
 .SH "COMMAND EXPANSION"
