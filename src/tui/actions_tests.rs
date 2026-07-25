@@ -124,6 +124,21 @@ fn parse_string_arg_actions() {
 }
 
 #[test]
+fn parse_set_cmd_action() {
+    assert_eq!(
+        parse_action("set-cmd:find ."),
+        Some(Action::SetCmd("find .".to_string()))
+    );
+    assert_eq!(
+        parse_action("set-cmd(grep {q})"),
+        Some(Action::SetCmd("grep {q}".to_string()))
+    );
+    // Like the other `set-*-cmd` actions, an argument is required.
+    assert_eq!(parse_action("set-cmd"), None);
+    assert_eq!(parse_action("set-cmd:"), None);
+}
+
+#[test]
 fn parse_optional_arg_actions() {
     for name in ["accept", "set-header", "reload"] {
         assert_eq!(parse_action(name).map(|action| action.name()), Some(name));
@@ -163,6 +178,31 @@ fn parse_bind_and_unbind_actions() {
         parse_action("unbind(ctrl-a,ctrl-b)"),
         Some(Action::Unbind("ctrl-a,ctrl-b".to_string()))
     );
+}
+
+#[test]
+fn arg_required_actions_reject_a_missing_argument() {
+    // These actions are meaningless without an argument, so they must not fall
+    // back to an empty one. The requirement is expressed by their `arg.map(…)`
+    // catalog arms, so keep every one of them covered here.
+    for name in [
+        "add-char",
+        "bind",
+        "execute",
+        "execute-silent",
+        "set-cmd",
+        "set-preview-cmd",
+        "set-query",
+        "unbind",
+    ] {
+        assert_eq!(parse_action(name), None, "`{name}` should require an argument");
+        assert_eq!(
+            parse_action(&format!("{name}:")),
+            None,
+            "`{name}:` should require an argument"
+        );
+        assert!(parse_action(&format!("{name}:x")).is_some(), "`{name}:x` should parse");
+    }
 }
 
 #[test]
@@ -255,4 +295,48 @@ fn action_callback_async_constructor_builds() {
     // Cloning shares the same inner callback.
     let _clone = cb.clone();
     assert_eq!(format!("{cb:?}"), "ActionCallback");
+}
+
+#[test]
+fn catalog_covers_every_action_and_round_trips() {
+    for entry in ACTION_CATALOG {
+        assert!(!entry.summary().is_empty(), "`{}` needs a doc comment", entry.name);
+        if !entry.is_bindable() {
+            continue;
+        }
+        let action = parse_action(entry.name)
+            .or_else(|| parse_action(&format!("{}()", entry.name)))
+            .unwrap_or_else(|| panic!("expected `{}` to parse", entry.name));
+        assert_eq!(action.name(), entry.name);
+        assert_eq!(
+            entry.display_name(),
+            if entry.takes_arg {
+                format!("{}(...)", entry.name)
+            } else {
+                entry.name.to_string()
+            }
+        );
+    }
+}
+
+#[test]
+fn catalog_marks_arguments_and_bindability() {
+    let entry = |name: &str| {
+        ACTION_CATALOG
+            .iter()
+            .find(|entry| entry.name == name)
+            .unwrap_or_else(|| panic!("`{name}` should be in the catalog"))
+    };
+    assert!(!entry("abort").takes_arg);
+    assert!(entry("accept").takes_arg);
+    assert_eq!(entry("accept").display_name(), "accept(...)");
+    // The custom action has no spelling the parser accepts.
+    assert!(!entry("custom").is_bindable());
+    // Multi-line docs collapse into a single line.
+    assert!(
+        entry("suppress")
+            .summary()
+            .starts_with("Suppress the default behaviour")
+    );
+    assert!(!entry("suppress").summary().contains('\n'));
 }

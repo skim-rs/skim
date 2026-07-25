@@ -1,5 +1,5 @@
 use super::*;
-use event::Action::*;
+use actions::Action::*;
 #[test]
 fn test_parse_action_chain() {
     let parsed = parse_action_chain(

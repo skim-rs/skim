@@ -5,7 +5,7 @@ use derive_builder::Builder;
 use crate::item::MatchedItem;
 use crate::options::SkimOptions;
 use crate::tui::Event;
-use crate::tui::event::Action;
+use crate::tui::actions::Action;
 
 /// Output from running skim, containing the final selection and state
 #[derive(Debug)]

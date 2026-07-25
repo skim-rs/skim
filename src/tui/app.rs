@@ -18,7 +18,7 @@ use crate::{ItemPreview, PreviewContext, Rank, SkimItem, SkimOptions, util};
 #[path = "app_tests.rs"]
 mod tests;
 
-use super::event::Action;
+use super::actions::Action;
 use super::header::Header;
 use super::item_list::ItemList;
 use super::{Event, Tui, input, preview};
@@ -1230,6 +1230,16 @@ impl App {
             Select => {
                 self.item_list.select();
                 return Ok(self.on_selection_changed());
+            }
+            SetCmd(cmd) => {
+                // Command counterpart of `SetPreviewCmd`: swap the command
+                // template (used by interactive mode and `refresh-cmd`) and
+                // immediately re-run it.
+                self.cmd.clone_from(cmd);
+                self.options.cmd = Some(cmd.clone());
+                self.item_list.clear_selection();
+                let expanded_cmd = self.expand_cmd(cmd, true);
+                return Ok(vec![Event::Reload(expanded_cmd)]);
             }
             SetHeader(opt_header) => {
                 opt_header.clone_into(&mut self.options.header);

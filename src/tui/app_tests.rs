@@ -14,7 +14,8 @@ use std::sync::Arc;
 
 use super::*;
 use crate::item::{MatchedItem, RankBuilder};
-use crate::tui::event::{Action, Event};
+use crate::tui::actions::Action;
+use crate::tui::event::Event;
 use crate::tui::layout::LayoutTemplate;
 use crate::tui::statusline::InfoDisplay;
 use crate::{Rank, SkimItem};
@@ -395,6 +396,59 @@ fn refresh_cmd_reloads_in_interactive_mode() {
 }
 
 #[test]
+fn set_cmd_replaces_command_and_reloads() {
+    let mut app = app_with_items(&["a", "b"]);
+    app.options.multi = true;
+    app.cmd = "ls".to_string();
+    act(&mut app, Action::SelectAll);
+    assert!(!app.item_list.selection.is_empty());
+
+    let events = act(&mut app, Action::SetCmd("find .".to_string()));
+
+    // The command template is swapped, both on the app and in the options, so
+    // `refresh-cmd` and interactive mode pick it up too.
+    assert_eq!(app.cmd, "find .");
+    assert_eq!(app.options.cmd.as_deref(), Some("find ."));
+    // The previous results are gone, so their selection must not survive.
+    assert!(app.item_list.selection.is_empty());
+    assert!(
+        matches!(events.as_slice(), [Event::Reload(cmd)] if cmd == "find ."),
+        "expected a single reload of the new command, got {events:?}"
+    );
+}
+
+#[test]
+fn set_cmd_expands_placeholders_in_the_reloaded_command() {
+    let mut app = app_with_items(&["a"]);
+    app.input.value = "myquery".to_string();
+
+    let events = act(&mut app, Action::SetCmd("grep {q}".to_string()));
+
+    // The stored template keeps the placeholder, only the emitted command is expanded.
+    assert_eq!(app.cmd, "grep {q}");
+    let [Event::Reload(cmd)] = events.as_slice() else {
+        panic!("expected a reload event, got {events:?}");
+    };
+    assert!(cmd.contains("myquery"), "expected the query in `{cmd}`");
+    assert!(!cmd.contains("{q}"), "expected `{{q}}` to be expanded in `{cmd}`");
+}
+
+#[test]
+fn set_cmd_is_picked_up_by_refresh_cmd() {
+    let mut app = App::default();
+    app.options.interactive = true;
+    app.cmd = "ls".to_string();
+
+    act(&mut app, Action::SetCmd("find .".to_string()));
+    let events = act(&mut app, Action::RefreshCmd);
+
+    assert!(
+        matches!(events.as_slice(), [Event::Reload(cmd)] if cmd == "find ."),
+        "refresh-cmd should re-run the command set by set-cmd, got {events:?}"
+    );
+}
+
+#[test]
 fn reload_actions_emit_reload() {
     let mut app = app_with_items(&["a"]);
     app.cmd = "ls".to_string();
@@ -754,7 +808,7 @@ fn deselect_all_clears_existing_selection() {
 
 #[test]
 fn custom_action_runs_callback() {
-    use crate::tui::event::ActionCallback;
+    use crate::tui::actions::ActionCallback;
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -768,7 +822,7 @@ fn custom_action_runs_callback() {
 
 #[test]
 fn custom_action_runs_async_callback() {
-    use crate::tui::event::ActionCallback;
+    use crate::tui::actions::ActionCallback;
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

@@ -20,7 +20,7 @@ use nix::unistd::mkfifo;
 
 use crate::item::{MatchedItem, RankBuilder};
 use crate::tui::Event;
-use crate::tui::event::Action;
+use crate::tui::actions::Action;
 use crate::{Rank, SkimItem, SkimOptions, SkimOutput};
 
 use tmux::TmuxPopup;
