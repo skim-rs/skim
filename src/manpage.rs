@@ -4,11 +4,13 @@ use std::io::Write;
 
 use clap::CommandFactory;
 use clap_mangen::Man;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use eyre::Result;
 use roff::{Inline, Roff};
 
 use crate::SkimOptions;
-use crate::tui::actions::ACTION_CATALOG;
+use crate::binds::{SkimEvent, get_default_key_map};
+use crate::tui::actions::{ACTION_CATALOG, Action};
 
 const THEME_SECTION: &str = "
 Available themes:
@@ -170,6 +172,75 @@ fn actions_ss() -> String {
     res
 }
 
+/// Renders the runtime default keymap, keeping the manpage in sync with
+/// [`get_default_key_map`].
+fn default_keys_ss() -> String {
+    let mut bindings = get_default_key_map()
+        .iter()
+        .map(|(key, actions)| {
+            let actions = actions.iter().map(Action::name).collect::<Vec<_>>().join("+");
+            (key_name(key), actions)
+        })
+        .collect::<Vec<_>>();
+    bindings.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+
+    let mut res = String::from("\n");
+    for (key, actions) in bindings {
+        let _ = writeln!(res, "* {key}: {actions}");
+    }
+    res
+}
+
+fn key_name(key: &KeyEvent) -> String {
+    if *key == SkimEvent::DoubleClick.key_event() {
+        return "double-click".to_string();
+    }
+
+    // Crossterm can report back-tab with every modifier set. Keep the familiar
+    // binding spelling instead of exposing that terminal representation.
+    if key.code == KeyCode::BackTab && key.modifiers == KeyModifiers::all() {
+        return "btab".to_string();
+    }
+
+    let mut parts = Vec::new();
+    for (modifier, name) in [
+        (KeyModifiers::CONTROL, "ctrl"),
+        (KeyModifiers::ALT, "alt"),
+        (KeyModifiers::SHIFT, "shift"),
+        (KeyModifiers::SUPER, "super"),
+        (KeyModifiers::HYPER, "hyper"),
+        (KeyModifiers::META, "meta"),
+    ] {
+        if key.modifiers.contains(modifier) {
+            parts.push(name.to_string());
+        }
+    }
+
+    parts.push(match key.code {
+        KeyCode::Backspace => "bspace".to_string(),
+        KeyCode::Enter => "enter".to_string(),
+        KeyCode::Left => "left".to_string(),
+        KeyCode::Right => "right".to_string(),
+        KeyCode::Up => "up".to_string(),
+        KeyCode::Down => "down".to_string(),
+        KeyCode::Home => "home".to_string(),
+        KeyCode::End => "end".to_string(),
+        KeyCode::PageUp => "pgup".to_string(),
+        KeyCode::PageDown => "pgdn".to_string(),
+        KeyCode::Tab => "tab".to_string(),
+        KeyCode::BackTab => "btab".to_string(),
+        KeyCode::Delete => "del".to_string(),
+        KeyCode::Insert => "insert".to_string(),
+        KeyCode::F(number) => format!("f{number}"),
+        KeyCode::Char(' ') => "space".to_string(),
+        KeyCode::Char(character) => character.to_string(),
+        KeyCode::Null => "null".to_string(),
+        KeyCode::Esc => "esc".to_string(),
+        _ => format!("{:?}", key.code).to_lowercase(),
+    });
+    parts.join("-")
+}
+
 fn parse_str(src: &str) -> Vec<Inline> {
     let mut res = Vec::new();
     for line in src.lines() {
@@ -268,6 +339,7 @@ Exact search can be enabled by default by the `--exact` command-line flag. In ex
     subsection(&mut custom, "Bindable finder events", BINDABLE_EVENTS_SS);
     subsection(&mut custom, "Actions as binding triggers", ACTION_BINDINGS_SS);
     subsection(&mut custom, "Actions", &actions_ss());
+    subsection(&mut custom, "Default key bindings", &default_keys_ss());
 
     section(
         &mut custom,
@@ -382,6 +454,23 @@ mod tests {
         let out = manpage_str();
         for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
             assert!(out.contains(section), "manpage should contain section '{section}'");
+        }
+    }
+
+    #[test]
+    fn manpage_documents_default_key_bindings() {
+        let out = manpage_str();
+        assert!(out.contains("Default key bindings"));
+        for binding in [
+            "* ctrl\\-a: beginning\\-of\\-line",
+            "* enter: accept",
+            "* tab: toggle+down",
+            "* double\\-click: accept",
+        ] {
+            assert!(
+                out.contains(binding),
+                "manpage should contain default binding '{binding}'"
+            );
         }
     }
 

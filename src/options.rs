@@ -325,7 +325,8 @@ pub struct SkimOptions {
     /// `double-click` mouse binding, a finder event (`change`, `start`, `load`, `result`, `focus`, `zero`, or
     /// `one`), or an action name. Use the
     /// `act-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
-    /// name is also a key, for example `act-up:last`. See the [KEYBINDS] section for details.
+    /// name is also a key, for example `act-up:last`. See the [KEYBINDS] section for details and its
+    /// [Default key bindings] subsection for the defaults.
     ///
     /// **Example**: `sk --bind=ctrl-j:accept,load:last,act-up:down`
     ///

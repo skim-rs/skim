@@ -416,7 +416,7 @@ impl ZellijController {
             // The failed attempt's controller has been dropped here, tearing the
             // dead session down before the next attempt spawns a fresh one.
         }
-        Err(last_err.unwrap_or_else(|| std::io::Error::new(ErrorKind::Other, "failed to start zellij session")))
+        Err(last_err.unwrap_or_else(|| std::io::Error::other("failed to start zellij session")))
     }
 
     /// Spawn a single Zellij session + client and bring it to a ready prompt.
@@ -581,10 +581,10 @@ impl ZellijController {
         let deadline = Instant::now() + FIRST_RENDER_BUDGET;
         let mut wide = false;
         loop {
-            if let Ok(dump) = self.action(&["dump-screen"]) {
-                if !dump.trim().is_empty() {
-                    break;
-                }
+            if let Ok(dump) = self.action(&["dump-screen"])
+                && !dump.trim().is_empty()
+            {
+                break;
             }
             // A dead client will never render; fail fast so `new_named` respawns.
             if self.client_exited.load(Ordering::SeqCst) {
