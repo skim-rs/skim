@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.0] - 2026-07-26
+
+### 🚀 Features
+
+- Add the `set-cmd` action to change interactive mode command from bindings (#1142)
+
+### 🐛 Bug Fixes
+
+- *(examples)* Gate malloc_trim to gcc in the multiple_runs example
+
+### 📚 Documentation
+
+- Readd default keybindings to the manpage as an auto-generated separate subsection
+
+### 🧪 Testing
+
+- Replace tmux e2e harness with cross-platform Zellij harness (#1139)
+
+### 🤖 CI
+
+- Make coverage non-blocking to avoid issues with nightly rust
+
 ## [5.5.0] - 2026-07-23
 
 ### 🚀 Features
