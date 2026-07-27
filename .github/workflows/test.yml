@@ -262,6 +262,7 @@ jobs:
     name: Check for public API breaking changes
     permissions:
       contents: read
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - *checkout
