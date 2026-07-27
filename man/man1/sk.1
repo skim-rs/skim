@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 5.5.0" 
+.TH sk 1  "sk 5.6.0" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -203,7 +203,8 @@ Comma\-separated key, event, and action bindings
 `double\-click` mouse binding, a finder event (`change`, `start`, `load`, `result`, `focus`, `zero`, or
 `one`), or an action name. Use the
 `act\-` prefix for action triggers; it is recommended to avoid ambiguity and required when the action
-name is also a key, for example `act\-up:last`. See the [KEYBINDS] section for details.
+name is also a key, for example `act\-up:last`. See the [KEYBINDS] section for details and its
+[Default key bindings] subsection for the defaults.
 
 **Example**: `sk \-\-bind=ctrl\-j:accept,load:last,act\-up:down`
 
@@ -841,106 +842,6 @@ Actions can take arguments, specified either between parentheses `reload(ls)` or
 * any single character
 .br
 
-.SS "Default key bindings"
-
-.br
-* alt\-b: backward\-word
-.br
-* alt\-bspace: backward\-kill\-word
-.br
-* alt\-d: kill\-word
-.br
-* alt\-f: forward\-word
-.br
-* alt\-h: scroll\-left
-.br
-* alt\-l: scroll\-right
-.br
-* bspace: backward\-delete\-char
-.br
-* btab: toggle+up
-.br
-* ctrl\-a: beginning\-of\-line
-.br
-* ctrl\-b: backward\-char
-.br
-* ctrl\-c: abort
-.br
-* ctrl\-d: abort
-.br
-* ctrl\-e: end\-of\-line
-.br
-* ctrl\-f: forward\-char
-.br
-* ctrl\-g: abort
-.br
-* ctrl\-h: backward\-delete\-char
-.br
-* ctrl\-j: down
-.br
-* ctrl\-k: up
-.br
-* ctrl\-l: clear\-screen
-.br
-* ctrl\-left: backward\-word
-.br
-* ctrl\-n: down
-.br
-* ctrl\-p: up
-.br
-* ctrl\-q: toggle\-interactive
-.br
-* ctrl\-r: rotate\-mode
-.br
-* ctrl\-right: forward\-word
-.br
-* ctrl\-u: unix\-line\-discard
-.br
-* ctrl\-w: unix\-word\-rubout
-.br
-* ctrl\-y: yank
-.br
-* del: delete\-char
-.br
-* double\-click: accept
-.br
-* down: down
-.br
-* end: end\-of\-line
-.br
-* enter: accept
-.br
-* esc: abort
-.br
-* home: beginning\-of\-line
-.br
-* left: backward\-char
-.br
-* pgdn: page\-down
-.br
-* pgup: page\-up
-.br
-* right: forward\-char
-.br
-* shift\-btab: toggle+up
-.br
-* shift\-down: preview\-down
-.br
-* shift\-home: beginning\-of\-line
-.br
-* shift\-left: backward\-word
-.br
-* shift\-right: forward\-word
-.br
-* shift\-tab: toggle+up
-.br
-* shift\-up: preview\-up
-.br
-* tab: toggle+down
-.br
-* up: up
-.br
-
 .SS "Bindable finder events"
 
 .br
@@ -1115,6 +1016,106 @@ Follow\-up chains use non\-recursive (`noremap`) semantics: their actions do not
 * up(...): Move selection up by N items
 .br
 * yank: Yank (paste)
+.br
+
+.SS "Default key bindings"
+
+.br
+* alt\-b: backward\-word
+.br
+* alt\-bspace: backward\-kill\-word
+.br
+* alt\-d: kill\-word
+.br
+* alt\-f: forward\-word
+.br
+* alt\-h: scroll\-left
+.br
+* alt\-l: scroll\-right
+.br
+* bspace: backward\-delete\-char
+.br
+* btab: toggle+up
+.br
+* ctrl\-a: beginning\-of\-line
+.br
+* ctrl\-b: backward\-char
+.br
+* ctrl\-c: abort
+.br
+* ctrl\-d: abort
+.br
+* ctrl\-e: end\-of\-line
+.br
+* ctrl\-f: forward\-char
+.br
+* ctrl\-g: abort
+.br
+* ctrl\-h: backward\-delete\-char
+.br
+* ctrl\-j: down
+.br
+* ctrl\-k: up
+.br
+* ctrl\-l: clear\-screen
+.br
+* ctrl\-left: backward\-word
+.br
+* ctrl\-n: down
+.br
+* ctrl\-p: up
+.br
+* ctrl\-q: toggle\-interactive
+.br
+* ctrl\-r: rotate\-mode
+.br
+* ctrl\-right: forward\-word
+.br
+* ctrl\-u: unix\-line\-discard
+.br
+* ctrl\-w: unix\-word\-rubout
+.br
+* ctrl\-y: yank
+.br
+* del: delete\-char
+.br
+* double\-click: accept
+.br
+* down: down
+.br
+* end: end\-of\-line
+.br
+* enter: accept
+.br
+* esc: abort
+.br
+* home: beginning\-of\-line
+.br
+* left: backward\-char
+.br
+* pgdn: page\-down
+.br
+* pgup: page\-up
+.br
+* right: forward\-char
+.br
+* shift\-btab: toggle+up
+.br
+* shift\-down: preview\-down
+.br
+* shift\-home: beginning\-of\-line
+.br
+* shift\-left: backward\-word
+.br
+* shift\-right: forward\-word
+.br
+* shift\-tab: toggle+up
+.br
+* shift\-up: preview\-up
+.br
+* tab: toggle+down
+.br
+* up: up
 .br
 
 .SH "COMMAND EXPANSION"
@@ -1334,4 +1335,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v5.5.0
+v5.6.0
