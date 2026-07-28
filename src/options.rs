@@ -702,9 +702,9 @@ pub struct SkimOptions {
     //  --- Preview ---
     /// Preview command
     ///
-    /// Execute the given command for the current line and display the result on the preview window. {} in the command
-    /// is the placeholder that is replaced to the single-quoted string of the current line. To transform the
-    /// replacement string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
+    /// Execute the given command with `sh -c` on linux and `cmd /c` on windows for the current line and display the result on the preview window.
+    /// `{}` in the command is the placeholder that is replaced to the single-quoted string of the current line.
+    /// To transform the replacement string, specify field index expressions between the braces (See FIELD INDEX EXPRESSION for the details).
     ///
     /// **Examples**:
     ///

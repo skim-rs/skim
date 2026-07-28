@@ -51,6 +51,13 @@ inherits = "release"
 debug = true
 strip = false
 
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+debug = false
+
 [lints.rust]
 missing_docs = "warn"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage, coverage_nightly)'] }
