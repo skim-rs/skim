@@ -47,7 +47,7 @@ jobs:
         # installs via winget below.
         name: Install zellij (Linux/macOS)
         if: runner.os != 'Windows'
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.85.4
         with:
           tool: zellij@0.44.3
       - name: Install zellij (Windows)
@@ -83,7 +83,7 @@ jobs:
         run: rustup toolchain install
       - &nextest-install
         name: Install nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.85.4
         with:
           tool: nextest@0.9
       - &cache
@@ -123,7 +123,7 @@ jobs:
       - *checkout
       - *toolchain
       - *nextest-install
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-llvm-cov@0.8
       - *cache
@@ -198,7 +198,7 @@ jobs:
     steps:
       - *checkout
       - *toolchain
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-msrv@0.19
       - name: MSRV Verify
@@ -226,7 +226,7 @@ jobs:
         # https://rust-fuzz.github.io/book/cargo-fuzz/windows/setup.html).
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-fuzz@0.13
       - name: Run fuzz targets
@@ -249,7 +249,7 @@ jobs:
           done
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crashes-${{ runner.os }}
           path: fuzz/artifacts/
@@ -268,7 +268,7 @@ jobs:
       - *checkout
       - *toolchain
       - *cache
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-public-api@0.52
       - run: rustup toolchain install nightly-x86_64-unknown-linux-gnu

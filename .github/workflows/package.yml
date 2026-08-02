@@ -49,7 +49,7 @@ jobs:
             exit 1
           fi
       - name: Install cargo-generate-rpm
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-generate-rpm@0.21
       - name: Setup cargo cache
@@ -73,7 +73,7 @@ jobs:
           cp target/generate-rpm/*.rpm target/linux-packages/
           ls -l target/linux-packages/
       - name: Upload packages
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: artifacts-linux-packages-${{ matrix.arch }}
           path: target/linux-packages/*
