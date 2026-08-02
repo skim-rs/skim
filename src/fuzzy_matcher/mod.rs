@@ -85,4 +85,53 @@ mod tests {
         // Empty pattern yields an empty index list, so begin/end fall back to 0.
         assert_eq!(StubMatcher.fuzzy_match_range("hello", ""), Some((0, 0, 0)));
     }
+
+    /// Regression test for a fuzzer-found panic (fuzz target `fuzzy_match`).
+    ///
+    /// 'İ' (U+0130) lowercases to two chars, and `char_equal` used to be
+    /// asymmetric for such characters. `cheap_matches` compares
+    /// `(choice, pattern)` while the matchers' `allow_match` helpers compare
+    /// `(pattern, choice)`, so the cheap pre-filter accepted a candidate the DP
+    /// then refused to match. The clangd matcher's backtracking loop walked off
+    /// the start of its matrix, panicking with "attempt to subtract with
+    /// overflow" in debug and an out-of-bounds index in release.
+    #[test]
+    fn multichar_lowercase_does_not_panic() {
+        use crate::fuzzy_matcher::clangd::ClangdMatcher;
+        use crate::fuzzy_matcher::fzy::FzyMatcher;
+        use crate::fuzzy_matcher::skim::SkimMatcherV2;
+
+        let skim = SkimMatcherV2::default();
+        let fzy = FzyMatcher::default();
+        let clangd = ClangdMatcher::default();
+        let matchers: [(&str, &dyn FuzzyMatcher); 3] = [("skim", &skim), ("fzy", &fzy), ("clangd", &clangd)];
+
+        // The exact crashing input from the fuzz artifact, plus related shapes.
+        let cases = [
+            ("Jİ:I", "İ:İ"),
+            ("I", "İ"),
+            ("İ", "I"),
+            ("i", "İ"),
+            ("İ", "i"),
+            ("Jİ:Iİ", "İİ"),
+            ("straße", "STRASSE"),
+            ("ﬄy", "ffl"),
+        ];
+
+        for (choice, pattern) in cases {
+            let num_chars = choice.chars().count();
+            for (name, matcher) in matchers {
+                // Must not panic, and any returned index must be a valid char
+                // index into `choice` (the invariant asserted by the fuzzer).
+                if let Some((_score, indices)) = matcher.fuzzy_indices(choice, pattern) {
+                    for idx in indices {
+                        assert!(
+                            idx < num_chars,
+                            "{name}: match index {idx} out of bounds for {choice:?} ({num_chars} chars)"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

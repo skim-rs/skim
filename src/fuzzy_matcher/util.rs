@@ -27,21 +27,19 @@ pub fn cheap_matches(choice: &[char], pattern: &[char], case_sensitive: bool) ->
 /// e.g. ('a', 'A', false) => true
 #[inline]
 pub fn char_equal(a: char, b: char, case_sensitive: bool) -> bool {
-    if case_sensitive {
-        a == b
-    } else {
-        let a_lower = a.to_lowercase();
-        let mut b_lower = b.to_lowercase();
-        for a_n in a_lower {
-            let Some(b_n) = b_lower.next() else {
-                return false;
-            };
-            if a_n != b_n {
-                return false;
-            }
-        }
-        true
+    if a == b {
+        return true;
     }
+
+    if case_sensitive {
+        return false;
+    }
+
+    if a.is_ascii() && b.is_ascii() {
+        return a.eq_ignore_ascii_case(&b);
+    }
+
+    a.to_lowercase().eq(b.to_lowercase())
 }
 
 #[derive(Debug, PartialEq)]
@@ -163,6 +161,41 @@ mod tests {
         // 'İ' (U+0130) lowercases to two chars ("i" + combining dot), so it is
         // not equal to the single char 'i' — exercising the length-mismatch path.
         assert!(!char_equal('İ', 'i', false));
+        // ...and the comparison must be symmetric. This direction used to
+        // return `true` because the shorter sequence was exhausted first, which
+        // made `cheap_matches` and `allow_match` disagree and drove the clangd
+        // matcher's backtracking past the start of the DP matrix.
+        assert!(!char_equal('i', 'İ', false));
+        assert!(!char_equal('I', 'İ', false));
+        assert!(!char_equal('İ', 'I', false));
+    }
+
+    #[test]
+    fn char_equal_is_symmetric() {
+        // Exhaustively check symmetry against chars with multi-char or
+        // otherwise unusual lowercase mappings.
+        let probes = ['i', 'I', 'İ', 'ı', 'ß', 'ẞ', 'ﬄ', 'ς', 'Σ', 'K', 'İ', 'ǅ'];
+        for u in 0..=0x2FFFu32 {
+            let Some(ch) = char::from_u32(u) else { continue };
+            for p in probes {
+                for case_sensitive in [true, false] {
+                    assert_eq!(
+                        char_equal(ch, p, case_sensitive),
+                        char_equal(p, ch, case_sensitive),
+                        "char_equal is asymmetric for ({ch:?}, {p:?}, {case_sensitive})"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn char_equal_reflexive() {
+        for u in 0..=0x2FFFu32 {
+            let Some(ch) = char::from_u32(u) else { continue };
+            assert!(char_equal(ch, ch, true));
+            assert!(char_equal(ch, ch, false));
+        }
     }
 
     #[test]

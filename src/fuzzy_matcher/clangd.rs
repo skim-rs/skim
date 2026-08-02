@@ -140,13 +140,14 @@ impl FuzzyMatcher for ClangdMatcher {
         let mut row = num_pattern_chars;
         let mut col = num_choice_chars;
 
-        while row > 0 || col > 0 {
-            if last_action == Action::Match {
-                indices_reverse.push((col - 1) as IndexType);
-            }
-
+        while col > 0 {
             let cell = &dp[row][col];
             if last_action == Action::Match {
+                if row == 0 {
+                    debug_assert!(false, "clangd backtracking hit a match with no pattern left");
+                    break;
+                }
+                indices_reverse.push((col - 1) as IndexType);
                 last_action = cell.last_action_match;
                 row -= 1;
                 col -= 1;
