@@ -25,6 +25,15 @@ use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
 /// flattened without sorting.
 ///
 /// Signals `needs_render` after writing so the UI picks up the new data.
+fn input_index(tac: bool, start: usize, batch_len: usize, batch_index: usize) -> usize {
+    debug_assert!(batch_index < batch_len);
+    if tac {
+        start + batch_len - 1 - batch_index
+    } else {
+        start + batch_index
+    }
+}
+
 fn merge_worker_results(
     worker_results: Vec<Vec<MatchedItem>>,
     no_sort: bool,
@@ -60,7 +69,12 @@ fn merge_worker_results(
     match &mut *guard {
         Some(existing) => {
             if no_sort {
-                existing.items.extend(items);
+                if matches!(merge_strategy, MergeStrategy::Prepend) {
+                    items.append(&mut existing.items);
+                    existing.items = items;
+                } else {
+                    existing.items.extend(items);
+                }
             } else {
                 // Both sides are fully sorted — one O(n+m) merge.
                 MatchedItem::merge_into_sorted(&mut existing.items, items);
@@ -192,9 +206,9 @@ impl Matcher {
             } else {
                 Rc::new(regex_factory)
             };
-            (factory, Arc::new(RankBuilder::default()))
+            (factory, Arc::new(RankBuilder::default().tac(options.tac)))
         } else {
-            let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()));
+            let rank_builder = Arc::new(RankBuilder::new(options.tiebreak.clone()).tac(options.tac));
             log::debug!("Creating matcher for algo {:?}", options.algorithm);
             let fuzzy_engine_factory = ExactOrFuzzyEngineFactory::builder()
                 .fuzzy_algorithm(options.algorithm)
@@ -264,6 +278,7 @@ impl Matcher {
         processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
         merge_strategy: MergeStrategy,
         no_sort: bool,
+        tac: bool,
         needs_render: Arc<AtomicBool>,
     ) -> MatcherControl {
         let matcher_engine = self.engine_factory.create_engine_with_case(query, self.case_matching);
@@ -336,7 +351,10 @@ impl Matcher {
                         if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
                             chunk_matched += 1;
                             let mut rank = match_result.rank;
-                            let index = chunk_start + i + start;
+                            let batch_index = chunk_start + i;
+                            // `take()` reverses each tac batch, so recover the
+                            // item's stable ordinal in the original input stream.
+                            let index = input_index(tac, start, total, batch_index);
                             rank.index = i32::try_from(index).unwrap_or(i32::MAX);
                             local_matches.push(MatchedItem::new(
                                 Arc::clone(item),
@@ -505,5 +523,47 @@ mod tests {
 
         let guard = processed.lock();
         assert_eq!(guard.as_ref().unwrap().items.len(), 2);
+    }
+
+    #[test]
+    fn tac_input_index_spans_incremental_batches() {
+        let first_batch: Vec<_> = (0..3).map(|index| input_index(true, 0, 3, index)).collect();
+        let second_batch: Vec<_> = (0..2).map(|index| input_index(true, 3, 2, index)).collect();
+
+        assert_eq!(first_batch, [2, 1, 0]);
+        assert_eq!(second_batch, [4, 3]);
+        assert_eq!(input_index(false, 3, 2, 0), 3);
+        assert_eq!(input_index(false, 3, 2, 1), 4);
+    }
+
+    #[test]
+    fn merge_worker_results_prepend_no_sort_places_new_batch_first() {
+        let processed = SpinLock::new(None);
+        let needs_render = AtomicBool::new(false);
+
+        merge_worker_results(
+            vec![vec![matched("c", 2), matched("b", 1), matched("a", 0)]],
+            true,
+            &processed,
+            MergeStrategy::Prepend,
+            &needs_render,
+        );
+        merge_worker_results(
+            vec![vec![matched("e", 4), matched("d", 3)]],
+            true,
+            &processed,
+            MergeStrategy::Prepend,
+            &needs_render,
+        );
+
+        let guard = processed.lock();
+        let indexes: Vec<i32> = guard
+            .as_ref()
+            .unwrap()
+            .items
+            .iter()
+            .map(|item| item.rank.index)
+            .collect();
+        assert_eq!(indexes, [4, 3, 2, 1, 0]);
     }
 }

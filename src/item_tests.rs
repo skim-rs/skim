@@ -60,6 +60,57 @@ fn matched_item_ordering_prefers_higher_score() {
 }
 
 #[test]
+fn matched_item_ordering_reverses_stable_input_index_for_tac() {
+    let old_rank = Rank {
+        index: 0,
+        ..Default::default()
+    };
+    let new_rank = Rank {
+        index: 1,
+        ..Default::default()
+    };
+
+    let normal_builder = RankBuilder::new(vec![RankCriteria::Index]);
+    let old = MatchedItem::new(item("old"), old_rank, None, &normal_builder);
+    let new = MatchedItem::new(item("new"), new_rank, None, &normal_builder);
+    assert!(old < new);
+
+    let tac_builder = RankBuilder::new(vec![RankCriteria::Index]).tac(true);
+    let old = MatchedItem::new(item("old"), old_rank, None, &tac_builder);
+    let new = MatchedItem::new(item("new"), new_rank, None, &tac_builder);
+    assert!(new < old);
+    assert_eq!(new.rank.index, 1);
+    assert_eq!(MatchedItem::sorted_merge(vec![old], vec![new])[0].text(), "new");
+
+    let tac_builder = RankBuilder::default().tac(true);
+    let old = MatchedItem::new(item("old"), old_rank, None, &tac_builder);
+    let new = MatchedItem::new(item("new"), new_rank, None, &tac_builder);
+    assert!(new < old);
+}
+
+#[test]
+fn sorted_merge_tac_places_newer_incremental_batch_first() {
+    let rank_builder = RankBuilder::default().tac(true);
+    let make = |text: &str, index| {
+        MatchedItem::new(
+            item(text),
+            Rank {
+                index,
+                ..Default::default()
+            },
+            None,
+            &rank_builder,
+        )
+    };
+    let existing = vec![make("c", 2), make("b", 1), make("a", 0)];
+    let incoming = vec![make("e", 4), make("d", 3)];
+
+    let merged = MatchedItem::sorted_merge(existing, incoming);
+    let indexes: Vec<_> = merged.iter().map(|item| item.rank.index).collect();
+    assert_eq!(indexes, [4, 3, 2, 1, 0]);
+}
+
+#[test]
 fn sorted_merge_handles_empty_inputs() {
     let a = vec![matched("a", 0, 10)];
     assert_eq!(MatchedItem::sorted_merge(a.clone(), vec![]).len(), 1);

@@ -28,6 +28,8 @@ pub(crate) enum MergeStrategy {
     SortedMerge,
     /// Append to existing list without sorting (for --no-sort)
     Append,
+    /// Prepend to existing list without sorting (for --tac --no-sort)
+    Prepend,
 }
 
 /// Processed items ready for rendering
@@ -123,6 +125,27 @@ impl ItemList {
     pub fn append(&mut self, items: &mut Vec<MatchedItem>) {
         self.items.append(items);
         self.showing_stale_items = false;
+    }
+
+    /// Prepends a batch while preserving either the head-following behavior or
+    /// the item currently focused by a user who has moved away from the head.
+    fn prepend(&mut self, mut items: Vec<MatchedItem>) {
+        if items.is_empty() {
+            return;
+        }
+
+        let added = items.len();
+        let follows_head = self.current == 0;
+        items.append(&mut self.items);
+        self.items = items;
+
+        if follows_head {
+            self.offset = 0;
+            self.sub_offset = 0;
+        } else {
+            self.current = self.current.saturating_add(added);
+            self.offset = self.offset.saturating_add(added);
+        }
     }
 
     /// Toggles the selection state of the item at the given index
@@ -485,8 +508,11 @@ impl SkimWidget for ItemList {
         }
         let initial_current = this.selected();
 
-        // Check for pre-processed items from background thread (non-blocking)
-        let items_updated = if let Some(processed) = this.processed_items.lock().take() {
+        // Check for pre-processed items from background thread (non-blocking).
+        // Bind the result separately so the lock guard is dropped before a merge
+        // mutates the item list.
+        let processed = this.processed_items.lock().take();
+        let items_updated = if let Some(processed) = processed {
             debug!("Render: Got {} processed items", processed.items.len());
 
             // Check if items are empty or blank for no_clear_if_empty handling
@@ -512,6 +538,9 @@ impl SkimWidget for ItemList {
                     }
                     MergeStrategy::Append => {
                         this.items.extend(processed.items);
+                    }
+                    MergeStrategy::Prepend => {
+                        this.prepend(processed.items);
                     }
                 }
                 this.showing_stale_items = false;

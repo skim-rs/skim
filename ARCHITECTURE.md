@@ -611,7 +611,10 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 | --- | --- |
 | `Replace` | Fresh match pass (query changed, full re-sort) |
 | `SortedMerge` | New items arrived during a running match (merge-insert) |
-| `Append` | `--no-sort` mode |
+| `Append` | Incremental `--no-sort` mode |
+| `Prepend` | Incremental `--tac --no-sort` mode, preserving global reverse-input order |
+
+`Rank::index` always records the item's stable ordinal in the original input stream. `RankBuilder` makes both configured index criteria and the implicit final index tiebreak descending under `--tac`, so normal `SortedMerge` remains valid across independently reversed batches.
 
 ---
 
@@ -735,6 +738,7 @@ restart_matcher(force)
   ├─ kill existing matcher_control
   ├─ determine MergeStrategy
   │    ├─ Replace  → if query changed / force
+  │    ├─ Prepend  → incremental --tac --no-sort
   │    └─ SortedMerge / Append otherwise
   └─ matcher.run(query, pool, thread_pool, processed_items, strategy, no_sort, needs_render)
        → returns new MatcherControl
@@ -834,6 +838,7 @@ On each render, `ItemList::render()` checks `processed_items` and swaps them in 
 - `Replace`: replaces `items` entirely.
 - `SortedMerge`: performs an O(n+m) merge preserving order.
 - `Append`: extends `items`.
+- `Prepend`: places a reversed incremental `--tac` batch before existing items; the cursor follows the head unless the user moved away from it.
 
 **Selection state management:**
 
