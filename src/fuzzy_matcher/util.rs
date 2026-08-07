@@ -22,11 +22,30 @@ pub fn cheap_matches(choice: &[char], pattern: &[char], case_sensitive: bool) ->
     }
 }
 
-/// Given 2 character, check if they are equal (considering ascii case)
+/// Convert the Unicode fullwidth form of an ASCII character to ASCII.
+#[inline]
+fn narrow_ascii_width(ch: char) -> char {
+    match ch {
+        '\u{3000}' => ' ',
+        '\u{FF01}'..='\u{FF5E}' => char::from_u32(ch as u32 - 0xFEE0).unwrap_or(ch),
+        _ => ch,
+    }
+}
+
+/// Given two characters, check if they are equal after folding ASCII width and,
+/// when requested, case.
 /// e.g. ('a', 'A', true) => false
 /// e.g. ('a', 'A', false) => true
+/// e.g. ('ａ', 'a', true) => true
 #[inline]
 pub fn char_equal(a: char, b: char, case_sensitive: bool) -> bool {
+    if a == b {
+        return true;
+    }
+
+    let a = narrow_ascii_width(a);
+    let b = narrow_ascii_width(b);
+
     if a == b {
         return true;
     }
@@ -154,6 +173,16 @@ mod tests {
     fn char_equal_case_insensitive() {
         assert!(char_equal('a', 'A', false));
         assert!(!char_equal('a', 'b', false));
+    }
+
+    #[test]
+    fn char_equal_folds_fullwidth_ascii() {
+        assert!(char_equal('ａ', 'a', true));
+        assert!(char_equal('Ａ', 'A', true));
+        assert!(!char_equal('Ａ', 'a', true));
+        assert!(char_equal('Ａ', 'a', false));
+        assert!(char_equal('１', '1', true));
+        assert!(char_equal('　', ' ', true));
     }
 
     #[test]

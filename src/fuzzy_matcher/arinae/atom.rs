@@ -1,6 +1,7 @@
 //! Byte/Char helpers
 use super::Score;
 use super::constants::SEPARATOR_TABLE;
+use crate::fuzzy_matcher::util::char_equal;
 use memchr::{memchr, memrchr};
 
 pub(super) trait Atom: PartialEq + Into<char> + Copy {
@@ -112,9 +113,15 @@ impl Atom for u8 {
 }
 impl Atom for char {
     #[inline(always)]
-    fn eq_ignore_case(self, b: Self) -> bool {
-        self.to_lowercase().eq(b.to_lowercase())
+    fn eq(self, other: Self, respect_case: bool) -> bool {
+        char_equal(self, other, respect_case)
     }
+
+    #[inline(always)]
+    fn eq_ignore_case(self, b: Self) -> bool {
+        char_equal(self, b, false)
+    }
+
     #[inline(always)]
     fn is_lowercase(self) -> bool {
         self.is_lowercase()
@@ -179,6 +186,8 @@ mod tests {
     fn char_atom_eq_and_case() {
         assert!('a'.eq('A', false));
         assert!(!'a'.eq('A', true));
+        assert!('ａ'.eq('a', true));
+        assert!('Ａ'.eq('a', false));
         assert!('a'.is_lowercase());
         assert!(!'A'.is_lowercase());
         // Default (non-SIMD) find impls for char.

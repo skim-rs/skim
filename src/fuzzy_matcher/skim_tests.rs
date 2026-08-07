@@ -28,6 +28,15 @@ fn test_match_or_not() {
 }
 
 #[test]
+fn fullwidth_ascii_matches_ascii_query() {
+    let matcher = SkimMatcherV2::default();
+    let (_, indices) = matcher
+        .fuzzy_indices("ａｂｃ", "abc")
+        .expect("fullwidth ASCII should match");
+    assert_eq!(indices, vec![0, 1, 2]);
+}
+
+#[test]
 fn test_match_quality() {
     let matcher = SkimMatcherV2::default().ignore_case();
 
