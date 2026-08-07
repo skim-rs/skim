@@ -24,12 +24,14 @@ use tokio::sync::Notify;
 #[derive(Debug)]
 pub struct RankBuilder {
     criterion: Vec<RankCriteria>,
+    tac: bool,
 }
 
 impl Default for RankBuilder {
     fn default() -> Self {
         Self {
             criterion: vec![RankCriteria::Score, RankCriteria::Begin, RankCriteria::End],
+            tac: false,
         }
     }
 }
@@ -43,13 +45,41 @@ impl RankBuilder {
         }
 
         criterion.dedup();
-        Self { criterion }
+        Self { criterion, tac: false }
+    }
+
+    #[must_use]
+    pub(crate) fn tac(mut self, tac: bool) -> Self {
+        self.tac = tac;
+        self
     }
 
     /// Returns the tiebreak criteria slice.
     #[must_use]
     pub fn criteria(&self) -> &[RankCriteria] {
         &self.criterion
+    }
+
+    fn sort_key(&self, rank: &Rank) -> [i32; 6] {
+        let configured = rank.sort_key(&self.criterion);
+        let mut key = [0; 6];
+        key[..5].copy_from_slice(&configured);
+
+        if self.tac {
+            for (priority, criterion) in self.criterion.iter().take(5).enumerate() {
+                key[priority] = match criterion {
+                    RankCriteria::Index => rank.index.saturating_neg(),
+                    RankCriteria::NegIndex => rank.index,
+                    _ => key[priority],
+                };
+            }
+        }
+        key[5] = if self.tac {
+            rank.index.saturating_neg()
+        } else {
+            rank.index
+        };
+        key
     }
 
     /// Computes the byte offset of the first character after the last path separator
@@ -121,8 +151,9 @@ pub struct MatchedItem {
     /// Range of characters that matched the pattern
     pub matched_range: Option<MatchRange>,
     /// Sort key precomputed at construction time from `rank` and the tiebreak
-    /// criteria.  Caching avoids recomputing it on every comparison during sort.
-    sort_key: [i32; 5],
+    /// criteria. The sixth slot is the tac-aware implicit index tiebreak.
+    /// Caching avoids recomputing it on every comparison during sort.
+    sort_key: [i32; 6],
 }
 
 impl std::fmt::Debug for MatchedItem {
@@ -162,7 +193,7 @@ impl MatchedItem {
             item,
             rank,
             matched_range,
-            sort_key: rank.sort_key(rank_builder.criteria()),
+            sort_key: rank_builder.sort_key(&rank),
         }
     }
     /// Merge two sorted `Vec<MatchedItem>` lists into one, preserving sort order by rank.
@@ -359,9 +390,7 @@ impl PartialOrd for MatchedItem {
 
 impl Ord for MatchedItem {
     fn cmp(&self, other: &Self) -> CmpOrd {
-        self.sort_key
-            .cmp(&other.sort_key)
-            .then_with(|| self.rank.index.cmp(&other.rank.index))
+        self.sort_key.cmp(&other.sort_key)
     }
 }
 

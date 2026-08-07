@@ -274,6 +274,43 @@ fn render_applies_sorted_merge_strategy() {
 }
 
 #[test]
+fn render_prepends_tac_batch_and_follows_head() {
+    let mut il = ItemList::default();
+    let mut base = vec![matched("c", 2), matched("b", 1), matched("a", 0)];
+    il.append(&mut base);
+    set_processed(&il, vec![matched("e", 4), matched("d", 3)], MergeStrategy::Prepend);
+
+    render_list(&mut il, 20, 5);
+
+    let texts: Vec<_> = il.items.iter().map(|item| item.item.text().into_owned()).collect();
+    assert_eq!(texts, ["e", "d", "c", "b", "a"]);
+    assert_eq!(il.current, 0);
+    assert_eq!(
+        il.selected().as_ref().map(|item| item.item.text().into_owned()),
+        Some("e".into())
+    );
+}
+
+#[test]
+fn render_prepend_preserves_focus_away_from_head() {
+    let mut il = ItemList::default();
+    let mut base = vec![matched("c", 2), matched("b", 1), matched("a", 0)];
+    il.append(&mut base);
+    il.current = 1;
+    il.offset = 1;
+    set_processed(&il, vec![matched("e", 4), matched("d", 3)], MergeStrategy::Prepend);
+
+    render_list(&mut il, 20, 5);
+
+    assert_eq!(il.current, 3);
+    assert_eq!(il.offset, 3);
+    assert_eq!(
+        il.selected().as_ref().map(|item| item.item.text().into_owned()),
+        Some("b".into())
+    );
+}
+
+#[test]
 fn render_empty_list_does_not_panic() {
     let mut il = ItemList::default();
     il.height = 5;

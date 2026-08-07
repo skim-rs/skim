@@ -1409,6 +1409,8 @@ impl App {
 
             let merge_strategy = if force {
                 MergeStrategy::Replace
+            } else if no_sort && self.options.tac {
+                MergeStrategy::Prepend
             } else if no_sort {
                 MergeStrategy::Append
             } else {
@@ -1422,6 +1424,7 @@ impl App {
                 self.item_list.processed_items.clone(),
                 merge_strategy,
                 no_sort,
+                self.options.tac,
                 self.needs_render.clone(),
             );
             // A new search is in flight; arm the `result`/`zero`/`one` events to
