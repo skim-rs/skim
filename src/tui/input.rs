@@ -165,12 +165,9 @@ impl Input {
     }
     pub fn insert_str(&mut self, s: &str) {
         self.value.insert_str(self.cursor_pos as usize, s);
-        self.move_cursor(
-            s.chars()
-                .count()
-                .try_into()
-                .expect("Failed to fit inserted str len into an i32"),
-        );
+        // `cursor_pos` is a byte offset (see `move_cursor_to`), so advance by the
+        // inserted byte length, not the char count.
+        self.move_cursor(s.len().try_into().expect("Failed to fit inserted str len into an i32"));
     }
     fn nchars(&self) -> usize {
         self.value.chars().count()
