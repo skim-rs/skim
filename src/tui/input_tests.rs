@@ -236,3 +236,36 @@ fn input_render_writes_prompt_and_value() {
     }
     assert!(text.contains("hello"));
 }
+
+#[test]
+fn insert_str_leaves_cursor_at_end_for_multibyte() {
+    // `cursor_pos` is a byte offset, so advancing it by char count left the cursor
+    // inside the inserted text whenever a character was wider than one byte.
+    let mut input = Input::default();
+    input.insert_str("中文");
+    assert_eq!(input.cursor_pos as usize, "中文".len());
+}
+
+#[test]
+fn consecutive_insert_str_preserves_order_for_multibyte() {
+    // Bracketed paste and IMEs deliver whole strings, so a wrong cursor position
+    // made the next chunk land in the middle of the previous one.
+    let mut input = Input::default();
+    input.insert_str("中文");
+    input.insert_str("测试");
+    assert_eq!(input.value, "中文测试");
+}
+
+#[test]
+fn insert_str_matches_repeated_insert_for_multibyte() {
+    let mut by_str = Input::default();
+    by_str.insert_str("中文");
+
+    let mut by_char = Input::default();
+    for c in "中文".chars() {
+        by_char.insert(c);
+    }
+
+    assert_eq!(by_str.value, by_char.value);
+    assert_eq!(by_str.cursor_pos, by_char.cursor_pos);
+}
