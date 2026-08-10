@@ -293,7 +293,7 @@ pub(crate) fn detect_image_picker() -> eyre::Result<ratatui_image::picker::Picke
         let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
             return Err(eyre!("terminal image protocol detection timed out"));
         };
-        let micros = i64::try_from(remaining.as_micros()).unwrap_or(i64::MAX);
+        let micros = i32::try_from(remaining.as_micros()).unwrap_or(i32::MAX);
         let mut select_timeout =
             nix::sys::time::TimeVal::new(time_t::from(micros / 1_000_000), suseconds_t::from(micros % 1_000_000));
         let mut rfds = nix::sys::select::FdSet::new();
