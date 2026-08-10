@@ -262,6 +262,7 @@ pub(crate) fn detect_image_picker() -> eyre::Result<ratatui_image::picker::Picke
     use std::time::Instant;
 
     use eyre::eyre;
+    use nix::sys::time::{suseconds_t, time_t};
     use ratatui_image::FontSize;
     use ratatui_image::picker::cap_parser::{Parser, QueryStdioOptions, Response};
     use ratatui_image::picker::{Picker, ProtocolType};
@@ -292,9 +293,9 @@ pub(crate) fn detect_image_picker() -> eyre::Result<ratatui_image::picker::Picke
         let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
             return Err(eyre!("terminal image protocol detection timed out"));
         };
-
-        let micros = nix::sys::time::time_t::try_from(remaining.as_micros()).unwrap_or(i64::MAX);
-        let mut select_timeout = nix::sys::time::TimeVal::new(micros / 1_000_000, micros % 1_000_000);
+        let micros = i64::try_from(remaining.as_micros()).unwrap_or(i64::MAX);
+        let mut select_timeout =
+            nix::sys::time::TimeVal::new(time_t::from(micros / 1_000_000), suseconds_t::from(micros % 1_000_000));
         let mut rfds = nix::sys::select::FdSet::new();
         rfds.insert(tty.as_fd());
 
