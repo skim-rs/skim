@@ -251,6 +251,121 @@ impl Drop for RawMode {
     }
 }
 
+/// Detect the terminal's image protocol and cell size through its controlling TTY.
+///
+/// Unlike `Picker::from_query_stdio`, this does not read from standard input, which may be the
+/// item stream when skim is used in a pipeline. The caller must have put the terminal in raw mode.
+#[cfg(all(feature = "image", unix))]
+pub(crate) fn detect_image_picker() -> eyre::Result<ratatui_image::picker::Picker> {
+    use std::env;
+    use std::os::fd::AsRawFd as _;
+    use std::time::Instant;
+
+    use eyre::eyre;
+    use ratatui_image::FontSize;
+    use ratatui_image::picker::cap_parser::{Parser, QueryStdioOptions, Response};
+    use ratatui_image::picker::{Picker, ProtocolType};
+
+    let mut tty = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(nix::fcntl::OFlag::O_NONBLOCK.bits())
+        .open("/dev/tty")?;
+
+    let mut options = QueryStdioOptions::default();
+    let is_wezterm = env::var("WEZTERM_EXECUTABLE").is_ok_and(|value| !value.is_empty());
+    let is_konsole = env::var("KONSOLE_VERSION").is_ok_and(|value| !value.is_empty());
+    if is_wezterm || is_konsole {
+        options.blacklist_protocols = vec![ProtocolType::Kitty, ProtocolType::Sixel];
+    }
+
+    let timeout = options.timeout;
+    let is_tmux = env::var("TMUX").is_ok_and(|value| !value.is_empty());
+    tty.write_all(Parser::query(is_tmux, options).as_bytes())?;
+    tty.flush()?;
+
+    let deadline = Instant::now() + timeout;
+    let mut parser = Parser::new();
+    let mut responses = Vec::new();
+
+    'query: loop {
+        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+            return Err(eyre!("terminal image protocol detection timed out"));
+        };
+        let micros = i64::try_from(remaining.as_micros()).unwrap_or(i64::MAX);
+        let mut select_timeout = nix::sys::time::TimeVal::new(micros / 1_000_000, micros % 1_000_000);
+        let mut rfds = nix::sys::select::FdSet::new();
+        rfds.insert(tty.as_fd());
+
+        match nix::sys::select::select(
+            rfds.highest().unwrap().as_raw_fd() + 1,
+            Some(&mut rfds),
+            None,
+            None,
+            Some(&mut select_timeout),
+        ) {
+            Ok(0) => return Err(eyre!("terminal image protocol detection timed out")),
+            Ok(_) => {
+                let mut buf = [0; 128];
+                match tty.read(&mut buf) {
+                    Ok(0) => return Err(eyre!("controlling terminal closed during image protocol detection")),
+                    Ok(read) => {
+                        for byte in &buf[..read] {
+                            for response in parser.push(char::from(*byte)) {
+                                if response == Response::Status {
+                                    break 'query;
+                                }
+                                responses.push(response);
+                            }
+                        }
+                    }
+                    Err(err) if err.kind() == io::ErrorKind::WouldBlock => {}
+                    Err(err) => return Err(err.into()),
+                }
+            }
+            Err(nix::errno::Errno::EINTR) => {}
+            Err(err) => return Err(io::Error::from_raw_os_error(err as i32).into()),
+        }
+    }
+
+    let mut protocol = None;
+    let mut font_size = None;
+    for response in responses {
+        match response {
+            Response::Kitty => protocol = Some(ProtocolType::Kitty),
+            Response::Sixel if protocol.is_none() => protocol = Some(ProtocolType::Sixel),
+            Response::CellSize(Some((width, height))) => font_size = Some(FontSize::new(width, height)),
+            _ => {}
+        }
+    }
+
+    let font_size = font_size.or_else(|| {
+        let size = crossterm::terminal::window_size().ok()?;
+        if size.width == 0 || size.height == 0 || size.columns == 0 || size.rows == 0 {
+            return None;
+        }
+        Some(FontSize::new(size.width / size.columns, size.height / size.rows))
+    });
+    let Some(font_size) = font_size else {
+        return Ok(Picker::halfblocks());
+    };
+
+    // This deprecated constructor is currently the only public way to set the font size while also
+    // initializing ratatui-image's private tmux state.
+    #[allow(deprecated)]
+    let mut picker = Picker::from_fontsize(font_size);
+    if let Some(protocol) = protocol {
+        picker.set_protocol_type(protocol);
+    }
+    Ok(picker)
+}
+
+/// Detect the image protocol through standard I/O on Windows.
+#[cfg(all(feature = "image", windows))]
+pub(crate) fn detect_image_picker() -> eyre::Result<ratatui_image::picker::Picker> {
+    Ok(ratatui_image::picker::Picker::from_query_stdio()?)
+}
+
 /// Get cursor position, 1-based
 #[cfg(unix)]
 pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {

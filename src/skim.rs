@@ -14,6 +14,8 @@ use tokio::task::block_in_place;
 use crate::binds::SkimEvent;
 use crate::reader::{Reader, ReaderControl};
 use crate::tui::actions::Action;
+#[cfg(feature = "image")]
+use crate::tui::util::detect_image_picker;
 use crate::tui::{App, Event, Size, TICK_RATE, Tui};
 use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
 
@@ -400,7 +402,7 @@ where
             if !tui.is_fullscreen {
                 crossterm::execute!(std::io::stderr(), crossterm::terminal::EnterAlternateScreen)?;
             }
-            let picker = Picker::from_query_stdio().unwrap_or_else(|err| {
+            let picker = detect_image_picker().unwrap_or_else(|err| {
                 warn!("failed to query terminal image protocol: {err:?}");
                 Picker::halfblocks()
             });
