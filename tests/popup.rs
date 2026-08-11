@@ -139,9 +139,10 @@ fn tmux_quote() -> Result<()> {
     tmux.start_sk(None, &["--tmux", "--bind 'ctrl-a:reload(ls /foo*)'"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;
+    println!("tmux cmd: {cmd}");
     assert!(cmd.starts_with("display-popup"));
     assert!(cmd.contains("-E"));
-    assert!(cmd.contains("--bind ctrl-a':reload(ls /foo*)'"));
+    assert!(cmd.contains("--bind ctrl-a:reload'(ls /foo*)'"));
     assert!(cmd.contains("SKIM_ESCAPED_VAR=;\\;"));
 
     Ok(())
