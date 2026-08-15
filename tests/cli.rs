@@ -129,6 +129,19 @@ fn filter_mode_no_sort_preserves_input_order() {
 }
 
 #[test]
+fn with_nth_accepts_space_separated_negative_index() {
+    // `--with-nth -1` (space form) used to be parsed as a missing value, while
+    // `--nth -1` and `--with-nth=-1` both worked.
+    let (code, stdout, stderr) = run_sk_argv("a b c", &["-f", "c", "--with-nth", "-1"], &[]);
+    assert_eq!(code, Some(0), "stderr: {stderr}");
+    assert_eq!(stdout.trim_end(), "a b c");
+
+    // The space form and the `=` form must agree.
+    let (code_eq, stdout_eq, _) = run_sk_argv("a b c", &["-f", "c", "--with-nth=-1"], &[]);
+    assert_eq!((code, stdout), (code_eq, stdout_eq));
+}
+
+#[test]
 fn select_1_with_output_format() {
     // --output-format renders the selected item through the printf branch.
     let (code, stdout, _) = run_sk("1\\n2\\n3", "--select-1 -q 3 --output-format '{}'");
