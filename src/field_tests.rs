@@ -19,6 +19,24 @@ fn test_parse_range() {
     assert_eq!(FieldRange::from_str("a..b"), None);
 }
 
+#[test]
+fn test_parse_range_out_of_i32_range() {
+    // Indices past i32 saturate instead of silently falling back to field 1 / -1.
+    assert_eq!(FieldRange::from_str("2147483648"), Some(Single(i32::MAX)));
+    assert_eq!(FieldRange::from_str("-2147483649"), Some(Single(i32::MIN)));
+    assert_eq!(FieldRange::from_str("99999999999.."), Some(RightInf(i32::MAX)));
+    assert_eq!(FieldRange::from_str("..99999999999"), Some(LeftInf(i32::MAX)));
+    assert_eq!(FieldRange::from_str("2..99999999999"), Some(Both(2, i32::MAX)));
+
+    // ...and a saturated index still resolves to nothing on a short line.
+    assert_eq!(
+        FieldRange::from_str("2147483648").unwrap().to_index_pair(3),
+        Single(i32::MAX).to_index_pair(3)
+    );
+    assert_eq!(FieldRange::from_str("2147483648").unwrap().to_index_pair(3), None);
+    assert_eq!(FieldRange::from_str("-2147483649").unwrap().to_index_pair(3), None);
+}
+
 use regex::Regex;
 
 #[test]

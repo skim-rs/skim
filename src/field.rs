@@ -23,6 +23,14 @@ pub enum FieldRange {
     Both(i32, i32),
 }
 
+/// Parses one side of a field range. The regex only ever hands us `-?\d+`, so the
+/// single failure mode is overflowing `i32`; saturate instead of silently falling
+/// back to a different field.
+fn parse_index(s: &str) -> i32 {
+    s.parse()
+        .unwrap_or(if s.starts_with('-') { i32::MIN } else { i32::MAX })
+}
+
 impl FieldRange {
     /// Parses a field range from a string (e.g., "1", "1..", "..10", "1..10")
     #[allow(clippy::should_implement_trait)]
@@ -32,8 +40,8 @@ impl FieldRange {
         // "1", "1..", "..10", "1..10", etc.
         let opt_caps = FIELD_RANGE.captures(range);
         if let Some(caps) = opt_caps {
-            let opt_left = caps.name("left").map(|s| s.as_str().parse().unwrap_or(1));
-            let opt_right = caps.name("right").map(|s| s.as_str().parse().unwrap_or(-1));
+            let opt_left = caps.name("left").map(|s| parse_index(s.as_str()));
+            let opt_right = caps.name("right").map(|s| parse_index(s.as_str()));
             let opt_sep = caps.name("sep").map(|s| s.as_str().to_string());
 
             match (opt_left, opt_right) {
