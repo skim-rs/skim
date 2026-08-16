@@ -196,7 +196,13 @@ pub struct SkimOptions {
     /// See **nth** for the details
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_value = "", help_heading = "Search", value_delimiter = ',')
+        arg(
+            long,
+            default_value = "",
+            help_heading = "Search",
+            value_delimiter = ',',
+            allow_hyphen_values = true,
+        )
     )]
     pub with_nth: Vec<String>,
 

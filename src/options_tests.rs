@@ -2,6 +2,7 @@
 //! and history initialization, which apply defaults and cross-option rules.
 
 use super::*;
+use crate::field::FieldRange;
 use crate::item::RankCriteria;
 use crate::tui::statusline::InfoDisplay;
 
@@ -286,4 +287,39 @@ fn build_history_file_adds_history_keybindings() {
     );
 
     let _ = std::fs::remove_file(&qpath);
+}
+
+/// Helper: parse real CLI args with no env influence.
+fn parse_args(args: &[&str]) -> Result<SkimOptions, clap::Error> {
+    SkimOptions::merge_args_and_parse(
+        "sk".to_string(),
+        None,
+        None,
+        args.iter().map(|s| (*s).to_string()),
+        None,
+    )
+}
+
+#[test]
+fn negative_field_indices_parse_for_every_nth_flag() {
+    // All three flags document the same `nth` syntax, which includes `-1` for the
+    // last field; a space-separated negative value must not be read as a flag.
+    for flag in ["--nth", "--with-nth", "--hide-nth"] {
+        let opts = parse_args(&[flag, "-1"]).unwrap_or_else(|e| panic!("{flag} -1 failed to parse: {e}"));
+        let got = match flag {
+            "--nth" => &opts.nth,
+            "--with-nth" => &opts.with_nth,
+            _ => &opts.hide_nth,
+        };
+        assert_eq!(got, &vec!["-1".to_string()], "{flag}");
+        assert_eq!(
+            FieldRange::from_str(&got[0]),
+            Some(FieldRange::Single(-1)),
+            "{flag} should resolve to the last field"
+        );
+    }
+
+    // ...and a negative index inside a comma-separated list.
+    let opts = parse_args(&["--with-nth", "2,-1"]).expect("--with-nth 2,-1 should parse");
+    assert_eq!(opts.with_nth, vec!["2".to_string(), "-1".to_string()]);
 }
