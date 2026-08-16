@@ -142,6 +142,26 @@ fn with_nth_accepts_space_separated_negative_index() {
 }
 
 #[test]
+fn nth_index_past_i32_does_not_fall_back_to_field_1() {
+    // An index too large for i32 used to fail to parse and silently become field 1,
+    // so `--nth <huge>` matched the first field instead of matching nothing.
+    let (code_huge, out_huge, _) = run_sk_argv("a b c", &["-f", "a", "--nth", "2147483648"], &[]);
+    let (code_oob, out_oob, _) = run_sk_argv("a b c", &["-f", "a", "--nth", "5"], &[]);
+    assert_eq!((code_huge, out_huge.as_str()), (code_oob, out_oob.as_str()));
+    assert_eq!(code_huge, Some(1), "an out-of-range field must match nothing");
+    assert!(out_huge.is_empty());
+
+    // Same for the `{N}` field syntax in --output-format. Assert the exit status and
+    // stderr too, so an empty stdout can't pass by way of the placeholder erroring out.
+    for placeholder in ["{2147483648}", "{-2147483649}"] {
+        let (code, out, err) = run_sk_argv("a b c", &["-1", "-q", "a", "--output-format", placeholder], &[]);
+        assert_eq!(code, Some(0), "{placeholder}: stderr: {err}");
+        assert_eq!(err, "", "{placeholder} should not error");
+        assert_eq!(out.trim_end(), "", "{placeholder} should render an empty field");
+    }
+}
+
+#[test]
 fn select_1_with_output_format() {
     // --output-format renders the selected item through the printf branch.
     let (code, stdout, _) = run_sk("1\\n2\\n3", "--select-1 -q 3 --output-format '{}'");
