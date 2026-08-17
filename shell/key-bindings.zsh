@@ -267,12 +267,19 @@ _skim_dir_completion() {
     "" "/" ""
 }
 
-_skim_feed_fifo() (
-  command rm -f "$1"
-  mkfifo "$1"
-  cat <&0 > "$1" &
-)
-
+# Run skim over the candidates supplied by a `_skim_complete_*` helper.
+#
+# The helpers hand their candidates over on this function's standard input
+# (`_skim_complete ... -- "$@" < <(command)`), and the command substitution
+# below inherits fd 0, so skim reads them directly.
+#
+# Do not relay the items through a named pipe here. Opening a fifo for reading
+# blocks until a writer shows up, so any feeder that fails to open its end --
+# or a stale fifo left in the world-writable `$TMPDIR` by an interrupted
+# completion, which `mkfifo` then refuses to recreate -- wedges the widget with
+# nothing on screen and no way out. That rendezvous is the only step on this
+# path that can block indefinitely, and `kill` is the only completion that
+# reaches it without the `**` trigger.
 _skim_complete() {
   setopt localoptions ksh_arrays
   # Split arguments around --
@@ -296,20 +303,17 @@ _skim_complete() {
     rest=("$@")
   fi
 
-  local fifo lbuf cmd matches post
-  fifo="${TMPDIR:-/tmp}/skim-complete-fifo-$$"
+  local lbuf cmd matches post
   lbuf=${rest[0]}
   cmd=$(__skim_extract_command "$lbuf")
   post="${funcstack[1]}_post"
   type $post > /dev/null 2>&1 || post=cat
 
-  _skim_feed_fifo "$fifo"
-  matches=$(SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $str_arg" __skim_comprun "$cmd" "${args[@]}" -q "${(Q)prefix}" < "$fifo" | $post | tr '\n' ' ')
+  matches=$(SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $str_arg" __skim_comprun "$cmd" "${args[@]}" -q "${(Q)prefix}" | $post | tr '\n' ' ')
   if [ -n "$matches" ]; then
     LBUFFER="$lbuf$matches"
   fi
   zle reset-prompt
-  command rm -f "$fifo"
 }
 
 _skim_complete_telnet() {
