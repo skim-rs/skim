@@ -28,18 +28,14 @@ pub(super) fn compute_banding<const ALLOW_TYPOS: bool, C: Atom>(
 ) -> Option<BandingInfo> {
     let n = pat.len();
     let m = cho.len();
-    let row_bounds;
-    let j_first;
 
-    if ALLOW_TYPOS {
-        j_first = find_first_char(pat, cho, respect_case)?;
-        row_bounds = None;
+    let (j_first, row_bounds) = if ALLOW_TYPOS {
+        (find_first_char(pat, cho, respect_case)?, None)
     } else {
         let fm = compute_first_match_cols(pat, cho, respect_case)?;
         let lm = compute_last_match_cols(pat, cho, respect_case)?;
-        j_first = fm[0];
-        row_bounds = Some(compute_row_col_bounds(n, m, &fm, &lm));
-    }
+        (fm[0], Some(compute_row_col_bounds(n, m, &fm, &lm)))
+    };
 
     let bandwidth = if ALLOW_TYPOS { n + TYPO_BAND_SLACK } else { 0 };
     let min_true_matches = if ALLOW_TYPOS { n.div_ceil(2) } else { 0 };
