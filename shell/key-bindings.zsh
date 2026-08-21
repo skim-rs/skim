@@ -267,12 +267,6 @@ _skim_dir_completion() {
     "" "/" ""
 }
 
-_skim_feed_fifo() (
-  command rm -f "$1"
-  mkfifo "$1"
-  cat <&0 > "$1" &
-)
-
 _skim_complete() {
   setopt localoptions ksh_arrays
   # Split arguments around --
@@ -296,20 +290,17 @@ _skim_complete() {
     rest=("$@")
   fi
 
-  local fifo lbuf cmd matches post
-  fifo="${TMPDIR:-/tmp}/skim-complete-fifo-$$"
+  local lbuf cmd matches post
   lbuf=${rest[0]}
   cmd=$(__skim_extract_command "$lbuf")
   post="${funcstack[1]}_post"
   type $post > /dev/null 2>&1 || post=cat
 
-  _skim_feed_fifo "$fifo"
-  matches=$(SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $str_arg" __skim_comprun "$cmd" "${args[@]}" -q "${(Q)prefix}" < "$fifo" | $post | tr '\n' ' ')
+  matches=$(SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $str_arg" __skim_comprun "$cmd" "${args[@]}" -q "${(Q)prefix}" | $post | tr '\n' ' ')
   if [ -n "$matches" ]; then
     LBUFFER="$lbuf$matches"
   fi
   zle reset-prompt
-  command rm -f "$fifo"
 }
 
 _skim_complete_telnet() {

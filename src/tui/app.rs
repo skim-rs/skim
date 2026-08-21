@@ -1348,7 +1348,7 @@ impl App {
     pub fn results(&mut self) -> Vec<MatchedItem> {
         if self.options.filter.is_some() {
             // In filter mode, drain items to avoid cloning
-            self.item_list.items.drain(..).collect()
+            std::mem::take(&mut self.item_list.items)
         } else if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list.selection.clone().into_iter().collect()
         } else if let Some(sel) = self.item_list.selected() {
