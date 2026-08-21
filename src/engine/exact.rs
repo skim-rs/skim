@@ -79,23 +79,32 @@ impl MatchEngine for ExactEngine {
         let mut matched_result = None;
         let item_text = item.text();
         let default_range = [(0, item_text.len())];
-        for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-            let start = min(start, item_text.len());
-            let end = min(end, item_text.len());
-            if self.query_regex.is_none() {
-                matched_result = Some((0, 0));
-                break;
+        let ranges = item.get_matching_ranges().unwrap_or(&default_range);
+
+        if ranges.is_empty() {
+            // Nothing to match against (e.g. every `--nth` index is out of range): the item
+            // stays unmatched, inverse or not.
+        } else if self.query_regex.is_none() {
+            matched_result = Some((0, 0));
+        } else {
+            for &(start, end) in ranges {
+                let start = min(start, item_text.len());
+                let end = min(end, item_text.len());
+
+                matched_result =
+                    regex_match(&item_text[start..end], self.query_regex.as_ref()).map(|(s, e)| (s + start, e + start));
+
+                if matched_result.is_some() {
+                    break;
+                }
             }
 
-            matched_result =
-                regex_match(&item_text[start..end], self.query_regex.as_ref()).map(|(s, e)| (s + start, e + start));
-
+            // An inverse query has to be evaluated over *all* the matching ranges: the item
+            // only matches when none of them contains the query.  Inverting inside the loop
+            // would let the first non-matching field short-circuit the scan and wrongly
+            // accept an item whose later fields do contain the query.
             if self.inverse {
                 matched_result = matched_result.xor(Some((0, 0)));
-            }
-
-            if matched_result.is_some() {
-                break;
             }
         }
 

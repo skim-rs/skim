@@ -111,6 +111,28 @@ fn filter_mode_with_print0() {
 }
 
 #[test]
+fn filter_mode_inverse_query_checks_every_nth_field() {
+    // `--nth 1,2` gives each item two matching ranges. An inverse query must
+    // reject an item when ANY of them contains the term, not just the first one.
+    let (code, stdout, _) = run_sk_argv("foo bar\nqux bar\n", &["-f", "!foo", "--nth", "1,2"], &[]);
+    assert_eq!(code, Some(0));
+    assert!(
+        !stdout.contains("foo bar"),
+        "!foo must exclude 'foo bar' (got {stdout:?})"
+    );
+    assert!(stdout.contains("qux bar"), "!foo must keep 'qux bar' (got {stdout:?})");
+
+    // The term sitting in the second field must be caught too.
+    let (code, stdout, _) = run_sk_argv("bar foo\nbar qux\n", &["-f", "!foo", "--nth", "1,2"], &[]);
+    assert_eq!(code, Some(0));
+    assert!(
+        !stdout.contains("bar foo"),
+        "!foo must exclude 'bar foo' (got {stdout:?})"
+    );
+    assert!(stdout.contains("bar qux"), "!foo must keep 'bar qux' (got {stdout:?})");
+}
+
+#[test]
 fn filter_mode_no_sort_preserves_input_order() {
     // Workers grab 4096-item chunks from a shared queue, so with enough items
     // each worker processes several chunks and the concatenation order of
