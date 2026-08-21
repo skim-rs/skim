@@ -1,0 +1,13 @@
+name: Pull request update
+on:
+  push:
+    branches: [main]
+
+jobs:
+  autoupdate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: allonsy-studio/actions-pr-auto-update@5fbf9661cbf5c1f092ec33e5a1cfbe70dc5bd81c
