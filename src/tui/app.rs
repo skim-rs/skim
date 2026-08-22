@@ -1358,6 +1358,18 @@ impl App {
         }
     }
 
+    /// Whether the current query is shorter than `--min-query-length`, meaning no
+    /// results should be produced yet.
+    ///
+    /// Always false when `--min-query-length` is unset, or under `--disabled`, where
+    /// the input is not used as a query.
+    #[must_use]
+    pub fn query_below_min_length(&self) -> bool {
+        self.options
+            .min_query_length
+            .is_some_and(|min| !self.options.disabled && self.input.value.chars().count() < min)
+    }
+
     /// Restart the matcher to process items in the item pool.
     ///
     /// If `force` is true, the matcher will be restarted even if it's currently running.
@@ -1366,19 +1378,13 @@ impl App {
     pub fn restart_matcher(&mut self, force: bool) {
         use crate::tui::item_list::MergeStrategy;
         // Check if query meets minimum length requirement
-        if let Some(min_length) = self.options.min_query_length
-            && !self.options.disabled
-        {
-            let query_to_check = &self.input.value;
-
-            if query_to_check.chars().count() < min_length {
-                // Query is too short, clear items and don't run matcher
-                self.matcher_control.kill();
-                self.item_list.items.clear();
-                self.item_list.current = 0;
-                self.item_list.offset = 0;
-                return;
-            }
+        if self.query_below_min_length() {
+            // Query is too short, clear items and don't run matcher
+            self.matcher_control.kill();
+            self.item_list.items.clear();
+            self.item_list.current = 0;
+            self.item_list.offset = 0;
+            return;
         }
 
         let matcher_stopped = self.matcher_control.stopped();
