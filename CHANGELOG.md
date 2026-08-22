@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.6] - 2026-08-22
+
+### 🐛 Bug Fixes
+
+- *(matcher)* An inverse query only checks the first --nth field (#1159)
+- Do not feed items through a fifo in zsh completions (#1164)
+- *(filter)* --filter hangs when the query is below --min-query-length (#1158)
+- Path_name_offset returns bytes while Rank::begin is a char index (#1160)
+
+### 🤖 CI
+
+- Automatically update PRs on pushes to master
+- Fix auto update branch
+
+### ⚙️ Miscellaneous Tasks
+
+- Clippy & fmt after cargo update
+
 ## [5.6.5] - 2026-08-16
 
 ### 🐛 Bug Fixes
