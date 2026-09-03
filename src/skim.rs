@@ -445,6 +445,18 @@ where
         if app.options.filter.is_some() {
             trace!("filter mode: waiting for all items to be processed");
             loop {
+                // `--min-query-length` short-circuits `restart_matcher`, so the pool would
+                // never be drained and this loop would spin forever. There is nothing to
+                // match in that case: stop as soon as the reader is done.
+                if app.query_below_min_length() {
+                    if reader_control.is_done() {
+                        debug!("filter mode: query shorter than --min-query-length, no results");
+                        app.item_list.items.clear();
+                        return false;
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
                 let matcher_stopped = app.matcher_control.stopped();
                 let reader_done = reader_control.is_done();
                 if matcher_stopped && reader_done && app.item_pool.num_not_taken() == 0 {

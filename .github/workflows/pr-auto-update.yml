@@ -1,7 +1,7 @@
 name: Pull request update
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   autoupdate:

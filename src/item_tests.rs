@@ -38,6 +38,33 @@ fn build_rank_records_offsets_and_pathname() {
 }
 
 #[test]
+fn path_name_offset_counts_chars_not_bytes() {
+    // `path_name_offset` is subtracted from `Rank::begin`, which is a char index,
+    // so a multi-byte directory component must not inflate it.
+    let rb = RankBuilder::default();
+    // "ééé/" is 4 chars but 7 bytes; the filename starts at char index 4.
+    let rank = rb.build_rank(0, 4, 5, "ééé/a");
+    assert_eq!(rank.path_name_offset, 4);
+
+    // With the match sitting on the filename, PathName must score it as 0 (best).
+    // A byte-based offset would give 7 - 4 = 3 and rank it below a plain match.
+    assert_eq!(rank.sort_key(&[RankCriteria::PathName])[0], 0);
+}
+
+#[test]
+fn pathname_tiebreak_prefers_filename_match_with_non_ascii_dir() {
+    // "ééééé/a" matches in the filename (best), "a/xxxxx" matches in the dir part.
+    let rb = RankBuilder::new(vec![RankCriteria::PathName, RankCriteria::Index]);
+    let in_filename = MatchedItem::new(item("ééééé/a"), rb.build_rank(0, 6, 7, "ééééé/a"), None, &rb);
+    let in_dir = MatchedItem::new(item("a/xxxxx"), rb.build_rank(0, 0, 1, "a/xxxxx"), None, &rb);
+
+    assert!(
+        in_filename < in_dir,
+        "a filename match must outrank a directory match even when the directory is non-ASCII"
+    );
+}
+
+#[test]
 fn sort_key_flips_score_sign() {
     let rank = Rank {
         score: 10,

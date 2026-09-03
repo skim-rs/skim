@@ -184,6 +184,24 @@ fn nth_index_past_i32_does_not_fall_back_to_field_1() {
 }
 
 #[test]
+fn pathname_tiebreak_is_not_broken_by_a_non_ascii_directory() {
+    // `path_name_offset` used to be a byte offset while `Rank::begin` is a char
+    // index, so a multi-byte directory component inflated the PathName score and
+    // pushed the filename match below the directory match.
+    let (code, stdout, stderr) = run_sk_argv("ééééé/a\na/xxxxx\n", &["-f", "a", "--scheme", "path"], &[]);
+    assert_eq!(code, Some(0), "stderr: {stderr}");
+    assert_eq!(
+        stdout.lines().next(),
+        Some("ééééé/a"),
+        "the filename match must rank first, got: {stdout:?}"
+    );
+
+    // The all-ASCII shape of the same input already ranked correctly; both must agree.
+    let (_, ascii_stdout, _) = run_sk_argv("eeeee/a\na/xxxxx\n", &["-f", "a", "--scheme", "path"], &[]);
+    assert_eq!(ascii_stdout.lines().next(), Some("eeeee/a"));
+}
+
+#[test]
 fn select_1_with_output_format() {
     // --output-format renders the selected item through the printf branch.
     let (code, stdout, _) = run_sk("1\\n2\\n3", "--select-1 -q 3 --output-format '{}'");

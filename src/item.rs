@@ -82,11 +82,18 @@ impl RankBuilder {
         key
     }
 
-    /// Computes the byte offset of the first character after the last path separator
-    /// (`/` or `\`) in `text`.  Returns `0` when no separator is present.
+    /// Computes the **character** index of the first character after the last path
+    /// separator (`/` or `\`) in `text`.  Returns `0` when no separator is present.
+    ///
+    /// This must be a char index, not a byte offset: the `PathName` tiebreak
+    /// subtracts it from [`Rank::begin`], which is a char index, so counting bytes
+    /// here would mix units and mis-rank any path with a non-ASCII component.
     fn path_name_offset(text: &str) -> i32 {
-        text.rfind(['/', '\\'])
-            .map_or(0, |pos| i32::try_from(pos).unwrap_or(i32::MAX).saturating_add(1))
+        text.rfind(['/', '\\']).map_or(0, |pos| {
+            i32::try_from(text[..pos].chars().count())
+                .unwrap_or(i32::MAX)
+                .saturating_add(1)
+        })
     }
 
     /// Builds a `Rank` from raw match measurements.

@@ -67,6 +67,42 @@ fn should_enter_is_false_in_filter_mode() {
 }
 
 #[test]
+fn filter_mode_terminates_when_query_is_below_min_query_length() {
+    // `--min-query-length` makes `restart_matcher` a no-op, so the filter loop must
+    // not wait for the item pool to drain — it used to spin forever here. Run it on a
+    // worker thread so the regression surfaces as a failed assertion, not a hung test.
+    let (done_tx, done_rx) = crate::prelude::unbounded::<(bool, usize)>();
+    let worker = std::thread::spawn(move || {
+        let mut options = SkimOptions::default();
+        options.filter = Some("a".to_string());
+        options.min_query_length = Some(3);
+        let options = options.build();
+        let mut skim = started_skim_with(options, &["a", "b", "c"]);
+        let entered = skim.should_enter();
+        let _ = done_tx.send((entered, skim.app().item_list.items.len()));
+    });
+
+    let (entered, matched) = done_rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("filter mode did not terminate with a query below --min-query-length");
+    worker.join().unwrap();
+    assert!(!entered);
+    // The query is too short, so nothing is reported as matched.
+    assert_eq!(matched, 0);
+}
+
+#[test]
+fn filter_mode_matches_when_query_meets_min_query_length() {
+    let mut options = SkimOptions::default();
+    options.filter = Some("abc".to_string());
+    options.min_query_length = Some(3);
+    let options = options.build();
+    let mut skim = started_skim_with(options, &["abc", "xyz"]);
+    assert!(!skim.should_enter());
+    assert_eq!(skim.app().item_list.items.len(), 1);
+}
+
+#[test]
 fn should_enter_is_false_for_select_1_single_match() {
     let mut options = SkimOptions::default();
     options.select_1 = true;
