@@ -38,7 +38,7 @@ complete -c sk -l layout -d 'Set layout' -r -f -a "default\t'Display from the bo
 reverse\t'Display from the top of the screen'
 reverse-list\t'Display from the top of the screen, prompt at the bottom'"
 complete -c sk -l height -d 'Height of skim\'s window' -r
-complete -c sk -l min-height -d 'Minimum height of skim\'s window' -r
+complete -c sk -l min-height -d 'Minimum height of skim\'s window as a non-negative row count' -r
 complete -c sk -l margin -d 'Screen margin' -r
 complete -c sk -s p -l prompt -d 'Set prompt' -r
 complete -c sk -l cmd-prompt -d 'Set prompt in command mode' -r

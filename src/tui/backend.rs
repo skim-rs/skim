@@ -422,7 +422,7 @@ where
 }
 
 fn rect_with_min_height(mut rect: Rect, min_height: u16, terminal_height: u16) -> (Rect, u16) {
-    rect.height = rect.height.max(min_height.min(terminal_height));
+    rect.height = rect.height.max(min_height).min(terminal_height);
     let lowest_origin = terminal_height.saturating_sub(rect.height);
     let to_scroll = rect.y.saturating_sub(lowest_origin);
     rect.y = rect.y.saturating_sub(to_scroll);
@@ -522,6 +522,14 @@ mod tests {
             .expect("failed to build test TUI")
     }
 
+    fn inline_tui(rect: Rect) -> Tui<TestBackend> {
+        let mut tui = fullscreen_tui();
+        tui.is_fullscreen = false;
+        tui.rect = Some(rect);
+        tui.resize(rect).expect("failed to set initial viewport");
+        tui
+    }
+
     #[test]
     fn new_with_full_height_is_fullscreen() {
         let tui = fullscreen_tui();
@@ -555,6 +563,16 @@ mod tests {
     }
 
     #[test]
+    fn min_height_resizes_and_scrolls_inline_terminal() {
+        let mut tui = inline_tui(Rect::new(0, 20, 79, 4));
+
+        tui.min_height(10).expect("failed to apply minimum height");
+
+        assert_eq!(tui.get_frame().area(), Rect::new(0, 14, 79, 10));
+        assert_eq!(tui.rect, Some(Rect::new(0, 14, 79, 10)));
+    }
+
+    #[test]
     fn min_height_keeps_origin_when_rows_are_available() {
         let rect = Rect::new(0, 5, 79, 4);
         let (rect, to_scroll) = rect_with_min_height(rect, 10, 24);
@@ -579,5 +597,14 @@ mod tests {
 
         assert_eq!(rect, Rect::new(0, 0, 79, 24));
         assert_eq!(to_scroll, 20);
+    }
+
+    #[test]
+    fn existing_height_is_limited_to_terminal_height() {
+        let rect = Rect::new(0, 0, 79, 30);
+        let (rect, to_scroll) = rect_with_min_height(rect, 10, 24);
+
+        assert_eq!(rect, Rect::new(0, 0, 79, 24));
+        assert_eq!(to_scroll, 0);
     }
 }

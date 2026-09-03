@@ -1318,14 +1318,14 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `Skim::run_with` | `src/skim.rs:72` | Top-level library entry point |
 | `Skim::run_items` | `src/skim.rs:114` | Convenience wrapper for iterator inputs |
 | `Skim::init_tui` | `src/skim.rs:138` | Initialize default crossterm TUI backend |
-| `Skim::init` | `src/skim.rs:158` | Constructs all subsystems from options |
-| `Skim::start` | `src/skim.rs:202` | Starts reader + initial matcher pass |
-| `Skim::handle_reload` | `src/skim.rs:234` | Kills reader, clears pool, restarts |
-| `Skim::init_tui_with` | `src/skim.rs:306` | Install a caller-provided TUI backend |
-| `Skim::enter` | `src/skim.rs:393` | Enter terminal, resolve image picker, start listener/event pump |
-| `Skim::should_enter` | `src/skim.rs:437` | Filter/select-1/exit-0/sync gate |
-| `Skim::output` | `src/skim.rs:542` | Collect & return SkimOutput |
-| `Skim::tick` | `src/skim.rs:623` | Single async event loop iteration |
+| `Skim::init` | `src/skim.rs:159` | Constructs all subsystems from options |
+| `Skim::start` | `src/skim.rs:203` | Starts reader + initial matcher pass |
+| `Skim::handle_reload` | `src/skim.rs:235` | Kills reader, clears pool, restarts |
+| `Skim::init_tui_with` | `src/skim.rs:307` | Install a caller-provided TUI backend |
+| `Skim::enter` | `src/skim.rs:394` | Enter terminal, resolve image picker, start listener/event pump |
+| `Skim::should_enter` | `src/skim.rs:438` | Filter/select-1/exit-0/sync gate |
+| `Skim::output` | `src/skim.rs:555` | Collect & return SkimOutput |
+| `Skim::tick` | `src/skim.rs:636` | Single async event loop iteration |
 | `App::from_options` | `src/tui/app.rs:289` | Build all widgets from options |
 | `App::run_preview` | `src/tui/app.rs:503` | Expand cmd, debounce, call Preview::spawn |
 | `App::handle_event` | `src/tui/app.rs:628` | Dispatch all Event variants |
