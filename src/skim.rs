@@ -140,6 +140,7 @@ impl Skim {
         if self.app.options.no_mouse {
             tui.disable_mouse();
         }
+        tui.min_height(self.app.options.min_height)?;
         self.tui = Some(tui);
         Ok(())
     }

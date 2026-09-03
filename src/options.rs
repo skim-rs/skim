@@ -510,7 +510,7 @@ pub struct SkimOptions {
         feature = "cli",
         arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment)
     )]
-    pub min_height: String,
+    pub min_height: u16,
 
     /// Screen margin
     ///
@@ -1182,7 +1182,7 @@ impl Default for SkimOptions {
             reverse: Default::default(),
             height: String::from("100%"),
             no_height: Default::default(),
-            min_height: String::from("10"),
+            min_height: 10,
             margin: Default::default(),
             prompt: String::from("> "),
             cmd_prompt: String::from("c> "),

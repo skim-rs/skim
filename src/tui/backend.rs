@@ -42,6 +42,8 @@ where
     pub cancellation_token: CancellationToken,
     /// Whether running in fullscreen mode
     pub is_fullscreen: bool,
+    /// The terminal's rect (drawing) area, set if the layout is inline
+    rect: Option<Rect>,
     enable_mouse: bool,
 }
 
@@ -87,6 +89,7 @@ where
             Size::Neg(lines) => Some(term_height.saturating_sub(lines)),
         };
 
+        let rect: Option<Rect>;
         let viewport = if let Some(mut height) = lines {
             // Until https://github.com/crossterm-rs/crossterm/issues/919 is fixed, we need to do it ourselves
             let cursor_pos = cursor_pos_from_tty()?;
@@ -97,13 +100,15 @@ where
                 crossterm::execute!(stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
                 y = y.saturating_sub(to_scroll);
             }
-            Viewport::Fixed(Rect::new(
+            rect = Some(Rect::new(
                 0,
                 y,
                 backend.size().expect("Failed to get terminal width").width - 1,
                 height,
-            ))
+            ));
+            Viewport::Fixed(rect.unwrap())
         } else {
+            rect = None;
             Viewport::Fullscreen
         };
 
@@ -111,6 +116,7 @@ where
         Ok(Self {
             terminal: ratatui::Terminal::with_options(backend, TerminalOptions { viewport })?,
             task: None,
+            rect,
             event_rx: event_channel.1,
             event_tx: event_channel.0,
             tick_rate: f64::from(TICK_RATE),
@@ -381,6 +387,46 @@ where
         self.start();
         restore_result
     }
+
+    /// Set the minimum height of an inline viewport.
+    ///
+    /// Scrolls the terminal when there are not enough rows below the viewport's
+    /// current origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal size cannot be read, the terminal cannot
+    /// be scrolled, or the viewport cannot be resized.
+    pub fn min_height(&mut self, min_height: u16) -> Result<()> {
+        if self.is_fullscreen {
+            return Ok(());
+        }
+
+        let Some(current_rect) = self.rect else {
+            return Ok(());
+        };
+        let terminal_height = self.backend().size()?.height;
+        let (rect, to_scroll) = rect_with_min_height(current_rect, min_height, terminal_height);
+        if rect == current_rect {
+            return Ok(());
+        }
+
+        if to_scroll > 0 {
+            crossterm::execute!(stderr(), crossterm::terminal::ScrollUp(to_scroll))?;
+        }
+        debug!("min_height: resizing TUI to {rect:?}");
+        self.resize(rect)?;
+        self.rect = Some(rect);
+        Ok(())
+    }
+}
+
+fn rect_with_min_height(mut rect: Rect, min_height: u16, terminal_height: u16) -> (Rect, u16) {
+    rect.height = rect.height.max(min_height.min(terminal_height));
+    let lowest_origin = terminal_height.saturating_sub(rect.height);
+    let to_scroll = rect.y.saturating_sub(lowest_origin);
+    rect.y = rect.y.saturating_sub(to_scroll);
+    (rect, to_scroll)
 }
 
 impl<B: Backend> Deref for Tui<B>
@@ -506,5 +552,32 @@ mod tests {
         let area = tui.get_frame().area();
         assert_eq!(area.width, 80);
         assert_eq!(area.height, 24);
+    }
+
+    #[test]
+    fn min_height_keeps_origin_when_rows_are_available() {
+        let rect = Rect::new(0, 5, 79, 4);
+        let (rect, to_scroll) = rect_with_min_height(rect, 10, 24);
+
+        assert_eq!(rect, Rect::new(0, 5, 79, 10));
+        assert_eq!(to_scroll, 0);
+    }
+
+    #[test]
+    fn min_height_scrolls_to_make_room() {
+        let rect = Rect::new(0, 20, 79, 4);
+        let (rect, to_scroll) = rect_with_min_height(rect, 10, 24);
+
+        assert_eq!(rect, Rect::new(0, 14, 79, 10));
+        assert_eq!(to_scroll, 6);
+    }
+
+    #[test]
+    fn min_height_is_limited_to_terminal_height() {
+        let rect = Rect::new(0, 20, 79, 4);
+        let (rect, to_scroll) = rect_with_min_height(rect, 30, 24);
+
+        assert_eq!(rect, Rect::new(0, 0, 79, 24));
+        assert_eq!(to_scroll, 20);
     }
 }
