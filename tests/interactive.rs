@@ -8,8 +8,9 @@
 mod common;
 use std::io::Cursor;
 
-use common::zellij::Keys::*;
 use skim::prelude::*;
+
+use common::zellij::Keys::*;
 
 sk_test!(sk_version_long, "", &["--version"], {
   @output[0] starts_with("sk ");
