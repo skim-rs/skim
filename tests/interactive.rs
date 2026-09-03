@@ -44,7 +44,7 @@ sk_test!(issue_1120_height_mode_clears_on_exit, @cmd "seq 1 10", &["--height=50%
 });
 
 sk_test!(min_height_grows_inline_viewport, @cmd "for i in {1..20}; do echo min-height-item-$i; done", &["--height=20%", "--min-height=10"], {
-    @lines |l| (l.iter().filter(|line| line.contains("min-height-item-")).count() >= 7);
+    @lines |l| (l.iter().map(|line| line.matches("min-height-item-").count()).sum::<usize>() >= 7);
     @keys Escape;
 });
 
@@ -79,8 +79,8 @@ fn library_builder_min_height_resizes_and_scrolls() -> Result<(), Box<dyn std::e
     zellij.until(|lines| {
         lines
             .iter()
-            .filter(|line| line.contains("builder-min-height-item-"))
-            .count()
+            .map(|line| line.matches("builder-min-height-item-").count())
+            .sum::<usize>()
             >= 7
     })?;
     zellij.send_keys(&[Escape])?;
@@ -101,8 +101,8 @@ fn min_height_scrolls_when_cursor_is_near_terminal_bottom() -> std::io::Result<(
     zellij.until(|lines| {
         lines
             .iter()
-            .filter(|line| line.contains("min-height-scroll-item-"))
-            .count()
+            .map(|line| line.matches("min-height-scroll-item-").count())
+            .sum::<usize>()
             >= 7
     })?;
     zellij.send_keys(&[Escape])?;
