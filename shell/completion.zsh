@@ -49,7 +49,7 @@ history\:"History scheme\: will force index as the first tiebreak"))' \
 reverse\:"Display from the top of the screen"
 reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--height=[Height of skim'\''s window]:HEIGHT:_default' \
-'--min-height=[Minimum height of skim'\''s window]:MIN_HEIGHT:_default' \
+'--min-height=[Minimum height of skim'\''s window as a non-negative row count]:MIN_HEIGHT:_default' \
 '--margin=[Screen margin]:MARGIN:_default' \
 '-p+[Set prompt]:PROMPT:_default' \
 '--prompt=[Set prompt]:PROMPT:_default' \

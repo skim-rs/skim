@@ -23,6 +23,50 @@ fn merge(
 }
 
 #[test]
+fn min_height_accepts_a_non_negative_row_count() {
+    assert_eq!(super::parse_min_height("60"), Ok(60));
+    assert_eq!(
+        SkimOptionsBuilder::default()
+            .min_height("60")
+            .build()
+            .unwrap()
+            .min_height,
+        "60"
+    );
+}
+
+#[test]
+fn min_height_rejects_non_integers() {
+    for value in ["-1", "30%", "many"] {
+        assert_eq!(
+            super::parse_min_height(value),
+            Err("min-height needs to be a non-negative integer".to_string())
+        );
+    }
+}
+
+#[cfg(feature = "cli")]
+#[test]
+fn cli_min_height_uses_custom_error() {
+    for value in ["-1", "30%"] {
+        let error = SkimOptions::merge_args_and_parse(
+            "sk".to_string(),
+            None,
+            None,
+            ["--min-height".to_string(), value.to_string()],
+            None,
+        )
+        .expect_err("invalid min-height must fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("min-height needs to be a non-negative integer")
+        );
+    }
+}
+
+#[test]
 fn merge_uses_skim_default_command_when_no_cmd_flag() {
     // SKIM_DEFAULT_COMMAND fills `cmd` when neither --cmd nor a pipe is given.
     let opts = merge(None, None, Some("echo hello"));

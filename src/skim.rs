@@ -140,6 +140,8 @@ impl Skim {
         if self.app.options.no_mouse {
             tui.disable_mouse();
         }
+        let min_height = crate::options::parse_min_height(&self.app.options.min_height).map_err(eyre::Report::msg)?;
+        tui.min_height(min_height)?;
         self.tui = Some(tui);
         Ok(())
     }

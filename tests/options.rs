@@ -848,7 +848,7 @@ fn opt_multiple_flags_parse() {
         "-I {} -I XX",
         "--color base --color light",
         "--margin 30% --margin 0",
-        "--min-height 30% --min-height 10",
+        "--min-height 30 --min-height 10",
         "--preview 'ls {}' --preview 'cat {}'",
         "--preview-window up --preview-window down",
         "--multi -m",

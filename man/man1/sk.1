@@ -346,10 +346,11 @@ Can either be a row count or a percentage A negative row count will use term hei
 Disable height (force full screen)
 .TP
 \fB\-\-min\-height\fR \fI<MIN_HEIGHT>\fR [default: 10]
-Minimum height of skim\*(Aqs window
+Minimum height of skim\*(Aqs window as a non\-negative row count
 
-Useful when the height is set as a percentage
-Ignored when \-\-height is not specified
+Must be a non\-negative row count, not a percentage.
+Useful when the height is set as a percentage.
+Ignored when \-\-height is not specified.
 .TP
 \fB\-\-margin\fR \fI<MARGIN>\fR [default: 0]
 Screen margin

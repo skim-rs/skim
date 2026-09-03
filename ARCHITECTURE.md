@@ -627,7 +627,8 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 - A `tokio::sync::mpsc` channel (`event_tx` / `event_rx`) of capacity 1 M for events.
 - A `JoinHandle` for a background Tokio task that reads `crossterm::event::EventStream` and sends `Event` values.
 - A `CancellationToken` to stop the background task.
-- A `is_fullscreen` flag that determines the `ratatui::Viewport`.
+- An `is_fullscreen` flag that determines the `ratatui::Viewport`.
+- The fixed viewport `Rect` for inline mode, which can move when the terminal scrolls.
 
 **Viewport selection** (`Tui::new_with_height_and_backend()`):
 
@@ -636,7 +637,7 @@ Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before 
 - `Size::Percent(p)` → fixed viewport with `terminal_height * p / 100` rows.
 - `Size::Neg(lines)` → fixed viewport with `terminal_height - lines` rows, saturating at zero.
 
-Any fixed viewport is anchored at the current cursor position; the terminal is scrolled if needed to make room.
+Any fixed viewport is anchored at the current cursor position; the terminal is scrolled if needed to make room. After construction, `Tui::min_height()` can increase an inline viewport to `--min-height`. It limits the height to the terminal height and scrolls the terminal before it moves and resizes the viewport when there are too few rows below it.
 
 The default backend is `CrosstermBackend<BufWriter<Stderr>>`. Skim always draws to **stderr** so stdout remains clean for piped output.
 
@@ -1314,24 +1315,24 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 
 | Call site | File | What it does |
 | --- | --- | --- |
-| `Skim::run_with` | `src/skim.rs:70` | Top-level library entry point |
-| `Skim::run_items` | `src/skim.rs:112` | Convenience wrapper for iterator inputs |
-| `Skim::init_tui` | `src/skim.rs:136` | Initialize default crossterm TUI backend |
-| `Skim::init` | `src/skim.rs:155` | Constructs all subsystems from options |
-| `Skim::start` | `src/skim.rs:199` | Starts reader + initial matcher pass |
-| `Skim::handle_reload` | `src/skim.rs:231` | Kills reader, clears pool, restarts |
-| `Skim::init_tui_with` | `src/skim.rs:303` | Install a caller-provided TUI backend |
-| `Skim::enter` | `src/skim.rs:390` | Enter terminal, resolve image picker, start listener/event pump |
-| `Skim::should_enter` | `src/skim.rs:434` | Filter/select-1/exit-0/sync gate |
-| `Skim::output` | `src/skim.rs:539` | Collect & return SkimOutput |
-| `Skim::tick` | `src/skim.rs:620` | Single async event loop iteration |
+| `Skim::run_with` | `src/skim.rs:72` | Top-level library entry point |
+| `Skim::run_items` | `src/skim.rs:114` | Convenience wrapper for iterator inputs |
+| `Skim::init_tui` | `src/skim.rs:138` | Initialize default crossterm TUI backend |
+| `Skim::init` | `src/skim.rs:159` | Constructs all subsystems from options |
+| `Skim::start` | `src/skim.rs:203` | Starts reader + initial matcher pass |
+| `Skim::handle_reload` | `src/skim.rs:235` | Kills reader, clears pool, restarts |
+| `Skim::init_tui_with` | `src/skim.rs:307` | Install a caller-provided TUI backend |
+| `Skim::enter` | `src/skim.rs:394` | Enter terminal, resolve image picker, start listener/event pump |
+| `Skim::should_enter` | `src/skim.rs:438` | Filter/select-1/exit-0/sync gate |
+| `Skim::output` | `src/skim.rs:555` | Collect & return SkimOutput |
+| `Skim::tick` | `src/skim.rs:636` | Single async event loop iteration |
 | `App::from_options` | `src/tui/app.rs:289` | Build all widgets from options |
 | `App::run_preview` | `src/tui/app.rs:503` | Expand cmd, debounce, call Preview::spawn |
 | `App::handle_event` | `src/tui/app.rs:628` | Dispatch all Event variants |
 | `App::handle_action` | `src/tui/app.rs:833` | Apply action follow-up bindings |
 | `App::dispatch_conditional` | `src/tui/app.rs:852` | Dispatch the selected conditional subaction chain without follow-up bindings |
 | `App::dispatch_action` | `src/tui/app.rs:875` | Dispatch one Action variant without follow-up bindings |
-| `Tui::run_execute` | `src/tui/backend.rs:353` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
+| `Tui::run_execute` | `src/tui/backend.rs:363` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
 | `App::restart_matcher` | `src/tui/app.rs:1352` | Kill old match pass, start new one |
 | `App::expand_cmd` | `src/tui/app.rs:1428` | Substitute `{}`, `{q}`, `{n}` etc. |
 | `App::handle_mouse` | `src/tui/app.rs:1496` | Handle mouse behavior and emit `double-click` |
@@ -1345,11 +1346,12 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `spawn_io_reader` | `src/helper/item_reader.rs:378` | I/O reader thread: chunk reads + line splitting |
 | `spawn_reorder_thread` | `src/helper/item_reader.rs:483` | Reorder thread: ordered output + pipeline-done signal |
 | `Preview::spawn` | `src/tui/preview.rs:319` | Start image, PTY, or plain preview worker |
-| `Tui::new_with_height_and_backend` | `src/tui/backend.rs:78` | Terminal init + viewport sizing |
-| `Tui::enter` | `src/tui/backend.rs:127` | Enable raw mode + terminal setup |
-| `Tui::start` | `src/tui/backend.rs:238` | Spawn crossterm EventStream task (fresh cancellation token each call) |
-| `Tui::stop_and_join` | `src/tui/backend.rs:224` | Cancel event pump and block until `EventStream` is dropped (before `execute`) |
-| `Tui::force_full_redraw` | `src/tui/backend.rs:205` | Reset ratatui diff buffers for a full repaint with no cursor query (after `execute`) |
+| `Tui::new_with_height_and_backend` | `src/tui/backend.rs:81` | Terminal init + viewport sizing |
+| `Tui::enter` | `src/tui/backend.rs:134` | Enable raw mode + terminal setup |
+| `Tui::start` | `src/tui/backend.rs:235` | Spawn crossterm EventStream task (fresh cancellation token each call) |
+| `Tui::stop_and_join` | `src/tui/backend.rs:221` | Cancel event pump and block until `EventStream` is dropped (before `execute`) |
+| `Tui::force_full_redraw` | `src/tui/backend.rs:202` | Reset ratatui diff buffers for a full repaint with no cursor query (after `execute`) |
+| `Tui::min_height` | `src/tui/backend.rs:400` | Grow an inline viewport and scroll the terminal when needed |
 | `popup::run_with` | `src/popup/mod.rs:86` | Delegate to multiplexer popup + parse output |
 | `popup::check_env` | `src/popup/mod.rs:72` | Guard: multiplexer present and not already in popup |
 | `check_and_run_popup` | `src/bin/main.rs:131` | Check popup conditions, dispatch to popup::run_with |

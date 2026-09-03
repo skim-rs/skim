@@ -23,6 +23,17 @@ use crate::tui::{BorderType, PreviewCallback};
 use crate::util::read_file_lines;
 use crate::{CaseMatching, FuzzyAlgorithm, Selector, Typos};
 
+const MIN_HEIGHT_PARSE_ERROR: &str = "min-height needs to be a non-negative integer";
+
+pub(crate) fn parse_min_height(s: &str) -> Result<u16, String> {
+    s.parse().map_err(|_| MIN_HEIGHT_PARSE_ERROR.to_string())
+}
+
+#[cfg(feature = "cli")]
+fn parse_min_height_value(s: &str) -> Result<String, String> {
+    parse_min_height(s).map(|_| s.to_string())
+}
+
 #[cfg(feature = "cli")]
 /// Custom value parser for delimiter that handles escape sequences
 fn parse_delimiter_value(s: &str) -> Result<Regex, String> {
@@ -502,13 +513,21 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Layout"))]
     pub no_height: bool,
 
-    /// Minimum height of skim's window
+    /// Minimum height of skim's window as a non-negative row count
     ///
-    /// Useful when the height is set as a percentage
-    /// Ignored when --height is not specified
+    /// Must be a non-negative row count, not a percentage.
+    /// Useful when the height is set as a percentage.
+    /// Ignored when --height is not specified.
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_value = "10", help_heading = "Layout", verbatim_doc_comment)
+        arg(
+            long,
+            default_value = "10",
+            help_heading = "Layout",
+            allow_hyphen_values = true,
+            value_parser = parse_min_height_value,
+            verbatim_doc_comment
+        )
     )]
     pub min_height: String,
 

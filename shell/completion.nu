@@ -79,7 +79,7 @@ module completions {
     --reverse                 # Shorthand for reverse layout
     --height: string          # Height of skim's window
     --no-height               # Disable height (force full screen)
-    --min-height: string      # Minimum height of skim's window
+    --min-height: string      # Minimum height of skim's window as a non-negative row count
     --margin: string          # Screen margin
     --prompt(-p): string      # Set prompt
     --cmd-prompt: string      # Set prompt in command mode
