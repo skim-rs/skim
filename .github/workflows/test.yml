@@ -199,7 +199,7 @@ jobs:
       - *checkout
       - *toolchain
       - name: MSRV Verify
-        run: cargo +1.91.0 build --all-targets
+        run: cargo +1.91.0 build --release --locked --all-targets
 
   fuzz:
     permissions:
@@ -277,7 +277,7 @@ jobs:
         name: Fetch release tags
       - run: |
           latest_tag="$(git tag --list 'v*' --sort=-version:refname | head -n1)"
-          cargo public-api diff "${latest_tag}..HEAD" --deny removed --deny changed --omit blanket-impls,auto-trait-impls,auto-derived-impls
+          cargo public-api diff "${latest_tag}..HEAD" --deny removed --deny changed
         name: Run cargo-public-api
 
 
