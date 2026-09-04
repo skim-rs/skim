@@ -93,7 +93,7 @@ jobs:
         run: cargo test --doc
       - name: "Run tests"
         # Do not use `--all-targets` to avoid running benches
-        run: cargo nextest run --release --profile ci --bins --lib --examples --tests
+        run: cargo nextest run --release --locked --profile ci --bins --lib --examples --tests
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
@@ -130,7 +130,7 @@ jobs:
       - name: "Run tests with coverage"
         # Do not use `--all-targets` to avoid running benches
         run: |
-          cargo +nightly llvm-cov nextest --release --profile ci --branch --bins --lib --examples --tests --no-report
+          cargo +nightly llvm-cov nextest --locked --release --profile ci --branch --bins --lib --examples --tests --no-report
           cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
           cargo +nightly llvm-cov report --release --html
           echo "COVERAGE_PERCENT=$(cargo +nightly llvm-cov report --release | tail -n1 | awk '{ print $13 }')" | tee --append $GITHUB_ENV
@@ -186,11 +186,11 @@ jobs:
       - *cache
       - name: Run clippy with specific features
         run: |
-          cargo clippy --no-default-features -- -Dwarnings
-          cargo clippy --no-default-features --features cli -- -Dwarnings
-          cargo clippy --no-default-features --features image -- -Dwarnings
-          cargo clippy --no-default-features --features listen -- -Dwarnings
-          cargo clippy --no-default-features --features frizbee -- -Dwarnings
+          cargo clippy --locked --no-default-features -- -Dwarnings
+          cargo clippy --locked --no-default-features --features cli -- -Dwarnings
+          cargo clippy --locked --no-default-features --features image -- -Dwarnings
+          cargo clippy --locked --no-default-features --features listen -- -Dwarnings
+          cargo clippy --locked --no-default-features --features frizbee -- -Dwarnings
 
 
   msrv:
@@ -198,11 +198,8 @@ jobs:
     steps:
       - *checkout
       - *toolchain
-      - uses: taiki-e/install-action@v2.87.1
-        with:
-          tool: cargo-msrv@0.19
       - name: MSRV Verify
-        run: cargo msrv verify
+        run: cargo +1.91.0 build --release --locked --all-targets
 
   fuzz:
     permissions:

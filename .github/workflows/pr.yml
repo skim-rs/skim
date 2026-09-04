@@ -88,11 +88,11 @@ jobs:
           cache-all-crates: "true"
       - name: Generate files
         run: |
-          cargo run -- --man > ./man/man1/sk.1
-          cargo run -- --shell bash > ./shell/completion.bash
-          cargo run -- --shell zsh > ./shell/completion.zsh
-          cargo run -- --shell fish > ./shell/completion.fish
-          cargo run -- --shell nushell > ./shell/completion.nu
+          cargo run --locked -- --man > ./man/man1/sk.1
+          cargo run --locked -- --shell bash > ./shell/completion.bash
+          cargo run --locked -- --shell zsh > ./shell/completion.zsh
+          cargo run --locked -- --shell fish > ./shell/completion.fish
+          cargo run --locked -- --shell nushell > ./shell/completion.nu
       - name: Check diff
         run: |
           if git diff --exit-code; then
