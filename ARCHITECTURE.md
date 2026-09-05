@@ -428,7 +428,8 @@ Source (stdin bytes or child process stdout)
   └── parallel_bufread()  (all inputs)
         ├─ Thread 1: I/O reader — reads 256 KB chunks, splits at line boundaries,
         │             assigns monotonic sequence numbers, sends to MPMC channel
-        ├─ Thread N: workers — receive chunks, validate UTF-8,
+        ├─ Thread 1: bounded dispatcher — uses in-flight tokens to limit queued/running jobs
+        ├─ Pool workers: receive chunk jobs, validate UTF-8,
         │             create DefaultSkimItem::new(line, ansi, trans_fields, matching_fields, delimiter)
         │               .hidden_fields(hidden_fields, delimiter)
         │             (handles ANSI stripping, --nth / --with-nth / --hide-nth inline),
@@ -491,7 +492,7 @@ Engines are composable through the factory pattern. Starting from `Matcher::crea
 options
   │
   ├── if regex mode:
-  │     RegexEngineFactory
+  │     RegexEngineFactory (configured with the same RankBuilder / --tiebreak criteria)
   │       └─ if normalize: NormalizedEngineFactory(RegexEngineFactory)
   │
   └── else (fuzzy/exact mode):
@@ -581,12 +582,12 @@ Matcher::run(query, item_pool, thread_pool, …)
         │          └─ merge_worker_results(worker_results, no_sort, …)
         │               ├─ concatenate k sorted runs
         │               ├─ sort() (stable; driftsort detects k runs → O(n log k))
-        │               └─ write into SpinLock<Option<ProcessedItems>>
+        │               └─ validate query generation and write into Mutex<Option<ProcessedItems>>
         │
         └─ stopped.store(true)
 ```
 
-Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before processing. `MatcherControl::kill()` sets `interrupt = true`; `MatcherControl::drop()` also calls `kill()`.
+Interruption is cooperative: each chunk checks `interrupt.load(Relaxed)` before processing. `MatcherControl::kill()` sets `interrupt = true`; `MatcherControl::drop()` also calls `kill()`. Each forced restart increments a shared query generation. Published `ProcessedItems` carry that generation; both publication and consumption reject stale generations, so a cancelled matcher cannot replace newer results.
 
 ### Ranking & Sorting
 
@@ -828,13 +829,14 @@ The `StatusInfo` struct rendered inside the input line shows:
 `ItemList` (`src/tui/item_list.rs`) maintains:
 
 - `items: Vec<MatchedItem>` — the currently displayed matched items
-- `processed_items: Arc<SpinLock<Option<ProcessedItems>>>` — shared with matcher
+- `processed_items: Arc<Mutex<Option<ProcessedItems>>>` — shared with matcher
+- `matcher_generation: Arc<AtomicUsize>` — identifies the active query generation
 - `selection: Vec<usize>` — indices of multi-selected items
 - `current: usize` — focused item index (0 = bottom in default layout)
 - `offset: usize` — scroll offset (number of items scrolled)
 - `manual_hscroll: i16` — user-driven horizontal scroll
 
-On each render, `ItemList::render()` checks `processed_items` and swaps them in atomically via the `SpinLock`. Depending on `MergeStrategy`:
+On each render, `ItemList::render()` checks `processed_items`, rejects results from an old query generation, and swaps current results in through the mutex. Depending on `MergeStrategy`:
 
 - `Replace`: replaces `items` entirely.
 - `SortedMerge`: performs an O(n+m) merge preserving order.
@@ -868,7 +870,7 @@ Pre-selection is applied when items first appear: `DefaultSkimSelector::should_s
 
 `Preview` (`src/tui/preview.rs`) renders a side/top/bottom pane showing expanded information about the focused item. Its stored content is one of three variants:
 
-**Plain text mode** (no `pty`): spawns `sh -c <cmd>` on Unix or `cmd /c <cmd>` on Windows. On Windows, `Command::raw_arg` is used so `cmd.exe` receives shell metacharacters exactly as written. The child captures stdout (capped at `PREVIEW_MAX_BYTES`), parses it with `ansi_to_tui::IntoText`, stores as `PreviewContent::Text`, and sends `Event::PreviewReady`.
+**Plain text mode** (no `pty`): spawns `sh -c <cmd>` on Unix or `cmd /c <cmd>` on Windows. On Windows, `Command::raw_arg` is used so `cmd.exe` receives shell metacharacters exactly as written. The worker drains stdout and stderr concurrently, but retains at most `PREVIEW_MAX_BYTES` from each stream. Cancellation terminates the child process group (the process tree on Windows), so selection changes do not leave old preview commands running. Successful stdout or failed stderr is parsed with `ansi_to_tui::IntoText`, stored as `PreviewContent::Text`, and followed by `Event::PreviewReady`.
 
 **PTY mode** (`--preview-window pty`): creates a real pseudo-terminal pair via `portable_pty`. The child process sees a properly sized terminal (via `ROWS`/`COLUMNS` env and PTY dimensions). Output is parsed by a `vt100::Parser` with a scrollback buffer, stored as `PreviewContent::Terminal(Arc<RwLock<vt100::Parser>>)`. This enables interactive preview programs (e.g. `bat`, `delta`).
 
@@ -893,12 +895,14 @@ else if pty mode:
           → Event::PreviewReady when EOF
 
 else:
-  sh -c <cmd>
-  thread: wait for output → content.write() = PreviewContent::Text(…)
+  start shell in a dedicated process group with piped stdout + stderr
+  thread: drain both streams with bounded retention; poll child status
+          → cancellation kills the process group
+          → content.write() = PreviewContent::Text(…)
           → Event::PreviewReady
 ```
 
-Scroll state: `scroll_y`, `scroll_x` (in lines/columns). `page_up/down`, `scroll_up/down/left/right` modify these. `PreviewPosition` supports fixed, percentage, and negative offsets. When `PreviewReady` fires, an optional offset expression (from `--preview-window +expr`) is evaluated to auto-scroll to the matched line.
+Scroll state: `scroll_y`, `scroll_x` (in lines/columns) and `total_lines` use `usize`; conversion to ratatui's `u16` coordinates saturates at render time. `page_up/down`, `scroll_up/down/left/right` modify these. `PreviewPosition` supports fixed, percentage, and negative offsets. When `PreviewReady` fires, an optional offset expression (from `--preview-window +expr`) is evaluated to auto-scroll to the matched line.
 
 ### Header Widget
 
@@ -1275,21 +1279,23 @@ Main thread (Tokio runtime)
   │
   └─ Tokio task: Tui event pump (crossterm EventStream + tick timer)
 
-ThreadPool (N = num_cpus OS threads, persistent)
-  ├─ Matcher coordinator (1 slot per match run)
-  └─ Worker threads (N-1 slots per match run)
+Matcher ThreadPool (persistent)
+  └─ Worker threads process atomic match chunks; one separate coordinator thread waits for completion
 
-Reader threads (OS threads, per-invocation):
-  ├─ collect_items thread: blocks on SkimItemReceiver (recv_timeout 5ms), calls ItemPool::append
+Reader ThreadPool (persistent)
+  └─ Short chunk jobs parse items; an in-flight token limit bounds the work queue
+
+Reader threads (OS threads, per invocation):
+  ├─ collect_items thread: blocks on SkimItemReceiver (recv_timeout 1ms), calls ItemPool::append
   ├─ I/O reader thread: reads large byte chunks, splits lines, assigns sequence numbers
-  ├─ Worker threads (N): parse lines, create DefaultSkimItem (ANSI strip + field transforms inline)
+  ├─ Bounded dispatcher thread: submits chunk jobs only while an in-flight token is available
   ├─ Reorder thread: sequence-ordered output; drops tx_pipeline_done on EOF
-  └─ Killer thread (command inputs only): waits for rx_interrupt or rx_pipeline_done;
-       kills child process when either fires
+  └─ Killer thread: waits for rx_interrupt or rx_pipeline_done; kills a command child if present
 
-Preview thread (OS thread, per preview spawn):
-  └─ reads PTY/child stdout or decodes image path → PreviewContent Arc<RwLock>
-      → sends Event::PreviewReady
+Preview threads (OS threads, per preview spawn):
+  ├─ PTY reader, image decoder, or plain-child monitor
+  └─ Plain mode also has bounded stdout and stderr drain threads
+      → writes PreviewContent Arc<RwLock> and sends Event::PreviewReady
 
 IPC handler task (Tokio, per connection):
   └─ reads RON actions → sends Event::Action to TUI channel
@@ -1300,9 +1306,9 @@ Popup stdin relay thread (OS thread, only in --popup/--tmux mode):
 
 **Synchronization primitives used:**
 
-- `Arc<SpinLock<Option<ProcessedItems>>>` — matcher-to-ItemList result handoff
+- `Arc<Mutex<Option<ProcessedItems>>>` — matcher-to-ItemList result handoff without CPU-spinning under merge contention
 - `Arc<AtomicBool>` — `needs_render` (matcher → event loop), `stopped` / `interrupt` (MatcherControl)
-- `Arc<AtomicUsize>` — `processed` / `matched` counters, reader `components_to_stop`
+- `Arc<AtomicUsize>` — `processed` / `matched` counters, matcher query generation, reader `components_to_stop`
 - `Arc<tokio::sync::Notify>` — `items_available` (ItemPool → Skim::tick wakeup)
 - `Arc<std::sync::RwLock<PreviewContent>>` — preview thread → Preview widget
 - `kanal::Sender/Receiver<Vec<Arc<dyn SkimItem>>>` — item batches through pipeline
@@ -1324,28 +1330,28 @@ The global allocator is `mimalloc` (v3), chosen for its low-latency multi-thread
 | `Skim::init_tui_with` | `src/skim.rs:307` | Install a caller-provided TUI backend |
 | `Skim::enter` | `src/skim.rs:394` | Enter terminal, resolve image picker, start listener/event pump |
 | `Skim::should_enter` | `src/skim.rs:438` | Filter/select-1/exit-0/sync gate |
-| `Skim::output` | `src/skim.rs:555` | Collect & return SkimOutput |
-| `Skim::tick` | `src/skim.rs:636` | Single async event loop iteration |
-| `App::from_options` | `src/tui/app.rs:289` | Build all widgets from options |
-| `App::run_preview` | `src/tui/app.rs:503` | Expand cmd, debounce, call Preview::spawn |
-| `App::handle_event` | `src/tui/app.rs:628` | Dispatch all Event variants |
-| `App::handle_action` | `src/tui/app.rs:833` | Apply action follow-up bindings |
-| `App::dispatch_conditional` | `src/tui/app.rs:852` | Dispatch the selected conditional subaction chain without follow-up bindings |
-| `App::dispatch_action` | `src/tui/app.rs:875` | Dispatch one Action variant without follow-up bindings |
+| `Skim::output` | `src/skim.rs:563` | Collect & return SkimOutput |
+| `Skim::tick` | `src/skim.rs:644` | Single async event loop iteration |
+| `App::from_options` | `src/tui/app.rs:291` | Build all widgets from options |
+| `App::run_preview` | `src/tui/app.rs:507` | Expand cmd, debounce, call Preview::spawn |
+| `App::handle_event` | `src/tui/app.rs:632` | Dispatch all Event variants |
+| `App::handle_action` | `src/tui/app.rs:837` | Apply action follow-up bindings |
+| `App::dispatch_conditional` | `src/tui/app.rs:856` | Dispatch the selected conditional subaction chain without follow-up bindings |
+| `App::dispatch_action` | `src/tui/app.rs:879` | Dispatch one Action variant without follow-up bindings |
 | `Tui::run_execute` | `src/tui/backend.rs:363` | Suspend reader, run `execute` child with its own tty stdin, restart reader |
-| `App::restart_matcher` | `src/tui/app.rs:1352` | Kill old match pass, start new one |
-| `App::expand_cmd` | `src/tui/app.rs:1428` | Substitute `{}`, `{q}`, `{n}` etc. |
-| `App::handle_mouse` | `src/tui/app.rs:1496` | Handle mouse behavior and emit `double-click` |
-| `Widget::render (App)` | `src/tui/app.rs:151` | Root render; calls all sub-widgets |
-| `Matcher::run` | `src/matcher.rs:~260` | Parallel match dispatch |
-| `merge_worker_results` | `src/matcher.rs:28` | Merge k sorted runs → ProcessedItems |
+| `App::restart_matcher` | `src/tui/app.rs:1378` | Kill old match pass, start new one |
+| `App::expand_cmd` | `src/tui/app.rs:1465` | Substitute `{}`, `{q}`, `{n}` etc. |
+| `App::handle_mouse` | `src/tui/app.rs:1533` | Handle mouse behavior and emit `double-click` |
+| `Widget::render (App)` | `src/tui/app.rs:152` | Root render; calls all sub-widgets |
+| `Matcher::run` | `src/matcher.rs:294` | Parallel match dispatch |
+| `merge_worker_results` | `src/matcher.rs:36` | Merge k sorted runs → ProcessedItems |
 | `ItemPool::append` | `src/item.rs:469` | Add items, notify matcher |
 | `ItemPool::take` | `src/item.rs:502` | Take un-matched items for matcher |
 | `DefaultSkimItem::new` | `src/helper/item.rs:64` | ANSI strip, field transform, matching ranges (hidden ranges set later via `hidden_fields` builder) |
-| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:287` | Unified parallel pipeline (all inputs) |
-| `spawn_io_reader` | `src/helper/item_reader.rs:378` | I/O reader thread: chunk reads + line splitting |
-| `spawn_reorder_thread` | `src/helper/item_reader.rs:483` | Reorder thread: ordered output + pipeline-done signal |
-| `Preview::spawn` | `src/tui/preview.rs:319` | Start image, PTY, or plain preview worker |
+| `SkimItemReader::parallel_bufread` | `src/helper/item_reader.rs:284` | Unified parallel pipeline (all inputs) |
+| `spawn_io_reader` | `src/helper/item_reader.rs:380` | I/O reader thread: chunk reads + line splitting |
+| `spawn_reorder_thread` | `src/helper/item_reader.rs:485` | Reorder thread: ordered output + pipeline-done signal |
+| `Preview::spawn` | `src/tui/preview.rs:371` | Start image, PTY, or plain preview worker |
 | `Tui::new_with_height_and_backend` | `src/tui/backend.rs:81` | Terminal init + viewport sizing |
 | `Tui::enter` | `src/tui/backend.rs:134` | Enable raw mode + terminal setup |
 | `Tui::start` | `src/tui/backend.rs:235` | Spawn crossterm EventStream task (fresh cancellation token each call) |

@@ -240,7 +240,11 @@ fn render_list(il: &mut ItemList, w: u16, h: u16) {
 }
 
 fn set_processed(il: &ItemList, items: Vec<MatchedItem>, merge: MergeStrategy) {
-    *il.processed_items.lock() = Some(ProcessedItems { items, merge });
+    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+        items,
+        merge,
+        generation: il.matcher_generation.load(std::sync::atomic::Ordering::Acquire),
+    });
 }
 
 #[test]
@@ -251,6 +255,21 @@ fn render_applies_replace_strategy() {
     // Replace swaps the whole list.
     assert_eq!(il.items.len(), 1);
     assert_eq!(il.items[0].text(), "new");
+}
+
+#[test]
+fn render_discards_results_from_stale_generation() {
+    let mut il = list(2);
+    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+        items: vec![matched("stale", 0)],
+        merge: MergeStrategy::Replace,
+        generation: 0,
+    });
+    il.matcher_generation.store(1, std::sync::atomic::Ordering::Release);
+
+    render_list(&mut il, 20, 5);
+    assert_eq!(il.items.len(), 2);
+    assert!(il.items.iter().all(|item| item.text() != "stale"));
 }
 
 #[test]

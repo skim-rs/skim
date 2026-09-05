@@ -470,6 +470,7 @@ where
                 .item_list
                 .processed_items
                 .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take()
                 .unwrap_or_default()
                 .items
@@ -521,7 +522,14 @@ where
                 app.matcher_control.get_num_matched()
             );
             if app.matcher_control.get_num_matched() == min_items_before_enter - 1 {
-                app.item_list.items = app.item_list.processed_items.lock().take().unwrap_or_default().items;
+                app.item_list.items = app
+                    .item_list
+                    .processed_items
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .take()
+                    .unwrap_or_default()
+                    .items;
                 debug!("early exit, result: {:?}", app.results());
                 return false;
             }
