@@ -602,8 +602,11 @@ impl Preview {
                 terminate_plain_child(&child);
                 let stdout = stdout_reader.join().unwrap_or_default();
                 let stderr = stderr_reader.join().unwrap_or_default();
-                if let Ok(mut guard) = child.lock() {
-                    guard.take();
+                if let Ok(mut guard) = child.lock()
+                    && let Some(mut child) = guard.take()
+                    && status.is_none()
+                {
+                    let _ = child.wait();
                 }
 
                 let Some(status) = status else {

@@ -599,7 +599,7 @@ impl App {
                             u16::try_from(u32::from(self.preview.cols) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }
                     };
-                    self.preview.scroll_x = usize::from(h_scroll.saturating_add(h_offset));
+                    self.preview.scroll_x = usize::from(h_scroll).saturating_add(usize::from(h_offset));
                 }
                 ItemPreview::TextWithPos(t, preview_position) | ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
