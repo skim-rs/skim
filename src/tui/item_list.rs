@@ -1,5 +1,6 @@
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use indexmap::IndexSet;
 use ratatui::widgets::{
@@ -10,7 +11,6 @@ use regex::Regex;
 
 use crate::item::MatchedItem;
 use crate::options::feature_flag;
-use crate::spinlock::SpinLock;
 use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::item_renderer::ItemRenderer;
@@ -36,6 +36,7 @@ pub(crate) enum MergeStrategy {
 pub(crate) struct ProcessedItems {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) merge: MergeStrategy,
+    pub(crate) generation: usize,
 }
 
 impl Default for ProcessedItems {
@@ -43,6 +44,7 @@ impl Default for ProcessedItems {
         Self {
             items: Vec::new(),
             merge: MergeStrategy::Replace,
+            generation: 0,
         }
     }
 }
@@ -52,7 +54,8 @@ impl Default for ProcessedItems {
 pub struct ItemList {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) selection: IndexSet<MatchedItem>,
-    pub(crate) processed_items: Arc<SpinLock<Option<ProcessedItems>>>,
+    pub(crate) processed_items: Arc<Mutex<Option<ProcessedItems>>>,
+    pub(crate) matcher_generation: Arc<AtomicUsize>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     /// How many leading sub-lines of items[offset] have been scrolled off the top.
@@ -420,7 +423,8 @@ impl SkimWidget for ItemList {
             (None, 0)
         };
 
-        let processed_items = Arc::new(SpinLock::new(None));
+        let processed_items = Arc::new(Mutex::new(None));
+        let matcher_generation = Arc::new(AtomicUsize::new(0));
 
         let interactive = options.interactive;
         let no_clear_if_empty = options.no_clear_if_empty;
@@ -429,6 +433,7 @@ impl SkimWidget for ItemList {
         // Spawn background processing thread with the appropriate configuration
         Self {
             processed_items,
+            matcher_generation,
             reserved: 0, // header_lines are now displayed in the Header widget, not ItemList
             direction: match options.layout {
                 TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
@@ -511,7 +516,13 @@ impl SkimWidget for ItemList {
         // Check for pre-processed items from background thread (non-blocking).
         // Bind the result separately so the lock guard is dropped before a merge
         // mutates the item list.
-        let processed = this.processed_items.lock().take();
+        let processed = this
+            .processed_items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        let current_generation = this.matcher_generation.load(Ordering::Acquire);
+        let processed = processed.filter(|result| result.generation == current_generation);
         let items_updated = if let Some(processed) = processed {
             debug!("Render: Got {} processed items", processed.items.len());
 

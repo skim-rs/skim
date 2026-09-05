@@ -582,7 +582,7 @@ impl App {
                             u16::try_from(u32::from(self.preview.rows) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }
                     };
-                    self.preview.scroll_y = v_scroll;
+                    self.preview.scroll_y = usize::from(v_scroll);
                     self.preview.scroll_down(v_offset);
 
                     let h_scroll = match preview_position.h_scroll {
@@ -599,7 +599,7 @@ impl App {
                             u16::try_from(u32::from(self.preview.cols) * u32::from(p) / 100).unwrap_or(u16::MAX)
                         }
                     };
-                    self.preview.scroll_x = h_scroll.saturating_add(h_offset);
+                    self.preview.scroll_x = usize::from(h_scroll).saturating_add(usize::from(h_offset));
                 }
                 ItemPreview::TextWithPos(t, preview_position) | ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
@@ -1381,6 +1381,12 @@ impl App {
         if self.query_below_min_length() {
             // Query is too short, clear items and don't run matcher
             self.matcher_control.kill();
+            self.item_list.matcher_generation.fetch_add(1, Ordering::AcqRel);
+            self.item_list
+                .processed_items
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
             self.item_list.items.clear();
             self.item_list.current = 0;
             self.item_list.offset = 0;
@@ -1413,6 +1419,12 @@ impl App {
                 self.item_pool.reset();
             }
 
+            let generation = if force {
+                self.item_list.matcher_generation.fetch_add(1, Ordering::AcqRel) + 1
+            } else {
+                self.item_list.matcher_generation.load(Ordering::Acquire)
+            };
+
             let merge_strategy = if force {
                 MergeStrategy::Replace
             } else if no_sort && self.options.tac {
@@ -1431,6 +1443,8 @@ impl App {
                 merge_strategy,
                 no_sort,
                 self.options.tac,
+                generation,
+                self.item_list.matcher_generation.clone(),
                 self.needs_render.clone(),
             );
             // A new search is in flight; arm the `result`/`zero`/`one` events to

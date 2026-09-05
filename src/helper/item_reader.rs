@@ -265,16 +265,13 @@ impl SkimItemReader {
     /// 1. **I/O thread** (dedicated) — reads large byte chunks (~256 KB) from
     ///    `source`, splitting on line boundaries, and sends them tagged with
     ///    monotonic sequence numbers into a bounded channel.
-    /// 2. **Dispatcher thread** (dedicated, lightweight) — drains that channel
-    ///    and submits one pool job per chunk.  The bounded channel provides
-    ///    natural back-pressure on the I/O thread when the pool is busy.
+    /// 2. **Bounded dispatcher** — submits chunk jobs to the pool while a token
+    ///    limit bounds queued and running work. It stops draining the input
+    ///    channel when that limit is reached, which applies back-pressure to I/O.
     /// 3. **Pool jobs** — parse lines, validate UTF-8, apply ANSI stripping and
     ///    field transforms, and create `DefaultSkimItem` + `Arc` per line.
-    ///    Because these jobs share the same pool as the matcher, reader and
-    ///    matcher compete for the same thread budget rather than over-subscribing
-    ///    available CPU cores.
-    /// 4. **Reorder thread** (dedicated) — collects `(seq, items)` from pool
-    ///    jobs and emits them in sequence order so downstream index assignment
+    /// 4. **Reorder thread** (dedicated) — collects `(seq, items)` from workers
+    ///    and emits them in sequence order so downstream index assignment
     ///    and `--tac` behaviour are correct.
     ///
     /// When `child` is `Some`, a **killer thread** is also spawned.  It waits
@@ -303,18 +300,27 @@ impl SkimItemReader {
         // Stage 1: I/O thread.
         Self::spawn_io_reader(source, tx_chunks, line_ending);
 
-        // Stage 2: dispatcher thread — bridges the bounded channel to the pool.
+        // Stage 2: dispatch at most a fixed number of queued or running jobs.
+        // A worker returns its token only after it sends the parsed result.
+        let max_in_flight = num_threads * 4;
+        let (tx_permits, rx_permits) = std::sync::mpsc::sync_channel(max_in_flight);
+        for _ in 0..max_in_flight {
+            tx_permits.send(()).expect("permit receiver is alive");
+        }
         thread::spawn(move || {
             while let Ok((seq, chunk)) = rx_chunks.recv() {
+                if rx_permits.recv().is_err() {
+                    break;
+                }
                 let tx = tx_results.clone();
+                let return_permit = tx_permits.clone();
                 let opt = option.clone();
                 pool.spawn(move || {
                     let result = Self::process_chunk(seq, &chunk, &opt);
                     let _ = tx.send(result);
+                    let _ = return_permit.send(());
                 });
             }
-            // rx_chunks closed → all chunks dispatched; tx_results dropped here
-            // so the reorder thread exits once the last pool job finishes.
         });
 
         // A zero-capacity channel used as a completion signal: the reorder

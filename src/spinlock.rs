@@ -26,9 +26,9 @@ pub struct SpinLockGuard<'a, T: ?Sized + 'a> {
 }
 
 impl<'a, T: ?Sized + 'a> SpinLockGuard<'a, T> {
-    /// Creates a new guard for the given lock
-    pub fn new(pool: &'a SpinLock<T>) -> SpinLockGuard<'a, T> {
-        Self { __lock: pool }
+    /// Creates a guard after its lock has been acquired.
+    fn new(lock: &'a SpinLock<T>) -> SpinLockGuard<'a, T> {
+        Self { __lock: lock }
     }
 }
 

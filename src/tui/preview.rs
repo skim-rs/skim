@@ -15,9 +15,10 @@ use tui_term::widget::PseudoTerminal;
 
 use std::env;
 use std::io::Read;
-use std::sync::{Arc, RwLock, mpsc};
+use std::process::{Child, Stdio};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread::JoinHandle;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::statusline::spinner_char;
 use super::util::{find_csi_end, find_osc_end, handle_csi_query, handle_osc_query};
@@ -31,6 +32,50 @@ use crate::{SkimItem, SkimOptions};
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
 const PREVIEW_MAX_BYTES: usize = 1024 * 1024;
 const VT_SCROLLBACK: usize = 100_000;
+type PlainChild = Arc<Mutex<Option<Child>>>;
+
+fn read_bounded(mut reader: impl Read) -> Vec<u8> {
+    let mut output = Vec::with_capacity(PREVIEW_MAX_BYTES);
+    let mut buffer = [0; 8192];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => {
+                let retained = PREVIEW_MAX_BYTES.saturating_sub(output.len()).min(read);
+                output.extend_from_slice(&buffer[..retained]);
+            }
+        }
+    }
+    output
+}
+
+fn terminate_plain_child(child: &PlainChild) {
+    let Ok(mut guard) = child.lock() else {
+        return;
+    };
+    let Some(child) = guard.as_mut() else {
+        return;
+    };
+
+    #[cfg(unix)]
+    if let Ok(process_group) = i32::try_from(child.id()) {
+        use nix::sys::signal::{Signal, killpg};
+        use nix::unistd::Pid;
+
+        let _ = killpg(Pid::from_raw(process_group), Signal::SIGKILL);
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+
+    let _ = child.kill();
+}
 
 /// Preview content options
 pub(crate) enum PreviewContent {
@@ -81,11 +126,12 @@ pub struct Preview {
     pub cmd: String,
     pub rows: u16,
     pub cols: u16,
-    pub scroll_y: u16,
-    pub scroll_x: u16,
+    pub scroll_y: usize,
+    pub scroll_x: usize,
     pub thread_handle: Option<JoinHandle<()>>,
     /// Channel to signal thread interruption
     interrupt_tx: Option<mpsc::Sender<()>>,
+    plain_child: Option<PlainChild>,
     pub theme: Arc<ColorTheme>,
     /// Border type
     pub border: BorderType,
@@ -97,7 +143,7 @@ pub struct Preview {
     image: bool,
     #[cfg(feature = "image")]
     image_picker: Option<Picker>,
-    pub total_lines: u16,
+    pub total_lines: usize,
     loading: bool,
     spinner_start: Instant,
 }
@@ -150,18 +196,12 @@ impl Preview {
     }
 
     /// Convert a Size value to an actual offset based on preview dimensions
-    fn size_to_offset(&self, size: super::Size, is_vertical: bool) -> u16 {
+    fn size_to_offset(&self, size: super::Size, is_vertical: bool) -> usize {
+        let dimension = if is_vertical { self.rows } else { self.cols };
         match size {
-            super::Size::Fixed(n) => n,
-            super::Size::Percent(p) => {
-                let dimension = if is_vertical { self.rows } else { self.cols };
-                // Result is at most dimension (a u16), so truncation cannot occur.
-                u16::try_from(u32::from(dimension) * u32::from(p) / 100).unwrap_or(u16::MAX)
-            }
-            super::Size::Neg(n) => {
-                let dimension = if is_vertical { self.rows } else { self.cols };
-                dimension.saturating_sub(n)
-            }
+            super::Size::Fixed(n) => usize::from(n),
+            super::Size::Percent(p) => usize::from(dimension) * usize::from(p) / 100,
+            super::Size::Neg(n) => usize::from(dimension.saturating_sub(n)),
         }
     }
 
@@ -226,7 +266,7 @@ impl Preview {
         let Ok(mut content) = self.content.write() else {
             return Err(eyre::eyre!("Failed to acquire content for writing"));
         };
-        self.total_lines = text.lines.len().try_into().unwrap();
+        self.total_lines = text.lines.len();
         *content = PreviewContent::Text(text);
         self.scroll_y = 0;
         self.scroll_x = 0;
@@ -256,7 +296,7 @@ impl Preview {
     }
 
     pub fn scroll_up(&mut self, lines: u16) {
-        self.scroll_y = self.scroll_y.saturating_sub(lines);
+        self.scroll_y = self.scroll_y.saturating_sub(usize::from(lines));
     }
 
     pub fn scroll_down(&mut self, lines: u16) {
@@ -265,26 +305,26 @@ impl Preview {
             self.total_lines, self.rows
         );
         if self.total_lines > 0 {
-            self.scroll_y = self
-                .scroll_y
-                .saturating_add(lines)
-                .min(self.total_lines.saturating_sub(self.rows.saturating_sub(1)));
+            self.scroll_y = self.scroll_y.saturating_add(usize::from(lines)).min(
+                self.total_lines
+                    .saturating_sub(usize::from(self.rows.saturating_sub(1))),
+            );
         } else {
             // We might not have the actual total_lines value
-            self.scroll_y = self.scroll_y.saturating_add(lines);
+            self.scroll_y = self.scroll_y.saturating_add(usize::from(lines));
         }
     }
 
     pub fn scroll_left(&mut self, cols: u16) {
-        self.scroll_x = self.scroll_x.saturating_sub(cols);
+        self.scroll_x = self.scroll_x.saturating_sub(usize::from(cols));
     }
 
     pub fn scroll_right(&mut self, cols: u16) {
-        self.scroll_x = self.scroll_x.saturating_add(cols);
+        self.scroll_x = self.scroll_x.saturating_add(usize::from(cols));
     }
 
     pub fn set_offset(&mut self, offset: u16) {
-        self.scroll_y = offset.saturating_sub(1); // -1 because line numbers are 1-indexed
+        self.scroll_y = usize::from(offset.saturating_sub(1)); // -1 because line numbers are 1-indexed
     }
 
     pub fn page_up(&mut self) {
@@ -300,6 +340,11 @@ impl Preview {
     pub fn kill(&mut self) {
         if let Some(tx) = self.interrupt_tx.take() {
             let _ = tx.send(());
+        }
+
+        if let Some(child) = self.plain_child.take() {
+            trace!("killing plain preview child process group");
+            terminate_plain_child(&child);
         }
 
         if let Some(mut child) = self.pty_child.take() {
@@ -490,39 +535,86 @@ impl Preview {
             shell_cmd
                 .env("ROWS", self.rows.to_string())
                 .env("COLUMNS", self.cols.to_string())
-                .env("PAGER", "");
+                .env("PAGER", "")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
             if let Ok(cwd) = env::current_dir() {
                 shell_cmd.current_dir(cwd);
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::CommandExt as _;
+                shell_cmd.process_group(0);
+            }
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt as _;
+                const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+                shell_cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
             }
 
             let (interrupt_tx, interrupt_rx) = mpsc::channel();
             self.interrupt_tx = Some(interrupt_tx);
 
-            self.thread_handle = Some(std::thread::spawn(move || {
-                if interrupt_rx.try_recv().is_ok() {
-                    return;
-                }
-
-                let try_out = shell_cmd.output();
-                if try_out.is_err() {
-                    log::info!("Shell cmd in error: {try_out:?}");
+            let mut child = match shell_cmd.spawn() {
+                Ok(child) => child,
+                Err(error) => {
+                    log::info!("Shell cmd in error: {error:?}");
                     let _ = event_tx_clone.blocking_send(Event::PreviewReady);
-                    return;
+                    return Ok(());
                 }
+            };
+            let stdout = child.stdout.take().expect("stdout was configured as piped");
+            let stderr = child.stderr.take().expect("stderr was configured as piped");
+            let child = Arc::new(Mutex::new(Some(child)));
+            self.plain_child = Some(child.clone());
 
-                let mut out = try_out.unwrap();
+            self.thread_handle = Some(std::thread::spawn(move || {
+                let stdout_reader = std::thread::spawn(move || read_bounded(stdout));
+                let stderr_reader = std::thread::spawn(move || read_bounded(stderr));
 
-                if interrupt_rx.try_recv().is_ok() {
-                    return;
-                }
-
-                if let Ok(mut c) = content.write() {
-                    if out.status.success() {
-                        out.stdout.resize(PREVIEW_MAX_BYTES.min(out.stdout.len()), 0);
-                        *c = PreviewContent::Text(out.stdout.into_text().unwrap_or_default());
-                    } else {
-                        *c = PreviewContent::Text(out.stderr.clone().into_text().unwrap_or_default());
+                let status = loop {
+                    match interrupt_rx.recv_timeout(Duration::from_millis(10)) {
+                        Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                            terminate_plain_child(&child);
+                            break None;
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
                     }
+
+                    let wait_result = match child.lock() {
+                        Ok(mut guard) => guard.as_mut().map(Child::try_wait),
+                        Err(_) => break None,
+                    };
+                    match wait_result {
+                        Some(Ok(Some(status))) => break Some(status),
+                        Some(Ok(None)) => {}
+                        Some(Err(error)) => {
+                            log::info!("Failed to wait for preview command: {error:?}");
+                            break None;
+                        }
+                        None => break None,
+                    }
+                };
+
+                // A shell can exit while a background descendant still owns the pipes.
+                // Terminate the whole process group before joining the drain threads.
+                terminate_plain_child(&child);
+                let stdout = stdout_reader.join().unwrap_or_default();
+                let stderr = stderr_reader.join().unwrap_or_default();
+                if let Ok(mut guard) = child.lock()
+                    && let Some(mut child) = guard.take()
+                    && status.is_none()
+                {
+                    let _ = child.wait();
+                }
+
+                let Some(status) = status else {
+                    return;
+                };
+                if let Ok(mut c) = content.write() {
+                    let output = if status.success() { stdout } else { stderr };
+                    *c = PreviewContent::Text(output.into_text().unwrap_or_default());
                 }
 
                 trace!("sending ready ping");
@@ -538,12 +630,14 @@ impl Preview {
         area: ratatui::layout::Rect,
         buf: &mut ratatui::prelude::Buffer,
         text: &Text,
-    ) -> u16 {
+    ) -> usize {
         // Calculate total lines in content
-        let total_lines: u16 = text.lines.len().try_into().unwrap();
+        let total_lines = text.lines.len();
 
-        // Create paragraph with optional block
-        let mut paragraph = Paragraph::new(text.clone()).scroll((self.scroll_y, self.scroll_x));
+        // Ratatui terminal coordinates are u16. Saturate previews that exceed that range.
+        let scroll_y = u16::try_from(self.scroll_y).unwrap_or(u16::MAX);
+        let scroll_x = u16::try_from(self.scroll_x).unwrap_or(u16::MAX);
+        let mut paragraph = Paragraph::new(text.clone()).scroll((scroll_y, scroll_x));
 
         // Enable wrapping if wrap is true
         if self.wrap {
@@ -552,7 +646,7 @@ impl Preview {
 
         // Add scroll position indicator at top-right if scrolled
         if self.scroll_y > 0 && total_lines > 0 {
-            let current_line = (self.scroll_y + 1) as usize; // +1 because scroll_y is 0-indexed but we want 1-indexed display
+            let current_line = self.scroll_y.saturating_add(1); // Display line numbers are 1-indexed.
             let title = format!("{current_line}/{total_lines}");
 
             outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
@@ -569,23 +663,21 @@ impl Preview {
         area: ratatui::layout::Rect,
         buf: &mut ratatui::prelude::Buffer,
         parser: &std::sync::RwLock<tui_term::vt100::Parser>,
-    ) -> u16 {
-        let mut total_lines = 0u16;
+    ) -> usize {
+        let mut total_lines = 0usize;
         // For terminal content, manipulate scrollback to implement scrolling
         if let Ok(mut parser_guard) = parser.try_write() {
             let scrollback_len = parser_guard.screen().scrollback();
             // Reset scrollback to its full size first
             parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
             // If the scrollback is not empty, we seem to be off by one
-            total_lines = (scrollback_len.saturating_sub(1) + parser_guard.screen().contents().lines().count())
-                .try_into()
-                .unwrap();
+            total_lines = scrollback_len.saturating_sub(1) + parser_guard.screen().contents().lines().count();
             if self.scroll_y > 0 {
                 trace!("scrolling in vt buffer: {}/{}", self.scroll_y, total_lines);
                 // Reduce scrollback by scroll_y to show earlier content
                 parser_guard
                     .screen_mut()
-                    .set_scrollback(scrollback_len.saturating_sub(self.scroll_y.into()));
+                    .set_scrollback(scrollback_len.saturating_sub(self.scroll_y));
             }
         }
 
@@ -674,6 +766,7 @@ impl SkimWidget for Preview {
             scroll_x: 0,
             thread_handle: None,
             interrupt_tx: None,
+            plain_child: None,
             pty: None,
             pty_child: None,
             #[cfg(feature = "image")]

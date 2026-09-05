@@ -34,7 +34,6 @@
   - Changing the threading model or synchronization primitives
   - Adding or removing public API surface (`SkimItem`, `SkimOptions`, `SkimOutput`, etc.)
   - Changing the event/action system or key binding infrastructure
-- Keep call-site line numbers in the cross-reference table up to date when the referenced functions move.
 
 
 ## Testing

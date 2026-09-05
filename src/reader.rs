@@ -10,7 +10,9 @@ use crate::{SkimItem, SkimItemReceiver};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread::JoinHandle;
+use std::time::Duration;
 
 /// Trait for collecting items from command output
 pub trait CommandCollector {
@@ -39,6 +41,7 @@ pub struct ReaderControl {
     tx_interrupt: Sender<i32>,
     tx_interrupt_cmd: Option<Sender<i32>>,
     components_to_stop: Arc<AtomicUsize>,
+    collector_handle: Option<JoinHandle<()>>,
     items: Arc<SpinLock<Vec<Arc<dyn SkimItem>>>>,
 }
 
@@ -52,7 +55,14 @@ impl ReaderControl {
 
         let _ = self.tx_interrupt_cmd.clone().map(|tx| tx.send(1));
         let _ = self.tx_interrupt.send(1);
-        while self.components_to_stop.load(Ordering::SeqCst) != 0 {}
+        if let Some(handle) = self.collector_handle.take() {
+            let _ = handle.join();
+        }
+        // Command collectors can own additional components outside the reader's
+        // join handle. Wait without consuming a CPU while they process the signal.
+        while self.components_to_stop.load(Ordering::Acquire) != 0 {
+            std::thread::sleep(Duration::from_millis(1));
+        }
     }
 
     /// Takes all items collected so far
@@ -123,12 +133,14 @@ impl Reader {
         );
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_items(components_to_stop_clone, rx_item, move |items| _ = app_tx.send(items));
+        let (tx_interrupt, collector_handle) =
+            collect_items(components_to_stop_clone, rx_item, move |items| _ = app_tx.send(items));
 
         ReaderControl {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
+            collector_handle: Some(collector_handle),
             items,
         }
     }
@@ -149,7 +161,7 @@ impl Reader {
         );
 
         let components_to_stop_clone = components_to_stop.clone();
-        let tx_interrupt = collect_items(components_to_stop_clone, rx_item, move |items| {
+        let (tx_interrupt, collector_handle) = collect_items(components_to_stop_clone, rx_item, move |items| {
             item_pool.append(items);
         });
         debug!("collect: started ({components_to_stop:?} components)");
@@ -158,6 +170,7 @@ impl Reader {
             tx_interrupt,
             tx_interrupt_cmd,
             components_to_stop,
+            collector_handle: Some(collector_handle),
             items,
         }
     }
@@ -172,18 +185,19 @@ impl Default for Reader {
     }
 }
 
-fn collect_items<F>(components_to_stop: Arc<AtomicUsize>, rx_item: SkimItemReceiver, callback: F) -> Sender<i32>
+fn collect_items<F>(
+    components_to_stop: Arc<AtomicUsize>,
+    rx_item: SkimItemReceiver,
+    callback: F,
+) -> (Sender<i32>, JoinHandle<()>)
 where
     F: Fn(Vec<Arc<dyn SkimItem>>) + Send + 'static,
 {
     let (tx_interrupt, rx_interrupt) = crate::prelude::bounded(8);
 
-    let started = Arc::new(AtomicBool::new(false));
-    let started_clone = started.clone();
-    std::thread::spawn(move || {
+    components_to_stop.fetch_add(1, Ordering::AcqRel);
+    let handle = std::thread::spawn(move || {
         debug!("collect_item start");
-        components_to_stop.fetch_add(1, Ordering::SeqCst);
-        started_clone.store(true, Ordering::SeqCst); // notify parent that it is started
 
         loop {
             if let Ok(Some(msg)) = rx_interrupt.try_recv() {
@@ -205,15 +219,11 @@ where
             }
         }
 
-        components_to_stop.fetch_sub(1, Ordering::SeqCst);
+        components_to_stop.fetch_sub(1, Ordering::AcqRel);
         debug!("collect_item stop");
     });
 
-    while !started.load(Ordering::SeqCst) {
-        // busy waiting for the thread to start. (components_to_stop is added)
-    }
-
-    tx_interrupt
+    (tx_interrupt, handle)
 }
 
 #[cfg(test)]

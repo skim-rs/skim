@@ -5,7 +5,7 @@ use ratatui::layout::Size;
 #[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
 
-use super::Preview;
+use super::{PREVIEW_MAX_BYTES, Preview, PreviewContent, read_bounded};
 
 #[cfg(feature = "image")]
 fn image(width: u32, height: u32) -> DynamicImage {
@@ -58,6 +58,51 @@ fn content_loads_text_and_resets_scroll() {
     assert_eq!(p.scroll_x, 0);
     assert_eq!(p.scroll_y, 0);
     assert!(!p.is_loading());
+}
+
+#[test]
+fn large_text_content_does_not_overflow_line_count() {
+    let input = "x\n".repeat(70_000);
+    let mut preview = Preview::default();
+    preview.content(input.as_bytes()).unwrap();
+    assert_eq!(preview.total_lines, 70_000);
+
+    let content = preview.content.read().unwrap();
+    let PreviewContent::Text(text) = &*content else {
+        panic!("expected text preview");
+    };
+    let area = ratatui::layout::Rect::new(0, 0, 20, 5);
+    let mut buffer = ratatui::buffer::Buffer::empty(area);
+    assert_eq!(
+        preview.render_text(ratatui::widgets::Block::new(), area, &mut buffer, text),
+        70_000
+    );
+}
+
+#[test]
+fn bounded_reader_discards_output_after_limit() {
+    let input = vec![b'x'; PREVIEW_MAX_BYTES + 4096];
+    let output = read_bounded(std::io::Cursor::new(input));
+    assert_eq!(output.len(), PREVIEW_MAX_BYTES);
+}
+
+#[cfg(unix)]
+#[test]
+fn plain_preview_can_be_cancelled() {
+    use ratatui::backend::TestBackend;
+    use std::time::{Duration, Instant};
+
+    let mut preview = Preview::default();
+    preview.pty = None;
+    let mut tui =
+        super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
+            .unwrap();
+    preview.spawn(&mut tui, "sleep 30").unwrap();
+
+    let started = Instant::now();
+    preview.kill();
+    preview.thread_handle.take().unwrap().join().unwrap();
+    assert!(started.elapsed() < Duration::from_secs(2));
 }
 
 #[test]
