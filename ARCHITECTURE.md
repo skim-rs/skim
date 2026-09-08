@@ -870,7 +870,7 @@ Pre-selection is applied when items first appear: `DefaultSkimSelector::should_s
 
 `Preview` (`src/tui/preview.rs`) renders a side/top/bottom pane showing expanded information about the focused item. Its stored content is one of three variants:
 
-**Plain text mode** (no `pty`): spawns `sh -c <cmd>` on Unix or `cmd /c <cmd>` on Windows. On Windows, `Command::raw_arg` is used so `cmd.exe` receives shell metacharacters exactly as written. The worker drains stdout and stderr concurrently, but retains at most `PREVIEW_MAX_BYTES` from each stream. Cancellation terminates the child process group (the process tree on Windows), so selection changes do not leave old preview commands running. Successful stdout or failed stderr is parsed with `ansi_to_tui::IntoText`, stored as `PreviewContent::Text`, and followed by `Event::PreviewReady`.
+**Plain text mode** (no `pty`): spawns `sh -c <cmd>` on Unix or `cmd /c <cmd>` on Windows. On Windows, `Command::raw_arg` is used so `cmd.exe` receives shell metacharacters exactly as written. The worker drains stdout and stderr concurrently, but retains at most `PREVIEW_MAX_BYTES` from each stream. Retained stdout is parsed with `ansi_to_tui::IntoText` and published while the command runs. Cancellation terminates the child process group (the process tree on Windows) and invalidates its output writer, so an old reader cannot replace content from a newer preview. At exit, successful stdout or failed stderr is stored as `PreviewContent::Text` and followed by `Event::PreviewReady`.
 
 **PTY mode** (`--preview-window pty`): creates a real pseudo-terminal pair via `portable_pty`. The child process sees a properly sized terminal (via `ROWS`/`COLUMNS` env and PTY dimensions). Output is parsed by a `vt100::Parser` with a scrollback buffer, stored as `PreviewContent::Terminal(Arc<RwLock<vt100::Parser>>)`. This enables interactive preview programs (e.g. `bat`, `delta`).
 
@@ -896,8 +896,8 @@ else if pty mode:
 
 else:
   start shell in a dedicated process group with piped stdout + stderr
-  thread: drain both streams with bounded retention; poll child status
-          → cancellation kills the process group
+  thread: drain both streams with bounded retention; stream active stdout; poll child status
+          → cancellation invalidates the writer and kills the process group
           → content.write() = PreviewContent::Text(…)
           → Event::PreviewReady
 ```

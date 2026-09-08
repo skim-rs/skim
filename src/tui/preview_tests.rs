@@ -5,7 +5,7 @@ use ratatui::layout::Size;
 #[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
 
-use super::{PREVIEW_MAX_BYTES, Preview, PreviewContent, read_bounded};
+use super::{PREVIEW_MAX_BYTES, Preview, PreviewContent, read_bounded, update_plain_content};
 
 #[cfg(feature = "image")]
 fn image(width: u32, height: u32) -> DynamicImage {
@@ -86,11 +86,22 @@ fn bounded_reader_discards_output_after_limit() {
     assert_eq!(output.len(), PREVIEW_MAX_BYTES);
 }
 
+fn preview_contains(preview: &Preview, expected: &str) -> bool {
+    preview.content.read().is_ok_and(|content| match &*content {
+        PreviewContent::Text(text) => text
+            .lines
+            .iter()
+            .any(|line| line.spans.iter().any(|span| span.content.as_ref().contains(expected))),
+        _ => false,
+    })
+}
+
 #[cfg(unix)]
 #[test]
 fn plain_preview_streams_before_command_exits() {
-    use ratatui::backend::TestBackend;
     use std::time::{Duration, Instant};
+
+    use ratatui::backend::TestBackend;
 
     let mut preview = Preview::default();
     preview.pty = None;
@@ -100,33 +111,65 @@ fn plain_preview_streams_before_command_exits() {
     preview.spawn(&mut tui, "printf streamed; sleep 30").unwrap();
 
     let started = Instant::now();
-    loop {
-        let has_streamed_output = preview.content.read().is_ok_and(|content| match &*content {
-            PreviewContent::Text(text) => text
-                .lines
-                .iter()
-                .any(|line| line.spans.iter().any(|span| span.content.as_ref().contains("streamed"))),
-            _ => false,
-        });
-        if has_streamed_output {
-            break;
+    let streamed_in_time = loop {
+        if preview_contains(&preview, "streamed") {
+            break true;
         }
-        assert!(
-            started.elapsed() < Duration::from_secs(2),
-            "preview output did not stream"
-        );
+        if started.elapsed() >= Duration::from_secs(2) {
+            break false;
+        }
         std::thread::sleep(Duration::from_millis(10));
-    }
+    };
 
     preview.kill();
     preview.thread_handle.take().unwrap().join().unwrap();
+    assert!(streamed_in_time, "preview output did not stream");
+}
+
+#[cfg(unix)]
+#[test]
+fn stale_plain_preview_cannot_replace_newer_streamed_output() {
+    use std::time::{Duration, Instant};
+
+    use ratatui::backend::TestBackend;
+
+    let mut preview = Preview::default();
+    preview.pty = None;
+    let mut tui =
+        super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
+            .unwrap();
+
+    preview.spawn(&mut tui, "printf stale; sleep 30").unwrap();
+    let stale_cancelled = preview.plain_cancelled.as_ref().unwrap().clone();
+    let stale_thread = preview.thread_handle.take().unwrap();
+    preview.spawn(&mut tui, "printf current; sleep 30").unwrap();
+
+    let started = Instant::now();
+    let current_streamed = loop {
+        if preview_contains(&preview, "current") {
+            break true;
+        }
+        if started.elapsed() >= Duration::from_secs(2) {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    update_plain_content(&preview.content, &stale_cancelled, b"stale");
+    let stale_write_was_ignored = preview_contains(&preview, "current") && !preview_contains(&preview, "stale");
+
+    preview.kill();
+    preview.thread_handle.take().unwrap().join().unwrap();
+    stale_thread.join().unwrap();
+    assert!(current_streamed, "new preview output did not stream");
+    assert!(stale_write_was_ignored, "stale preview replaced newer output");
 }
 
 #[cfg(unix)]
 #[test]
 fn plain_preview_can_be_cancelled() {
-    use ratatui::backend::TestBackend;
     use std::time::{Duration, Instant};
+
+    use ratatui::backend::TestBackend;
 
     let mut preview = Preview::default();
     preview.pty = None;
