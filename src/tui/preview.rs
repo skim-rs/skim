@@ -35,16 +35,34 @@ const VT_SCROLLBACK: usize = 100_000;
 type PlainChild = Arc<Mutex<Option<Child>>>;
 
 fn read_bounded(mut reader: impl Read) -> Vec<u8> {
+    read_bounded_with_updates(&mut reader, |_| {})
+}
+
+fn read_bounded_with_updates(mut reader: impl Read, mut update: impl FnMut(&[u8])) -> Vec<u8> {
+    const UPDATE_INTERVAL: Duration = Duration::from_millis(16);
+
     let mut output = Vec::with_capacity(PREVIEW_MAX_BYTES);
     let mut buffer = [0; 8192];
+    let mut last_update = None;
+    let mut published_len = 0;
     loop {
         match reader.read(&mut buffer) {
             Ok(0) | Err(_) => break,
             Ok(read) => {
                 let retained = PREVIEW_MAX_BYTES.saturating_sub(output.len()).min(read);
                 output.extend_from_slice(&buffer[..retained]);
+
+                let update_due = last_update.is_none_or(|last: Instant| last.elapsed() >= UPDATE_INTERVAL);
+                if retained > 0 && (update_due || output.len() == PREVIEW_MAX_BYTES) {
+                    update(&output);
+                    published_len = output.len();
+                    last_update = Some(Instant::now());
+                }
             }
         }
+    }
+    if output.len() != published_len {
+        update(&output);
     }
     output
 }
@@ -570,7 +588,17 @@ impl Preview {
             self.plain_child = Some(child.clone());
 
             self.thread_handle = Some(std::thread::spawn(move || {
-                let stdout_reader = std::thread::spawn(move || read_bounded(stdout));
+                let streaming_content = content.clone();
+                let stdout_reader = std::thread::spawn(move || {
+                    read_bounded_with_updates(stdout, |output| {
+                        let Ok(text) = output.to_vec().into_text() else {
+                            return;
+                        };
+                        if let Ok(mut content) = streaming_content.write() {
+                            *content = PreviewContent::Text(text);
+                        }
+                    })
+                });
                 let stderr_reader = std::thread::spawn(move || read_bounded(stderr));
 
                 let status = loop {

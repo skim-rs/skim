@@ -88,6 +88,42 @@ fn bounded_reader_discards_output_after_limit() {
 
 #[cfg(unix)]
 #[test]
+fn plain_preview_streams_before_command_exits() {
+    use ratatui::backend::TestBackend;
+    use std::time::{Duration, Instant};
+
+    let mut preview = Preview::default();
+    preview.pty = None;
+    let mut tui =
+        super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
+            .unwrap();
+    preview.spawn(&mut tui, "printf streamed; sleep 30").unwrap();
+
+    let started = Instant::now();
+    loop {
+        let has_streamed_output = preview.content.read().is_ok_and(|content| match &*content {
+            PreviewContent::Text(text) => text
+                .lines
+                .iter()
+                .any(|line| line.spans.iter().any(|span| span.content.as_ref().contains("streamed"))),
+            _ => false,
+        });
+        if has_streamed_output {
+            break;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "preview output did not stream"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    preview.kill();
+    preview.thread_handle.take().unwrap().join().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
 fn plain_preview_can_be_cancelled() {
     use ratatui::backend::TestBackend;
     use std::time::{Duration, Instant};
