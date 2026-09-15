@@ -238,9 +238,9 @@ pub struct PreviewContext<'a> {
     pub current_index: usize,
     /// Text of the current selection
     pub current_selection: &'a str,
-    /// selected item indices (may or may not include current item)
+    /// Selected item indices (may or may not include current item)
     pub selected_indices: &'a [usize],
-    /// selected item texts (may or may not include current item)
+    /// Selected item texts (may or may not include current item)
     pub selections: &'a [&'a str],
 }
 
@@ -262,7 +262,7 @@ pub struct PreviewPosition {
 
 /// Defines how an item should be previewed
 pub enum ItemPreview {
-    /// execute the command and print the command's output
+    /// Execute the command and print the command's output
     Command(String),
     /// Display the prepared text(lines)
     Text(String),
