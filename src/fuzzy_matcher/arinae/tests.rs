@@ -135,6 +135,17 @@ fn smart_case_insensitive_lowercase_pattern() {
 }
 
 #[test]
+fn smart_case_ignores_uncased_pattern_characters() {
+    let m = ArinaeMatcher {
+        case: CaseMatching::Smart,
+        allow_typos: false,
+        ..Default::default()
+    };
+    assert!(m.fuzzy_match("ABC-123", "c-1").is_some());
+    assert!(m.fuzzy_match_range("ABC-123", "c-1").is_some());
+}
+
+#[test]
 fn smart_case_sensitive_uppercase_pattern() {
     let m = ArinaeMatcher {
         case: CaseMatching::Smart,

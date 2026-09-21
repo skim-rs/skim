@@ -85,6 +85,13 @@ fn filter_mode_prints_matches() {
 }
 
 #[test]
+fn filter_mode_smart_case_ignores_uncased_query_characters() {
+    let (code, stdout, _) = run_sk("ABC-123", "--filter c-1");
+    assert_eq!(code, Some(0));
+    assert_eq!(stdout, "ABC-123\n");
+}
+
+#[test]
 fn filter_mode_empty_query_matches_all() {
     let (code, stdout, _) = run_sk("one\\ntwo\\nthree", "-f ''");
     assert_eq!(code, Some(0));
