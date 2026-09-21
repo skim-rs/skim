@@ -1,14 +1,14 @@
 Package: skim
-Version: 5.7.0-1
+Version: 5.7.1-1
 Architecture: arm64
 Maintainer: Loric ANDRE, Zhang Jinzhou <lotabout@gmail.com>
-Installed-Size: 6858
+Installed-Size: 6862
 Depends: libc6 (>= 2.34)
-Filename: ./skim_5.7.0-1_arm64.deb
-Size: 1958036
-MD5sum: 4f060cddc93cc73a2d78d5759928c890
-SHA1: ef9322f185594b5fbae1681acbc0cdfd2642eae6
-SHA256: e4e8c80ba0ef052e52f14f9acab085b519313a611a62e86975b7e3ed8816854f
+Filename: ./skim_5.7.1-1_arm64.deb
+Size: 1958704
+MD5sum: cfb6dc58d7b7972b60043dc9be51a760
+SHA1: 4a82325f530ce28e3db4af13ecbef02e3063c25e
+SHA256: 569051bebf3b88d6b7d86817bb49eec8446358333a8909dfaf3f08b6c30ceee4
 Section: utils
 Priority: optional
 Homepage: https://docs.rs/skim
@@ -17,16 +17,16 @@ Description: Fuzzy Finder in rust!
  line tool and as a library.
 
 Package: skim
-Version: 5.7.0-1
+Version: 5.7.1-1
 Architecture: amd64
 Maintainer: Loric ANDRE, Zhang Jinzhou <lotabout@gmail.com>
 Installed-Size: 8969
 Depends: libc6 (>= 2.34)
-Filename: ./skim_5.7.0-1_amd64.deb
-Size: 2513968
-MD5sum: a91f2790b512221d2cd438edf72c1eed
-SHA1: f2ab828692e592b26758ee8836e965d05ac7a862
-SHA256: 5113b1efea3e1c4bf08c4b9ff5807760932a61edf3961f57f3d3fb75040c10b9
+Filename: ./skim_5.7.1-1_amd64.deb
+Size: 2515816
+MD5sum: ba0f2db684d8c0ddf52e49dee0f74fea
+SHA1: 8264522ed2c4beb0593e47c5a125028a69911875
+SHA256: c4b0b9e78489189ea3ee93d3acfd50d01985a919128949cf8c657641133a1cc1
 Section: utils
 Priority: optional
 Homepage: https://docs.rs/skim
