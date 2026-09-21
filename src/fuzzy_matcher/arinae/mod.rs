@@ -96,7 +96,7 @@ impl ArinaeMatcher {
     #[inline(always)]
     fn respect_case<C: Atom>(&self, pattern: &[C]) -> bool {
         self.case == CaseMatching::Respect
-            || (self.case == CaseMatching::Smart && !pattern.iter().all(|b| b.is_lowercase()))
+            || (self.case == CaseMatching::Smart && pattern.iter().any(|&b| Into::<char>::into(b).is_uppercase()))
     }
 
     /// Dispatch to `full_dp` with the appropriate const generics.
