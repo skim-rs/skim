@@ -127,6 +127,7 @@ impl Skim {
             batch.push(Arc::new(item) as Arc<dyn SkimItem>);
         }
         tx.send(batch)?;
+        drop(tx);
         Self::run_with(options, Some(rx))
     }
 
