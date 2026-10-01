@@ -49,7 +49,7 @@ jobs:
             exit 1
           fi
       - name: Install cargo-generate-rpm
-        uses: taiki-e/install-action@v2.87.1
+        uses: taiki-e/install-action@v2.87.21
         with:
           tool: cargo-generate-rpm@0.21
       - name: Setup cargo cache
