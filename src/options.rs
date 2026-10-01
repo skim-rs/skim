@@ -417,12 +417,28 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(short = 'I', default_value = "{}", help_heading = "Interface"))]
     pub replstr: String,
 
+    /// Color theme, in the `--color` format
+    #[cfg_attr(feature = "cli", arg(skip))]
+    pub color: Option<String>,
     /// Set color theme
     ///
     /// Format: [BASE][,COLOR:ANSI[:ATTR1:ATTR2:..]]
     /// See [THEME] section for details
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
-    pub color: Option<String>,
+    ///
+    /// Repeated --color options are merged in order, so a later value
+    /// overrides an earlier one for the same element.
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long = "color",
+            value_name = "COLOR",
+            action = clap::ArgAction::Append,
+            help_heading = "Interface",
+            verbatim_doc_comment
+        )
+    )]
+    #[builder(setter(skip))]
+    color_args: Vec<String>,
 
     /// Highlight the entire current line, not just the text
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
@@ -1190,6 +1206,7 @@ impl Default for SkimOptions {
             interactive: Default::default(),
             replstr: String::from("{}"),
             color: Default::default(),
+            color_args: Default::default(),
             no_hscroll: Default::default(),
             keep_right: Default::default(),
             skip_to_pattern: Default::default(),
@@ -1514,6 +1531,9 @@ impl SkimOptions {
         args.extend(cli_args);
 
         Self::try_parse_from(args).map(|mut opts| {
+            if !opts.color_args.is_empty() {
+                opts.color = Some(opts.color_args.join(","));
+            }
             if opts.cmd.is_none() {
                 opts.cmd = Some(default_command.unwrap_or_else(|| crate::SKIM_DEFAULT_COMMAND.to_string()));
             }
