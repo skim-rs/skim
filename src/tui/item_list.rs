@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use indexmap::IndexSet;
+use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{
     Block, Borders, Clear, List, ListDirection, ListItem, Scrollbar, ScrollbarOrientation, ScrollbarState,
     StatefulWidget, Widget,
@@ -644,12 +645,18 @@ impl SkimWidget for ItemList {
 
             // Both Default and Custom use a thumb-only style (no track/begin/end arrows).
             // Default uses ▐ (right half-block), which gives a clean minimal look.
-            // Without an explicit thumb_style the thumb inherits whatever fg/bg the
-            // row painted underneath it, so it picks up the current-line highlight as
-            // the cursor scrolls past; the themed `scrollbar` color keeps it uniform.
+            // The thumb style is patched onto the cell of the row drawn beneath it.
+            // The themed `scrollbar` color replaces the row's fg, so the thumb doesn't
+            // take the current-line highlight's fg. Clearing every modifier first stops
+            // a dim or bold item that reaches the rightmost column from dimming or
+            // bolding the thumb. The bg stays the row's, so the current-line highlight
+            // still spans the full width.
+            let thumb_style = Style::new()
+                .remove_modifier(Modifier::all())
+                .patch(self.theme.scrollbar);
             let scrollbar: Scrollbar<'_> = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .thumb_symbol(&self.scrollbar_thumb)
-                .thumb_style(self.theme.scrollbar)
+                .thumb_style(thumb_style)
                 .track_symbol(None)
                 .begin_symbol(None)
                 .end_symbol(None);
