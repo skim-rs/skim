@@ -417,12 +417,28 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(short = 'I', default_value = "{}", help_heading = "Interface"))]
     pub replstr: String,
 
+    /// Color theme, in the `--color` format
+    #[cfg_attr(feature = "cli", arg(skip))]
+    pub color: Option<String>,
     /// Set color theme
     ///
     /// Format: [BASE][,COLOR:ANSI[:ATTR1:ATTR2:..]]
     /// See [THEME] section for details
-    #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
-    pub color: Option<String>,
+    ///
+    /// Repeated --color options are merged in order, so a later value
+    /// overrides an earlier one for the same element.
+    #[cfg_attr(
+        feature = "cli",
+        arg(
+            long = "color",
+            value_name = "COLOR",
+            action = clap::ArgAction::Append,
+            help_heading = "Interface",
+            verbatim_doc_comment
+        )
+    )]
+    #[builder(setter(skip))]
+    color_args: Vec<String>,
 
     /// Highlight the entire current line, not just the text
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
@@ -1190,6 +1206,7 @@ impl Default for SkimOptions {
             interactive: Default::default(),
             replstr: String::from("{}"),
             color: Default::default(),
+            color_args: Default::default(),
             no_hscroll: Default::default(),
             keep_right: Default::default(),
             skip_to_pattern: Default::default(),
@@ -1332,6 +1349,14 @@ impl SkimOptions {
     /// Finalizes the options by applying defaults and initializing components
     #[must_use]
     pub fn build(mut self) -> Self {
+        if !self.color_args.is_empty() {
+            let cli_color = self.color_args.join(",");
+            self.color = Some(match self.color.take() {
+                Some(color) if !color.is_empty() => format!("{color},{cli_color}"),
+                _ => cli_color,
+            });
+        }
+
         if self.no_height {
             self.height = String::from("100%");
         }

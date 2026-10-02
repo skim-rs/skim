@@ -124,6 +124,33 @@ fn merge_options_file_comment_stripper_is_not_quote_aware() {
 }
 
 #[test]
+fn merge_keeps_a_single_color_option() {
+    let opts = merge(None, Some("--color=fg:1,hl:2"), None).build();
+    assert_eq!(opts.color.as_deref(), Some("fg:1,hl:2"));
+}
+
+#[test]
+fn merge_joins_repeated_color_options_in_order() {
+    let opts = SkimOptions::merge_args_and_parse(
+        "sk".to_string(),
+        None,
+        Some("--color=fg:1,hl:2 --color=pointer:3"),
+        ["--color".to_string(), "hl:4".to_string()],
+        None,
+    )
+    .expect("options should parse")
+    .build();
+    assert_eq!(opts.color.as_deref(), Some("fg:1,hl:2,pointer:3,hl:4"));
+}
+
+#[test]
+fn build_appends_command_line_colors_to_a_configured_color() {
+    let mut opts = merge(None, Some("--color=prompt:25"), None);
+    opts.color = Some("matched:108".to_string());
+    assert_eq!(opts.build().color.as_deref(), Some("matched:108,prompt:25"));
+}
+
+#[test]
 fn merge_precedence_cli_args_override_default_options() {
     // CLI args come last, so they win over SKIM_DEFAULT_OPTIONS.
     let opts = SkimOptions::merge_args_and_parse(
