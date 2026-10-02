@@ -125,7 +125,7 @@ fn merge_options_file_comment_stripper_is_not_quote_aware() {
 
 #[test]
 fn merge_keeps_a_single_color_option() {
-    let opts = merge(None, Some("--color=fg:1,hl:2"), None);
+    let opts = merge(None, Some("--color=fg:1,hl:2"), None).build();
     assert_eq!(opts.color.as_deref(), Some("fg:1,hl:2"));
 }
 
@@ -138,7 +138,8 @@ fn merge_joins_repeated_color_options_in_order() {
         ["--color".to_string(), "hl:4".to_string()],
         None,
     )
-    .expect("options should parse");
+    .expect("options should parse")
+    .build();
     assert_eq!(opts.color.as_deref(), Some("fg:1,hl:2,pointer:3,hl:4"));
 }
 

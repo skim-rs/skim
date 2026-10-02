@@ -1349,6 +1349,10 @@ impl SkimOptions {
     /// Finalizes the options by applying defaults and initializing components
     #[must_use]
     pub fn build(mut self) -> Self {
+        if !self.color_args.is_empty() {
+            self.color = Some(self.color_args.join(","));
+        }
+
         if self.no_height {
             self.height = String::from("100%");
         }
@@ -1531,9 +1535,6 @@ impl SkimOptions {
         args.extend(cli_args);
 
         Self::try_parse_from(args).map(|mut opts| {
-            if !opts.color_args.is_empty() {
-                opts.color = Some(opts.color_args.join(","));
-            }
             if opts.cmd.is_none() {
                 opts.cmd = Some(default_command.unwrap_or_else(|| crate::SKIM_DEFAULT_COMMAND.to_string()));
             }
