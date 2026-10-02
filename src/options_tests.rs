@@ -144,6 +144,13 @@ fn merge_joins_repeated_color_options_in_order() {
 }
 
 #[test]
+fn build_appends_command_line_colors_to_a_configured_color() {
+    let mut opts = merge(None, Some("--color=prompt:25"), None);
+    opts.color = Some("matched:108".to_string());
+    assert_eq!(opts.build().color.as_deref(), Some("matched:108,prompt:25"));
+}
+
+#[test]
 fn merge_precedence_cli_args_override_default_options() {
     // CLI args come last, so they win over SKIM_DEFAULT_OPTIONS.
     let opts = SkimOptions::merge_args_and_parse(

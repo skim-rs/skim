@@ -1350,7 +1350,11 @@ impl SkimOptions {
     #[must_use]
     pub fn build(mut self) -> Self {
         if !self.color_args.is_empty() {
-            self.color = Some(self.color_args.join(","));
+            let cli_color = self.color_args.join(",");
+            self.color = Some(match self.color.take() {
+                Some(color) if !color.is_empty() => format!("{color},{cli_color}"),
+                _ => cli_color,
+            });
         }
 
         if self.no_height {
