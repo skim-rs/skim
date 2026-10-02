@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.7.3] - 2026-10-02
+
+### 🐛 Bug Fixes
+
+- *(tui)* Stop the scrollbar thumb inheriting the row's modifiers (#1183)
+- Merge repeated --color options (#1185)
+
+### New Contributors
+* @kvnxiao made their first contribution in [#1185](https://github.com/skim-rs/skim/pull/1185)
+
 ## [5.7.2] - 2026-09-27
 
 ### 🐛 Bug Fixes
