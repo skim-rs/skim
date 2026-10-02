@@ -224,6 +224,10 @@ Two public entry points exist on `Skim`:
 | `Skim::run_with(options, source)` | Takes a `SkimItemReceiver` channel (or `None` to use the configured command collector). The canonical entry point. |
 | `Skim::run_items(options, items)` | Convenience wrapper: accepts any `IntoIterator<Item: SkimItem>`, batches them through a bounded channel, and calls `run_with`. |
 
+`Skim::new(options, source)` and `Skim::new_items(options, items)` initialize skim,
+start the reader, and initialize the default TUI without entering it. `new_items`
+and `run_items` share the item-batching helper and drop the sender after enqueueing.
+
 Advanced embedders and tests can also drive the lifecycle manually: `Skim::init`, `start`, `init_tui` / `init_tui_with`, `enter`, `run`, `output`, plus accessors such as `app`, `app_mut`, `tui_ref`, `tui_mut`, `app_and_tui`, and `event_sender`.
 
 The two high-level helpers return `Result<SkimOutput>`.
@@ -902,6 +906,18 @@ else:
           → Event::PreviewReady
 ```
 
+**Library callbacks**: `PreviewCallback::from` keeps the existing `Vec<String>` callback and
+`Deref` API. `PreviewCallback::streaming` accepts the cursor item as
+`Option<Arc<dyn SkimItem>>`, selected items, and a `Box<dyn Write + Send>`. The cursor item is independent
+of multi-selection and is `None` for an empty list or a direct call through `Deref`.
+Both run on a worker thread. A bounded byte channel feeds a reader thread that uses the
+plain preview's bounded retention, incremental ANSI parsing, and cancellation checks.
+Each write appends output; buffered writers must flush to publish partial output.
+Cancellation stops the reader and disconnects the writer (`BrokenPipe`); user code that
+does not write cannot be forcibly stopped. Calling a streaming callback through `Deref`
+waits for its complete output. No async I/O trait is required; async callers must bridge
+to this synchronous writer.
+
 Scroll state: `scroll_y`, `scroll_x` (in lines/columns) and `total_lines` use `usize`; conversion to ratatui's `u16` coordinates saturates at render time. `page_up/down`, `scroll_up/down/left/right` modify these. `PreviewPosition` supports fixed, percentage, and negative offsets. When `PreviewReady` fires, an optional offset expression (from `--preview-window +expr`) is evaluated to auto-scroll to the matched line.
 
 ### Header Widget
@@ -1293,6 +1309,7 @@ Reader threads (OS threads, per invocation):
   └─ Killer thread: waits for rx_interrupt or rx_pipeline_done; kills a command child if present
 
 Preview threads (OS threads, per preview spawn):
+  ├─ Callback worker → bounded byte channel → callback reader (shared bounded ANSI parsing)
   ├─ PTY reader, image decoder, or plain-child monitor
   └─ Plain mode also has bounded stdout and stderr drain threads
       → writes PreviewContent Arc<RwLock> and sends Event::PreviewReady

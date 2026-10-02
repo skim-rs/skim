@@ -618,7 +618,8 @@ impl App {
             } else {
                 selection = Vec::new();
             }
-            self.preview.content(&cb(selection).join("\n").into_bytes())?;
+            let current = self.item_list.selected().map(|item| item.item);
+            self.preview.spawn_callback(tui, cb, selection, current);
         }
         Ok(())
     }

@@ -14,7 +14,7 @@ use tui_term::vt100;
 use tui_term::widget::PseudoTerminal;
 
 use std::env;
-use std::io::Read;
+use std::io::{self, Cursor, Read, Write};
 use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock, mpsc};
@@ -31,6 +31,67 @@ use crate::{SkimItem, SkimOptions};
 
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
+type StreamingCallbackFn =
+    dyn Fn(Option<Arc<dyn SkimItem>>, Vec<Arc<dyn SkimItem>>, Box<dyn Write + Send>) + Send + Sync + 'static;
+
+struct PreviewWriter(mpsc::SyncSender<Vec<u8>>);
+
+impl Write for PreviewWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let len = bytes.len().min(8192);
+        if len > 0 {
+            self.0
+                .send(bytes[..len].to_vec())
+                .map_err(|_| io::Error::from(io::ErrorKind::BrokenPipe))?;
+        }
+        Ok(len)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct PreviewReader {
+    receiver: mpsc::Receiver<Vec<u8>>,
+    pending: Cursor<Vec<u8>>,
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Read for PreviewReader {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        if bytes.is_empty() {
+            return Ok(0);
+        }
+        while !self.cancelled.load(Ordering::Acquire) {
+            let len = self.pending.read(bytes)?;
+            if len > 0 {
+                return Ok(len);
+            }
+            match self.receiver.recv_timeout(Duration::from_millis(16)) {
+                Ok(chunk) => self.pending = Cursor::new(chunk),
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        Ok(0)
+    }
+}
+
+fn callback_reader(
+    callback: Arc<StreamingCallbackFn>,
+    items: Vec<Arc<dyn SkimItem>>,
+    current: Option<Arc<dyn SkimItem>>,
+    cancelled: Arc<AtomicBool>,
+) -> PreviewReader {
+    let (sender, receiver) = mpsc::sync_channel(1);
+    std::thread::spawn(move || callback(current, items, Box::new(PreviewWriter(sender))));
+    PreviewReader {
+        receiver,
+        pending: Cursor::new(Vec::new()),
+        cancelled,
+    }
+}
 const PREVIEW_MAX_BYTES: usize = 1024 * 1024;
 const VT_SCROLLBACK: usize = 100_000;
 type PlainChild = Arc<Mutex<Option<Child>>>;
@@ -39,9 +100,11 @@ fn read_bounded(mut reader: impl Read) -> Vec<u8> {
     read_bounded_with_updates(&mut reader, |_| {})
 }
 
-fn read_bounded_with_updates(mut reader: impl Read, mut update: impl FnMut(&[u8])) -> Vec<u8> {
-    const UPDATE_INTERVAL: Duration = Duration::from_millis(16);
+fn read_bounded_with_updates(reader: impl Read, update: impl FnMut(&[u8])) -> Vec<u8> {
+    read_bounded_with_interval(reader, Duration::from_millis(16), update)
+}
 
+fn read_bounded_with_interval(mut reader: impl Read, interval: Duration, mut update: impl FnMut(&[u8])) -> Vec<u8> {
     let mut output = Vec::with_capacity(PREVIEW_MAX_BYTES);
     let mut buffer = [0; 8192];
     let mut last_update = None;
@@ -53,7 +116,7 @@ fn read_bounded_with_updates(mut reader: impl Read, mut update: impl FnMut(&[u8]
                 let retained = PREVIEW_MAX_BYTES.saturating_sub(output.len()).min(read);
                 output.extend_from_slice(&buffer[..retained]);
 
-                let update_due = last_update.is_none_or(|last: Instant| last.elapsed() >= UPDATE_INTERVAL);
+                let update_due = last_update.is_none_or(|last: Instant| last.elapsed() >= interval);
                 if retained > 0 && (update_due || output.len() == PREVIEW_MAX_BYTES) {
                     update(&output);
                     published_len = output.len();
@@ -132,6 +195,33 @@ impl Default for PreviewContent {
 #[derive(Clone)]
 pub struct PreviewCallback {
     inner: Arc<PreviewCallbackFn>,
+    streaming: Arc<StreamingCallbackFn>,
+}
+
+impl PreviewCallback {
+    /// Create a callback that writes preview bytes from a worker thread.
+    ///
+    /// Output is appended and interpreted as ANSI text as it arrives. As with
+    /// plain command previews, only the first 1 MiB is retained. The writer
+    /// returns `BrokenPipe` when the preview is cancelled. Wrap it in `BufWriter`
+    /// if needed; flush the buffer to publish output before the callback ends.
+    /// The first argument is the item under the cursor, independent of the
+    /// selected items. It is `None` when the list is empty. Calls through `Deref`
+    /// also pass `None`, since no cursor is available, and wait for complete output.
+    pub fn streaming<F>(func: F) -> Self
+    where
+        F: Fn(Option<Arc<dyn SkimItem>>, Vec<Arc<dyn SkimItem>>, Box<dyn Write + Send>) + Send + Sync + 'static,
+    {
+        let streaming: Arc<StreamingCallbackFn> = Arc::new(func);
+        let callback = streaming.clone();
+        Self {
+            inner: Arc::new(move |items| {
+                let reader = callback_reader(callback.clone(), items, None, Arc::new(AtomicBool::new(false)));
+                vec![String::from_utf8_lossy(&read_bounded(reader)).into_owned()]
+            }),
+            streaming,
+        }
+    }
 }
 
 impl<F> From<F> for PreviewCallback
@@ -139,7 +229,14 @@ where
     F: Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static,
 {
     fn from(func: F) -> Self {
-        Self { inner: Arc::new(func) }
+        let inner: Arc<PreviewCallbackFn> = Arc::new(func);
+        let callback = inner.clone();
+        Self {
+            inner,
+            streaming: Arc::new(move |_, items, mut writer| {
+                let _ = writer.write_all(callback(items).join("\n").as_bytes());
+            }),
+        }
     }
 }
 
@@ -294,6 +391,7 @@ impl Preview {
 
     pub fn content(&mut self, content: &[u8]) -> Result<()> {
         let text = content.to_owned().into_text()?;
+        self.kill();
         let Ok(mut content) = self.content.write() else {
             return Err(eyre::eyre!("Failed to acquire content for writing"));
         };
@@ -400,6 +498,37 @@ impl Preview {
                 }
             }
         }
+    }
+
+    pub(crate) fn spawn_callback<B: Backend>(
+        &mut self,
+        tui: &mut Tui<B>,
+        callback: &PreviewCallback,
+        items: Vec<Arc<dyn SkimItem>>,
+        current: Option<Arc<dyn SkimItem>>,
+    ) where
+        B::Error: Send + Sync + 'static,
+    {
+        self.kill();
+        self.scroll_y = 0;
+        self.scroll_x = 0;
+        self.loading = true;
+        let cancelled = Arc::new(AtomicBool::new(false));
+        self.plain_cancelled = Some(cancelled.clone());
+        let reader = callback_reader(callback.streaming.clone(), items, current, cancelled.clone());
+        let content = self.content.clone();
+        let event_tx = tui.event_tx.clone();
+        self.thread_handle = Some(std::thread::spawn(move || {
+            let output = read_bounded_with_interval(reader, Duration::ZERO, |output| {
+                update_plain_content(&content, &cancelled, output);
+            });
+            if output.is_empty() {
+                update_plain_content(&content, &cancelled, &output);
+            }
+            if !cancelled.load(Ordering::Acquire) {
+                let _ = event_tx.blocking_send(Event::PreviewReady);
+            }
+        }));
     }
 
     #[allow(clippy::too_many_lines)]

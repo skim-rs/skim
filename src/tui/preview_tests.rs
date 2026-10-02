@@ -277,6 +277,70 @@ fn filter_and_respond_strips_query_sequences() {
 }
 
 #[test]
+fn streaming_callback_publishes_before_completion_and_cancels() {
+    use std::io::{ErrorKind, Write};
+    use std::sync::{Mutex, mpsc};
+    use std::time::{Duration, Instant};
+
+    use ratatui::backend::TestBackend;
+    use ratatui::style::Color;
+
+    let (release_tx, release_rx) = mpsc::channel();
+    let release_rx = Mutex::new(release_rx);
+    let (result_tx, result_rx) = mpsc::channel();
+    let main_thread = std::thread::current().id();
+    let callback = super::PreviewCallback::streaming(move |_, _, mut writer| {
+        assert_ne!(std::thread::current().id(), main_thread);
+        writer.write_all(b"\x1b[31mfirst\x1b[0m").unwrap();
+        writer.write_all(b"\nsecond").unwrap();
+        release_rx.lock().unwrap().recv().unwrap();
+        result_tx.send(writer.write_all(b"late").unwrap_err().kind()).unwrap();
+    });
+    let mut tui =
+        super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
+            .unwrap();
+    let mut preview = Preview::default();
+    preview.spawn_callback(&mut tui, &callback, Vec::new(), None);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let PreviewContent::Text(text) = &*preview.content.read().unwrap()
+            && text.lines.len() == 2
+            && text.lines[0].to_string() == "first"
+            && text.lines[1].to_string() == "second"
+        {
+            assert_eq!(text.lines[0].spans[0].style.fg, Some(Color::Red));
+            break;
+        }
+        assert!(Instant::now() < deadline, "no incremental preview output");
+        std::thread::yield_now();
+    }
+    assert!(preview.is_loading());
+    preview.kill();
+    preview.thread_handle.take().unwrap().join().unwrap();
+    release_tx.send(()).unwrap();
+    assert_eq!(
+        result_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+        ErrorKind::BrokenPipe
+    );
+    assert!(tui.event_rx.try_recv().is_err());
+}
+
+#[test]
+fn streaming_callback_supports_buffering_and_legacy_calls() {
+    use std::io::{BufWriter, Write};
+
+    let callback = super::PreviewCallback::streaming(|current, _, writer| {
+        assert!(current.is_none());
+        let mut writer = BufWriter::new(writer);
+        writer.write_all("hello\n世界".as_bytes()).unwrap();
+        writer.flush().unwrap();
+    });
+    assert_eq!(callback(Vec::new()).join("\n"), "hello\n世界");
+    let legacy = super::PreviewCallback::from(|_| vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(legacy(Vec::new()), vec!["a", "b"]);
+}
+
+#[test]
 fn size_to_offset_resolves_each_variant() {
     let mut p = Preview::default();
     p.rows = 50;
