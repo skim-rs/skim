@@ -290,14 +290,15 @@ page](https://github.com/skim-rs/skim/blob/master/man/man1/sk.1) (`man sk`).
 
 `skim` borrows `fzf`'s syntax for matching items:
 
-| Token    | Match type                 | Description                       |
-|----------|----------------------------|-----------------------------------|
-| `text`   | fuzzy-match                | items that match `text`           |
-| `^music` | prefix-exact-match         | items that start with `music`     |
-| `.mp3$`  | suffix-exact-match         | items that end with `.mp3`        |
-| `'wild`  | exact-match (quoted)       | items that include `wild`         |
-| `!fire`  | inverse-exact-match        | items that do not include `fire`  |
-| `!.mp3$` | inverse-suffix-exact-match | items that do not end with `.mp3` |
+| Token     | Match type                 | Description                          |
+|-----------|----------------------------|--------------------------------------|
+| `text`    | fuzzy-match                | items that match `text`              |
+| `^music`  | prefix-exact-match         | items that start with `music`        |
+| `.mp3$`   | suffix-exact-match         | items that end with `.mp3`           |
+| `'wild`   | exact-match (quoted)       | items that include `wild`            |
+| `!fire`   | inverse-exact-match        | items that do not include `fire`     |
+| `!^music` | inverse-prefix-exact-match | items that do not start with `music` |
+| `!.mp3$`  | inverse-suffix-exact-match | items that do not end with `.mp3`    |
 
 `skim` also supports the combination of tokens.
 
