@@ -300,7 +300,7 @@ fn streaming_callback_publishes_before_completion_and_cancels() {
         super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
             .unwrap();
     let mut preview = Preview::default();
-    preview.spawn_callback(&mut tui, &callback, Vec::new(), None);
+    preview.spawn_callback(&mut tui, &callback, false, Vec::new(), None);
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         if let PreviewContent::Text(text) = &*preview.content.read().unwrap()
@@ -323,6 +323,48 @@ fn streaming_callback_publishes_before_completion_and_cancels() {
         ErrorKind::BrokenPipe
     );
     assert!(tui.event_rx.try_recv().is_err());
+}
+
+#[test]
+fn callback_pty_parses_terminal_sequences() {
+    use std::io::Write;
+
+    use ratatui::backend::TestBackend;
+
+    for streaming in [false, true] {
+        for wrap in [false, true] {
+            let callback = if streaming {
+                super::PreviewCallback::streaming(|_, _, mut writer| {
+                    writer.write_all(b"old\x1b[2J\x1b[").unwrap();
+                    writer.write_all(b"H\x1b[31mhello\x1b[2;3H").unwrap();
+                    writer.write_all("世界".as_bytes()).unwrap();
+                })
+            } else {
+                super::PreviewCallback::from(|_| vec!["old\x1b[2J\x1b[H\x1b[31mhello\x1b[2;3H世界".into()])
+            };
+            let mut tui = super::super::Tui::new_with_height_and_backend(
+                TestBackend::new(20, 5),
+                super::super::Size::Percent(100),
+            )
+            .unwrap();
+            let mut preview = Preview::default();
+            preview.rows = 5;
+            preview.cols = 20;
+            preview.wrap = wrap;
+            preview.spawn_callback(&mut tui, &callback, true, Vec::new(), None);
+            preview.thread_handle.take().unwrap().join().unwrap();
+            let content = preview.content.read().unwrap();
+            let PreviewContent::Terminal(parser) = &*content else {
+                panic!("expected terminal preview");
+            };
+            let parser = parser.read().unwrap();
+            let screen = parser.screen();
+            assert_eq!(screen.size(), (5, if wrap { 20 } else { 1024 }));
+            assert_eq!(screen.contents(), "hello\n  世界");
+            assert_eq!(screen.cell(0, 0).unwrap().fgcolor(), super::vt100::Color::Idx(1));
+            assert!(matches!(tui.event_rx.try_recv(), Ok(super::Event::PreviewReady)));
+        }
+    }
 }
 
 #[test]

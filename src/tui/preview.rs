@@ -201,8 +201,9 @@ pub struct PreviewCallback {
 impl PreviewCallback {
     /// Create a callback that writes preview bytes from a worker thread.
     ///
-    /// Output is appended and interpreted as ANSI text as it arrives. As with
-    /// plain command previews, only the first 1 MiB is retained. The writer
+    /// Output is interpreted as ANSI text as it arrives, or as terminal output
+    /// when `preview_window.pty` is enabled. In text mode, only the first 1 MiB
+    /// is retained; terminal mode uses bounded scrollback instead. The writer
     /// returns `BrokenPipe` when the preview is cancelled. Wrap it in `BufWriter`
     /// if needed; flush the buffer to publish output before the callback ends.
     /// The first argument is the item under the cursor, independent of the
@@ -504,6 +505,7 @@ impl Preview {
         &mut self,
         tui: &mut Tui<B>,
         callback: &PreviewCallback,
+        pty: bool,
         items: Vec<Arc<dyn SkimItem>>,
         current: Option<Arc<dyn SkimItem>>,
     ) where
@@ -515,15 +517,36 @@ impl Preview {
         self.loading = true;
         let cancelled = Arc::new(AtomicBool::new(false));
         self.plain_cancelled = Some(cancelled.clone());
-        let reader = callback_reader(callback.streaming.clone(), items, current, cancelled.clone());
+        let mut reader = callback_reader(callback.streaming.clone(), items, current, cancelled.clone());
         let content = self.content.clone();
+        let parser = pty.then(|| {
+            let cols = if self.wrap { self.cols.max(1) } else { 1024 };
+            let parser = Arc::new(RwLock::new(vt100::Parser::new(self.rows.max(1), cols, VT_SCROLLBACK)));
+            if let Ok(mut content) = content.write() {
+                *content = PreviewContent::Terminal(parser.clone());
+            }
+            parser
+        });
         let event_tx = tui.event_tx.clone();
         self.thread_handle = Some(std::thread::spawn(move || {
-            let output = read_bounded_with_interval(reader, Duration::ZERO, |output| {
-                update_plain_content(&content, &cancelled, output);
-            });
-            if output.is_empty() {
-                update_plain_content(&content, &cancelled, &output);
+            if let Some(parser) = parser {
+                let mut buffer = [0; 8192];
+                while let Ok(size) = reader.read(&mut buffer) {
+                    if size == 0 || cancelled.load(Ordering::Acquire) {
+                        break;
+                    }
+                    if let Ok(mut parser) = parser.write() {
+                        parser.process(&buffer[..size]);
+                        parser.screen_mut().set_scrollback(VT_SCROLLBACK);
+                    }
+                }
+            } else {
+                let output = read_bounded_with_interval(reader, Duration::ZERO, |output| {
+                    update_plain_content(&content, &cancelled, output);
+                });
+                if output.is_empty() {
+                    update_plain_content(&content, &cancelled, &output);
+                }
             }
             if !cancelled.load(Ordering::Acquire) {
                 let _ = event_tx.blocking_send(Event::PreviewReady);

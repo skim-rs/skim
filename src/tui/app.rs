@@ -619,7 +619,8 @@ impl App {
                 selection = Vec::new();
             }
             let current = self.item_list.selected().map(|item| item.item);
-            self.preview.spawn_callback(tui, cb, selection, current);
+            self.preview
+                .spawn_callback(tui, cb, self.options.preview_window.pty, selection, current);
         }
         Ok(())
     }

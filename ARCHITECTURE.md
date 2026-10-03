@@ -912,6 +912,8 @@ else:
 of multi-selection and is `None` for an empty list or a direct call through `Deref`.
 Both run on a worker thread. A bounded byte channel feeds a reader thread that uses the
 plain preview's bounded retention, incremental ANSI parsing, and cancellation checks.
+`preview_window.pty` selects the existing VT100 terminal parser and renderer for callbacks instead,
+with bounded scrollback and incremental escape-code parsing across writes; no OS PTY is created.
 Each write appends output; buffered writers must flush to publish partial output.
 Cancellation stops the reader and disconnects the writer (`BrokenPipe`); user code that
 does not write cannot be forcibly stopped. Calling a streaming callback through `Deref`
