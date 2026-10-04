@@ -142,7 +142,9 @@ pub struct SkimOptions {
 
     /// Minimum query length to start showing results
     ///
-    /// Only show results when the query is at least this many characters long
+    /// Only show results when the query is at least this many characters long.
+    /// In interactive mode with --cmd, also wait before running the command.
+    /// Has no effect under --disabled.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub min_query_length: Option<usize>,
 
