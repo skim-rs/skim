@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.7.4] - 2026-10-04
+
+### 🐛 Bug Fixes
+
+- Make min-query-length control interactive command runs (#1191)
+
+### 📚 Documentation
+
+- *(readme)* Document inverse prefix match (`!^`) (#1189)
+
+### New Contributors
+* @cohei made their first contribution in [#1189](https://github.com/skim-rs/skim/pull/1189)
+
 ## [5.7.3] - 2026-10-02
 
 ### 🐛 Bug Fixes
