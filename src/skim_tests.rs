@@ -55,6 +55,88 @@ fn accessors_expose_app_and_tui() {
     assert!(!skim.should_quit());
 }
 
+#[cfg(unix)]
+#[test]
+fn interactive_min_query_length_gates_command_lifecycle() {
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("invocations");
+    let cmd = format!(
+        "printf 'run\\n' >> '{}'; printf 'result\\n'; exec sleep 30",
+        log.to_string_lossy().replace('\'', "'\\''")
+    );
+    let mut options = SkimOptions::default();
+    options.interactive = true;
+    options.cmd = Some(cmd.clone());
+    options.min_query_length = Some(3);
+    options.no_clear_if_empty = true;
+    options.sync = true;
+    let mut skim = Skim::<TestBackend>::init(options.build(), None).unwrap();
+    skim.start();
+    assert!(skim.reader_done());
+    assert!(skim.reader_control.is_none());
+    assert!(skim.should_enter());
+    assert!(!log.exists());
+
+    skim.app.input.value = "éé".to_string();
+    skim.handle_reload(&cmd);
+    assert!(skim.reader_done());
+    assert!(!log.exists());
+
+    skim.app.input.value.push('é');
+    skim.handle_reload(&cmd);
+    wait_until(|| !skim.app.item_pool.is_empty());
+    assert_eq!(std::fs::read_to_string(&log).unwrap(), "run\n");
+    assert!(!skim.reader_done());
+    skim.app.item_list.items.push(crate::item::MatchedItem::new(
+        Arc::new("old result".to_string()),
+        crate::Rank::default(),
+        None,
+        &crate::item::RankBuilder::default(),
+    ));
+
+    skim.app.input.value.pop();
+    skim.handle_reload(&cmd);
+    assert!(skim.reader_done());
+    assert!(skim.reader_control.is_none());
+    assert!(skim.app.item_pool.is_empty());
+    assert!(skim.app.item_list.items.is_empty());
+    assert_eq!(std::fs::read_to_string(&log).unwrap(), "run\n");
+
+    skim.app.input.value.push('é');
+    skim.handle_reload(&cmd);
+    wait_until(|| std::fs::read_to_string(&log).is_ok_and(|text| text == "run\nrun\n"));
+    assert_eq!(std::fs::read_to_string(&log).unwrap(), "run\nrun\n");
+    assert!(!skim.reader_done());
+}
+
+#[cfg(unix)]
+#[test]
+fn startup_runs_command_when_length_gate_does_not_apply() {
+    for (interactive, min, disabled, query) in [
+        (true, Some(3), false, "ééé"),
+        (true, None, false, ""),
+        (true, Some(3), true, ""),
+        (false, Some(3), false, ""),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("invocations");
+        let mut options = SkimOptions::default();
+        options.interactive = interactive;
+        options.min_query_length = min;
+        options.disabled = disabled;
+        options.cmd_query = Some(query.to_string());
+        options.cmd = Some(format!(
+            "printf 'run\\n' >> '{}'",
+            log.to_string_lossy().replace('\'', "'\\''")
+        ));
+        let mut skim = Skim::<TestBackend>::init(options.build(), None).unwrap();
+        skim.start();
+        wait_until(|| skim.check_reader());
+        assert!(skim.reader_done());
+        assert_eq!(std::fs::read_to_string(log).unwrap(), "run\n");
+    }
+}
+
 #[test]
 fn should_enter_is_false_in_filter_mode() {
     let mut options = SkimOptions::default();
