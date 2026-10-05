@@ -17,7 +17,7 @@ use crate::tui::actions::Action;
 #[cfg(feature = "image")]
 use crate::tui::util::detect_image_picker;
 use crate::tui::{App, Event, Size, TICK_RATE, Tui};
-use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
+use crate::{SkimItem, SkimItemReceiver, SkimItemSender, SkimOptions, SkimOutput};
 
 /// Stream type yielded by the IPC listener. With the `listen` feature disabled the
 /// listener branch can never fire, so its payload type is uninhabited.
@@ -25,6 +25,25 @@ use crate::{SkimItem, SkimItemReceiver, SkimOptions, SkimOutput};
 type RemoteStream = interprocess::local_socket::tokio::Stream;
 #[cfg(not(feature = "listen"))]
 type RemoteStream = std::convert::Infallible;
+
+fn enqueue_items<I, T>(items: I) -> Result<(SkimItemSender, SkimItemReceiver)>
+where
+    I: IntoIterator<Item = T>,
+    T: SkimItem,
+{
+    const BATCH_SIZE: usize = 1024;
+    let (tx, rx) = crate::prelude::unbounded();
+    let mut batch: Vec<Arc<dyn SkimItem>> = Vec::with_capacity(BATCH_SIZE);
+    for item in items {
+        if batch.len() == BATCH_SIZE {
+            tx.send(batch)?;
+            batch = Vec::with_capacity(BATCH_SIZE);
+        }
+        batch.push(Arc::new(item) as Arc<dyn SkimItem>);
+    }
+    tx.send(batch)?;
+    Ok((tx, rx))
+}
 
 /// Main entry point for running skim
 pub struct Skim<Backend = ratatui::backend::CrosstermBackend<BufWriter<Stderr>>>
@@ -116,18 +135,7 @@ impl Skim {
         I: IntoIterator<Item = T>,
         T: SkimItem,
     {
-        const BATCH_SIZE: usize = 1024;
-        let (tx, rx) = crate::prelude::unbounded();
-        let mut batch: Vec<Arc<dyn SkimItem>> = Vec::with_capacity(BATCH_SIZE);
-        for item in items {
-            if batch.len() == 1024 {
-                tx.send(batch)?;
-                batch = Vec::with_capacity(BATCH_SIZE);
-            }
-            batch.push(Arc::new(item) as Arc<dyn SkimItem>);
-        }
-        tx.send(batch)?;
-        drop(tx);
+        let (_, rx) = enqueue_items(items)?;
         Self::run_with(options, Some(rx))
     }
 
@@ -145,6 +153,32 @@ impl Skim {
         tui.min_height(min_height)?;
         self.tui = Some(tui);
         Ok(())
+    }
+
+    /// Initialize and start skim without entering the terminal UI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if skim or the TUI backend cannot be initialized.
+    pub fn new(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
+        let mut res = Self::init(options, source)?;
+        res.start();
+        res.init_tui()?;
+        Ok(res)
+    }
+
+    /// Initialize and start skim with items without entering the terminal UI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if sending items or initializing skim or its TUI fails.
+    pub fn new_items<I, T>(options: SkimOptions, items: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = T>,
+        T: SkimItem,
+    {
+        let (_, rx) = enqueue_items(items)?;
+        Self::new(options, Some(rx))
     }
 }
 

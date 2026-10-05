@@ -33,6 +33,7 @@ pub mod layout;
 /// TUI-specific options and configuration
 pub mod options;
 mod preview;
+mod preview_terminal;
 /// Status line display
 pub mod statusline;
 /// Widget rendering utilities

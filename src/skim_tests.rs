@@ -2,6 +2,19 @@ use super::*;
 use ratatui::backend::TestBackend;
 use std::time::{Duration, Instant};
 
+#[test]
+fn enqueue_items_batches_in_order_and_closes_when_sender_is_dropped() {
+    let (_, rx) = enqueue_items((0..1025).map(|index| index.to_string())).unwrap();
+    let first = rx.recv().unwrap();
+    let last = rx.recv().unwrap();
+    assert_eq!(first.len(), 1024);
+    assert_eq!(first[0].text(), "0");
+    assert_eq!(first[1023].text(), "1023");
+    assert_eq!(last.len(), 1);
+    assert_eq!(last[0].text(), "1024");
+    assert!(rx.recv().is_err());
+}
+
 /// Spin until `cond` holds or a short timeout elapses.
 fn wait_until(mut cond: impl FnMut() -> bool) {
     let start = Instant::now();

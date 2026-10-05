@@ -224,6 +224,10 @@ Two public entry points exist on `Skim`:
 | `Skim::run_with(options, source)` | Takes a `SkimItemReceiver` channel (or `None` to use the configured command collector). The canonical entry point. |
 | `Skim::run_items(options, items)` | Convenience wrapper: accepts any `IntoIterator<Item: SkimItem>`, batches them through a bounded channel, and calls `run_with`. |
 
+`Skim::new(options, source)` and `Skim::new_items(options, items)` initialize skim,
+start the reader, and initialize the default TUI without entering it. `new_items`
+and `run_items` share the item-batching helper and drop the sender after enqueueing.
+
 Advanced embedders and tests can also drive the lifecycle manually: `Skim::init`, `start`, `init_tui` / `init_tui_with`, `enter`, `run`, `output`, plus accessors such as `app`, `app_mut`, `tui_ref`, `tui_mut`, `app_and_tui`, and `event_sender`.
 
 The two high-level helpers return `Result<SkimOutput>`.
@@ -874,7 +878,7 @@ Pre-selection is applied when items first appear: `DefaultSkimSelector::should_s
 
 **Plain text mode** (no `pty`): spawns `sh -c <cmd>` on Unix or `cmd /c <cmd>` on Windows. On Windows, `Command::raw_arg` is used so `cmd.exe` receives shell metacharacters exactly as written. The worker drains stdout and stderr concurrently, but retains at most `PREVIEW_MAX_BYTES` from each stream. Retained stdout is parsed with `ansi_to_tui::IntoText` and published while the command runs. Cancellation terminates the child process group (the process tree on Windows) and invalidates its output writer, so an old reader cannot replace content from a newer preview. At exit, successful stdout or failed stderr is stored as `PreviewContent::Text` and followed by `Event::PreviewReady`.
 
-**PTY mode** (`--preview-window pty`): creates a real pseudo-terminal pair via `portable_pty`. The child process sees a properly sized terminal (via `ROWS`/`COLUMNS` env and PTY dimensions). Output is parsed by a `vt100::Parser` with a scrollback buffer, stored as `PreviewContent::Terminal(Arc<RwLock<vt100::Parser>>)`. This enables interactive preview programs (e.g. `bat`, `delta`).
+**PTY mode** (`--preview-window pty`): creates a real pseudo-terminal pair via `portable_pty`. The child process sees a properly sized terminal (via `ROWS`/`COLUMNS` env and PTY dimensions). Output is parsed by `avt::Vt` with bounded scrollback, stored as `PreviewContent::Terminal(Arc<RwLock<PreviewTerminal>>)`. `PreviewTerminal` (`src/tui/preview_terminal.rs`) decodes UTF-8 across byte chunks and renders avt cells directly into the Ratatui buffer, including colors, text attributes, wide characters, and horizontal/vertical scrolling. It supports ANSI New Line Mode (LNM). This enables interactive preview programs (e.g. `bat`, `delta`).
 
 **Image mode** (`--image[=detect|halfblocks]`, requires the default `image` feature): treats the expanded preview command as an image path instead of executing it. A worker thread decodes the image with the `image` crate and stores `PreviewContent::Image { source, protocol, size }`. Rendering uses `ratatui_image`; `detect` builds an image protocol picker after entering the alternate screen, while `halfblocks` skips terminal capability detection and uses the portable half-block renderer. The protocol is rebuilt when the preview area changes so the image keeps its aspect ratio within the pane.
 
@@ -893,7 +897,7 @@ else if pty mode:
   init_pty()  ← create PtyPair
   resize PTY to current (rows, cols)
   spawn sh -c <cmd> in slave
-  thread: read master → filter_and_respond_to_queries → vt100::Parser::process
+  thread: read master → filter_and_respond_to_queries → PreviewTerminal::process → avt::Vt::feed_str
           → Event::PreviewReady when EOF
 
 else:
@@ -903,6 +907,20 @@ else:
           → content.write() = PreviewContent::Text(…)
           → Event::PreviewReady
 ```
+
+**Library callbacks**: `PreviewCallback::from` keeps the existing `Vec<String>` callback and
+`Deref` API. `PreviewCallback::streaming` accepts the cursor item as
+`Option<Arc<dyn SkimItem>>`, selected items, and a `Box<dyn Write + Send>`, returning `eyre::Result<()>`. On failure, the error chain replaces the preview with plain error text, even if the output limit was reached. The same error text is returned by calls through `Deref`; errors from cancelled previews are discarded. The cursor item is independent
+of multi-selection and is `None` for an empty list or a direct call through `Deref`.
+Both run on a worker thread. A bounded byte channel feeds a reader thread that uses the
+plain preview's bounded retention, incremental ANSI parsing, and cancellation checks.
+`preview_window.pty` selects the same avt terminal parser and renderer for callbacks instead,
+with bounded scrollback and incremental escape-code parsing across writes; no OS PTY is created.
+Each write appends output; buffered writers must flush to publish partial output.
+Cancellation stops the reader and disconnects the writer (`BrokenPipe`); user code that
+does not write cannot be forcibly stopped. Calling a streaming callback through `Deref`
+waits for its complete output. No async I/O trait is required; async callers must bridge
+to this synchronous writer.
 
 Scroll state: `scroll_y`, `scroll_x` (in lines/columns) and `total_lines` use `usize`; conversion to ratatui's `u16` coordinates saturates at render time. `page_up/down`, `scroll_up/down/left/right` modify these. `PreviewPosition` supports fixed, percentage, and negative offsets. When `PreviewReady` fires, an optional offset expression (from `--preview-window +expr`) is evaluated to auto-scroll to the matched line.
 
@@ -1295,6 +1313,7 @@ Reader threads (OS threads, per invocation):
   └─ Killer thread: waits for rx_interrupt or rx_pipeline_done; kills a command child if present
 
 Preview threads (OS threads, per preview spawn):
+  ├─ Callback worker → bounded byte channel → callback reader (shared bounded ANSI parsing)
   ├─ PTY reader, image decoder, or plain-child monitor
   └─ Plain mode also has bounded stdout and stderr drain threads
       → writes PreviewContent Arc<RwLock> and sends Event::PreviewReady
