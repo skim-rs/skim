@@ -235,12 +235,13 @@ impl PreviewCallback {
             inner: Arc::new(move |items| {
                 let reader = callback_reader(callback.clone(), items, None, Arc::new(AtomicBool::new(false)));
                 let error = reader.error.clone();
+                let output = read_bounded(reader);
                 if let Ok(mut lock) = error.lock()
                     && let Some(msg) = lock.take()
                 {
                     return vec![msg];
                 }
-                vec![String::from_utf8_lossy(&read_bounded(reader)).into_owned()]
+                vec![String::from_utf8_lossy(&output).into_owned()]
             }),
             streaming,
         }
