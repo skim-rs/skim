@@ -10,8 +10,6 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget};
 use ratatui_image::picker::Picker;
 #[cfg(feature = "image")]
 use ratatui_image::protocol::Protocol as ImageProtocol;
-use tui_term::vt100;
-use tui_term::widget::PseudoTerminal;
 
 use std::env;
 use std::io::{self, Cursor, Read, Write};
@@ -21,6 +19,7 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use super::preview_terminal::PreviewTerminal;
 use super::statusline::spinner_char;
 use super::util::{find_csi_end, find_osc_end, handle_csi_query, handle_osc_query};
 use super::widget::{SkimRender, SkimWidget};
@@ -31,8 +30,10 @@ use crate::{SkimItem, SkimOptions};
 
 // PreviewCallback for ratatui - returns Vec<String> instead of AnsiString
 pub type PreviewCallbackFn = dyn Fn(Vec<Arc<dyn SkimItem>>) -> Vec<String> + Send + Sync + 'static;
-type StreamingCallbackFn =
-    dyn Fn(Option<Arc<dyn SkimItem>>, Vec<Arc<dyn SkimItem>>, Box<dyn Write + Send>) + Send + Sync + 'static;
+type StreamingCallbackFn = dyn Fn(Option<Arc<dyn SkimItem>>, Vec<Arc<dyn SkimItem>>, Box<dyn Write + Send>) -> Result<()>
+    + Send
+    + Sync
+    + 'static;
 
 struct PreviewWriter(mpsc::SyncSender<Vec<u8>>);
 
@@ -56,6 +57,7 @@ struct PreviewReader {
     receiver: mpsc::Receiver<Vec<u8>>,
     pending: Cursor<Vec<u8>>,
     cancelled: Arc<AtomicBool>,
+    error: Arc<Mutex<Option<String>>>,
 }
 
 impl Read for PreviewReader {
@@ -85,11 +87,20 @@ fn callback_reader(
     cancelled: Arc<AtomicBool>,
 ) -> PreviewReader {
     let (sender, receiver) = mpsc::sync_channel(1);
-    std::thread::spawn(move || callback(current, items, Box::new(PreviewWriter(sender))));
+    let error = Arc::new(Mutex::new(None));
+    let callback_error = error.clone();
+    std::thread::spawn(move || {
+        if let Err(error) = callback(current, items, Box::new(PreviewWriter(sender.clone()))) {
+            *callback_error.lock().unwrap() = Some(format!("Preview failed: {error:#}"));
+        }
+        // Keep the channel open until the callback result is available.
+        drop(sender);
+    });
     PreviewReader {
         receiver,
         pending: Cursor::new(Vec::new()),
         cancelled,
+        error,
     }
 }
 const PREVIEW_MAX_BYTES: usize = 1024 * 1024;
@@ -175,7 +186,7 @@ pub(crate) enum PreviewContent {
     /// Simple text content (for non-PTY previews and callbacks)
     Text(Text<'static>),
     /// Terminal screen (for PTY previews with cursor positioning)
-    Terminal(Arc<RwLock<vt100::Parser>>),
+    Terminal(Arc<RwLock<PreviewTerminal>>),
     /// Image
     #[cfg(feature = "image")]
     Image {
@@ -209,15 +220,26 @@ impl PreviewCallback {
     /// The first argument is the item under the cursor, independent of the
     /// selected items. It is `None` when the list is empty. Calls through `Deref`
     /// also pass `None`, since no cursor is available, and wait for complete output.
+    /// Return `Ok(())` on success. On failure, the error replaces the preview output.
+    /// Errors from cancelled previews are discarded.
     pub fn streaming<F>(func: F) -> Self
     where
-        F: Fn(Option<Arc<dyn SkimItem>>, Vec<Arc<dyn SkimItem>>, Box<dyn Write + Send>) + Send + Sync + 'static,
+        F: Fn(Option<Arc<dyn SkimItem>>, Vec<Arc<dyn SkimItem>>, Box<dyn Write + Send>) -> Result<()>
+            + Send
+            + Sync
+            + 'static,
     {
         let streaming: Arc<StreamingCallbackFn> = Arc::new(func);
         let callback = streaming.clone();
         Self {
             inner: Arc::new(move |items| {
                 let reader = callback_reader(callback.clone(), items, None, Arc::new(AtomicBool::new(false)));
+                let error = reader.error.clone();
+                if let Ok(mut lock) = error.lock()
+                    && let Some(msg) = lock.take()
+                {
+                    return vec![msg];
+                }
                 vec![String::from_utf8_lossy(&read_bounded(reader)).into_owned()]
             }),
             streaming,
@@ -235,7 +257,8 @@ where
         Self {
             inner,
             streaming: Arc::new(move |_, items, mut writer| {
-                let _ = writer.write_all(callback(items).join("\n").as_bytes());
+                writer.write_all(callback(items).join("\n").as_bytes())?;
+                Ok(())
             }),
         }
     }
@@ -518,10 +541,11 @@ impl Preview {
         let cancelled = Arc::new(AtomicBool::new(false));
         self.plain_cancelled = Some(cancelled.clone());
         let mut reader = callback_reader(callback.streaming.clone(), items, current, cancelled.clone());
+        let error = reader.error.clone();
         let content = self.content.clone();
         let parser = pty.then(|| {
             let cols = if self.wrap { self.cols.max(1) } else { 1024 };
-            let parser = Arc::new(RwLock::new(vt100::Parser::new(self.rows.max(1), cols, VT_SCROLLBACK)));
+            let parser = Arc::new(RwLock::new(PreviewTerminal::new(self.rows, cols, VT_SCROLLBACK)));
             if let Ok(mut content) = content.write() {
                 *content = PreviewContent::Terminal(parser.clone());
             }
@@ -537,8 +561,10 @@ impl Preview {
                     }
                     if let Ok(mut parser) = parser.write() {
                         parser.process(&buffer[..size]);
-                        parser.screen_mut().set_scrollback(VT_SCROLLBACK);
                     }
+                }
+                if let Ok(mut parser) = parser.write() {
+                    parser.finish();
                 }
             } else {
                 let output = read_bounded_with_interval(reader, Duration::ZERO, |output| {
@@ -549,6 +575,11 @@ impl Preview {
                 }
             }
             if !cancelled.load(Ordering::Acquire) {
+                if let Some(error) = error.lock().unwrap().take()
+                    && let Ok(mut content) = content.write()
+                {
+                    *content = PreviewContent::Text(Text::raw(error));
+                }
                 let _ = event_tx.blocking_send(Event::PreviewReady);
             }
         }));
@@ -605,7 +636,7 @@ impl Preview {
 
         if let Some(pty) = self.pty.take() {
             // Ensure the PTY has the correct display dimensions before spawning.
-            // init_pty() creates PTYs with 1024 cols for non-wrap mode (for the vt100 parser's
+            // init_pty() creates PTYs with 1024 cols for non-wrap mode (for the terminal's
             // horizontal scrolling), but the child process needs to see the actual display size.
             // render() only resizes when the area changes, so if spawn() is called twice at the
             // same area size, the second PTY would still have 1024 cols.
@@ -652,9 +683,9 @@ impl Preview {
             let (interrupt_tx, interrupt_rx) = mpsc::channel();
             self.interrupt_tx = Some(interrupt_tx);
 
-            // Create vt100 parser for PTY output with large scrollback buffer
+            // Create avt terminal for PTY output with bounded scrollback
             let cols = if self.wrap { self.cols } else { 1024 };
-            let parser = Arc::new(RwLock::new(vt100::Parser::new(self.rows, cols, VT_SCROLLBACK)));
+            let parser = Arc::new(RwLock::new(PreviewTerminal::new(self.rows, cols, VT_SCROLLBACK)));
 
             // Update content to use the parser
             if let Ok(mut c) = content.write() {
@@ -688,7 +719,6 @@ impl Preview {
 
                             if let Ok(mut parser_guard) = parser.write() {
                                 parser_guard.process(&filtered);
-                                parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
                             }
 
                             // Clear the processed portion of the buffer
@@ -705,6 +735,10 @@ impl Preview {
                             break;
                         }
                     }
+                }
+
+                if let Ok(mut parser) = parser.write() {
+                    parser.finish();
                 }
 
                 // Last check, I promise
@@ -861,48 +895,19 @@ impl Preview {
         mut outer: Block,
         area: ratatui::layout::Rect,
         buf: &mut ratatui::prelude::Buffer,
-        parser: &std::sync::RwLock<tui_term::vt100::Parser>,
+        parser: &RwLock<PreviewTerminal>,
     ) -> usize {
-        let mut total_lines = 0usize;
-        // For terminal content, manipulate scrollback to implement scrolling
-        if let Ok(mut parser_guard) = parser.try_write() {
-            let scrollback_len = parser_guard.screen().scrollback();
-            // Reset scrollback to its full size first
-            parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
-            // If the scrollback is not empty, we seem to be off by one
-            total_lines = scrollback_len.saturating_sub(1) + parser_guard.screen().contents().lines().count();
-            if self.scroll_y > 0 {
-                trace!("scrolling in vt buffer: {}/{}", self.scroll_y, total_lines);
-                // Reduce scrollback by scroll_y to show earlier content
-                parser_guard
-                    .screen_mut()
-                    .set_scrollback(scrollback_len.saturating_sub(self.scroll_y));
-            }
+        let Ok(terminal) = parser.try_read() else {
+            return self.total_lines;
+        };
+        let total_lines = terminal.total_lines();
+        if self.scroll_y > 0 && total_lines > 0 {
+            let title = format!("{}/{}", self.scroll_y + 1, total_lines);
+            outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
         }
-
-        // Render using PseudoTerminal widget for proper terminal emulation
-        if let Ok(parser_guard) = parser.try_read() {
-            let screen = parser_guard.screen();
-
-            // Add scroll position indicator if scrolled
-            if self.scroll_y > 0 && total_lines > 0 {
-                let title = format!("{}/{}", self.scroll_y + 1, total_lines);
-                outer = outer.title_top(Line::from(title).alignment(Alignment::Right).reversed());
-            }
-
-            // Use PseudoTerminal widget to render the vt100 screen
-            let pseudo_term = PseudoTerminal::new(screen)
-                .cursor(tui_term::widget::Cursor::default().visibility(false))
-                .block(outer);
-            pseudo_term.render(area, buf);
-        }
-
-        // Reset scrollback after rendering
-        if self.scroll_y > 0
-            && let Ok(mut parser_guard) = parser.try_write()
-        {
-            parser_guard.screen_mut().set_scrollback(VT_SCROLLBACK);
-        }
+        let inner = outer.inner(area);
+        outer.render(area, buf);
+        terminal.render(inner, buf, self.scroll_y, self.scroll_x);
         total_lines
     }
     #[cfg(feature = "image")]

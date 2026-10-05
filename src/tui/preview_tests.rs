@@ -295,6 +295,7 @@ fn streaming_callback_publishes_before_completion_and_cancels() {
         writer.write_all(b"\nsecond").unwrap();
         release_rx.lock().unwrap().recv().unwrap();
         result_tx.send(writer.write_all(b"late").unwrap_err().kind()).unwrap();
+        Err(eyre::eyre!("cancelled callback failed"))
     });
     let mut tui =
         super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
@@ -338,6 +339,7 @@ fn callback_pty_parses_terminal_sequences() {
                     writer.write_all(b"old\x1b[2J\x1b[").unwrap();
                     writer.write_all(b"H\x1b[31mhello\x1b[2;3H").unwrap();
                     writer.write_all("世界".as_bytes()).unwrap();
+                    Ok(())
                 })
             } else {
                 super::PreviewCallback::from(|_| vec!["old\x1b[2J\x1b[H\x1b[31mhello\x1b[2;3H世界".into()])
@@ -358,10 +360,12 @@ fn callback_pty_parses_terminal_sequences() {
                 panic!("expected terminal preview");
             };
             let parser = parser.read().unwrap();
-            let screen = parser.screen();
-            assert_eq!(screen.size(), (5, if wrap { 20 } else { 1024 }));
-            assert_eq!(screen.contents(), "hello\n  世界");
-            assert_eq!(screen.cell(0, 0).unwrap().fgcolor(), super::vt100::Color::Idx(1));
+            assert_eq!(parser.vt.size(), (if wrap { 20 } else { 1024 }, 5));
+            assert_eq!(parser.vt.text(), ["hello", "  世界", "", "", ""]);
+            assert_eq!(
+                parser.vt.line(0).cells()[0].pen().foreground(),
+                Some(avt::Color::Indexed(1))
+            );
             assert!(matches!(tui.event_rx.try_recv(), Ok(super::Event::PreviewReady)));
         }
     }
@@ -376,10 +380,42 @@ fn streaming_callback_supports_buffering_and_legacy_calls() {
         let mut writer = BufWriter::new(writer);
         writer.write_all("hello\n世界".as_bytes()).unwrap();
         writer.flush().unwrap();
+        Ok(())
     });
     assert_eq!(callback(Vec::new()).join("\n"), "hello\n世界");
     let legacy = super::PreviewCallback::from(|_| vec!["a".to_string(), "b".to_string()]);
     assert_eq!(legacy(Vec::new()), vec!["a", "b"]);
+}
+
+#[test]
+fn streaming_callback_errors_replace_output() {
+    use std::io::Write;
+
+    use ratatui::backend::TestBackend;
+
+    let callback = super::PreviewCallback::streaming(|_, _, mut writer| {
+        // Failure must remain visible even after plain output reaches its limit.
+        writer.write_all(&vec![b'x'; super::PREVIEW_MAX_BYTES + 1])?;
+        Err(eyre::eyre!("probe failed").wrap_err("host unreachable"))
+    });
+    let expected = "Preview failed: host unreachable: probe failed";
+    assert_eq!(callback(Vec::new()), [expected]);
+    for pty in [false, true] {
+        let mut tui =
+            super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
+                .unwrap();
+        let mut preview = Preview::default();
+        preview.rows = 5;
+        preview.cols = 20;
+        preview.spawn_callback(&mut tui, &callback, pty, Vec::new(), None);
+        preview.thread_handle.take().unwrap().join().unwrap();
+        let content = preview.content.read().unwrap();
+        let PreviewContent::Text(text) = &*content else {
+            panic!("expected error text");
+        };
+        assert_eq!(text.to_string(), expected);
+        assert!(matches!(tui.event_rx.try_recv(), Ok(super::Event::PreviewReady)));
+    }
 }
 
 #[test]

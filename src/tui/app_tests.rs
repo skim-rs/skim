@@ -1222,6 +1222,7 @@ fn streaming_preview_receives_cursor_item_independent_of_selection() {
                 current.map(|item| item.text().into_owned()),
             ))
             .unwrap();
+            Ok(())
         }));
         app.last_preview_spawn = past_instant(Duration::from_secs(1));
         let mut tui = test_tui();
