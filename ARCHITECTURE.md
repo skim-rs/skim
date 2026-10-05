@@ -349,7 +349,9 @@ if let Event::Reload(new_cmd) = &evt {
 2. Clears `ItemPool`
 3. Clears `ItemList` (unless `no_clear_if_empty`)
 4. Calls `app.restart_matcher(force=true)`
-5. Starts a new `reader.collect(…)`
+5. Calls `start_reader(…)`, also used at startup, to start `reader.collect(…)`
+
+With `--interactive --cmd --min-query-length`, `start_reader()` skips command execution when the input is too short. Reload still stops the old reader and clears its items, including under `--no-clear-if-empty`. The reader control is absent and both reader-completion flags are set, so sync/filter startup does not wait for a command that was not started. The existing matcher length check still hides results. `--disabled` keeps its existing length-check bypass.
 
 **Key files:** `src/skim.rs` (`handle_reload`, `tick`), `src/tui/app.rs` (`expand_cmd`, `handle_action` → `RefreshCmd`)
 

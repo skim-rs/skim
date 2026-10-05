@@ -237,7 +237,7 @@ where
     /// Start the reader and matcher, but do not enter the TUI yet
     pub fn start(&mut self) {
         debug!("Starting reader with initial_cmd: {:?}", self.initial_cmd);
-        self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), &self.initial_cmd));
+        self.start_reader(&self.initial_cmd.clone());
         self.app.restart_matcher(true);
         // If the TUI is already available (e.g. test harnesses that build the
         // TUI before starting), fire the `start` event now. In the normal
@@ -280,12 +280,21 @@ where
             self.app.item_list.clear();
         }
         self.app.restart_matcher(true);
-        // Start a new reader with the new command
-        self.reader_control = Some(self.reader.collect(self.app.item_pool.clone(), new_cmd));
-        self.reader_done = false;
-        // A new read is in flight: arm the `load` event to fire again once the
-        // new item set has been read and rendered.
-        self.app.reader_done = false;
+        self.start_reader(new_cmd);
+    }
+
+    fn start_reader(&mut self, cmd: &str) {
+        let query_too_short =
+            self.app.options.interactive && self.app.options.cmd.is_some() && self.app.query_below_min_length();
+        self.reader_control = if query_too_short {
+            // The threshold hides all results, even with --no-clear-if-empty.
+            self.app.item_list.clear();
+            None
+        } else {
+            Some(self.reader.collect(self.app.item_pool.clone(), cmd))
+        };
+        self.reader_done = query_too_short;
+        self.app.reader_done = query_too_short;
         self.app.load_event_fired = false;
     }
 
@@ -471,10 +480,12 @@ where
     ///
     /// Panics if `start` has not been called before this method.
     pub fn should_enter(&mut self) -> bool {
-        let reader_control = self
-            .reader_control
-            .as_ref()
-            .expect("reader_control needs to be initialized using Skim::start");
+        assert!(
+            self.reader_control.is_some() || self.reader_done,
+            "reader_control needs to be initialized using Skim::start"
+        );
+        // A short interactive query has no reader: it is already complete.
+        let reader_control = self.reader_control.as_ref();
         let app = &mut self.app;
 
         // Filter mode: wait for all items to be read and matched, then return without entering TUI
@@ -485,7 +496,7 @@ where
                 // never be drained and this loop would spin forever. There is nothing to
                 // match in that case: stop as soon as the reader is done.
                 if app.query_below_min_length() {
-                    if reader_control.is_done() {
+                    if reader_control.is_none_or(ReaderControl::is_done) {
                         debug!("filter mode: query shorter than --min-query-length, no results");
                         app.item_list.items.clear();
                         return false;
@@ -494,7 +505,7 @@ where
                     continue;
                 }
                 let matcher_stopped = app.matcher_control.stopped();
-                let reader_done = reader_control.is_done();
+                let reader_done = reader_control.is_none_or(ReaderControl::is_done);
                 if matcher_stopped && reader_done && app.item_pool.num_not_taken() == 0 {
                     break;
                 }
@@ -535,10 +546,10 @@ where
                 min_items_before_enter,
                 app.item_pool.num_not_taken(),
                 app.input.value,
-                reader_control.is_done()
+                reader_control.is_none_or(ReaderControl::is_done)
             );
             while app.matcher_control.get_num_matched() < min_items_before_enter
-                && (!app.matcher_control.stopped() || !reader_control.is_done())
+                && (!app.matcher_control.stopped() || !reader_control.is_none_or(ReaderControl::is_done))
             {
                 trace!("still waiting");
                 std::thread::sleep(Duration::from_millis(1));
@@ -550,7 +561,7 @@ where
                 app.matcher_control.get_num_processed(),
                 app.item_pool.num_not_taken(),
                 app.input.value,
-                reader_control.is_done()
+                reader_control.is_none_or(ReaderControl::is_done)
             );
             trace!(
                 "checking for matched item count before entering: {}/{min_items_before_enter}",

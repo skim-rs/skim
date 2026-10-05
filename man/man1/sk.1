@@ -1,6 +1,6 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH sk 1  "sk 5.7.3" 
+.TH sk 1  "sk 5.7.4" 
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH NAME
@@ -28,7 +28,7 @@ Often used in combination with \-\-no\-sort
 \fB\-\-min\-query\-length\fR \fI<MIN_QUERY_LENGTH>\fR
 Minimum query length to start showing results
 
-Only show results when the query is at least this many characters long
+Only show results when the query is at least this many characters long. In interactive mode with \-\-cmd, also wait before running the command. Has no effect under \-\-disabled.
 .TP
 \fB\-\-no\-sort\fR
 Do not sort the results
@@ -1339,4 +1339,4 @@ When using `sk \-\-remote`, pipe in action chains (see the KEYBINDS section), fo
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH VERSION
-v5.7.3
+v5.7.4
