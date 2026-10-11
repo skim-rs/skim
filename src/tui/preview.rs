@@ -213,8 +213,10 @@ impl PreviewCallback {
     /// Create a callback that writes preview bytes from a worker thread.
     ///
     /// Output is interpreted as ANSI text as it arrives, or as terminal output
-    /// when `preview_window.pty` is enabled. In text mode, only the first 1 MiB
-    /// is retained; terminal mode uses bounded scrollback instead. The writer
+    /// when `preview_window.pty` is enabled. Terminal mode starts with New Line Mode
+    /// enabled, so `\n` also resets the column; write `ESC[20l` to disable it.
+    /// In text mode, only the first 1 MiB is retained; terminal mode uses bounded
+    /// scrollback instead. The writer
     /// returns `BrokenPipe` when the preview is cancelled. Wrap it in `BufWriter`
     /// if needed; flush the buffer to publish output before the callback ends.
     /// The first argument is the item under the cursor, independent of the
@@ -546,7 +548,9 @@ impl Preview {
         let content = self.content.clone();
         let parser = pty.then(|| {
             let cols = if self.wrap { self.cols.max(1) } else { 1024 };
-            let parser = Arc::new(RwLock::new(PreviewTerminal::new(self.rows, cols, VT_SCROLLBACK)));
+            let mut parser = PreviewTerminal::new(self.rows, cols, VT_SCROLLBACK);
+            parser.process(b"\x1b[20h");
+            let parser = Arc::new(RwLock::new(parser));
             if let Ok(mut content) = content.write() {
                 *content = PreviewContent::Terminal(parser.clone());
             }

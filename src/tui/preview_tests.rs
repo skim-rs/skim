@@ -338,11 +338,13 @@ fn callback_pty_parses_terminal_sequences() {
                 super::PreviewCallback::streaming(|_, _, mut writer| {
                     writer.write_all(b"old\x1b[2J\x1b[").unwrap();
                     writer.write_all(b"H\x1b[31mhello\x1b[2;3H").unwrap();
-                    writer.write_all("世界".as_bytes()).unwrap();
+                    writer.write_all("世界\nnext\x1b[20l\nend".as_bytes()).unwrap();
                     Ok(())
                 })
             } else {
-                super::PreviewCallback::from(|_| vec!["old\x1b[2J\x1b[H\x1b[31mhello\x1b[2;3H世界".into()])
+                super::PreviewCallback::from(|_| {
+                    vec!["old\x1b[2J\x1b[H\x1b[31mhello\x1b[2;3H世界\nnext\x1b[20l\nend".into()]
+                })
             };
             let mut tui = super::super::Tui::new_with_height_and_backend(
                 TestBackend::new(20, 5),
@@ -361,7 +363,7 @@ fn callback_pty_parses_terminal_sequences() {
             };
             let parser = parser.read().unwrap();
             assert_eq!(parser.vt.size(), (if wrap { 20 } else { 1024 }, 5));
-            assert_eq!(parser.vt.text(), ["hello", "  世界", "", "", ""]);
+            assert_eq!(parser.vt.text(), ["hello", "  世界", "next", "    end", ""]);
             assert_eq!(
                 parser.vt.line(0).cells()[0].pen().foreground(),
                 Some(avt::Color::Indexed(1))

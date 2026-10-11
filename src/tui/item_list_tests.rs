@@ -170,7 +170,7 @@ fn clear_resets_state() {
     il.current = 2;
     il.select_all();
     il.clear();
-    assert!(il.items.is_empty());
+    assert_eq!(il.items, [] as [MatchedItem; 0]);
     assert!(il.selection.is_empty());
     assert_eq!(il.current, 0);
 }
@@ -202,7 +202,7 @@ fn select_row_adds_specific_item() {
 #[test]
 fn processed_items_default_replaces() {
     let pi = ProcessedItems::default();
-    assert!(pi.items.is_empty());
+    assert_eq!(pi.items, [] as [MatchedItem; 0]);
     assert!(matches!(pi.merge, MergeStrategy::Replace));
 }
 
@@ -334,7 +334,7 @@ fn render_empty_list_does_not_panic() {
     let mut il = ItemList::default();
     il.height = 5;
     render_list(&mut il, 20, 5);
-    assert!(il.items.is_empty());
+    assert_eq!(il.items, [] as [MatchedItem; 0]);
 }
 
 #[test]

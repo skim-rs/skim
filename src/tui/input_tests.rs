@@ -51,7 +51,7 @@ fn inline_separator_switches_with_spinner() {
     s.start = Some(Instant::now());
     let out = s.inline_separator_or_spinner();
     assert_ne!(out, " < ");
-    assert!(!out.is_empty());
+    assert_ne!(out, "");
 }
 
 #[test]

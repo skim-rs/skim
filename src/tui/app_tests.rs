@@ -208,7 +208,7 @@ fn unix_line_discard_and_word_rubout() {
     assert!(!app.input.value.ends_with("world"));
 
     act(&mut app, Action::UnixLineDiscard);
-    assert!(app.input.value.is_empty());
+    assert_eq!(app.input.value, "");
 }
 
 #[test]
@@ -1031,7 +1031,7 @@ fn results_filter_mode_drains_items() {
     app.options.filter = Some("x".to_string());
     let results = app.results();
     assert_eq!(results.len(), 2);
-    assert!(app.item_list.items.is_empty());
+    assert_eq!(app.item_list.items, [] as [crate::item::MatchedItem; 0]);
 }
 
 #[test]
@@ -1054,7 +1054,7 @@ fn restart_matcher_short_query_clears_items() {
     app.options.min_query_length = Some(3);
     app.input.value = "ab".to_string();
     app.restart_matcher(true);
-    assert!(app.item_list.items.is_empty());
+    assert_eq!(app.item_list.items, [] as [crate::item::MatchedItem; 0]);
 }
 
 #[test]
@@ -1229,7 +1229,7 @@ fn streaming_preview_receives_cursor_item_independent_of_selection() {
         app.run_preview(&mut tui).unwrap();
         let (selected, current) = rx.recv_timeout(Duration::from_secs(5)).unwrap();
         if items.is_empty() {
-            assert!(selected.is_empty());
+            assert_eq!(selected, [] as [String; 0]);
             assert!(current.is_none());
         } else {
             assert_eq!(selected, vec![if multi { "a" } else { "b" }]);

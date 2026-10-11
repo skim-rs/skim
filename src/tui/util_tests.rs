@@ -366,7 +366,7 @@ fn test_handle_osc_query_ignores_non_query() {
     let buf = SharedBuf::new();
     let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
     handle_osc_query(b"\x1b]0;just a title\x07", &mut writer);
-    assert!(buf.contents().is_empty());
+    assert_eq!(buf.contents(), [] as [u8; 0]);
 }
 
 #[test]
@@ -397,7 +397,7 @@ fn test_handle_csi_query_non_query_returns_false() {
     let buf = SharedBuf::new();
     let mut writer: Box<dyn std::io::Write + Send> = Box::new(buf.clone());
     assert!(!handle_csi_query(b"\x1b[1;2H", &mut writer));
-    assert!(buf.contents().is_empty());
+    assert_eq!(buf.contents(), [] as [u8; 0]);
 }
 
 #[test]

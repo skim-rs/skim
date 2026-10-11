@@ -916,6 +916,8 @@ Both run on a worker thread. A bounded byte channel feeds a reader thread that u
 plain preview's bounded retention, incremental ANSI parsing, and cancellation checks.
 `preview_window.pty` selects the same avt terminal parser and renderer for callbacks instead,
 with bounded scrollback and incremental escape-code parsing across writes; no OS PTY is created.
+Callback terminals start with New Line Mode (NLM) enabled, so LF also resets the column.
+Callbacks can disable NLM with `ESC[20l`.
 Each write appends output; buffered writers must flush to publish partial output.
 Cancellation stops the reader and disconnects the writer (`BrokenPipe`); user code that
 does not write cannot be forcibly stopped. Calling a streaming callback through `Deref`

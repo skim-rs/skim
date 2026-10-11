@@ -65,8 +65,8 @@ async fn main() -> Result<()> {
             let mut writer = BufWriter::new(writer);
             let mut latencies = Latencies::default();
 
-            // Set New Line Mode so `\n` also resets the column
-            write!(writer, "\x1b[20h")?;
+            // New line mode is on by default, so `writeln!` will go down one line and reset the
+            // column too, as you'd expect
             writeln!(writer, "{host}")?;
             writeln!(writer, "Latencies")?;
 

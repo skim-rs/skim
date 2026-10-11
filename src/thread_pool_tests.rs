@@ -130,7 +130,7 @@ fn parallel_work_queue_empty() {
             }
         },
     );
-    assert!(result.is_empty());
+    assert_eq!(result, [] as [u64; 0]);
 }
 
 #[test]

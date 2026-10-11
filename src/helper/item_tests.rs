@@ -171,7 +171,7 @@ fn test_ansi_matching_and_display() {
     // The line should have the original ANSI codes intact
     // We can't easily verify the exact ANSI codes in the output, but we can check
     // that it's not empty and has multiple spans (original text + highlighted match)
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans, [] as [ratatui::prelude::Span<'_>; 0]);
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn test_ansi_char_indices_mapping() {
 
     // display() should map these to positions 6,7 in original text
     let line = item.display(context);
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans, [] as [ratatui::prelude::Span<'_>; 0]);
 }
 
 #[test]
@@ -495,7 +495,7 @@ fn test_normalize_ranges_sorts_and_merges() {
     assert_eq!(normalize_ranges(&[(0, 4), (2, 6)]), vec![(0, 6)]);
     assert_eq!(normalize_ranges(&[(0, 3), (3, 6)]), vec![(0, 6)]);
     assert_eq!(normalize_ranges(&[(2, 2), (0, 1)]), vec![(0, 1)]);
-    assert!(normalize_ranges(&[]).is_empty());
+    assert_eq!(normalize_ranges(&[]), [] as [(usize, usize); 0]);
 }
 
 #[test]
@@ -526,7 +526,7 @@ fn test_project_match_indices_drops_hidden_and_remaps() {
     assert_eq!(indices, vec![6, 7, 8]);
     // A match entirely inside the hidden field yields nothing.
     let indices = project_match_indices("apple RED 001", &Matches::CharRange(6, 9), &map);
-    assert!(indices.is_empty());
+    assert_eq!(indices, [] as [usize; 0]);
 }
 
 #[test]

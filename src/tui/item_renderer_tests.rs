@@ -273,5 +273,5 @@ fn render_item_with_multiline_skip_starts_at_skipped_sub_line() {
     assert_eq!(added, 2);
     assert_eq!(rendered_row_text(out.remove(0), 8), "  second");
     assert_eq!(rendered_row_text(out.remove(0), 8), "  third ");
-    assert!(out.is_empty());
+    assert_eq!(out, [] as [ListItem<'_>; 0]);
 }
