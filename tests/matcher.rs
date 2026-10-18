@@ -78,6 +78,9 @@ insta_test!(matcher_fzy, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy", "--no-typ
 insta_test!(matcher_fzy_typos, INPUT_ITEMS, &["-q", "stum", "--algo", "fzy", "--typos"], {
     @snap;
 });
+insta_test!(matcher_fzy_best_first_char, ["src/main.c", "Cargo.lock"], &["-q", "c", "--algo", "fzy", "--no-typos"], {
+    @snap;
+});
 insta_test!(matcher_arinae, INPUT_ITEMS, &["-q", "stum", "--algo", "arinae", "--no-typos"], {
     @snap;
 });
