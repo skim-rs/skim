@@ -67,7 +67,7 @@
             export VAGRANT_LIBVIRT_OVMF_CODE="${pkgs.OVMF.fd}/FV/OVMF_CODE.fd"
           '';
 
-          mkShell = packages: shellHook: pkgs.mkShellNoCC { inherit packages shellHook; };
+          mkShell = packages: shellHook: pkgs.mkShell { inherit packages shellHook; };
         in
         {
           default = mkShell base "";
