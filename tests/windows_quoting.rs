@@ -25,6 +25,41 @@ fn capture_quoted_arguments() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn command_expansion_rejects_windows_line_breaks_before_execution() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let invoked = dir.path().join("shell-invoked.txt");
+    for input in [
+        b"ok\r\necho injected\0".as_slice(),
+        b"ok\recho injected\0".as_slice(),
+        b"ok\necho injected\0".as_slice(),
+    ] {
+        let value = std::str::from_utf8(&input[..input.len() - 1])?;
+        let options = SkimOptionsBuilder::default().read0(true).multi(true).build()?;
+        let mut harness = common::insta::enter_bytes(input, options)?;
+        assert_eq!(harness.skim.app().item_list.selected().unwrap().output(), value);
+        harness.action(Action::SelectAll)?;
+        harness.skim.app_mut().input.value = value.into();
+
+        for placeholder in ["{}", "{+}", "{q}", "{cq}", "{1..}", "{+1..}"] {
+            // If CMD starts at all, the first command writes the marker file.
+            let command = format!("echo invoked > \"{}\" & echo {placeholder}", invoked.display());
+            for action in [Action::ExecuteSilent(command.clone()), Action::Execute(command)] {
+                let error = harness
+                    .action(action)
+                    .expect_err("CR/LF must be rejected before invoking CMD");
+                assert!(
+                    error
+                        .to_string()
+                        .contains("CMD command expansion cannot contain CR or LF")
+                );
+                assert!(!invoked.exists(), "CMD must not run any part of the rejected command");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn issue_1194_execute_silent_preserves_windows_arguments() -> Result<(), Box<dyn std::error::Error>> {
     // Include spaces in the output path to check CMD argument boundaries too.
     let dir = tempfile::tempdir()?;

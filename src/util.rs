@@ -79,6 +79,7 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 }
 
 // Escape for the child process's argv parser, then for CMD's metacharacter parser.
+// Shell-bound expansion must reject CR/LF separately; CMD cannot safely quote them.
 #[cfg(any(windows, test))]
 fn quote_cmd_arg(s: &str) -> String {
     let mut quoted = String::from("\"");

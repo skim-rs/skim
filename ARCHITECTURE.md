@@ -323,14 +323,14 @@ Template placeholders:
 - `{q}` — alias for `{}`
 - `{n}` — ordinal of the current item
 
-`App::expand_cmd()` handles placeholder expansion. On `Action::ToggleInteractive`, the mode flips between the query controlling the fuzzy filter and the query driving the command.
+`App::expand_cmd()` handles placeholder expansion. Shell-bound commands use `App::expand_shell_cmd()`, which rejects expanded commands containing CR or LF on Windows before execution, preview, or reload can invoke CMD. Non-shell expansion (such as output formatting and `set-query`) is unchanged. On `Action::ToggleInteractive`, the mode flips between the query controlling the fuzzy filter and the query driving the command.
 
 In interactive mode, the initial command is expanded against the initial query:
 
 ```rust
 // src/skim.rs Skim::init()
 let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
-    app.expand_cmd(&cmd, true)   // true = initial call
+    app.expand_shell_cmd(&cmd, true)?
 } else { cmd.clone() };
 ```
 
