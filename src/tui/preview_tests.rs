@@ -108,7 +108,7 @@ fn plain_preview_streams_before_command_exits() {
     let mut tui =
         super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
             .unwrap();
-    preview.spawn(&mut tui, "printf streamed; sleep 30").unwrap();
+    preview.spawn(&mut tui, "printf streamed; sleep 30", &[], &[]).unwrap();
 
     let started = Instant::now();
     let streamed_in_time = loop {
@@ -128,6 +128,89 @@ fn plain_preview_streams_before_command_exits() {
 
 #[cfg(unix)]
 #[test]
+fn plain_preview_inherits_extra_env() {
+    use std::time::{Duration, Instant};
+
+    use ratatui::backend::TestBackend;
+
+    let mut preview = Preview::default();
+    preview.pty = None;
+    let mut tui =
+        super::super::Tui::new_with_height_and_backend(TestBackend::new(40, 5), super::super::Size::Percent(100))
+            .unwrap();
+    let env = vec![
+        ("SKIM_QUERY".to_string(), "hello".to_string()),
+        ("FZF_QUERY".to_string(), "hello".to_string()),
+    ];
+    preview
+        .spawn(&mut tui, "printf '%s-%s' \"$SKIM_QUERY\" \"$FZF_QUERY\"", &env, &[])
+        .unwrap();
+
+    let started = Instant::now();
+    let got_env = loop {
+        if preview_contains(&preview, "hello-hello") {
+            break true;
+        }
+        if started.elapsed() >= Duration::from_secs(2) {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+
+    preview.kill();
+    preview.thread_handle.take().unwrap().join().unwrap();
+    assert!(got_env, "preview child did not inherit the exported env vars");
+}
+
+#[cfg(unix)]
+#[test]
+fn pty_preview_applies_environment_and_removes_inherited_values() {
+    use std::time::{Duration, Instant};
+
+    use ratatui::backend::TestBackend;
+
+    assert!(std::env::var_os("HOME").is_some(), "test needs an inherited HOME");
+    let output = tempfile::NamedTempFile::new().unwrap();
+    let mut preview = Preview::default();
+    preview.rows = 5;
+    preview.cols = 40;
+    preview.init_pty();
+    assert!(preview.pty.is_some(), "test needs a PTY");
+    let mut tui =
+        super::super::Tui::new_with_height_and_backend(TestBackend::new(40, 5), super::super::Size::Percent(100))
+            .unwrap();
+    let cmd = format!(
+        "printf '%s:%s:%s' \"$SKIM_QUERY\" \"$FZF_QUERY\" \"${{HOME-unset}}\" > {}",
+        shlex::try_quote(output.path().to_str().unwrap()).unwrap(),
+    );
+    preview
+        .spawn(
+            &mut tui,
+            &cmd,
+            &[
+                ("SKIM_QUERY".to_string(), "hello".to_string()),
+                ("FZF_QUERY".to_string(), "hello".to_string()),
+            ],
+            &["HOME".to_string(), "SKIM_QUERY".to_string()],
+        )
+        .unwrap();
+    let started = Instant::now();
+    let got_env = loop {
+        if std::fs::read_to_string(output.path()).unwrap() == "hello:hello:unset" {
+            break true;
+        }
+        if started.elapsed() >= Duration::from_secs(2) {
+            break false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    preview.kill();
+    preview.thread_handle.take().unwrap().join().unwrap();
+    assert!(got_env, "PTY preview did not apply the environment snapshot");
+}
+
+#[cfg(unix)]
+#[test]
 fn stale_plain_preview_cannot_replace_newer_streamed_output() {
     use std::time::{Duration, Instant};
 
@@ -139,10 +222,10 @@ fn stale_plain_preview_cannot_replace_newer_streamed_output() {
         super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
             .unwrap();
 
-    preview.spawn(&mut tui, "printf stale; sleep 30").unwrap();
+    preview.spawn(&mut tui, "printf stale; sleep 30", &[], &[]).unwrap();
     let stale_cancelled = preview.plain_cancelled.as_ref().unwrap().clone();
     let stale_thread = preview.thread_handle.take().unwrap();
-    preview.spawn(&mut tui, "printf current; sleep 30").unwrap();
+    preview.spawn(&mut tui, "printf current; sleep 30", &[], &[]).unwrap();
 
     let started = Instant::now();
     let current_streamed = loop {
@@ -176,7 +259,7 @@ fn plain_preview_can_be_cancelled() {
     let mut tui =
         super::super::Tui::new_with_height_and_backend(TestBackend::new(20, 5), super::super::Size::Percent(100))
             .unwrap();
-    preview.spawn(&mut tui, "sleep 30").unwrap();
+    preview.spawn(&mut tui, "sleep 30", &[], &[]).unwrap();
 
     let started = Instant::now();
     preview.kill();

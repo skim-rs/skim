@@ -356,6 +356,8 @@ In the `preview` flag, `execute`, `reload`, `set-query`... binds, sk will expand
  item.
 * {+FIELD_INDEX_EXPRESSION} will be expanded to the field index expression run against the {+}
  item(s).
+
+Instead of placeholders, child commands can also read the same state from the `SKIM_*`/`FZF_*` variables listed under ENVIRONMENT VARIABLES.
 ",
     );
     subsection(
@@ -406,6 +408,36 @@ Example:
         "If set to a non-empty value, will disable coloring",
     );
 
+    subsection(
+        &mut custom,
+        "Variables exported to child processes",
+        "
+Commands spawned by `--preview`, `execute`, `execute-silent` and `reload` inherit these variables.
+Every value is exported twice: under a `SKIM_` prefix and under the same name with an `FZF_` prefix.
+* `QUERY`: current query input.
+* `CURRENT_ITEM`: text of the current item, with ANSI sequences stripped; unset when there is none.
+* `SELECTED_ITEMS`: selected items, newline-separated.
+* `POS`: 1-based position of the current item in the list.
+* `TOTAL_COUNT`: total number of items.
+* `MATCH_COUNT`: number of matched items.
+* `SELECT_COUNT`: number of selected items.
+* `LINES`, `COLUMNS`: height and width of the skim area.
+* `DIRECTION`: list direction, `up` or `down`.
+* `INPUT_STATE`: `enabled` or `disabled`.
+* `PROMPT`, `POINTER`: current prompt and pointer (selector) strings.
+* `ACTION`, `KEY`: name of the last action performed and last key pressed (empty before any input).
+  `ACTION` is the action that is running, so a child spawned by a follow-up
+  (`act-up:execute-silent(...)`) sees `execute-silent`.
+* `WRAP`: `char` when item wrapping is enabled, otherwise unset.
+* `PREVIEW_LINES`, `PREVIEW_COLUMNS`, `PREVIEW_TOP`, `PREVIEW_LEFT`: geometry of the preview
+  window; only set when a preview is configured.
+* `NTH`, `WITH_NTH`: current `--nth` and `--with-nth` values, when set.
+A variable that does not apply to the current state is removed from the child's environment, so a
+skim started inside another skim or fzf never passes the enclosing process's values through.
+Example: `sk --preview 'printf %s \"$SKIM_QUERY\"'`.
+",
+    );
+
     section(&mut custom, "THEME", THEME_SECTION);
 
     #[cfg(feature = "listen")]
@@ -454,6 +486,26 @@ mod tests {
         let out = manpage_str();
         for section in ["MODES", "SEARCH", "KEYBINDS", "EXIT CODES"] {
             assert!(out.contains(section), "manpage should contain section '{section}'");
+        }
+    }
+
+    #[test]
+    fn manpage_documents_child_env_vars() {
+        let out = manpage_str();
+        assert!(out.contains("Variables exported to child processes"));
+        for var in [
+            "SKIM_",
+            "FZF_",
+            "CURRENT_ITEM",
+            "SELECTED_ITEMS",
+            "DIRECTION",
+            "INPUT_STATE",
+            "ACTION",
+            "KEY",
+            "PREVIEW_LINES",
+            "PREVIEW_TOP",
+        ] {
+            assert!(out.contains(var), "manpage should mention child env var '{var}'");
         }
     }
 

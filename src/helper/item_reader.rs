@@ -196,6 +196,11 @@ pub struct SkimItemReader {
     /// [`with_thread_pool`](Self::with_thread_pool) or
     /// [`set_thread_pool`](Self::set_thread_pool).
     thread_pool: Arc<ThreadPool>,
+    /// Environment variables exported to the spawned command (see issue #1195).
+    env: Vec<(String, String)>,
+    /// State variables to remove from the inherited environment before spawning,
+    /// because the current snapshot omits them (see issue #1195).
+    env_unset: Vec<String>,
 }
 
 fn default_thread_pool() -> Arc<ThreadPool> {
@@ -209,6 +214,8 @@ impl Default for SkimItemReader {
         Self {
             option: Arc::new(Default::default()),
             thread_pool: default_thread_pool(),
+            env: Vec::new(),
+            env_unset: Vec::new(),
         }
     }
 }
@@ -220,6 +227,8 @@ impl SkimItemReader {
         Self {
             option: Arc::new(option),
             thread_pool: default_thread_pool(),
+            env: Vec::new(),
+            env_unset: Vec::new(),
         }
     }
 
@@ -527,20 +536,32 @@ impl CommandCollector for SkimItemReader {
         components_to_stop: Arc<AtomicUsize>,
     ) -> (SkimItemReceiver, crate::prelude::Sender<i32>) {
         let send_error = self.option.show_error;
-        let (child, source) = get_command_output(cmd, send_error).expect("command not found");
+        let (child, source) =
+            get_command_output(cmd, send_error, &self.env, &self.env_unset).expect("command not found");
         self.parallel_bufread(source, child, &components_to_stop)
     }
 
     fn set_thread_pool(&mut self, pool: Arc<ThreadPool>) {
         self.thread_pool = pool;
     }
+
+    fn set_env(&mut self, env: &[(String, String)], unset: &[String]) {
+        self.env = env.to_vec();
+        self.env_unset = unset.to_vec();
+    }
 }
 
 type CommandOutput = (Option<Child>, Box<dyn BufRead + Send>);
 
-fn get_command_output(cmd: &str, send_error: bool) -> Result<CommandOutput, Box<dyn Error>> {
+fn get_command_output(
+    cmd: &str,
+    send_error: bool,
+    env: &[(String, String)],
+    unset: &[String],
+) -> Result<CommandOutput, Box<dyn Error>> {
     let (reader, writer) = std::io::pipe()?;
     let mut command = crate::shell_cmd(cmd);
+    crate::tui::util::apply_child_env(&mut command, env, unset);
     command.stdout(writer.try_clone()?);
     if send_error {
         trace!("redirecting stderr to the output");

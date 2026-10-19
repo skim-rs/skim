@@ -82,6 +82,40 @@ impl SkimEvent {
             _ => None,
         }
     }
+
+    /// The event's name, as accepted by [`Self::from_name`].
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            SkimEvent::Start => "start",
+            SkimEvent::Load => "load",
+            SkimEvent::Change => "change",
+            SkimEvent::Result => "result",
+            SkimEvent::Focus => "focus",
+            SkimEvent::Zero => "zero",
+            SkimEvent::One => "one",
+            SkimEvent::DoubleClick => "double-click",
+        }
+    }
+
+    /// Reverse of [`Self::key_code`]: the event carried by a reserved key code.
+    ///
+    /// Returns `None` for real keys, so callers can tell a key press from a
+    /// synthetic event routed through the keymap.
+    #[must_use]
+    pub const fn from_key_code(code: KeyCode) -> Option<Self> {
+        match code {
+            KeyCode::F(255) => Some(SkimEvent::Change),
+            KeyCode::F(254) => Some(SkimEvent::Start),
+            KeyCode::F(253) => Some(SkimEvent::Load),
+            KeyCode::F(252) => Some(SkimEvent::Result),
+            KeyCode::F(251) => Some(SkimEvent::Focus),
+            KeyCode::F(250) => Some(SkimEvent::Zero),
+            KeyCode::F(249) => Some(SkimEvent::One),
+            KeyCode::F(248) => Some(SkimEvent::DoubleClick),
+            _ => None,
+        }
+    }
 }
 
 impl From<SkimEvent> for KeyEvent {
@@ -287,6 +321,68 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
     debug!("parsed key {keycode:?} and mods {mods:?}");
 
     Ok(KeyEvent::new(keycode, mods))
+}
+
+/// Formats a key event as an fzf-style name (`ctrl-a`, `alt-b`, `shift-tab`,
+/// `up`, `f1`, `space`).
+///
+/// Synthetic `SkimEvent`s are named after the event (see
+/// [`SkimEvent::from_key_code`]). This is the value exported as
+/// `SKIM_KEY`/`FZF_KEY` to child processes.
+#[must_use]
+pub fn key_name(key: &KeyEvent) -> String {
+    if let Some(event) = SkimEvent::from_key_code(key.code) {
+        return event.name().to_string();
+    }
+
+    let mut name = String::new();
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        name.push_str("ctrl-");
+    }
+    if key.modifiers.contains(KeyModifiers::ALT) {
+        name.push_str("alt-");
+    }
+    // `BackTab` already means shift-tab, so don't double it up.
+    if key.modifiers.contains(KeyModifiers::SHIFT) && !matches!(key.code, KeyCode::Char(_) | KeyCode::BackTab) {
+        name.push_str("shift-");
+    }
+
+    let body = match key.code {
+        KeyCode::Char(' ') => "space".to_string(),
+        KeyCode::Char(c) => {
+            // `parse_key` folds a shift into an upper-case letter, so reproduce
+            // that; a shift on a non-letter keeps the explicit prefix.
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                if c.is_ascii_alphabetic() {
+                    c.to_ascii_uppercase().to_string()
+                } else {
+                    name.push_str("shift-");
+                    c.to_string()
+                }
+            } else {
+                c.to_string()
+            }
+        }
+        KeyCode::Enter => "enter".to_string(),
+        KeyCode::Backspace => "backspace".to_string(),
+        KeyCode::Tab => "tab".to_string(),
+        KeyCode::BackTab => "shift-tab".to_string(),
+        KeyCode::Esc => "esc".to_string(),
+        KeyCode::Up => "up".to_string(),
+        KeyCode::Down => "down".to_string(),
+        KeyCode::Left => "left".to_string(),
+        KeyCode::Right => "right".to_string(),
+        KeyCode::Home => "home".to_string(),
+        KeyCode::End => "end".to_string(),
+        KeyCode::PageUp => "page-up".to_string(),
+        KeyCode::PageDown => "page-down".to_string(),
+        KeyCode::Insert => "insert".to_string(),
+        KeyCode::Delete => "delete".to_string(),
+        KeyCode::F(n) => format!("f{n}"),
+        other => format!("{other:?}").to_lowercase(),
+    };
+    name.push_str(&body);
+    name
 }
 
 /// Parse an iterator of keymaps into a `KeyMap`

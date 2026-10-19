@@ -499,6 +499,43 @@ You can configure key bindings to start external processes without leaving Skim 
 sk --bind 'f1:execute(less -f {}),ctrl-y:execute-silent(echo {} | pbcopy)+abort'
 ```
 
+### Environment variables exported to child processes
+
+Commands run by `--preview`, `execute`, `execute-silent` and `reload` inherit a snapshot of
+skim's state as environment variables. Each value is exported twice: once under a `SKIM_`
+prefix and once under the same name with an `FZF_` prefix, so fzf-style scripts work
+unchanged. This avoids quoting issues and keeps commands short.
+
+| Variable | Value |
+|---|---|
+| `QUERY` | Current query input |
+| `CURRENT_ITEM` | Text of the current item (ANSI-stripped); unset if there is none |
+| `SELECTED_ITEMS` | Selected items, newline-separated |
+| `POS` | 1-based position of the current item |
+| `TOTAL_COUNT` | Total number of items |
+| `MATCH_COUNT` | Number of matched items |
+| `SELECT_COUNT` | Number of selected items |
+| `LINES`, `COLUMNS` | Height and width of the skim area |
+| `DIRECTION` | List direction (`up` or `down`) |
+| `INPUT_STATE` | `enabled` or `disabled` |
+| `PROMPT` | Current prompt string |
+| `POINTER` | Current pointer (selector) string |
+| `ACTION`, `KEY` | Name of the running action and of the last key pressed (empty before any input); a follow-up such as `act-up:execute-silent(...)` reports `execute-silent` |
+| `WRAP` | `char` when item wrapping is on |
+| `PREVIEW_LINES`, `PREVIEW_COLUMNS`, `PREVIEW_TOP`, `PREVIEW_LEFT` | Geometry of the preview window (only set when a preview is configured) |
+| `NTH`, `WITH_NTH` | Current `--nth` and `--with-nth` values (only set when configured) |
+
+```sh
+# Equivalent to --preview 'echo {}', without the quoting pitfalls of {}
+sk --preview 'printf "%s" "$SKIM_CURRENT_ITEM"'
+```
+
+A variable that does not apply to the current state (no preview, no `--nth`, an oversized value,
+…) is removed from the child's environment instead of being left at its inherited value, so a skim
+started inside another skim or fzf never leaks the enclosing process's values into its children.
+The same variables are passed to the very first `--cmd` and to a `reload`, the latter capturing the
+focused and selected items as they were when the reload was triggered.
+
 ## Algorithms
 
 Skim offers multiple algorithms, check the help or manpage for an exhaustive list. Among them are:

@@ -432,6 +432,19 @@ pub(crate) fn cursor_pos_from_tty() -> io::Result<(u16, u16)> {
     crossterm::cursor::position().map(|(x, y)| (x + 1, y + 1))
 }
 
+/// Applies a child-process environment snapshot to `command`.
+///
+/// Every name in `unset` is first removed from the inherited environment: a
+/// skipped pair does not unset an inherited variable, so a skim started inside
+/// fzf would otherwise pass the enclosing process's stale `FZF_*` values to its
+/// children. The pairs in `env` are then set.
+pub(crate) fn apply_child_env(command: &mut std::process::Command, env: &[(String, String)], unset: &[String]) {
+    for name in unset {
+        command.env_remove(name);
+    }
+    command.envs(env.iter().cloned());
+}
+
 #[cfg(test)]
 #[path = "util_tests.rs"]
 mod tests;

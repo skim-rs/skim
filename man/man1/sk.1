@@ -1148,6 +1148,10 @@ In the `preview` flag, `execute`, `reload`, `set\-query`... binds, sk will expan
  item(s).
 .br
 
+.br
+Instead of placeholders, child commands can also read the same state from the `SKIM_*`/`FZF_*` variables listed under ENVIRONMENT VARIABLES.
+.br
+
 .SS "Field index expression"
 
 .br
@@ -1202,6 +1206,56 @@ Example:
 
 .SS NO_COLOR
 If set to a non\-empty value, will disable coloring
+.br
+
+.SS "Variables exported to child processes"
+
+.br
+Commands spawned by `\-\-preview`, `execute`, `execute\-silent` and `reload` inherit these variables.
+.br
+Every value is exported twice: under a `SKIM_` prefix and under the same name with an `FZF_` prefix.
+.br
+* `QUERY`: current query input.
+.br
+* `CURRENT_ITEM`: text of the current item, with ANSI sequences stripped; unset when there is none.
+.br
+* `SELECTED_ITEMS`: selected items, newline\-separated.
+.br
+* `POS`: 1\-based position of the current item in the list.
+.br
+* `TOTAL_COUNT`: total number of items.
+.br
+* `MATCH_COUNT`: number of matched items.
+.br
+* `SELECT_COUNT`: number of selected items.
+.br
+* `LINES`, `COLUMNS`: height and width of the skim area.
+.br
+* `DIRECTION`: list direction, `up` or `down`.
+.br
+* `INPUT_STATE`: `enabled` or `disabled`.
+.br
+* `PROMPT`, `POINTER`: current prompt and pointer (selector) strings.
+.br
+* `ACTION`, `KEY`: name of the last action performed and last key pressed (empty before any input).
+.br
+  `ACTION` is the action that is running, so a child spawned by a follow\-up
+.br
+  (`act\-up:execute\-silent(...)`) sees `execute\-silent`.
+.br
+* `WRAP`: `char` when item wrapping is enabled, otherwise unset.
+.br
+* `PREVIEW_LINES`, `PREVIEW_COLUMNS`, `PREVIEW_TOP`, `PREVIEW_LEFT`: geometry of the preview
+.br
+  window; only set when a preview is configured.
+.br
+* `NTH`, `WITH_NTH`: current `\-\-nth` and `\-\-with\-nth` values, when set.
+.br
+A variable that does not apply to the current state is removed from the child\*(Aqs environment, so a
+.br
+skim started inside another skim or fzf never passes the enclosing process\*(Aqs values through.
+.br
+Example: `sk \-\-preview \*(Aqprintf %s "$SKIM_QUERY"\*(Aq`.
 .br
 
 .SH THEME

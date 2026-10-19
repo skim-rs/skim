@@ -591,7 +591,13 @@ impl Preview {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub fn spawn<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str) -> Result<()>
+    pub fn spawn<B: Backend>(
+        &mut self,
+        tui: &mut Tui<B>,
+        cmd: &str,
+        env: &[(String, String)],
+        unset: &[String],
+    ) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
     {
@@ -664,6 +670,12 @@ impl Preview {
             shell_cmd.env("ROWS", self.rows.to_string());
             shell_cmd.env("COLUMNS", self.cols.to_string());
             shell_cmd.env("PAGER", "");
+            for name in unset {
+                shell_cmd.env_remove(name);
+            }
+            for (key, value) in env {
+                shell_cmd.env(key, value);
+            }
             shell_cmd.arg("-c");
             if let Ok(cwd) = env::current_dir() {
                 shell_cmd.cwd(cwd);
@@ -758,6 +770,7 @@ impl Preview {
         } else {
             trace!("spawning preview cmd {cmd}");
             let mut shell_cmd = crate::shell_cmd(cmd);
+            crate::tui::util::apply_child_env(&mut shell_cmd, env, unset);
             shell_cmd
                 .env("ROWS", self.rows.to_string())
                 .env("COLUMNS", self.cols.to_string())

@@ -360,7 +360,7 @@ where
     /// screen and raw mode, runs the command to completion, then restores skim's
     /// terminal state and restarts the reader. The child is given its own handle
     /// to the controlling terminal as stdin (see [`execute_child_stdin`]).
-    pub(crate) fn run_execute(&mut self, cmd: &str) -> Result<()> {
+    pub(crate) fn run_execute(&mut self, cmd: &str, env: &[(String, String)], unset: &[String]) -> Result<()> {
         use std::io::IsTerminal as _;
 
         let has_tty = std::io::stderr().is_terminal();
@@ -375,6 +375,7 @@ where
         }
 
         let mut command = crate::shell_cmd(cmd);
+        super::util::apply_child_env(&mut command, env, unset);
         command.stdin(execute_child_stdin());
         let _ = command.spawn().and_then(|mut c| c.wait());
 

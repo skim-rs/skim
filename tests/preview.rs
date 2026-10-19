@@ -58,6 +58,26 @@ insta_test!(preview_navigation, ["a", "b", "c"], &["--preview", "echo {}"], {
     @snap;
 });
 
+#[cfg(unix)]
+insta_test!(
+    preview_env_vars,
+    ["aaa", "bbb"],
+    &[
+        "--preview",
+        "echo Q=$SKIM_QUERY FQ=$FZF_QUERY C=$SKIM_CURRENT_ITEM M=$SKIM_MATCH_COUNT S=$SKIM_SELECT_COUNT D=$SKIM_DIRECTION IS=$SKIM_INPUT_STATE P=$SKIM_PROMPT PT=$SKIM_POINTER W=$SKIM_WRAP N=$SKIM_NTH A=$SKIM_ACTION K=$SKIM_KEY T=$SKIM_PREVIEW_TOP L=$SKIM_PREVIEW_LEFT PL=$SKIM_PREVIEW_LINES PC=$SKIM_PREVIEW_COLUMNS",
+        "--preview-window",
+        "up:wrap",
+        "--wrap",
+        "--nth",
+        "1"
+    ],
+    {
+        @snap;
+        @type "bbb";
+        @snap;
+    }
+);
+
 insta_test!(preview_plus, ["a", "b", "c"], &["--preview", "echo {+}", "-m"], {
     @snap;
     @key Up;

@@ -125,3 +125,31 @@ fn execute_interactive_child_keeps_receiving_keys_fullscreen() -> Result<()> {
 fn execute_interactive_child_keeps_receiving_keys_inline() -> Result<()> {
     run_interactive_execute("execute_interactive_inline", &["--height=40%"])
 }
+
+/// `execute` child processes inherit the exported state env vars (issue #1195).
+#[test]
+fn execute_child_inherits_skim_env() -> Result<()> {
+    let mut tmux = ZellijController::new_named("execute_env")?;
+    let out = tmux.tempdir.path().join("env.txt");
+    // The bind command runs through skim's `sh -c`, so `$SKIM_*`/`$FZF_*` are
+    // expanded by that shell, not by skim's placeholder logic.
+    let bind = format!(
+        "--bind='enter:execute(printf %s \"$SKIM_QUERY|$FZF_QUERY|$SKIM_CURRENT_ITEM|$SKIM_POS\" > {})'",
+        out.display()
+    );
+
+    tmux.start_sk(Some("printf 'aaa\\nbbb'"), &[bind.as_str()])?;
+    tmux.until(|l| l.iter().any(|s| s.trim_start().starts_with('>')))?;
+
+    // Type a query so the env vars carry non-default values, then execute.
+    tmux.send_keys(&[Str("bb")])?;
+    tmux.send_keys(&[Enter])?;
+
+    wait(|| match read_file(&out) {
+        Ok(s) if s == "bb|bb|bbb|1" => Ok(()),
+        Ok(s) => Err(std::io::Error::other(format!("unexpected env output: {s:?}"))),
+        Err(_) => Err(std::io::Error::other("env file not written yet")),
+    })?;
+
+    Ok(())
+}
