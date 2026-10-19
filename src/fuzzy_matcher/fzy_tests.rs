@@ -47,6 +47,16 @@ fn test_match_indices_keep_best_first_char() {
 }
 
 #[test]
+fn test_match_indices_follow_consecutive_run() {
+    // The score credits the run "ssi" at 11..=13, so the indices must point there too.
+    assert_eq!(
+        "sessions/se[s][s][i]on.rs",
+        &wrap_fuzzy_match("sessions/session.rs", "ssi").unwrap()
+    );
+    assert_eq!("aa[A][a][B]", &wrap_fuzzy_match("aaAaB", "aab").unwrap());
+}
+
+#[test]
 fn test_indices_score_equals_match_score() {
     let matcher = FzyMatcher::default().ignore_case();
     let typo_matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
@@ -226,6 +236,16 @@ fn test_typo_indices_needle_deletion() {
 }
 
 #[test]
+fn test_typo_indices_follow_consecutive_run() {
+    let matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    // "ssi" matches 11..=13 consecutively and 'z' is substituted by the 'o' at 14.
+    let (_, indices) = matcher.fuzzy_indices("sessions/session.rs", "ssiz").unwrap();
+    assert_eq!(indices.as_slice(), &[11, 12, 13, 14]);
+    let (_, indices) = matcher.fuzzy_indices("aaAaBy", "aabz").unwrap();
+    assert_eq!(indices.as_slice(), &[2, 3, 4, 5]);
+}
+
+#[test]
 fn test_typo_max_typos_none_is_zero_overhead() {
     let default = FzyMatcher::default().ignore_case();
     let explicit_none = FzyMatcher::default().ignore_case().max_typos(None);
@@ -396,12 +416,11 @@ fn test_typo_match_at_first_haystack_char_for_later_needle() {
 #[test]
 fn test_typo_substitution_at_start_and_end() {
     let m = FzyMatcher::default().ignore_case().max_typos(Some(1));
-    // Substitution at the first needle position. (A leading substitution scores
-    // identically to a leading needle-deletion, so 'a' is not assigned an index;
-    // 'b' and 'c' are.)
+    // Substitution at the first needle position. 'b' is scored as consecutive to
+    // the substituted 'X', so all three indices are kept.
     assert!(m.fuzzy_match("Xbc", "abc").is_some());
     let (_s, idx) = m.fuzzy_indices("Xbc", "abc").unwrap();
-    assert_eq!(idx, vec![1, 2]);
+    assert_eq!(idx, vec![0, 1, 2]);
     // Substitution at the last needle position keeps all three indices.
     assert!(m.fuzzy_match("abX", "abc").is_some());
     let (_s, idx) = m.fuzzy_indices("abX", "abc").unwrap();
