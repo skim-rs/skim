@@ -22,6 +22,8 @@
   </a>
 </p>
 
+<p align="center"><a href="https://build.demoshell.com/launch?snapshot=skim%2Ftui%3Askim&utm_source=badge" title="Live demo by Demoshell"><img src="https://build.demoshell.com/v1/embed/badge.svg"></a></p>
+
 > Life is short, skim!
 
 We spend so much of our time navigating through files, lines, and commands. That's where Skim comes in!
