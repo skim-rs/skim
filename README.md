@@ -22,6 +22,8 @@
   </a>
 </p>
 
+<p align="center"><a href="https://build.demoshell.com/launch?snapshot=skim%2Ftui%3Askim&utm_source=badge" title="Live demo by Demoshell"><img src="https://build.demoshell.com/v1/embed/badge.svg"></a></p>
+
 > Life is short, skim!
 
 We spend so much of our time navigating through files, lines, and commands. That's where Skim comes in!
@@ -31,8 +33,6 @@ It's a powerful fuzzy finder designed to make your workflow faster and more effi
 
 Skim provides a single executable called `sk`. Think of it as a smarter alternative to tools like
 `grep` - once you try it, you'll wonder how you ever lived without it!
-
-[![Live demo by Demoshell](https://build.demoshell.com/v1/embed/badge.svg)](https://build.demoshell.com/launch?snapshot=demoshell%2Ftui%3Askim&utm_source=badge)
 
 # Table of contents
 
