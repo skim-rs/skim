@@ -85,7 +85,8 @@ fn test_cmd_argv_round_trip() {
             ("direct CMD", format!("{quoted_executable} {arguments}")),
             (
                 "batch forwarding",
-                format!("{} {arguments}", quote_cmd_arg(forwarding_wrapper.to_str().unwrap())),
+                // Batch paths use CMD quotes, not external-program argv escaping.
+                format!("@\"{}\" {arguments}", forwarding_wrapper.display()),
             ),
         ];
         if value == "%PATH%" {
@@ -95,7 +96,7 @@ fn test_cmd_argv_round_trip() {
                 format!("@\"%{EXE_ENV}%\" {}\r\n", arguments.replace('%', "%%")),
             )
             .unwrap();
-            commands.push(("batch literal", quote_cmd_arg(literal_wrapper.to_str().unwrap())));
+            commands.push(("batch literal", format!("@\"{}\"", literal_wrapper.display())));
         }
         for (context, command) in commands {
             let output = crate::shell_cmd(&command)
