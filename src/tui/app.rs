@@ -47,6 +47,10 @@ const MATCHER_DEBOUNCE_MS: u128 = 200;
 /// `FZF_CURRENT_ITEM`: a bigger value could exceed the environment size limit
 /// and break every child command.
 const MAX_ENV_VALUE_BYTES: usize = 64 * 1024;
+
+/// The exported pairs plus the names to remove from the inherited environment
+/// (see [`App::child_env`] and [`App::child_env_unset`]).
+type ChildEnv = (Vec<(String, String)>, Vec<String>);
 const HIDE_GRACE_MS: u128 = 500;
 const DOUBLE_CLICK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -67,6 +71,10 @@ pub struct App {
     pub(crate) last_action: Option<String>,
     /// Name of the last real key pressed, exported as `SKIM_KEY`/`FZF_KEY`.
     pub(crate) last_key: Option<String>,
+    /// Environment snapshot captured when `execute` was dispatched, so a
+    /// deferred [`Event::RunExecute`] uses the state of the action that queued
+    /// it rather than whatever ran in between.
+    pending_execute_env: Option<ChildEnv>,
 
     /// Current cursor position (x, y)
     pub cursor_pos: (u16, u16),
@@ -252,6 +260,7 @@ impl Default for App {
             final_action: None,
             last_action: None,
             last_key: None,
+            pending_execute_env: None,
             cursor_pos: (0, 0),
             term_area: Rect::default(),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
@@ -329,6 +338,7 @@ impl App {
             final_action: None,
             last_action: None,
             last_key: None,
+            pending_execute_env: None,
             cursor_pos: (0, 0),
             term_area: Rect::default(),
             matcher: Matcher::from_options(&options),
@@ -542,6 +552,7 @@ impl App {
         self.last_preview_spawn = now;
 
         let env = self.child_env();
+        let unset = self.child_env_unset();
 
         if let Some(preview_opt) = &self.options.preview
             && let Some(item) = self.item_list.selected()
@@ -581,13 +592,17 @@ impl App {
             #[cfg(not(feature = "image"))]
             let quote_cmd = true;
             match preview {
-                ItemPreview::Command(cmd) => self.preview.spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env)?,
+                ItemPreview::Command(cmd) => {
+                    self.preview
+                        .spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env, &unset)?;
+                }
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                     self.preview.content(&t.bytes().collect::<Vec<_>>())?;
                 }
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
-                    self.preview.spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env)?;
+                    self.preview
+                        .spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env, &unset)?;
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -625,9 +640,10 @@ impl App {
                 ItemPreview::TextWithPos(t, preview_position) | ItemPreview::AnsiWithPos(t, preview_position) => self
                     .preview
                     .content_with_position(&t.bytes().collect::<Vec<_>>(), preview_position)?,
-                ItemPreview::Global => self
-                    .preview
-                    .spawn(tui, &self.expand_cmd(preview_opt, quote_cmd), &env)?,
+                ItemPreview::Global => {
+                    self.preview
+                        .spawn(tui, &self.expand_cmd(preview_opt, quote_cmd), &env, &unset)?;
+                }
             }
             if preview_ready {
                 let _ = tui.event_tx.try_send(Event::PreviewReady);
@@ -718,8 +734,11 @@ impl App {
                 }
             }
             Event::RunExecute(cmd) => {
-                let env = self.child_env();
-                tui.run_execute(cmd, &env)?;
+                let (env, unset) = self
+                    .pending_execute_env
+                    .take()
+                    .unwrap_or_else(|| (self.child_env(), self.child_env_unset()));
+                tui.run_execute(cmd, &env, &unset)?;
                 self.handle_event(tui, &Event::Redraw)?;
             }
             Event::Clear => {
@@ -867,7 +886,6 @@ impl App {
     /// follow-up chain does not trigger its own follow-up binding. If the chain
     /// contains [`Action::Suppress`], the triggering action is skipped.
     fn handle_action(&mut self, act: &Action) -> Result<Vec<Event>> {
-        self.last_action = Some(act.name().to_string());
         let follow = self.options.action_binds.get(act.name()).cloned();
         let suppress_default = follow
             .as_ref()
@@ -909,10 +927,16 @@ impl App {
     }
 
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines)]
     fn dispatch_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         #[allow(clippy::enum_glob_use)]
         use Action::*;
         use ratatui::widgets::ListDirection::{BottomToTop, TopToBottom};
+        // `SKIM_ACTION`/`FZF_ACTION` report the action that is running, so a
+        // child spawned by this action sees its own name even when the action
+        // was reached through a follow-up (`act-up:execute-silent(…)`) or a
+        // conditional chain.
+        self.last_action = Some(act.name().to_string());
         match act {
             Abort | Accept(_) => {
                 self.should_quit = true;
@@ -1021,16 +1045,15 @@ impl App {
                 // the event loop, which runs it via `Event::RunExecute`.
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {expanded_cmd}");
+                self.pending_execute_env = Some((self.child_env(), self.child_env_unset()));
                 return Ok(vec![Event::RunExecute(expanded_cmd)]);
             }
             ExecuteSilent(cmd) => {
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute-silent: {expanded_cmd}");
                 let mut command = crate::shell_cmd(&expanded_cmd);
-                command
-                    .envs(self.child_env())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null());
+                super::util::apply_child_env(&mut command, &self.child_env(), &self.child_env_unset());
+                command.stdout(Stdio::null()).stderr(Stdio::null());
                 let _ = command.spawn();
             }
             First | Top => {
@@ -1531,15 +1554,6 @@ impl App {
         let item_count = self.item_list.items.len();
         let mut vars: Vec<(&str, String)> = vec![
             ("QUERY", self.input.value.clone()),
-            (
-                "SELECTED_ITEMS",
-                self.item_list
-                    .selection
-                    .iter()
-                    .map(|i| strip_ansi(&i.output()).0)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            ),
             ("POS", (self.item_list.current + 1).min(item_count).to_string()),
             ("TOTAL_COUNT", self.item_pool.len().to_string()),
             ("MATCH_COUNT", self.matcher_control.get_num_matched().to_string()),
@@ -1569,6 +1583,24 @@ impl App {
         if let Some(item) = self.item_list.selected() {
             vars.push(("CURRENT_ITEM", strip_ansi(&item.output()).0));
         }
+        // Join lazily and stop as soon as the value is too large to export:
+        // `--select-all` on a huge list must not strip every item first. The
+        // variable is omitted entirely rather than truncated.
+        let mut joined = String::new();
+        let mut too_large = false;
+        for (index, item) in self.item_list.selection.iter().enumerate() {
+            if index > 0 {
+                joined.push('\n');
+            }
+            joined.push_str(&strip_ansi(&item.output()).0);
+            if joined.len() > MAX_ENV_VALUE_BYTES {
+                too_large = true;
+                break;
+            }
+        }
+        if !too_large {
+            vars.push(("SELECTED_ITEMS", joined));
+        }
         if !self.options.nth.is_empty() {
             vars.push(("NTH", self.options.nth.join(",")));
         }
@@ -1588,7 +1620,7 @@ impl App {
         }
 
         let mut env = Vec::with_capacity(vars.len() * 2);
-        for (name, value) in vars {
+        for (name, value) in &vars {
             // `exec(2)` cannot carry a NUL byte, and one oversized value can
             // exhaust the environment size limit and break every child command.
             // Omit such values (like fzf does for FZF_CURRENT_ITEM) instead of
@@ -1597,9 +1629,56 @@ impl App {
                 continue;
             }
             env.push((format!("SKIM_{name}"), value.clone()));
-            env.push((format!("FZF_{name}"), value));
+            env.push((format!("FZF_{name}"), value.clone()));
         }
         env
+    }
+
+    /// The state variable names that [`Self::child_env`] omits from the current
+    /// snapshot, in both prefixes.
+    ///
+    /// A skipped pair does not unset an inherited variable, so spawn paths must
+    /// remove these names: otherwise a child of a skim started inside fzf would
+    /// still see the enclosing process's `FZF_CURRENT_ITEM` and friends.
+    #[must_use]
+    pub fn child_env_unset(&self) -> Vec<String> {
+        let exported = self.child_env();
+        Self::child_env_names()
+            .into_iter()
+            .filter(|name| !exported.iter().any(|(set, _)| set == name))
+            .collect()
+    }
+
+    /// Every state variable name [`Self::child_env`] can export, in both prefixes.
+    #[must_use]
+    pub fn child_env_names() -> Vec<String> {
+        [
+            "QUERY",
+            "SELECTED_ITEMS",
+            "POS",
+            "TOTAL_COUNT",
+            "MATCH_COUNT",
+            "SELECT_COUNT",
+            "LINES",
+            "COLUMNS",
+            "DIRECTION",
+            "INPUT_STATE",
+            "PROMPT",
+            "POINTER",
+            "ACTION",
+            "KEY",
+            "CURRENT_ITEM",
+            "NTH",
+            "WITH_NTH",
+            "WRAP",
+            "PREVIEW_LINES",
+            "PREVIEW_COLUMNS",
+            "PREVIEW_TOP",
+            "PREVIEW_LEFT",
+        ]
+        .into_iter()
+        .flat_map(|name| [format!("SKIM_{name}"), format!("FZF_{name}")])
+        .collect()
     }
 
     /// Restart matcher with debouncing to avoid excessive restarts during rapid typing

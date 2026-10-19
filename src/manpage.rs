@@ -426,10 +426,14 @@ Every value is exported twice: under a `SKIM_` prefix and under the same name wi
 * `INPUT_STATE`: `enabled` or `disabled`.
 * `PROMPT`, `POINTER`: current prompt and pointer (selector) strings.
 * `ACTION`, `KEY`: name of the last action performed and last key pressed (empty before any input).
+  `ACTION` is the action that is running, so a child spawned by a follow-up
+  (`act-up:execute-silent(...)`) sees `execute-silent`.
 * `WRAP`: `char` when item wrapping is enabled, otherwise unset.
 * `PREVIEW_LINES`, `PREVIEW_COLUMNS`, `PREVIEW_TOP`, `PREVIEW_LEFT`: geometry of the preview
   window; only set when a preview is configured.
 * `NTH`, `WITH_NTH`: current `--nth` and `--with-nth` values, when set.
+A variable that does not apply to the current state is removed from the child's environment, so a
+skim started inside another skim or fzf never passes the enclosing process's values through.
 Example: `sk --preview 'printf %s \"$SKIM_QUERY\"'`.
 ",
     );

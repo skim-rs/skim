@@ -150,6 +150,49 @@ fn startup_runs_command_when_length_gate_does_not_apply() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn initial_command_receives_the_startup_state() {
+    // The very first `--cmd` must see the same variables as a later reload.
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("initial");
+    let mut options = SkimOptions::default();
+    options.query = Some("seeded".to_string());
+    options.cmd = Some(format!(
+        "printf '%s' \"$SKIM_QUERY\" > '{}'",
+        log.to_string_lossy().replace('\'', "'\\''")
+    ));
+    let mut skim = Skim::<TestBackend>::init(options.build(), None).unwrap();
+    skim.start();
+    wait_until(|| skim.check_reader());
+    assert_eq!(std::fs::read_to_string(log).unwrap(), "seeded");
+}
+
+#[cfg(unix)]
+#[test]
+fn reload_command_sees_the_state_before_the_list_is_cleared() {
+    // A reload must export the focused and selected items that triggered it,
+    // not the empty list left behind by clearing.
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("reload");
+    let cmd = format!(
+        "printf '%s|%s' \"$SKIM_CURRENT_ITEM\" \"$SKIM_SELECTED_ITEMS\" > '{}'",
+        log.to_string_lossy().replace('\'', "'\\''")
+    );
+    let mut skim = started_skim(&["alpha", "beta"]);
+    skim.app.item_list.items.push(crate::item::MatchedItem::new(
+        Arc::new("alpha".to_string()),
+        crate::Rank::default(),
+        None,
+        &crate::item::RankBuilder::default(),
+    ));
+    skim.app.item_list.current = 0;
+    skim.app.item_list.toggle();
+    skim.handle_reload(&cmd);
+    wait_until(|| std::fs::read_to_string(&log).is_ok_and(|text| !text.is_empty()));
+    assert_eq!(std::fs::read_to_string(&log).unwrap(), "alpha|alpha");
+}
+
 #[test]
 fn should_enter_is_false_in_filter_mode() {
     let mut options = SkimOptions::default();

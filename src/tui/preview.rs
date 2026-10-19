@@ -591,7 +591,13 @@ impl Preview {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub fn spawn<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str, env: &[(String, String)]) -> Result<()>
+    pub fn spawn<B: Backend>(
+        &mut self,
+        tui: &mut Tui<B>,
+        cmd: &str,
+        env: &[(String, String)],
+        unset: &[String],
+    ) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
     {
@@ -761,11 +767,11 @@ impl Preview {
         } else {
             trace!("spawning preview cmd {cmd}");
             let mut shell_cmd = crate::shell_cmd(cmd);
+            crate::tui::util::apply_child_env(&mut shell_cmd, env, unset);
             shell_cmd
                 .env("ROWS", self.rows.to_string())
                 .env("COLUMNS", self.cols.to_string())
                 .env("PAGER", "")
-                .envs(env.iter().cloned())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
             if let Ok(cwd) = env::current_dir() {

@@ -520,7 +520,7 @@ unchanged. This avoids quoting issues and keeps commands short.
 | `INPUT_STATE` | `enabled` or `disabled` |
 | `PROMPT` | Current prompt string |
 | `POINTER` | Current pointer (selector) string |
-| `ACTION`, `KEY` | Name of the last action performed and last key pressed (empty before any input) |
+| `ACTION`, `KEY` | Name of the running action and of the last key pressed (empty before any input); a follow-up such as `act-up:execute-silent(...)` reports `execute-silent` |
 | `WRAP` | `char` when item wrapping is on |
 | `PREVIEW_LINES`, `PREVIEW_COLUMNS`, `PREVIEW_TOP`, `PREVIEW_LEFT` | Geometry of the preview window (only set when a preview is configured) |
 | `NTH`, `WITH_NTH` | Current `--nth` and `--with-nth` values (only set when configured) |
@@ -529,6 +529,12 @@ unchanged. This avoids quoting issues and keeps commands short.
 # Equivalent to --preview 'echo {}', without the quoting pitfalls of {}
 sk --preview 'printf "%s" "$SKIM_CURRENT_ITEM"'
 ```
+
+A variable that does not apply to the current state (no preview, no `--nth`, an oversized value,
+…) is removed from the child's environment instead of being left at its inherited value, so a skim
+started inside another skim or fzf never leaks the enclosing process's values into its children.
+The same variables are passed to the very first `--cmd` and to a `reload`, the latter capturing the
+focused and selected items as they were when the reload was triggered.
 
 ## Algorithms
 

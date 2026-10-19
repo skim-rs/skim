@@ -1239,6 +1239,10 @@ Every value is exported twice: under a `SKIM_` prefix and under the same name wi
 .br
 * `ACTION`, `KEY`: name of the last action performed and last key pressed (empty before any input).
 .br
+  `ACTION` is the action that is running, so a child spawned by a follow\-up
+.br
+  (`act\-up:execute\-silent(...)`) sees `execute\-silent`.
+.br
 * `WRAP`: `char` when item wrapping is enabled, otherwise unset.
 .br
 * `PREVIEW_LINES`, `PREVIEW_COLUMNS`, `PREVIEW_TOP`, `PREVIEW_LEFT`: geometry of the preview
@@ -1246,6 +1250,10 @@ Every value is exported twice: under a `SKIM_` prefix and under the same name wi
   window; only set when a preview is configured.
 .br
 * `NTH`, `WITH_NTH`: current `\-\-nth` and `\-\-with\-nth` values, when set.
+.br
+A variable that does not apply to the current state is removed from the child\*(Aqs environment, so a
+.br
+skim started inside another skim or fzf never passes the enclosing process\*(Aqs values through.
 .br
 Example: `sk \-\-preview \*(Aqprintf %s "$SKIM_QUERY"\*(Aq`.
 .br

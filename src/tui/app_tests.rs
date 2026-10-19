@@ -1115,6 +1115,85 @@ fn child_env_exports_last_action_and_key() {
 }
 
 #[test]
+fn follow_up_action_overwrites_last_action() {
+    // `act-up:execute-silent(…)` dispatches `execute-silent` as a follow-up, so
+    // the child must see `ACTION=execute-silent`, not `up`.
+    let mut options = SkimOptions::default();
+    options.bind = vec!["act-up:ignore".to_string()];
+    let options = options.build();
+    let mut app = App::from_options(options, Arc::new(crate::theme::ColorTheme::default()), String::new());
+
+    app.handle_action(&Action::Up(1)).unwrap();
+    assert_eq!(app.last_action.as_deref(), Some("ignore"));
+}
+
+#[test]
+fn execute_captures_env_before_a_later_action_runs() {
+    // The `execute` event is handled later by the event loop, so the snapshot
+    // must be taken while `execute` is still the running action.
+    let mut app = app_with_items(&["a"]);
+    app.input.value = "kept".to_string();
+    let events = app.handle_action(&Action::Execute("true".to_string())).unwrap();
+    assert!(matches!(events.as_slice(), [Event::RunExecute(_)]));
+
+    let (env, _) = app.pending_execute_env.take().expect("execute must snapshot its env");
+    let query = env
+        .iter()
+        .find(|(name, _)| name == "SKIM_QUERY")
+        .map(|(_, v)| v.clone());
+    let action = env
+        .iter()
+        .find(|(name, _)| name == "SKIM_ACTION")
+        .map(|(_, v)| v.clone());
+    assert_eq!(query.as_deref(), Some("kept"));
+    assert_eq!(action.as_deref(), Some("execute"));
+}
+
+#[test]
+fn child_env_unset_lists_omitted_names() {
+    let app = app_with_items(&["a"]);
+    let unset = app.child_env_unset();
+    // No preview and no `--nth`: those groups are absent from the snapshot, so
+    // they must be removed from the inherited environment.
+    for name in [
+        "SKIM_PREVIEW_LINES",
+        "FZF_PREVIEW_TOP",
+        "SKIM_NTH",
+        "FZF_WITH_NTH",
+        "SKIM_WRAP",
+    ] {
+        assert!(unset.iter().any(|n| n == name), "{name} should be unset");
+    }
+    // Exported names are not in the unset list.
+    for name in ["SKIM_QUERY", "FZF_QUERY", "SKIM_CURRENT_ITEM", "FZF_KEY"] {
+        assert!(!unset.iter().any(|n| n == name), "{name} should be kept");
+    }
+    // Every name is either exported or unset, never both and never neither.
+    let exported: Vec<String> = app.child_env().into_iter().map(|(name, _)| name).collect();
+    for name in App::child_env_names() {
+        assert_eq!(
+            exported.contains(&name),
+            !unset.contains(&name),
+            "{name} must be in exactly one of exported/unset"
+        );
+    }
+}
+
+#[test]
+fn child_env_omits_oversized_selected_items() {
+    let mut app = app_with_items(&["a", "b"]);
+    app.item_list.selection.insert(crate::item::MatchedItem::new(
+        Arc::new("x".repeat(70 * 1024)),
+        crate::Rank::default(),
+        None,
+        &crate::item::RankBuilder::default(),
+    ));
+    let env = app.child_env();
+    assert!(!env.iter().any(|(name, _)| name == "SKIM_SELECTED_ITEMS"));
+    assert!(app.child_env_unset().iter().any(|n| n == "FZF_SELECTED_ITEMS"));
+}
+
+#[test]
 fn child_env_join_selected_items_with_newlines() {
     let mut app = app_with_items(&["a", "b", "c"]);
     app.item_list.select_row(0);

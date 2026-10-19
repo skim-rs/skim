@@ -132,7 +132,7 @@ fn invoke_exports_child_env() {
         "printf '%s' \"$SKIM_QUERY\""
     };
     let mut reader = SkimItemReader::default();
-    reader.set_env(&[("SKIM_QUERY".to_string(), "hi".to_string())]);
+    reader.set_env(&[("SKIM_QUERY".to_string(), "hi".to_string())], &[]);
     let (rx, _tx) = reader.invoke(cmd, Arc::new(AtomicUsize::new(0)));
     assert_eq!(drain(rx), vec!["hi"]);
 }
