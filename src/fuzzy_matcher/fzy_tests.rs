@@ -36,6 +36,36 @@ fn test_match_indices() {
 }
 
 #[test]
+fn test_match_indices_keep_best_first_char() {
+    // The first needle char must stay at its best occurrence, not move to its last one.
+    assert_eq!("[C]argo.lock", &wrap_fuzzy_match("Cargo.lock", "c").unwrap());
+    assert_eq!("[b]aB_", &wrap_fuzzy_match("baB_", "b").unwrap());
+    assert_eq!(
+        "[s]rc/[f]s/fuzzy.rs",
+        &wrap_fuzzy_match("src/fs/fuzzy.rs", "sf").unwrap()
+    );
+}
+
+#[test]
+fn test_indices_score_equals_match_score() {
+    let matcher = FzyMatcher::default().ignore_case();
+    let typo_matcher = FzyMatcher::default().ignore_case().max_typos(Some(1));
+    for (choice, pattern) in [
+        ("Cargo.lock", "c"),
+        ("baB_", "b"),
+        ("src/fs/fuzzy.rs", "sf"),
+        ("src/fs/fuzzy.rs", "fz"),
+        ("src/tui/item_list.rs", "stum"),
+    ] {
+        for m in [&matcher, &typo_matcher] {
+            let score = m.fuzzy_match(choice, pattern);
+            let indices_score = m.fuzzy_indices(choice, pattern).map(|(s, _)| s);
+            assert_eq!(score, indices_score, "choice={choice:?} pattern={pattern:?}");
+        }
+    }
+}
+
+#[test]
 fn test_consecutive_bonus() {
     let matcher = FzyMatcher::default().ignore_case();
     let consecutive = matcher.fuzzy_match("foobar", "foo").unwrap();
