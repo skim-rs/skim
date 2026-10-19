@@ -35,6 +35,17 @@ enum PopupWindowDir {
     Right,
 }
 
+/// Pane name used for the popup when `--border-label` is not set.
+const DEFAULT_POPUP_NAME: &str = "skim";
+
+/// The name of the popup pane, taken from `--popup-name` (alias
+/// `--border-label`, matching fzf, where the border label doubles as the pane
+/// name). Zellij always shows a name, so it falls back to
+/// [`DEFAULT_POPUP_NAME`]; tmux only gets a title when one is set.
+fn popup_name(options: &SkimOptions) -> &str {
+    options.popup_name.as_deref().unwrap_or(DEFAULT_POPUP_NAME)
+}
+
 impl From<&str> for PopupWindowDir {
     fn from(value: &str) -> Self {
         use PopupWindowDir::{Bottom, Center, Left, Right, Top};

@@ -17,7 +17,7 @@ __skim_select__() {
     -o -type f -print \
     -o -type d -print \
     -o -type l -print 2> /dev/null | cut -b3-"}"
-	eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS" $(__skimcmd) -m "$@" | while read -r item; do
+	eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS" $(__skimcmd) --popup-name='skim: files' -m "$@" | while read -r item; do
 		printf '%q ' "$item"
 	done
 	echo
@@ -40,7 +40,7 @@ if [[ $- =~ i ]]; then
 		local cmd dir
 		cmd="${SKIM_ALT_C_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
     -o -type d -printf '%P\\n' 2>/dev/null"}"
-		dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" $(__skimcmd) --no-multi)
+		dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" $(__skimcmd) --popup-name='skim: directories' --no-multi)
 		if [ -n "$dir" ]; then
 		  printf 'cd %q' "$dir"
 		fi
@@ -65,7 +65,7 @@ if [[ $- =~ i ]]; then
         { cmd = cmd "\n" $0 }
         END { if (cmd != "" && !seen[cmd]++) printf "%s%d%s\t%s%c", c_idx, HISTCMD - idx, c_reset, cmd, 0 }
       ' |
-				SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n2..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0 --multiline $ansi_opt" $(__skimcmd) --query "$READLINE_LINE"
+				SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n2..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0 --multiline $ansi_opt" $(__skimcmd) --popup-name='skim: command history' --query "$READLINE_LINE"
 		) || return
 		echo -e "\033[0m"
 		READLINE_LINE=${output#*$'\t'}
@@ -135,8 +135,11 @@ if [[ $- =~ i ]]; then
 		if [ "$(type -t _skim_comprun 2>&1)" = function ]; then
 			_skim_comprun "$@"
 		elif [ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; }; then
+			# Name the popup after the command being completed, when known.
+			local name="$1" name_opt=()
 			shift
-			sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}} "$@"
+			[ -n "$name" ] && name_opt=(--popup-name="skim: $name")
+			sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}} "${name_opt[@]}" "$@"
 		else
 			shift
 			sk "$@"

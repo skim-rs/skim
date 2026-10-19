@@ -394,3 +394,17 @@ fn negative_field_indices_parse_for_every_nth_flag() {
     let opts = parse_args(&["--with-nth", "2,-1"]).expect("--with-nth 2,-1 should parse");
     assert_eq!(opts.with_nth, vec!["2".to_string(), "-1".to_string()]);
 }
+
+#[test]
+fn popup_name_parses_and_border_label_is_its_alias() {
+    let opts = parse_args(&["--popup", "--popup-name", "Command history"]).expect("--popup-name should parse");
+    assert_eq!(opts.popup_name.as_deref(), Some("Command history"));
+
+    // fzf compatibility: --border-label sets the same option.
+    let opts = parse_args(&["--popup", "--border-label", "Command history"]).expect("--border-label should parse");
+    assert_eq!(opts.popup_name.as_deref(), Some("Command history"));
+
+    // Not set at all → backends fall back to their defaults.
+    let opts = parse_args(&["--popup"]).expect("--popup should parse");
+    assert_eq!(opts.popup_name, None);
+}

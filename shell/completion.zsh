@@ -104,6 +104,7 @@ zsh\:"Zsh"))' \
 '--listen=[Run an IPC socket with optional name (defaults to sk)]::LISTEN:_default' \
 '--remote=[Send commands to an IPC socket with optional name (defaults to sk)]::REMOTE:_default' \
 '--popup=[Run in a tmux or zellij popup]::POPUP:_default' \
+'--popup-name=[Name of the popup pane (Zellij) / title of the popup (tmux)]:POPUP_NAME:_default' \
 '--log-level=[Set the log level]:LOG_LEVEL:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \
 '*--flags=[Feature flags]:FLAGS:((no-preview-pty\:"Disable preview PTY on Linux"
@@ -116,7 +117,6 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--tail=[]:TAIL:_default' \
 '--style=[]:STYLE:_default' \
 '--padding=[]:PADDING:_default' \
-'--border-label=[]:BORDER_LABEL:_default' \
 '--border-label-pos=[]:BORDER_LABEL_POS:_default' \
 '--wrap-sign=[]:WRAP_SIGN:_default' \
 '--gap=[]:GAP:_default' \
