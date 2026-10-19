@@ -239,8 +239,7 @@ where
         debug!("Starting reader with initial_cmd: {:?}", self.initial_cmd);
         // Give the initial command the same contract as a reload: it sees the
         // state skim starts with (`--query`, counts, geometry, …).
-        let env = self.app.child_env();
-        let unset = self.app.child_env_unset();
+        let (env, unset) = self.app.child_env_snapshot();
         self.start_reader(&self.initial_cmd.clone(), &env, &unset);
         self.app.restart_matcher(true);
         // If the TUI is already available (e.g. test harnesses that build the
@@ -276,8 +275,7 @@ where
         // Export the state that triggered the reload (issue #1195) *before*
         // clearing anything, so the command still sees the focused and
         // selected items and the counts they imply.
-        let env = self.app.child_env();
-        let unset = self.app.child_env_unset();
+        let (env, unset) = self.app.child_env_snapshot();
         // Kill the current reader
         if let Some(rc) = self.reader_control.as_mut() {
             rc.kill();

@@ -1136,7 +1136,10 @@ fn execute_captures_env_before_a_later_action_runs() {
     let events = app.handle_action(&Action::Execute("true".to_string())).unwrap();
     assert!(matches!(events.as_slice(), [Event::RunExecute(_)]));
 
-    let (env, _) = app.pending_execute_env.take().expect("execute must snapshot its env");
+    let (env, _) = app
+        .pending_execute_env
+        .pop_front()
+        .expect("execute must snapshot its env");
     let query = env
         .iter()
         .find(|(name, _)| name == "SKIM_QUERY")
@@ -1147,6 +1150,59 @@ fn execute_captures_env_before_a_later_action_runs() {
         .map(|(_, v)| v.clone());
     assert_eq!(query.as_deref(), Some("kept"));
     assert_eq!(action.as_deref(), Some("execute"));
+}
+
+#[test]
+fn queued_execute_actions_keep_snapshots_in_dispatch_order() {
+    let mut app = app_with_items(&["a"]);
+    let events = act(
+        &mut app,
+        Action::IfQueryEmpty("execute(true)+toggle+execute(true)".to_string(), None),
+    );
+    assert_eq!(events.iter().filter(|e| matches!(e, Event::RunExecute(_))).count(), 2);
+    for expected_count in ["0", "1"] {
+        let (env, _) = app.pending_execute_env.pop_front().expect("missing execute snapshot");
+        for prefix in ["SKIM", "FZF"] {
+            let get = |suffix| {
+                env.iter()
+                    .find(|(name, _)| name == &format!("{prefix}_{suffix}"))
+                    .unwrap()
+                    .1
+                    .as_str()
+            };
+            assert_eq!(get("SELECT_COUNT"), expected_count);
+            assert_eq!(get("ACTION"), "execute");
+        }
+    }
+    assert!(app.pending_execute_env.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn execute_silent_exports_environment() {
+    use std::time::{Duration, Instant};
+
+    let output = tempfile::NamedTempFile::new().unwrap();
+    let mut app = app_with_items(&["a"]);
+    app.input.value = "kept".to_string();
+    act(
+        &mut app,
+        Action::ExecuteSilent(format!(
+            "printf '%s:%s:%s' \"$SKIM_QUERY\" \"$FZF_QUERY\" \"$SKIM_ACTION\" > {}",
+            shlex::try_quote(output.path().to_str().unwrap()).unwrap(),
+        )),
+    );
+    let started = Instant::now();
+    loop {
+        if std::fs::read_to_string(output.path()).unwrap() == "kept:kept:execute-silent" {
+            break;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "execute-silent environment not received"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 #[test]

@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::process::Stdio;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -74,7 +75,7 @@ pub struct App {
     /// Environment snapshot captured when `execute` was dispatched, so a
     /// deferred [`Event::RunExecute`] uses the state of the action that queued
     /// it rather than whatever ran in between.
-    pending_execute_env: Option<ChildEnv>,
+    pending_execute_env: VecDeque<ChildEnv>,
 
     /// Current cursor position (x, y)
     pub cursor_pos: (u16, u16),
@@ -260,7 +261,7 @@ impl Default for App {
             final_action: None,
             last_action: None,
             last_key: None,
-            pending_execute_env: None,
+            pending_execute_env: VecDeque::new(),
             cursor_pos: (0, 0),
             term_area: Rect::default(),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
@@ -338,7 +339,7 @@ impl App {
             final_action: None,
             last_action: None,
             last_key: None,
-            pending_execute_env: None,
+            pending_execute_env: VecDeque::new(),
             cursor_pos: (0, 0),
             term_area: Rect::default(),
             matcher: Matcher::from_options(&options),
@@ -551,9 +552,6 @@ impl App {
         self.pending_preview_run = false;
         self.last_preview_spawn = now;
 
-        let env = self.child_env();
-        let unset = self.child_env_unset();
-
         if let Some(preview_opt) = &self.options.preview
             && let Some(item) = self.item_list.selected()
         {
@@ -593,6 +591,7 @@ impl App {
             let quote_cmd = true;
             match preview {
                 ItemPreview::Command(cmd) => {
+                    let (env, unset) = self.child_env_snapshot();
                     self.preview
                         .spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env, &unset)?;
                 }
@@ -601,6 +600,7 @@ impl App {
                 }
                 ItemPreview::CommandWithPos(cmd, preview_position) => {
                     // Execute command and apply position after content is ready
+                    let (env, unset) = self.child_env_snapshot();
                     self.preview
                         .spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env, &unset)?;
                     // Apply position offsets
@@ -641,6 +641,7 @@ impl App {
                     .preview
                     .content_with_position(&t.bytes().collect::<Vec<_>>(), preview_position)?,
                 ItemPreview::Global => {
+                    let (env, unset) = self.child_env_snapshot();
                     self.preview
                         .spawn(tui, &self.expand_cmd(preview_opt, quote_cmd), &env, &unset)?;
                 }
@@ -736,8 +737,8 @@ impl App {
             Event::RunExecute(cmd) => {
                 let (env, unset) = self
                     .pending_execute_env
-                    .take()
-                    .unwrap_or_else(|| (self.child_env(), self.child_env_unset()));
+                    .pop_front()
+                    .unwrap_or_else(|| self.child_env_snapshot());
                 tui.run_execute(cmd, &env, &unset)?;
                 self.handle_event(tui, &Event::Redraw)?;
             }
@@ -1045,14 +1046,15 @@ impl App {
                 // the event loop, which runs it via `Event::RunExecute`.
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute: {expanded_cmd}");
-                self.pending_execute_env = Some((self.child_env(), self.child_env_unset()));
+                self.pending_execute_env.push_back(self.child_env_snapshot());
                 return Ok(vec![Event::RunExecute(expanded_cmd)]);
             }
             ExecuteSilent(cmd) => {
                 let expanded_cmd = self.expand_cmd(cmd, true);
                 debug!("execute-silent: {expanded_cmd}");
                 let mut command = crate::shell_cmd(&expanded_cmd);
-                super::util::apply_child_env(&mut command, &self.child_env(), &self.child_env_unset());
+                let (env, unset) = self.child_env_snapshot();
+                super::util::apply_child_env(&mut command, &env, &unset);
                 command.stdout(Stdio::null()).stderr(Stdio::null());
                 let _ = command.spawn();
             }
@@ -1642,11 +1644,17 @@ impl App {
     /// still see the enclosing process's `FZF_CURRENT_ITEM` and friends.
     #[must_use]
     pub fn child_env_unset(&self) -> Vec<String> {
+        self.child_env_snapshot().1
+    }
+
+    /// Build exported values and omitted names from the same state snapshot.
+    pub(crate) fn child_env_snapshot(&self) -> ChildEnv {
         let exported = self.child_env();
-        Self::child_env_names()
+        let unset = Self::child_env_names()
             .into_iter()
             .filter(|name| !exported.iter().any(|(set, _)| set == name))
-            .collect()
+            .collect();
+        (exported, unset)
     }
 
     /// Every state variable name [`Self::child_env`] can export, in both prefixes.

@@ -670,6 +670,9 @@ impl Preview {
             shell_cmd.env("ROWS", self.rows.to_string());
             shell_cmd.env("COLUMNS", self.cols.to_string());
             shell_cmd.env("PAGER", "");
+            for name in unset {
+                shell_cmd.env_remove(name);
+            }
             for (key, value) in env {
                 shell_cmd.env(key, value);
             }

@@ -417,16 +417,17 @@ fn test_style_span_and_line() {
 fn apply_child_env_unsets_then_sets() {
     // Inherited stale values are removed before the snapshot is applied, so an
     // omitted variable is not silently passed through to the child.
-    // SAFETY: no other test reads or writes this variable.
-    unsafe { std::env::set_var("SKIM_TEST_INHERITED", "stale") };
-    let mut command = std::process::Command::new("env");
+    let mut command = std::process::Command::new("unused");
+    command.env("SKIM_TEST_INHERITED", "stale");
     apply_child_env(
         &mut command,
         &[("SKIM_TEST_SET".to_string(), "fresh".to_string())],
         &["SKIM_TEST_INHERITED".to_string()],
     );
-    let output = command.output().unwrap();
-    let env = String::from_utf8_lossy(&output.stdout);
-    assert!(env.contains("SKIM_TEST_SET=fresh"));
-    assert!(!env.contains("SKIM_TEST_INHERITED="));
+    let env: Vec<_> = command.get_envs().collect();
+    assert!(env.contains(&(
+        std::ffi::OsStr::new("SKIM_TEST_SET"),
+        Some(std::ffi::OsStr::new("fresh")),
+    )));
+    assert!(env.contains(&(std::ffi::OsStr::new("SKIM_TEST_INHERITED"), None)));
 }
