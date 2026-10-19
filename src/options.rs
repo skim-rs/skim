@@ -980,7 +980,6 @@ pub struct SkimOptions {
     /// Only used with `--popup`. Defaults to `skim` in Zellij; tmux popups get no title
     /// unless this is set. `--border-label` is accepted as an fzf-compatible alias.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", alias = "border-label"))]
-    #[builder(setter(skip))]
     pub popup_name: Option<String>,
 
     /// Set the log level

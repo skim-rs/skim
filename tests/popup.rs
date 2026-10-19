@@ -24,7 +24,7 @@ fn setup_tmux_mock(tmux: &ZellijController) -> Result<String> {
     writer.write_fmt(format_args!(
         "#!/bin/sh
 
-echo \"$@\" > {}
+printf '%s\\0' \"$@\" > {}
 ",
         outfile.to_str().unwrap()
     ))?;
@@ -96,7 +96,11 @@ fn tmux_popup_name_becomes_popup_title() -> Result<()> {
     tmux.start_sk(None, &["--tmux", "--popup-name='Command history'"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;
-    assert!(cmd.contains("-T Command history"), "missing popup title: {cmd}");
+    let args: Vec<_> = cmd.split('\0').collect();
+    assert!(
+        args.windows(2).any(|pair| pair == ["-T", "Command history"]),
+        "missing popup title: {cmd:?}"
+    );
 
     Ok(())
 }
@@ -108,7 +112,11 @@ fn tmux_border_label_is_a_popup_name_alias() -> Result<()> {
     tmux.start_sk(None, &["--tmux", "--border-label='Command history'"])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;
-    assert!(cmd.contains("-T Command history"), "missing popup title: {cmd}");
+    let args: Vec<_> = cmd.split('\0').collect();
+    assert!(
+        args.windows(2).any(|pair| pair == ["-T", "Command history"]),
+        "missing popup title: {cmd:?}"
+    );
 
     Ok(())
 }
@@ -200,7 +208,11 @@ fn key_binding_popup_name_reaches_the_multiplexer() -> Result<()> {
     ])?;
     tmux.until(|_| Path::new(&outfile).exists())?;
     let cmd = get_tmux_cmd(&outfile)?;
-    assert!(cmd.contains("-T skim: command history"), "popup name lost: {cmd}");
+    let args: Vec<_> = cmd.split('\0').collect();
+    assert!(
+        args.windows(2).any(|pair| pair == ["-T", "skim: command history"]),
+        "popup name lost: {cmd:?}"
+    );
 
     Ok(())
 }
