@@ -212,7 +212,7 @@ fn fzy_score(
                 loop {
                     if d_matrix[i][j] != SCORE_MIN && (match_required || d_matrix[i][j] == m_matrix[i][j]) {
                         match_required =
-                            i > 0 && j > 0 && m_matrix[i][j] == d_matrix[i - 1][j - 1] + SCORE_MATCH_CONSECUTIVE;
+                            i > 0 && j > 0 && d_matrix[i][j] == d_matrix[i - 1][j - 1] + SCORE_MATCH_CONSECUTIVE;
                         pos[i] = j;
                         j = j.saturating_sub(1);
                         break;
@@ -615,14 +615,16 @@ fn fzy_score_typos_full(
     positions.clear();
     let mut cur_t = best_t;
     let mut j = m - 1;
+    let mut match_required = false;
     let mut rev_positions: Vec<Option<usize>> = Vec::with_capacity(n);
 
     for i in (0..n).rev() {
         loop {
             let cur_m = m_flat[idx(cur_t, i, j)];
 
-            // Check needle deletion (exact integer comparison — no epsilon needed)
-            if cur_t > 0 {
+            // Check needle deletion (exact integer comparison — no epsilon needed).
+            // Not possible when the next needle char was scored as consecutive to this one.
+            if cur_t > 0 && !match_required {
                 let del_from = if i == 0 {
                     i64::try_from(j).unwrap_or(i64::MAX) * SCORE_GAP_LEADING + SCORE_TYPO
                 } else {
@@ -638,7 +640,22 @@ fn fzy_score_typos_full(
 
             // Check match/substitution at (i, j) (exact integer comparison)
             let d_val = d_flat[idx(cur_t, i, j)];
-            if d_val != SCORE_MIN && d_val == cur_m {
+            if d_val != SCORE_MIN && (match_required || d_val == cur_m) {
+                let matched = if case_sensitive {
+                    needle[i] == haystack[j]
+                } else {
+                    lower_needle[i] == lower_haystack[j]
+                };
+                if matched {
+                    // If this score was determined using SCORE_MATCH_CONSECUTIVE,
+                    // the previous needle char MUST be matched at j - 1.
+                    match_required =
+                        i > 0 && j > 0 && d_val == d_flat[idx(cur_t, i - 1, j - 1)] + SCORE_MATCH_CONSECUTIVE;
+                } else {
+                    // Substitution: the path continues on the previous typo layer.
+                    match_required = false;
+                    cur_t -= 1;
+                }
                 rev_positions.push(Some(j));
                 j = j.saturating_sub(1);
                 break;
