@@ -165,8 +165,8 @@ fn fzy_score(
                 if is_match(needle, haystack, case_sensitive, 0, j) {
                     let score = i64::try_from(j).unwrap_or(i64::MAX) * SCORE_GAP_LEADING + match_bonus[j];
                     d_matrix[0][j] = score;
-                    prev_score = score;
-                    m_matrix[0][j] = score;
+                    prev_score = i64::max(score, prev_score + gap);
+                    m_matrix[0][j] = prev_score;
                 } else {
                     prev_score += gap;
                     m_matrix[0][j] = prev_score;
