@@ -591,7 +591,7 @@ impl Preview {
     }
 
     #[allow(clippy::too_many_lines)]
-    pub fn spawn<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str) -> Result<()>
+    pub fn spawn<B: Backend>(&mut self, tui: &mut Tui<B>, cmd: &str, env: &[(String, String)]) -> Result<()>
     where
         B::Error: Send + Sync + 'static,
     {
@@ -664,6 +664,9 @@ impl Preview {
             shell_cmd.env("ROWS", self.rows.to_string());
             shell_cmd.env("COLUMNS", self.cols.to_string());
             shell_cmd.env("PAGER", "");
+            for (key, value) in env {
+                shell_cmd.env(key, value);
+            }
             shell_cmd.arg("-c");
             if let Ok(cwd) = env::current_dir() {
                 shell_cmd.cwd(cwd);
@@ -762,6 +765,7 @@ impl Preview {
                 .env("ROWS", self.rows.to_string())
                 .env("COLUMNS", self.cols.to_string())
                 .env("PAGER", "")
+                .envs(env.iter().cloned())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
             if let Ok(cwd) = env::current_dir() {

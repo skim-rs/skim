@@ -237,7 +237,7 @@ where
     /// Start the reader and matcher, but do not enter the TUI yet
     pub fn start(&mut self) {
         debug!("Starting reader with initial_cmd: {:?}", self.initial_cmd);
-        self.start_reader(&self.initial_cmd.clone());
+        self.start_reader(&self.initial_cmd.clone(), &[]);
         self.app.restart_matcher(true);
         // If the TUI is already available (e.g. test harnesses that build the
         // TUI before starting), fire the `start` event now. In the normal
@@ -280,10 +280,12 @@ where
             self.app.item_list.clear();
         }
         self.app.restart_matcher(true);
-        self.start_reader(new_cmd);
+        // Export the current state to the reload command (issue #1195).
+        let env = self.app.child_env();
+        self.start_reader(new_cmd, &env);
     }
 
-    fn start_reader(&mut self, cmd: &str) {
+    fn start_reader(&mut self, cmd: &str, env: &[(String, String)]) {
         let query_too_short =
             self.app.options.interactive && self.app.options.cmd.is_some() && self.app.query_below_min_length();
         self.reader_control = if query_too_short {
@@ -291,6 +293,7 @@ where
             self.app.item_list.clear();
             None
         } else {
+            self.reader.set_child_env(env);
             Some(self.reader.collect(self.app.item_pool.clone(), cmd))
         };
         self.reader_done = query_too_short;

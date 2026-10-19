@@ -160,6 +160,53 @@ fn skim_event_name_roundtrip() {
 }
 
 #[test]
+fn key_name_formats_fzf_style() {
+    // Canonical names round-trip through `parse_key`.
+    for name in [
+        "a",
+        "A",
+        "1",
+        "ctrl-a",
+        "alt-b",
+        "ctrl-alt-c",
+        "ctrl-space",
+        "space",
+        "alt-enter",
+        "shift-tab",
+        "esc",
+        "up",
+        "down",
+        "left",
+        "right",
+        "home",
+        "end",
+        "f10",
+    ] {
+        let key = parse_key(name).unwrap();
+        assert_eq!(key_name(&key), name, "{name}");
+    }
+    // Keys that `parse_key` only knows by an alias still get the canonical name.
+    assert_eq!(key_name(&parse_key("pgup").unwrap()), "page-up");
+    assert_eq!(key_name(&parse_key("bspace").unwrap()), "backspace");
+    assert_eq!(key_name(&parse_key("alt-bspace").unwrap()), "alt-backspace");
+    // A shift on a non-character key keeps the prefix.
+    assert_eq!(key_name(&KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT)), "shift-tab");
+    // Synthetic events report their event name.
+    for event in [
+        SkimEvent::Start,
+        SkimEvent::Load,
+        SkimEvent::Change,
+        SkimEvent::Result,
+        SkimEvent::Focus,
+        SkimEvent::Zero,
+        SkimEvent::One,
+        SkimEvent::DoubleClick,
+    ] {
+        assert_eq!(key_name(&event.key_event()), event.name());
+    }
+}
+
+#[test]
 fn double_click_accepts_by_default() {
     assert_eq!(
         get_default_key_map().get(&SkimEvent::DoubleClick.key_event()),

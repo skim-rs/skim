@@ -671,6 +671,8 @@ A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_termi
 
 Two subtleties make the resume correct. First, `Tui::start` installs a **fresh** `CancellationToken` on every call: a token stays cancelled once cancelled, so reusing the one `stop_and_join` cancelled would make the respawned reader observe the cancellation immediately and exit without reading input. Second, the post-execute repaint uses `Tui::force_full_redraw` (which resets both of ratatui's diff buffers) followed by `Event::Render`, rather than `Event::Redraw`/`tui.clear()`: ratatui's `Terminal::clear` first queries the cursor position, and crossterm writes that query (`ESC [ 6 n`) to **stdout**. Since skim renders to stderr and its stdout is routinely redirected (`sk > file`, `find | sk | …`), that query would reach no terminal, get no reply, and stall the UI for seconds before erroring out. `force_full_redraw` performs no cursor query and works for both fullscreen and inline viewports.
 
+**Child-process environment (issue #1195):** `App::child_env()` snapshots the TUI state (query, current and selected item text, counts, cursor position, area geometry, list direction, input state, prompt/pointer, item wrap, preview geometry, last action and key) and returns it as `(name, value)` pairs. `App::handle_action` records the canonical name of the last action, and `App::handle_key` records the fzf-style name of the last real key press (via `binds::key_name`); synthetic events routed through the keymap do not overwrite it. Every value is exported under both a `SKIM_` and an `FZF_` prefix so fzf-style scripts work unchanged. Variables that do not apply are omitted rather than exported empty, matching fzf: `CURRENT_ITEM` when there is no current item, `NTH`/`WITH_NTH` when unset, `WRAP` when wrapping is off, and the `PREVIEW_*` group when no preview is configured. `Preview::spawn` and `Tui::run_execute` apply the pairs to the child command, `execute-silent` applies them inline, and the reload / `--cmd` path forwards them through `Reader::set_child_env` → `CommandCollector::set_env` (a defaulted trait method), which `SkimItemReader` applies to the command it spawns. `LINES`/`COLUMNS` come from `App::term_area`, recorded on each render.
+
 Image preview protocol detection is owned by `Skim::enter()`, not `Tui::enter_terminal()`: `--image=detect` temporarily ensures an alternate screen is active, queries `ratatui_image::picker::Picker::from_query_stdio()`, falls back to `Picker::halfblocks()` on failure, then stores the picker in both `SkimOptions.image_picker` and the `Preview` widget. `--image=halfblocks` skips detection and installs `Picker::halfblocks()` directly.
 
 ### Event Loop
@@ -715,6 +717,7 @@ Frame rate is capped at 120 fps (`FRAME_TIME_MS = 1000/120`). `App::handle_event
 | `layout` | `AppLayout` | Last-frame widget areas (updated in render) |
 | `needs_render` | `Arc<AtomicBool>` | Signal from matcher → event loop |
 | `yank_register` | `String` | Cut/yank buffer |
+| `term_area` | `Rect` | Area recorded on every render; source of `LINES`/`COLUMNS` in `child_env` |
 | `query_history` / `cmd_history` | `Vec<String>` | History for ↑/↓ navigation |
 | `last_left_click` | `Option<Instant>` | Detect two left clicks within the 500 ms `double-click` window |
 
