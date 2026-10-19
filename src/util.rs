@@ -80,6 +80,7 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 
 // Escape for the child process's argv parser, then for CMD's metacharacter parser.
 // Shell-bound expansion must reject CR/LF separately; CMD cannot safely quote them.
+// This quotes a CMD /c argument, not batch-file source, where literal `%` must be doubled.
 #[cfg(any(windows, test))]
 fn quote_cmd_arg(s: &str) -> String {
     let mut quoted = String::from("\"");
@@ -127,6 +128,9 @@ fn quote_shell_arg(s: &str) -> String {
 /// With `quote_args`, replacements are arguments for `sh` on Unix or CMD on Windows.
 /// Placeholders must not be enclosed in additional quotes. Commands that invoke
 /// another shell must also account for that shell's parsing rules.
+/// On Windows, writing the result as batch-file source requires doubling literal
+/// `%` characters. This extra step is not used for direct CMD invocation or `%*`
+/// forwarding; `CALL` adds another expansion pass and needs separate handling.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
 pub fn printf<'a>(

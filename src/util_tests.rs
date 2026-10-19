@@ -13,6 +13,7 @@ fn test_quote_cmd_arg() {
     for (input, expected) in [
         ("", r#"^"^""#),
         ("hello world", r#"^"hello world^""#),
+        ("%PATH%", r#"^"^%PATH^%^""#),
         (r#"a"b"#, r#"^"a\^"b^""#),
         (r#"a\"b"#, r#"^"a\\\^"b^""#),
         (r"C:\some path\", r#"^"C:\some path\\^""#),
@@ -52,12 +53,21 @@ fn test_printf_joined_values_are_quoted_once() {
 #[test]
 fn test_cmd_argv_round_trip() {
     const CHILD_ENV: &str = "SKIM_TEST_CMD_ARG";
+    const EXE_ENV: &str = "SKIM_TEST_CMD_EXE";
     if let Ok(expected) = std::env::var(CHILD_ENV) {
         assert_eq!(std::env::args().last().unwrap(), expected);
         return;
     }
 
     let delimiter = Regex::new(" ").unwrap();
+    let executable = std::env::current_exe().unwrap();
+    let quoted_executable = quote_cmd_arg(executable.to_str().unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let forwarding_wrapper = dir.path().join("forward arguments.cmd");
+    let literal_wrapper = dir.path().join("wrapper.cmd");
+    // Use the Unicode environment for the executable path, not the batch file's code page.
+    std::fs::write(&forwarding_wrapper, format!("@\"%{EXE_ENV}%\" %*\r\n")).unwrap();
+
     for value in [
         "hello world",
         "a\"b",
@@ -67,14 +77,38 @@ fn test_cmd_argv_round_trip() {
         "%PATH%",
         "café 日本語",
     ] {
-        let command = format!(
-            "{} --exact util::test::test_cmd_argv_round_trip --skip {}",
-            quote_cmd_arg(std::env::current_exe().unwrap().to_str().unwrap()),
+        let arguments = format!(
+            "--exact util::test::test_cmd_argv_round_trip --skip {}",
             printf("{q}", &delimiter, "{}", &[].iter(), &None, value, "", true,),
         );
-        let output = crate::shell_cmd(&command).env(CHILD_ENV, value).output().unwrap();
-        assert!(output.status.success(), "value: {value:?}, output: {output:?}");
-        assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+        let mut commands = vec![
+            ("direct CMD", format!("{quoted_executable} {arguments}")),
+            (
+                "batch forwarding",
+                format!("{} {arguments}", quote_cmd_arg(forwarding_wrapper.to_str().unwrap())),
+            ),
+        ];
+        if value == "%PATH%" {
+            // Escape literal percent signs in batch source, but keep environment references expandable.
+            std::fs::write(
+                &literal_wrapper,
+                format!("@\"%{EXE_ENV}%\" {}\r\n", arguments.replace('%', "%%")),
+            )
+            .unwrap();
+            commands.push(("batch literal", quote_cmd_arg(literal_wrapper.to_str().unwrap())));
+        }
+        for (context, command) in commands {
+            let output = crate::shell_cmd(&command)
+                .env(CHILD_ENV, value)
+                .env(EXE_ENV, &executable)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "context: {context}, value: {value:?}, output: {output:?}"
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+        }
     }
 }
 
