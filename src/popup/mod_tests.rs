@@ -18,6 +18,21 @@ fn popup_window_dir_unknown_falls_back_to_center() {
     assert_eq!(PopupWindowDir::from("CENTER"), PopupWindowDir::Center); // case-sensitive
 }
 
+// ── popup_name ────────────────────────────────────────────────────────────
+
+#[test]
+fn popup_name_defaults_to_skim() {
+    let opts = crate::SkimOptions::default();
+    assert_eq!(popup_name(&opts), "skim");
+}
+
+#[test]
+fn popup_name_uses_configured_name() {
+    let mut opts = crate::SkimOptions::default();
+    opts.popup_name = Some("Command history".to_string());
+    assert_eq!(popup_name(&opts), "Command history");
+}
+
 // ── sanitize_value ────────────────────────────────────────────────────────
 
 #[test]

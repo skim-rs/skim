@@ -108,7 +108,7 @@ skim/                  ← workspace root
 │   ├── popup/         ← tmux & zellij popup integration
 │   │   ├── mod.rs           ← SkimPopup trait, run_with(), check_env(), SkimPopupOutput
 │   │   ├── tmux.rs          ← TmuxPopup (builds/runs tmux display-popup)
-│   │   └── zellij.rs        ← ZellijPopup (builds/runs zellij action new-floating-pane)
+│   │   └── zellij.rs        ← ZellijPopup (builds/runs zellij run --floating)
 │   ├── prelude.rs     ← convenience re-exports
 │   ├── manpage.rs     ← man-page generation (cli feature); action list generated from ACTION_CATALOG
 │   ├── shell.rs       ← shell completion generation (cli feature)
@@ -399,7 +399,9 @@ The popup flow:
 4. Forwards all `SKIM_*`, `RUST*`, and `PATH` environment variables to the child via the multiplexer's `-e` flag, **plus `_SKIM_POPUP=1`** to prevent re-entry.
 5. Launches the popup via the appropriate backend:
    - **tmux**: `tmux display-popup -E … sh -c <cmd> > stdout_file`
-   - **Zellij**: `zellij action new-floating-pane … -- sh -c <cmd> > stdout_file`
+   - **Zellij**: `zellij run --floating --name <name> … -- sh -c <cmd> > stdout_file`
+
+   The popup pane is named from `--popup-name` (alias `--border-label`, kept for fzf compatibility), matching how fzf names its Zellij pane and tmux popup. Zellij always passes `--name` (defaulting to `skim`); tmux passes `-T <name>` only when a name is set, so untitled popups and tmux < 3.4 keep working. The shipped shell key bindings name the popup by purpose (`skim: files`, `skim: command history`, `skim: directories`), so a popup identifies itself.
 6. Waits for the popup process to exit.
 7. Parses the structured stdout file (`query\nheader\ncurrent_item\nitem1\nscore1\n…`) into a synthetic `SkimOutput`; `cmd` is reconstructed from the parent options because `--print-cmd` is deliberately stripped.
 

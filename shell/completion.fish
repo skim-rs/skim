@@ -90,6 +90,7 @@ zsh\t'Zsh'"
 complete -c sk -l listen -d 'Run an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l popup -d 'Run in a tmux or zellij popup' -r
+complete -c sk -l popup-name -d 'Name of the popup pane (Zellij) / title of the popup (tmux)' -r
 complete -c sk -l log-level -d 'Set the log level' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on Linux'
@@ -102,7 +103,6 @@ complete -c sk -l jump-labels -r
 complete -c sk -l tail -r
 complete -c sk -l style -r
 complete -c sk -l padding -r
-complete -c sk -l border-label -r
 complete -c sk -l border-label-pos -r
 complete -c sk -l wrap-sign -r
 complete -c sk -l gap -r

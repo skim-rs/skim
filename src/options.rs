@@ -970,8 +970,18 @@ pub struct SkimOptions {
     /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     /// Note: this will try to detect a Zellij session, then a Tmux session
     /// This means that in nested sessions, `skim` will prioritize Zellij over Tmux
+    ///
+    /// The popup pane is named after `--popup-name` (default: `skim`).
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]
     pub popup: Option<String>,
+
+    /// Name of the popup pane (Zellij) / title of the popup (tmux)
+    ///
+    /// Only used with `--popup`. Defaults to `skim` in Zellij; tmux popups get no title
+    /// unless this is set. `--border-label` is accepted as an fzf-compatible alias.
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", alias = "border-label"))]
+    #[builder(setter(skip))]
+    pub popup_name: Option<String>,
 
     /// Set the log level
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
@@ -1019,9 +1029,6 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     padding: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    border_label: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     border_label_pos: Option<String>,
@@ -1276,8 +1283,8 @@ impl Default for SkimOptions {
             style: Default::default(),
             no_color: Default::default(),
             padding: Default::default(),
-            border_label: Default::default(),
             border_label_pos: Default::default(),
+            popup_name: Default::default(),
             highlight_line: Default::default(),
             wrap_sign: Default::default(),
             no_multi_line: Default::default(),

@@ -112,7 +112,7 @@ fn interactive_min_query_length_gates_command_lifecycle() {
     assert!(skim.reader_done());
     assert!(skim.reader_control.is_none());
     assert!(skim.app.item_pool.is_empty());
-    assert!(skim.app.item_list.items.is_empty());
+    assert_eq!(skim.app.item_list.items, [] as [crate::item::MatchedItem; 0]);
     assert_eq!(std::fs::read_to_string(&log).unwrap(), "run\n");
 
     skim.app.input.value.push('é');

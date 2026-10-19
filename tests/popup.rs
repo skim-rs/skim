@@ -90,6 +90,30 @@ fn tmux_vanilla() -> Result<()> {
 }
 
 #[test]
+fn tmux_popup_name_becomes_popup_title() -> Result<()> {
+    let mut tmux = ZellijController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.start_sk(None, &["--tmux", "--popup-name='Command history'"])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.contains("-T Command history"), "missing popup title: {cmd}");
+
+    Ok(())
+}
+
+#[test]
+fn tmux_border_label_is_a_popup_name_alias() -> Result<()> {
+    let mut tmux = ZellijController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    tmux.start_sk(None, &["--tmux", "--border-label='Command history'"])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.contains("-T Command history"), "missing popup title: {cmd}");
+
+    Ok(())
+}
+
+#[test]
 fn tmux_output_format() -> Result<()> {
     let mut tmux = ZellijController::new()?;
     let outfile = setup_tmux_mock(&tmux)?;
@@ -144,6 +168,39 @@ fn tmux_quote() -> Result<()> {
     assert!(cmd.contains("-E"));
     assert!(cmd.contains("--bind ctrl-a:reload'(ls /foo*)'"));
     assert!(cmd.contains("SKIM_ESCAPED_VAR=;\\;"));
+
+    Ok(())
+}
+
+/// The shell key bindings name their popup by purpose (`skim: files`,
+/// `skim: command history`, `skim: directories`). The name contains a space, so
+/// this guards the whole path: the widget's command line must reach skim as one
+/// argument, and skim must forward the name to the multiplexer.
+#[test]
+fn key_binding_popup_name_reaches_the_multiplexer() -> Result<()> {
+    let tmux = ZellijController::new()?;
+    let outfile = setup_tmux_mock(&tmux)?;
+    // Same shape as the shipped `__skimcmd` in shell/key-bindings.{bash,zsh},
+    // pointing at the test binary instead of whatever `sk` is on `$PATH`. The
+    // name is a quoted literal at the call site, exactly like the widgets do it.
+    let widget = format!(
+        "__skimcmd() {{
+        [ -n \"$TMUX_PANE\" ] && {{ [ \"${{SKIM_TMUX:-0}}\" != 0 ] || [ -n \"$SKIM_TMUX_OPTS\" ]; }} &&
+            echo \"{} --tmux=${{SKIM_TMUX_OPTS:-center,${{SKIM_TMUX_HEIGHT:-40%}}}}\" || echo sk
+    }}",
+        crate::common::SK
+    );
+    // `$TMUX_PANE`/`$SKIM_TMUX` are what make the widget switch to a popup; the
+    // harness runs skim inside Zellij, so provide them explicitly.
+    tmux.send_keys(&[
+        Str(&format!(
+            "unset SKIM_TMUX_OPTS; export TMUX_PANE=1 SKIM_TMUX=1; {widget}; $(__skimcmd) --popup-name='skim: command history' --query=hist"
+        )),
+        Enter,
+    ])?;
+    tmux.until(|_| Path::new(&outfile).exists())?;
+    let cmd = get_tmux_cmd(&outfile)?;
+    assert!(cmd.contains("-T skim: command history"), "popup name lost: {cmd}");
 
     Ok(())
 }

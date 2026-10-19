@@ -30,7 +30,7 @@ function skim_key_bindings
 
     begin
       set -lx SKIM_DEFAULT_OPTIONS "--reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS"
-      eval "$SKIM_CTRL_T_COMMAND | "(__skimcmd)' -m --query "'$skim_query'"' | while read -l r; set result $result $r; end
+      eval "$SKIM_CTRL_T_COMMAND | "(__skimcmd files)' -m --query "'$skim_query'"' | while read -l r; set result $result $r; end
     end
     if [ -z "$result" ]
       commandline -f repaint
@@ -57,10 +57,10 @@ function skim_key_bindings
       # history's -z flag was added in fish 2.4.0, so don't use it for versions
       # before 2.4.0.
       if [ "$FISH_MAJOR" -gt 2 -o \( "$FISH_MAJOR" -eq 2 -a "$FISH_MINOR" -ge 4 \) ];
-        history -z | eval (__skimcmd) --read0 --multiline --print0 -q '(commandline)' | read -lz result
+        history -z | eval (__skimcmd 'command history') --read0 --multiline --print0 -q '(commandline)' | read -lz result
         and commandline -- $result
       else
-        history | eval (__skimcmd) -q '(commandline)' | read -l result
+        history | eval (__skimcmd 'command history') -q '(commandline)' | read -l result
         and commandline -- $result
       end
     end
@@ -77,7 +77,7 @@ function skim_key_bindings
     -o -type d -print 2> /dev/null | sed 's@^\./@@'"
     begin
       set -lx SKIM_DEFAULT_OPTIONS "--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS"
-      eval "$SKIM_ALT_C_COMMAND | "(__skimcmd)' --no-multi --query "'$skim_query'"' | read -l result
+      eval "$SKIM_ALT_C_COMMAND | "(__skimcmd directories)' --no-multi --query "'$skim_query'"' | read -l result
 
       if [ -n "$result" ]
         cd $result
@@ -90,13 +90,19 @@ function skim_key_bindings
     commandline -f repaint
   end
 
+  # $argv[1] is the optional popup pane name; without it skim uses its default.
+  # The name is single-quoted here because the result is eval'ed, not split.
   function __skimcmd
     test -n "$SKIM_TMUX"; or set SKIM_TMUX 0
     test -n "$SKIM_TMUX_HEIGHT"; or set SKIM_TMUX_HEIGHT 40%
+    set -l name
+    if set -q argv[1]; and test -n "$argv[1]"
+      set name "--popup-name='skim: $argv[1]'"
+    end
     if [ -n "$SKIM_TMUX_OPTS" ]
-      echo "sk --tmux=$SKIM_TMUX_OPTS "
+      echo "sk --tmux=$SKIM_TMUX_OPTS $name "
     else if [ $SKIM_TMUX -eq 1 ]
-      echo "sk --tmux=center,$SKIM_TMUX_HEIGHT"
+      echo "sk --tmux=center,$SKIM_TMUX_HEIGHT $name"
     else
       echo "sk"
     end
