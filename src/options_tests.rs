@@ -215,7 +215,7 @@ fn build_no_scrollbar_clears_scrollbar() {
         ..Default::default()
     }
     .build();
-    assert!(opts.scrollbar.is_empty());
+    assert_eq!(opts.scrollbar, "");
 }
 
 #[test]

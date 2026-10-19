@@ -66,6 +66,7 @@ collapsible_match = "allow"
 default_trait_access = "allow"
 
 [dependencies]
+avt = "0.18"
 ansi-to-tui = "8.0.1"
 assert_enum_variants = "0.1.2"
 clap = { version = "4.6.1" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
@@ -103,7 +104,6 @@ thiserror = "2.0.18"
 thread_local = "1.1.9"
 tokio = { version = "1.52.3", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
 tokio-util = "0.7.18"
-tui-term = "0.3.4"
 unicode-display-width = "0.3.0"
 unicode-normalization = "0.1.25"
 which = "8.0.2"
