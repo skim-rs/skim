@@ -52,13 +52,13 @@ insta_test!(preview_wrap, ["x"], &["--preview", "echo a      bbbbbbbb", "--previ
 });
 
 // Test that preview updates when navigating between items
-insta_test!(preview_navigation, ["a", "b", "c"], &["--preview", "echo {}"], {
+insta_test!(preview_navigation, ["a", "b", "c"], &["--preview", &common::echo_command("{}")], {
     @snap;
     @key Up;
     @snap;
 });
 
-insta_test!(preview_plus, ["a", "b", "c"], &["--preview", "echo {+}", "-m"], {
+insta_test!(preview_plus, ["a", "b", "c"], &["--preview", &common::echo_command("{+}"), "-m"], {
     @snap;
     @key Up;
     @snap;

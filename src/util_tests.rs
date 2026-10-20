@@ -9,6 +9,111 @@ fn make_item(s: &'static str) -> MatchedItem {
 }
 
 #[test]
+fn test_quote_cmd_arg() {
+    for (input, expected) in [
+        ("", r#"^"^""#),
+        ("hello world", r#"^"hello world^""#),
+        ("%PATH%", r#"^"^%PATH^%^""#),
+        (r#"a"b"#, r#"^"a\^"b^""#),
+        (r#"a\"b"#, r#"^"a\\\^"b^""#),
+        (r"C:\some path\", r#"^"C:\some path\\^""#),
+        ("&|<>()^%!", r#"^"^&^|^<^>^(^)^^^%^!^""#),
+        ("café 日本語", r#"^"café 日本語^""#),
+    ] {
+        assert_eq!(quote_cmd_arg(input), expected, "input: {input:?}");
+    }
+}
+
+#[test]
+fn test_printf_joined_values_are_quoted_once() {
+    let delimiter = Regex::new(" ").unwrap();
+    for (pattern, items, expected) in [
+        ("{+:,}", vec![make_item("a b"), make_item("c'd")], "a b,c'd"),
+        ("{+1:,}", vec![make_item("a'b x"), make_item("c y")], "a'b,c"),
+        ("{+:,}", vec![], "a b"),
+    ] {
+        assert_eq!(
+            printf(
+                pattern,
+                &delimiter,
+                "{}",
+                &items.iter(),
+                &Some(make_item("a b")),
+                "",
+                "",
+                true,
+            ),
+            quote_shell_arg(expected),
+        );
+    }
+}
+
+// Run the test binary through CMD to check both CMD parsing and Windows argv parsing.
+#[cfg(windows)]
+#[test]
+fn test_cmd_argv_round_trip() {
+    const CHILD_ENV: &str = "SKIM_TEST_CMD_ARG";
+    const EXE_ENV: &str = "SKIM_TEST_CMD_EXE";
+    if let Ok(expected) = std::env::var(CHILD_ENV) {
+        assert_eq!(std::env::args().last().unwrap(), expected);
+        return;
+    }
+
+    let delimiter = Regex::new(" ").unwrap();
+    let executable = std::env::current_exe().unwrap();
+    let quoted_executable = quote_cmd_arg(executable.to_str().unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let forwarding_wrapper = dir.path().join("forward arguments.cmd");
+    let literal_wrapper = dir.path().join("wrapper.cmd");
+    // Use the Unicode environment for the executable path, not the batch file's code page.
+    std::fs::write(&forwarding_wrapper, format!("@\"%{EXE_ENV}%\" %*\r\n")).unwrap();
+
+    for value in [
+        "hello world",
+        "a\"b",
+        "a\\\"b",
+        "C:\\some path\\",
+        "&|<>()^%!",
+        "%PATH%",
+        "café 日本語",
+    ] {
+        let arguments = format!(
+            "--exact util::test::test_cmd_argv_round_trip --skip {}",
+            printf("{q}", &delimiter, "{}", &[].iter(), &None, value, "", true,),
+        );
+        let mut commands = vec![
+            ("direct CMD", format!("{quoted_executable} {arguments}")),
+            (
+                "batch forwarding",
+                // Batch paths use CMD quotes, not external-program argv escaping.
+                format!("@\"{}\" {arguments}", forwarding_wrapper.display()),
+            ),
+        ];
+        if value == "%PATH%" {
+            // Escape literal percent signs in batch source, but keep environment references expandable.
+            std::fs::write(
+                &literal_wrapper,
+                format!("@\"%{EXE_ENV}%\" {}\r\n", arguments.replace('%', "%%")),
+            )
+            .unwrap();
+            commands.push(("batch literal", format!("@\"{}\"", literal_wrapper.display())));
+        }
+        for (context, command) in commands {
+            let output = crate::shell_cmd(&command)
+                .env(CHILD_ENV, value)
+                .env(EXE_ENV, &executable)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "context: {context}, value: {value:?}, output: {output:?}"
+            );
+            assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+        }
+    }
+}
+
+#[test]
 fn test_unescape_delimiter() {
     assert_eq!(unescape_delimiter(r"\x00"), "\0");
     assert_eq!(unescape_delimiter(r"\t"), "\t");
@@ -63,9 +168,9 @@ fn test_printf() {
             true
         ),
         if cfg!(unix) {
-            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query' [7] 'item 1, item 2, item 3, item 4' [8] '0','0','0','0'"
+            "[1] 'item 2' [2] 'item 2' [3] '2' [4] 'item 1' 'item 2' 'item 3' 'item 4' [5] 'query' [6] 'cmd query' [7] 'item 1, item 2, item 3, item 4' [8] '0'\\'','\\''0'\\'','\\''0'\\'','\\''0'"
         } else {
-            "[1] item 2 [2] item 2 [3] 2 [4] item 1 item 2 item 3 item 4 [5] query [6] cmd query [7] item 1, item 2, item 3, item 4 [8] 0','0','0','0"
+            r#"[1] ^"item 2^" [2] ^"item 2^" [3] ^"2^" [4] ^"item 1^" ^"item 2^" ^"item 3^" ^"item 4^" [5] ^"query^" [6] ^"cmd query^" [7] ^"item 1, item 2, item 3, item 4^" [8] ^"0','0','0','0^""#
         }
     );
 }
@@ -82,7 +187,7 @@ fn test_printf_plus() {
             "cq",
             true
         ),
-        if cfg!(unix) { "'1' '2'" } else { "1 2" }
+        if cfg!(unix) { "'1' '2'" } else { r#"^"1^" ^"2^""# }
     );
     assert_eq!(
         printf(
@@ -95,7 +200,7 @@ fn test_printf_plus() {
             "cq",
             true
         ),
-        if cfg!(unix) { "'1'" } else { "1" }
+        if cfg!(unix) { "'1'" } else { r#"^"1^""# }
     );
 }
 #[test]
@@ -111,7 +216,7 @@ fn test_printf_norec() {
             "cq",
             true
         ),
-        if cfg!(unix) { "'{..2}'" } else { "{..2}" }
+        if cfg!(unix) { "'{..2}'" } else { r#"^"{..2}^""# }
     );
 }
 #[test]
@@ -127,7 +232,7 @@ fn test_printf_replstr() {
             "cq",
             true
         ),
-        if cfg!(unix) { "{} '1'" } else { "{} 1" }
+        if cfg!(unix) { "{} '1'" } else { r#"{} ^"1^""# }
     );
 }
 

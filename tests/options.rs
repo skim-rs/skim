@@ -7,7 +7,7 @@ use std::process::Command;
 #[macro_use]
 mod common;
 
-insta_test!(opt_with_nth_preview, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2..", "--preview", "echo X{1}Y"], {
+insta_test!(opt_with_nth_preview, ["f1,f2,f3,f4"], &["--delimiter", ",", "--with-nth", "2..", "--preview", &common::echo_command("X{1}Y")], {
     @snap;
 });
 
@@ -409,7 +409,7 @@ insta_test!(opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", 
 });
 
 #[cfg(windows)]
-insta_test!(opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", "if not [{q}]==[] echo.{q}", "--cmd-query", "xxxx"], {
+insta_test!(opt_no_clear_if_empty, @interactive, &["-i", "--no-clear-if-empty", "-c", r#"set skim_test_query={q}&cmd /v:on /c if not !skim_test_query!=="" echo !skim_test_query:"=!"#, "--cmd-query", "xxxx"], {
     @snap;
     @ctrl 'w';
     @snap;
@@ -423,7 +423,7 @@ insta_test!(opt_tac_with_header_lines, ["a", "b", "c", "d", "e"], &["--tac", "--
     @snap;
 });
 
-insta_test!(opt_replstr, ["a", "b", "c"], &["-I", "..", "--preview", "echo foo {} .."], {
+insta_test!(opt_replstr, ["a", "b", "c"], &["-I", "..", "--preview", &common::echo_command("foo {} ..")], {
     @snap;
     @char 'a';
     @snap;

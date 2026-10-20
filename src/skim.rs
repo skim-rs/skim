@@ -211,7 +211,7 @@ where
         // reader
         // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
         let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
-            let expanded = app.expand_cmd(&cmd, true);
+            let expanded = app.expand_shell_cmd(&cmd, true)?;
             log::debug!("Interactive mode: initial_cmd = {expanded:?} (from template {cmd:?})");
             expanded
         } else {
