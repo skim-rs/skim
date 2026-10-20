@@ -2,6 +2,39 @@ use super::*;
 use crate::options::SkimOptionsBuilder;
 use crate::tui::options::PreviewLayout;
 
+#[test]
+fn separator_only_adds_a_row_for_inline_right_or_hidden_info() {
+    use crate::tui::statusline::{Info, InfoDisplay};
+    for layout in [TuiLayout::Default, TuiLayout::Reverse, TuiLayout::ReverseList] {
+        for display in [
+            InfoDisplay::Default,
+            InfoDisplay::Left,
+            InfoDisplay::Right,
+            InfoDisplay::Inline,
+            InfoDisplay::InlineRight,
+            InfoDisplay::Hidden,
+        ] {
+            let options = opts()
+                .layout(layout)
+                .info(Info {
+                    display: display.clone(),
+                    separator: None,
+                })
+                .build()
+                .unwrap();
+            let before = compute(&options);
+            let mut options = options;
+            options.separator = Some("─".to_string());
+            let after = compute(&options);
+            let extra = u16::from(matches!(display, InfoDisplay::InlineRight | InfoDisplay::Hidden));
+            assert_eq!(after.input_area.height, before.input_area.height + extra);
+            assert_eq!(after.list_area.height + extra, before.list_area.height);
+            options.separator = Some(String::new());
+            assert_eq!(compute(&options.build()), before);
+        }
+    }
+}
+
 // A convenient 80×24 terminal area.
 fn area() -> Rect {
     Rect::new(0, 0, 80, 24)

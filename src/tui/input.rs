@@ -149,6 +149,8 @@ pub struct Input {
     pub info: Info,
     /// Whether layout is reversed (status goes below input instead of above)
     pub reverse: bool,
+    /// Repeating horizontal separator, independent of the inline info prefix.
+    pub separator: Option<String>,
 }
 
 impl Default for Input {
@@ -397,6 +399,86 @@ impl Input {
         std::mem::swap(&mut self.value, &mut self.alternate_value);
         std::mem::swap(&mut self.cursor_pos, &mut self.alternate_cursor_pos);
     }
+
+    fn append_inline_info(&self, line: &mut Line<'_>, inner: Rect) -> Option<Rect> {
+        let status = self.status_info.as_ref()?;
+        let separator = status.inline_separator_or_spinner();
+        let inline_status = status.inline_status();
+        let right_status = status.right_title();
+        let used_width = line.width()
+            + Line::from(separator.as_str()).width()
+            + Line::from(inline_status.as_str()).width()
+            + Line::from(right_status.as_str()).width();
+        let padding_width = usize::from(inner.width).saturating_sub(used_width);
+
+        if self.info.display == InfoDisplay::InlineRight {
+            line.push_span(Span::raw(" ".repeat(padding_width.saturating_sub(2))));
+        }
+        line.push_span(Span::styled(separator, self.theme.info));
+        line.push_span(Span::styled(inline_status, self.theme.info));
+        let separator_area = if self.info.display == InfoDisplay::Inline {
+            let start = line.width().saturating_add(1);
+            line.push_span(Span::raw(" ".repeat(padding_width)));
+            Some(
+                Rect::new(
+                    inner.x.saturating_add(u16::try_from(start).unwrap_or(u16::MAX)),
+                    inner.y,
+                    u16::try_from(padding_width.saturating_sub(2)).unwrap_or(u16::MAX),
+                    1,
+                )
+                .intersection(inner),
+            )
+        } else {
+            line.push_span(Span::raw(" ".repeat(2)));
+            None
+        };
+        line.push_span(Span::styled(right_status, self.theme.info));
+        separator_area
+    }
+
+    fn render_separator(&self, mut area: Rect, buf: &mut Buffer) {
+        let Some(pattern) = &self.separator else { return };
+        if area.is_empty() {
+            return;
+        }
+        if matches!(
+            self.info.display,
+            InfoDisplay::Default | InfoDisplay::Left | InfoDisplay::Right
+        ) {
+            let width = usize::from(area.width);
+            let (start, end) = self.status_info.as_ref().map_or((0, width), |status| {
+                let left = Line::from(status.left_title()).width();
+                let right = Line::from(status.right_title()).width();
+                match self.info.display {
+                    InfoDisplay::Left => (left + right + 3, width),
+                    InfoDisplay::Right => (0, width.saturating_sub(left + right + 3)),
+                    _ => (left + 1, width.saturating_sub(right + 1)),
+                }
+            });
+            let start = u16::try_from(start.min(width)).unwrap();
+            let end = u16::try_from(end.min(width)).unwrap();
+            if end > start {
+                for x in [start.checked_sub(1), (end < area.width).then_some(end)]
+                    .into_iter()
+                    .flatten()
+                {
+                    buf[(area.x + x, area.y)]
+                        .set_symbol(" ")
+                        .set_style(Style::reset().patch(self.theme.normal));
+                }
+            }
+            area.x += start;
+            area.width = end.saturating_sub(start);
+        }
+        let width = Line::from(pattern.as_str()).width();
+        if width > 0 && !area.is_empty() {
+            Line::styled(
+                pattern.repeat(usize::from(area.width).div_ceil(width)),
+                Style::reset().patch(self.theme.normal).patch(self.theme.separator),
+            )
+            .render(area, buf);
+        }
+    }
 }
 
 impl SkimWidget for Input {
@@ -406,6 +488,7 @@ impl SkimWidget for Input {
             border: options.border,
             info: options.info.clone(),
             reverse: options.layout == TuiLayout::Reverse,
+            separator: options.separator.clone(),
             prompt: String::new(),
             alternate_prompt: String::new(),
             value: String::new(),
@@ -430,10 +513,35 @@ impl SkimWidget for Input {
         res
     }
 
-    fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender {
+    fn render(&mut self, mut area: Rect, buf: &mut Buffer) -> SkimRender {
         use ratatui::layout::Alignment;
         use ratatui::text::{Line, Span};
-        use ratatui::widgets::{Block, Borders, Paragraph};
+        use ratatui::widgets::{Block, Borders, Paragraph, TitlePosition};
+
+        let inset = u16::from(self.border.is_some());
+        let status_area = Rect::new(
+            area.x.saturating_add(inset),
+            if self.reverse {
+                area.bottom().saturating_sub(1)
+            } else {
+                area.y
+            },
+            area.width.saturating_sub(2 * inset),
+            area.height.min(1),
+        );
+        let mut separator_area = None;
+        if self.separator.is_some()
+            && matches!(self.info.display, InfoDisplay::InlineRight | InfoDisplay::Hidden)
+            && !area.is_empty()
+        {
+            separator_area = Some(status_area);
+            if self.border.is_none() {
+                if !self.reverse {
+                    area.y += 1;
+                }
+                area.height -= 1;
+            }
+        }
 
         let mut line = self.prompt.into_text().map_or_else(
             |_| Line::from(self.prompt.as_str()),
@@ -442,7 +550,11 @@ impl SkimWidget for Input {
         style_line(&mut line, self.theme.prompt);
         line.push_span(Span::styled(&self.value, self.theme.query));
 
-        let mut block = Block::default();
+        let mut block = Block::default().title_position(if self.reverse {
+            TitlePosition::Bottom
+        } else {
+            TitlePosition::Top
+        });
 
         // Add borders if enabled
         if let Some(border_type) = self.border.into_ratatui() {
@@ -458,46 +570,8 @@ impl SkimWidget for Input {
                 // Inline mode: render status on the same line as input
                 // Format: prompt + value + " " + separator_char + " " + status + padding + right_status
                 // separator_char is spinner when active, '<' otherwise
-                if let Some(ref status) = self.status_info {
-                    let separator = status.inline_separator_or_spinner();
-                    let inline_status = status.inline_status();
-                    let right_status = status.right_title();
-
-                    // Calculate available width for padding
-                    // Format: " X " where X is separator (3 chars total)
-                    let prompt_width = display_width(&self.prompt);
-                    let value_width = display_width(&self.value);
-                    let separator_width = display_width(&separator); // "  X " (2xspace + separator + space)
-                    let inline_status_width = display_width(&inline_status);
-                    let right_status_width = display_width(&right_status);
-
-                    let used_width =
-                        prompt_width + value_width + separator_width + inline_status_width + right_status_width;
-                    let available_width = u64::from(area.width);
-                    let padding_width = available_width.saturating_sub(used_width);
-
-                    if self.info.display == InfoDisplay::InlineRight {
-                        line.push_span(Span::raw(" ".repeat(usize::try_from(padding_width).unwrap() - 2)));
-                    }
-                    line.push_span(Span::styled(separator, self.theme.info));
-                    line.push_span(Span::styled(inline_status, self.theme.info));
-                    if self.info.display == InfoDisplay::Inline {
-                        line.push_span(Span::raw(" ".repeat(padding_width.try_into().unwrap())));
-                    } else {
-                        line.push_span(Span::raw(" ".repeat(2)));
-                    }
-                    line.push_span(Span::styled(right_status, self.theme.info));
-
-                    Paragraph::new(line)
-                        .block(block)
-                        .style(self.theme.normal)
-                        .render(area, buf);
-                } else {
-                    // No status info, just render input
-                    Paragraph::new(line)
-                        .block(block)
-                        .style(self.theme.normal)
-                        .render(area, buf);
+                if let Some(inline_area) = self.append_inline_info(&mut line, block.inner(area)) {
+                    separator_area = Some(inline_area);
                 }
             }
             InfoDisplay::Default | InfoDisplay::Left | InfoDisplay::Right => {
@@ -519,36 +593,27 @@ impl SkimWidget for Input {
                         let title = Line::from(format!("{left_title}  {right_title}"))
                             .style(self.theme.info)
                             .alignment(alignment);
-                        block = if self.reverse {
-                            block.title_bottom(title)
-                        } else {
-                            block.title_top(title)
-                        };
+                        block = block.title(title);
                     } else {
                         let info_line = Line::from(left_title).style(self.theme.info).alignment(Alignment::Left);
                         let index_line = Line::from(right_title)
                             .style(self.theme.info)
                             .alignment(Alignment::Right);
-                        block = if self.reverse {
-                            block.title_bottom(info_line).title_bottom(index_line)
-                        } else {
-                            block.title_top(info_line).title_top(index_line)
-                        };
+                        block = block.title(info_line).title(index_line);
                     }
                 }
 
-                Paragraph::new(line)
-                    .block(block)
-                    .style(self.theme.normal)
-                    .render(area, buf);
+                separator_area = Some(status_area);
             }
-            InfoDisplay::Hidden => {
-                // Hidden mode: no status displayed
-                Paragraph::new(line)
-                    .block(block)
-                    .style(self.theme.normal)
-                    .render(area, buf);
-            }
+            InfoDisplay::Hidden => {}
+        }
+
+        Paragraph::new(line)
+            .block(block)
+            .style(self.theme.normal)
+            .render(area, buf);
+        if let Some(separator_area) = separator_area {
+            self.render_separator(separator_area, buf);
         }
 
         SkimRender::default()

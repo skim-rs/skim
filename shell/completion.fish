@@ -49,6 +49,7 @@ complete -c sk -l ellipsis -d 'The characters used to display truncated lines' -
 complete -c sk -l info -d 'Set matching result count display position' -r
 complete -c sk -l header -d 'Set header, displayed next to the info' -r
 complete -c sk -l header-lines -d 'Number of lines of the input treated as header' -r
+complete -c sk -l separator -d 'Draw a repeating horizontal separator on the status line' -r
 complete -c sk -l border -d 'Draw borders around the UI components' -r -f -a "force-off\t'ForceOff disables borders around popups too set with no_border'
 none\t''
 plain\t''
@@ -117,7 +118,6 @@ complete -c sk -l list-border -r
 complete -c sk -l list-label -r
 complete -c sk -l list-label-pos -r
 complete -c sk -l info-command -r
-complete -c sk -l separator -r
 complete -c sk -l ghost -r
 complete -c sk -l input-border -r
 complete -c sk -l input-label -r
@@ -157,6 +157,7 @@ complete -c sk -l no-height -d 'Disable height (force full screen)'
 complete -c sk -l ansi -d 'Parse ANSI color codes in input strings'
 complete -c sk -l no-info -d 'Alias for --info=hidden'
 complete -c sk -l inline-info -d 'Alias for --info=inline'
+complete -c sk -l no-separator -d 'Disable the horizontal separator'
 complete -c sk -l border-no-collapse -d 'Do not collapse adjacent borders into a shared row or column'
 complete -c sk -l no-border -d 'Disables all borders, including in tmux/zellij popups'
 complete -c sk -l wrap -d 'Wrap items in the item list'
@@ -184,7 +185,6 @@ complete -c sk -l no-multi-line
 complete -c sk -l raw
 complete -c sk -l track
 complete -c sk -l no-input
-complete -c sk -l no-separator
 complete -c sk -l header-first
 complete -c sk -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c sk -s V -l version -d 'Print version'

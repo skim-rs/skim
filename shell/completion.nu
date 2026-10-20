@@ -93,6 +93,8 @@ module completions {
     --inline-info             # Alias for --info=inline
     --header: string          # Set header, displayed next to the info
     --header-lines: string    # Number of lines of the input treated as header
+    --separator: string       # Draw a repeating horizontal separator on the status line
+    --no-separator            # Disable the horizontal separator
     --border: string@"nu-complete sk border" # Draw borders around the UI components
     --border-no-collapse      # Do not collapse adjacent borders into a shared row or column
     --no-border               # Disables all borders, including in tmux/zellij popups
@@ -165,8 +167,6 @@ module completions {
     --list-label-pos: string
     --no-input
     --info-command: string
-    --separator: string
-    --no-separator
     --ghost: string
     --input-border: string
     --input-label: string

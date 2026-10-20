@@ -1,0 +1,30 @@
+---
+source: tests/normalize.rs
+assertion_line: 8
+description: "input: items [\"café\", \"cafe\", \"tea\"]\noptions: --normalize"
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"⠋ 0/3 (0%)                                                                   0/0"
+">                                                                               "
+cursor: (24, 3)

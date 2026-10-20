@@ -1,5 +1,162 @@
 use super::*;
 
+fn separator_buffer(display: &InfoDisplay, reverse: bool, border: BorderType, pattern: &str, width: u16) -> Buffer {
+    let options = crate::options::SkimOptionsBuilder::default()
+        .separator(pattern)
+        .info(Info {
+            display: display.clone(),
+            separator: None,
+        })
+        .layout(if reverse {
+            TuiLayout::Reverse
+        } else {
+            TuiLayout::Default
+        })
+        .border(border)
+        .build()
+        .unwrap();
+    let mut input = Input::from_options(&options, Arc::new(ColorTheme::default()));
+    input.status_info = Some(status());
+    let height = if border.is_some() {
+        3
+    } else {
+        1 + u16::from(*display != InfoDisplay::Inline)
+    };
+    let area = Rect::new(2, 3, width, height);
+    let mut buf = Buffer::empty(area);
+    input.render(area, &mut buf);
+    buf
+}
+
+fn separator_row(buf: &Buffer, y: u16) -> String {
+    (buf.area.x..buf.area.right()).map(|x| buf[(x, y)].symbol()).collect()
+}
+
+#[test]
+fn separator_shares_status_row_in_both_directions() {
+    for reverse in [false, true] {
+        let buf = separator_buffer(&InfoDisplay::Default, reverse, BorderType::None, "─", 24);
+        let y = if reverse { buf.area.bottom() - 1 } else { buf.area.y };
+        assert_eq!(separator_row(&buf, y), "  42/100 ─────────── 7/3");
+        assert_eq!(buf[(11, y)].fg, ColorTheme::default().separator.fg.unwrap());
+        let prompt_y = if reverse { buf.area.y } else { buf.area.bottom() - 1 };
+        assert!(separator_row(&buf, prompt_y).contains('>'));
+    }
+}
+
+#[test]
+fn separator_respects_packed_status_alignment() {
+    let left = separator_buffer(&InfoDisplay::Left, false, BorderType::None, "-", 24);
+    assert_eq!(separator_row(&left, left.area.y), "  42/100  7/3 ----------");
+    let right = separator_buffer(&InfoDisplay::Right, false, BorderType::None, "-", 24);
+    assert_eq!(separator_row(&right, right.area.y), "----------   42/100  7/3");
+}
+
+#[test]
+fn separator_follows_inline_status_on_prompt_row() {
+    let buf = separator_buffer(&InfoDisplay::Inline, false, BorderType::None, "─", 40);
+    let row = separator_row(&buf, buf.area.y);
+    assert!(row.contains("> "));
+    assert!(row.contains("42/100"));
+    assert!(row.contains(" ─"));
+    assert!(row.ends_with("7/3"));
+    assert_eq!(buf.area.height, 1);
+}
+
+#[test]
+fn separator_gets_own_row_for_inline_right_and_hidden_info() {
+    for display in [InfoDisplay::InlineRight, InfoDisplay::Hidden] {
+        for reverse in [false, true] {
+            let buf = separator_buffer(&display, reverse, BorderType::None, "─", 24);
+            let y = if reverse { buf.area.bottom() - 1 } else { buf.area.y };
+            assert_eq!(separator_row(&buf, y), "─".repeat(24));
+            let prompt_y = if reverse { buf.area.y } else { buf.area.bottom() - 1 };
+            assert!(separator_row(&buf, prompt_y).contains('>'));
+        }
+    }
+}
+
+#[test]
+fn separator_reuses_facing_border_without_an_extra_row() {
+    for reverse in [false, true] {
+        for display in [InfoDisplay::Default, InfoDisplay::InlineRight, InfoDisplay::Hidden] {
+            let buf = separator_buffer(&display, reverse, BorderType::Plain, "=", 24);
+            let y = if reverse { buf.area.bottom() - 1 } else { buf.area.y };
+            let row = separator_row(&buf, y);
+            assert!(row.contains("==="));
+            assert!(row.starts_with(if reverse { '└' } else { '┌' }));
+            assert!(row.ends_with(if reverse { '┘' } else { '┐' }));
+            assert_eq!(buf.area.height, 3);
+        }
+    }
+}
+
+#[test]
+fn separator_repeats_strings_and_clips_wide_unicode() {
+    for (pattern, expected) in [
+        ("ab", "ababa"),
+        ("界", "界 界  "),
+        ("e\u{301}", "e\u{301}e\u{301}e\u{301}e\u{301}e\u{301}"),
+    ] {
+        let buf = separator_buffer(&InfoDisplay::Hidden, true, BorderType::None, pattern, 5);
+        assert_eq!(separator_row(&buf, buf.area.bottom() - 1), expected);
+    }
+}
+
+#[test]
+fn separator_adapts_to_resizing_without_rebuilding_input() {
+    let options = crate::options::SkimOptionsBuilder::default()
+        .separator("─")
+        .info(Info {
+            display: InfoDisplay::Hidden,
+            separator: None,
+        })
+        .build()
+        .unwrap();
+    let mut input = Input::from_options(&options, Arc::new(ColorTheme::default()));
+    for width in [40, 8, 60] {
+        let area = Rect::new(0, 0, width, 2);
+        let mut buf = Buffer::empty(area);
+        input.render(area, &mut buf);
+        assert_eq!(separator_row(&buf, 0), "─".repeat(usize::from(width)));
+        assert!(separator_row(&buf, 1).contains('>'));
+    }
+}
+
+#[test]
+fn separator_handles_empty_zero_width_and_small_areas() {
+    for pattern in ["", "\u{301}", "─"] {
+        for display in [
+            InfoDisplay::Default,
+            InfoDisplay::Inline,
+            InfoDisplay::InlineRight,
+            InfoDisplay::Hidden,
+        ] {
+            for width in 0..4 {
+                let _ = separator_buffer(&display, false, BorderType::None, pattern, width);
+            }
+        }
+    }
+}
+
+#[test]
+fn separator_color_does_not_change_status_color() {
+    let options = crate::options::SkimOptionsBuilder::default()
+        .separator("─")
+        .border(BorderType::Plain)
+        .color("separator:#666666,info:208,border:123:bold")
+        .build()
+        .unwrap();
+    let mut input = Input::from_options(&options, Arc::new(ColorTheme::init_from_options(&options)));
+    input.status_info = Some(status());
+    let area = Rect::new(0, 0, 24, 3);
+    let mut buf = Buffer::empty(area);
+    input.render(area, &mut buf);
+    assert_eq!(buf[(10, 0)].fg, Color::Rgb(102, 102, 102));
+    assert!(!buf[(10, 0)].modifier.contains(Modifier::BOLD));
+    assert_eq!(buf[(3, 0)].fg, Color::Indexed(208));
+}
+
 fn status() -> StatusInfo {
     StatusInfo {
         total: 100,

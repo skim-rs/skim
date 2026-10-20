@@ -1,0 +1,30 @@
+---
+source: tests/options.rs
+assertion_line: 422
+description: "input: items [\"a\", \"b\", \"c\", \"d\", \"e\"]\noptions: --tac --header-lines 2"
+---
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"                                                                                "
+"  b                                                                             "
+"  a                                                                             "
+"⠋ 0/3 (0%)                                                                   0/0"
+">                                                                               "
+cursor: (24, 3)
