@@ -61,6 +61,7 @@ reverse-list\:"Display from the top of the screen, prompt at the bottom"))' \
 '--info=[Set matching result count display position]:INFO:_default' \
 '--header=[Set header, displayed next to the info]:HEADER:_default' \
 '--header-lines=[Number of lines of the input treated as header]:HEADER_LINES:_default' \
+'--separator=[Draw a repeating horizontal separator on the status line]:SEPARATOR:_default' \
 '--border=[Draw borders around the UI components]::BORDER:((force-off\:"ForceOff disables borders around popups too set with no_border"
 none\:""
 plain\:""
@@ -131,7 +132,6 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--list-label=[]:LIST_LABEL:_default' \
 '--list-label-pos=[]:LIST_LABEL_POS:_default' \
 '--info-command=[]:INFO_COMMAND:_default' \
-'--separator=[]:SEPARATOR:_default' \
 '--ghost=[]:GHOST:_default' \
 '--input-border=[]:INPUT_BORDER:_default' \
 '--input-label=[]:INPUT_LABEL:_default' \
@@ -174,6 +174,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--ansi[Parse ANSI color codes in input strings]' \
 '--no-info[Alias for --info=hidden]' \
 '--inline-info[Alias for --info=inline]' \
+'--no-separator[Disable the horizontal separator]' \
 '--border-no-collapse[Do not collapse adjacent borders into a shared row or column]' \
 '--no-border[Disables all borders, including in tmux/zellij popups]' \
 '--wrap[Wrap items in the item list]' \
@@ -204,7 +205,6 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--raw[]' \
 '--track[]' \
 '--no-input[]' \
-'--no-separator[]' \
 '--header-first[]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \

@@ -26,4 +26,4 @@ description: "input: items [\"line1\", \"line2\", \"line3\"]\noptions: --min-que
 "                                                                                "
 "                                                                                "
 "> li                                                                            "
-cursor: (25, 5)
+cursor: (24, 5)

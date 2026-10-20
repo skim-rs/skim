@@ -782,6 +782,16 @@ pub struct SkimRender {
 widgets share adjacent border rows and columns by default;
 `SkimOptions::border_no_collapse` keeps their areas separate.
 
+`SkimOptions::separator` enables an opt-in repeating horizontal separator;
+`no_separator` disables it. `SkimOptions::build()` normalizes disabled or empty
+separators to `None`; widgets use that value without repeating validation.
+`Input` draws it in the unused part of the status
+row (or after inline status on the prompt row), using `ColorTheme::separator`.
+For inline-right or hidden info, a borderless input reserves one extra row on
+its list-facing side. With borders, that border row is reused instead. Headers
+and previews keep their own areas. Separator width is calculated on each render,
+so terminal resizing and preview changes need no separate separator state.
+
 `AppLayout` has four optional areas:
 
 ```rust
@@ -1228,7 +1238,7 @@ This enables scripted control of a running skim session.
 
 ## Theming
 
-`ColorTheme` (`src/theme.rs`) holds 13 named `ratatui::style::Style` values:
+`ColorTheme` (`src/theme.rs`) holds 14 named `ratatui::style::Style` values:
 
 | Field | Covers |
 | --- | --- |
@@ -1244,6 +1254,7 @@ This enables scripted control of a running skim session.
 | `selected` | Multi-selected item marker |
 | `header` | Header text |
 | `border` | Border lines |
+| `separator` | Horizontal separator, independent of headers and borders |
 | `scrollbar` | Item list scrollbar thumb |
 
 Built-in palettes: `none`, `bw`, `default16`, `dark256`, `molokai256`, `light256`, `catppuccin_mocha`, `catppuccin_macchiato`, `catppuccin_latte`, `catppuccin_frappe`.

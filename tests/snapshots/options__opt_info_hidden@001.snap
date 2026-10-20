@@ -26,4 +26,4 @@ description: "input: items [\"a\", \"b\", \"c\"]\noptions: --info hidden"
 "  b                                                                             "
 "> a                                                                             "
 ">                                                                               "
-cursor: (25, 3)
+cursor: (24, 3)

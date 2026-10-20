@@ -784,6 +784,33 @@ insta_test!(
     }
 );
 
+// The separator shares the status row unless info is hidden or inline-right.
+insta_test!(opt_separator, ["a", "b", "c"], &["--separator=─"], {
+    @snap;
+    @snap_color;
+});
+insta_test!(opt_separator_reverse_header, ["a", "b", "c"], &["--separator=─", "--layout=reverse", "--header=Header"], {
+    @snap;
+});
+insta_test!(opt_separator_inline, ["a", "b", "c"], &["--separator=-·", "--info=inline"], {
+    @snap;
+});
+insta_test!(opt_separator_inline_right, ["a", "b", "c"], &["--separator=─", "--info=inline-right", "--layout=reverse"], {
+    @snap;
+});
+insta_test!(opt_separator_hidden, ["a", "b", "c"], &["--separator=─", "--info=hidden"], {
+    @snap;
+});
+insta_test!(opt_separator_border, ["a", "b", "c"], &["--separator==", "--border", "plain"], {
+    @snap;
+});
+insta_test!(opt_separator_color, ["a", "b", "c"], &["--separator=─", "--color=separator:#666666,info:208,header:123", "--header=Header"], {
+    @snap_color;
+});
+insta_test!(opt_separator_preview, ["a", "b", "c"], &["--separator=─", "--preview=echo preview", "--preview-window=right:40%"], {
+    @snap;
+});
+
 // Basic rendering: prompt, counters, and the item list.
 insta_test!(vanilla_basic, ["1", "2", "3"], &[], {
     @snap;

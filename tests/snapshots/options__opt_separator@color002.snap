@@ -1,0 +1,15 @@
+---
+source: tests/options.rs
+description: "input: items [\"a\", \"b\", \"c\"]\noptions: --separator=─"
+---
+(19, 0..1) " " fg=Indexed(161)
+(19, 1..2) " " fg=Indexed(168)
+(20, 0..1) " " fg=Indexed(161)
+(20, 1..2) " " fg=Indexed(168)
+(21, 0..1) ">" fg=Indexed(161)
+(21, 1..2) " " fg=Indexed(168)
+(21, 2..3) "a" bg=Indexed(236)
+(22, 0..5) "  3/3" fg=Indexed(144)
+(22, 6..76) "──────────────────────────────────────────────────────────────────────" fg=Indexed(59) mod=DIM
+(22, 77..80) "0/0" fg=Indexed(144)
+(23, 0..2) "> " fg=Indexed(110)

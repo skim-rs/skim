@@ -40,6 +40,7 @@ Available color names:
     * selected (or marker): selected item marker
     * header: header text
     * border: border lines
+    * separator: horizontal separator (independent of borders and headers)
     * scrollbar: item list scrollbar thumb
 
 Adding `-fg`, `_fg`, `-bg`, `_bg`, `-underline`, `_underline` sets the corresponding part of

@@ -661,6 +661,21 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Display"))]
     pub header_lines: usize,
 
+    /// Draw a repeating horizontal separator on the status line
+    ///
+    /// With inline info it follows the status on the prompt line. With inline-right
+    /// or hidden info it occupies a separate line. Disabled by default; an empty
+    /// string also disables it. An enabled border row is reused where possible.
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Display", overrides_with = "no_separator")
+    )]
+    pub separator: Option<String>,
+
+    /// Disable the horizontal separator
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", overrides_with = "separator"))]
+    pub no_separator: bool,
+
     /// Draw borders around the UI components
     ///
     #[cfg_attr(
@@ -1084,12 +1099,6 @@ pub struct SkimOptions {
     info_command: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
-    separator: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    no_separator: bool,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
     ghost: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
@@ -1403,6 +1412,9 @@ impl SkimOptions {
                 KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL),
                 vec![Action::NextHistory],
             );
+        }
+        if self.no_separator || self.separator.as_ref().is_some_and(String::is_empty) {
+            self.separator = None;
         }
         if self.no_scrollbar {
             self.scrollbar = String::new();

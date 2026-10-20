@@ -6,6 +6,39 @@ use crate::field::FieldRange;
 use crate::item::RankCriteria;
 use crate::tui::statusline::InfoDisplay;
 
+#[test]
+fn separator_is_opt_in_and_available_to_library_users() {
+    assert!(SkimOptions::default().separator.is_none());
+    let options = SkimOptionsBuilder::default().separator("─").build().unwrap();
+    assert_eq!(options.separator.as_deref(), Some("─"));
+    let options = SkimOptionsBuilder::default()
+        .separator("─")
+        .no_separator(true)
+        .build()
+        .unwrap();
+    assert!(options.separator.is_none());
+    let options = SkimOptionsBuilder::default().separator("").build().unwrap();
+    assert!(options.separator.is_none());
+}
+
+#[test]
+fn separator_flags_override_in_argument_order() {
+    assert!(
+        merge(None, Some("--separator=─ --no-separator"), None)
+            .build()
+            .separator
+            .is_none()
+    );
+    assert_eq!(
+        merge(None, Some("--no-separator --separator=─"), None)
+            .build()
+            .separator
+            .as_deref(),
+        Some("─")
+    );
+    assert!(merge(None, Some("--separator="), None).build().separator.is_none());
+}
+
 /// Helper: invoke the env-free arg merger with `prog = "sk"` and no real CLI args.
 fn merge(
     options_file_content: Option<&[u8]>,

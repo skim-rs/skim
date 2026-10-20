@@ -84,10 +84,11 @@ impl LayoutTemplate {
         let input_rows: u16 = if has_border {
             3 // 1 content + 2 border rows
         } else {
-            1 + u16::from(matches!(
-                options.info.display,
-                InfoDisplay::Default | InfoDisplay::Left | InfoDisplay::Right
-            ))
+            1 + u16::from(match options.info.display {
+                InfoDisplay::Default | InfoDisplay::Left | InfoDisplay::Right => true,
+                InfoDisplay::Inline => false,
+                InfoDisplay::InlineRight | InfoDisplay::Hidden => options.separator.is_some(),
+            })
         };
 
         // Rows consumed by the header widget.
@@ -128,33 +129,15 @@ impl LayoutTemplate {
         // For Default / ReverseList: slots are [list, header, input] top-to-bottom.
         // For Reverse:               slots are [input, header, list] top-to-bottom.
         let work_layout_reversed = options.layout == TuiLayout::Reverse;
-        let work_layout = if show_header {
-            match options.layout {
-                TuiLayout::Default | TuiLayout::ReverseList => Layout::vertical([
-                    Constraint::Fill(1),
-                    Constraint::Length(header_rows.saturating_sub(overlap)),
-                    Constraint::Length(input_rows.saturating_sub(overlap)),
-                ]),
-                TuiLayout::Reverse => Layout::vertical([
-                    Constraint::Length(input_rows),
-                    Constraint::Length(header_rows.saturating_sub(overlap)),
-                    Constraint::Fill(1),
-                ]),
-            }
-        } else {
-            match options.layout {
-                TuiLayout::Default | TuiLayout::ReverseList => Layout::vertical([
-                    Constraint::Fill(1),
-                    Constraint::Length(0),
-                    Constraint::Length(input_rows.saturating_sub(overlap)),
-                ]),
-                TuiLayout::Reverse => Layout::vertical([
-                    Constraint::Length(input_rows),
-                    Constraint::Length(0),
-                    Constraint::Fill(1),
-                ]),
-            }
-        };
+        let mut constraints = [
+            Constraint::Fill(1),
+            Constraint::Length(header_rows.saturating_sub(overlap)),
+            Constraint::Length(input_rows.saturating_sub(if work_layout_reversed { 0 } else { overlap })),
+        ];
+        if work_layout_reversed {
+            constraints.reverse();
+        }
+        let work_layout = Layout::vertical(constraints);
 
         Self {
             show_header,
