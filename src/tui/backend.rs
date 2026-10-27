@@ -292,7 +292,7 @@ where
         self.event_rx.recv().await
     }
 
-    fn execute_enter(&self) -> Result<()> {
+    fn execute_enter(&mut self) -> Result<()> {
         crossterm::execute!(stderr(), EnableBracketedPaste)?;
         if self.enable_mouse {
             crossterm::execute!(stderr(), EnableMouseCapture)?;
@@ -305,6 +305,11 @@ where
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
         ) {
             warn!("Failed to enable keyboard enhancement flags: {e}");
+        }
+        if !self.is_fullscreen {
+            // Clear existing shell text without Terminal::clear's cursor-position query.
+            let area = self.get_frame().area();
+            self.resize(area)?;
         }
         Ok(())
     }
@@ -560,6 +565,40 @@ mod tests {
         let area = tui.get_frame().area();
         assert_eq!(area.width, 80);
         assert_eq!(area.height, 24);
+    }
+
+    #[test]
+    fn entering_inline_terminal_clears_only_the_viewport() {
+        for terminal_height in [24, 25, 32] {
+            let rect = Rect::new(0, 5, 79, terminal_height * 40 / 100);
+            let mut backend = TestBackend::new(80, terminal_height);
+            let mut cell = ratatui::buffer::Cell::default();
+            cell.set_symbol("G");
+            backend
+                .draw([(8, 4, &cell), (8, 5, &cell), (79, 5, &cell), (8, 20, &cell)].into_iter())
+                .expect("failed to seed terminal content");
+            let mut tui = fullscreen_tui();
+            tui.is_fullscreen = false;
+            tui.rect = Some(rect);
+            tui.terminal = ratatui::Terminal::with_options(
+                backend,
+                TerminalOptions {
+                    viewport: Viewport::Fixed(rect),
+                },
+            )
+            .expect("failed to build inline terminal");
+            assert_eq!(tui.backend().buffer()[(8, 5)].symbol(), "G");
+
+            tui.min_height(10).expect("failed to apply minimum height");
+            tui.execute_enter().expect("failed to enter terminal");
+            tui.draw(|_| {}).expect("failed to draw empty frame");
+
+            let buffer = tui.backend().buffer();
+            assert_eq!(buffer[(8, 5)].symbol(), " ", "terminal height: {terminal_height}");
+            for pos in [(8, 4), (79, 5), (8, 20)] {
+                assert_eq!(buffer[pos].symbol(), "G", "outside viewport at {pos:?}");
+            }
+        }
     }
 
     #[test]

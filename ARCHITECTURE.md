@@ -658,6 +658,7 @@ Tui::enter()
   ├─ enable_raw_mode()
   ├─ execute!(EnableMouseCapture, EnableBracketedPaste)
   ├─ if fullscreen: execute!(EnterAlternateScreen, cursor::Hide)
+  ├─ if inline: resize the current viewport to clear existing terminal text
   └─ Tui::start()  ← spawns event pump task
 
 Tui::exit()
@@ -667,6 +668,8 @@ Tui::exit()
   │    └─ disable_raw_mode()
   └─ if inline: clear() + reset cursor to top of drawing area
 ```
+
+Inline entry and resume clear the final viewport through Ratatui's `resize()` even when its size is unchanged. This removes shell text that the first buffer diff would otherwise leave in blank cells, without a cursor-position query. Construction does not add this clear; minimum-height enlargement still clears through its existing resize path.
 
 A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_terminal()` runs even on panics.
 
