@@ -4,17 +4,15 @@ use ratatui::style::{Color, Modifier, Style};
 
 /// Preview terminal with incremental UTF-8 decoding for byte-oriented readers.
 pub(crate) struct PreviewTerminal {
-    pub(crate) vt: avt::Vt,
+    pub(crate) vt: avt::Terminal,
     pending: Vec<u8>,
 }
 
 impl PreviewTerminal {
     pub(crate) fn new(rows: u16, cols: u16, scrollback: usize) -> Self {
         Self {
-            vt: avt::Vt::builder()
-                .size(usize::from(cols.max(1)), usize::from(rows.max(1)))
-                .scrollback_limit(scrollback)
-                .build(),
+            vt: avt::Terminal::with_scrollback(usize::from(cols.max(1)), usize::from(rows.max(1)), Some(scrollback))
+                .expect("Failed to create preview virtual terminal"),
             pending: Vec::new(),
         }
     }
@@ -25,17 +23,16 @@ impl PreviewTerminal {
         while offset < self.pending.len() {
             match std::str::from_utf8(&self.pending[offset..]) {
                 Ok(text) => {
-                    self.vt.feed_str(text);
+                    self.vt.feed(text);
                     offset = self.pending.len();
                 }
                 Err(error) => {
                     let end = offset + error.valid_up_to();
                     // The UTF-8 decoder has validated this prefix.
-                    self.vt
-                        .feed_str(std::str::from_utf8(&self.pending[offset..end]).unwrap());
+                    self.vt.feed(std::str::from_utf8(&self.pending[offset..end]).unwrap());
                     offset = end;
                     if let Some(len) = error.error_len() {
-                        self.vt.feed_str("\u{fffd}");
+                        self.vt.feed("\u{fffd}");
                         offset += len;
                     } else {
                         break;
@@ -47,22 +44,23 @@ impl PreviewTerminal {
     }
 
     pub(crate) fn finish(&mut self) {
-        self.vt.feed_str(&String::from_utf8_lossy(&self.pending));
+        self.vt.feed(String::from_utf8_lossy(&self.pending).into_owned());
         self.pending.clear();
     }
 
     pub(crate) fn total_lines(&self) -> usize {
         self.vt
-            .lines()
+            .screen()
+            .all_lines()
             .enumerate()
-            .filter(|(_, line)| line.cells().iter().any(|cell| !cell.is_default()))
+            .filter(|(_, line)| line.cells().iter().any(|cell| cell.ne(&avt::Cell::default())))
             .map(|(index, _)| index + 1)
             .last()
             .unwrap_or(0)
     }
 
     pub(crate) fn render(&self, area: Rect, buf: &mut Buffer, scroll_y: usize, scroll_x: usize) {
-        for (y, line) in (area.y..area.bottom()).zip(self.vt.lines().skip(scroll_y)) {
+        for (y, line) in (area.y..area.bottom()).zip(self.vt.screen().all_lines().skip(scroll_y)) {
             for (x, cell) in (area.x..area.right()).zip(line.cells().iter().skip(scroll_x)) {
                 if cell.width() == 0 {
                     continue;
@@ -115,7 +113,7 @@ mod tests {
             terminal.process(&[*byte]);
         }
         terminal.finish();
-        assert_eq!(terminal.vt.text(), ["hello", "世界", "    x", ""]);
+        assert_eq!(terminal.vt.primary_screen().text(), ["hello", "世界", "    x", ""]);
     }
 
     #[test]
@@ -123,7 +121,7 @@ mod tests {
         let mut terminal = PreviewTerminal::new(2, 12, 0);
         terminal.process(b"a\xffb\xe4");
         terminal.finish();
-        assert_eq!(terminal.vt.text()[0], "a\u{fffd}b\u{fffd}");
+        assert_eq!(terminal.vt.primary_screen().text()[0], "a\u{fffd}b\u{fffd}");
     }
 
     #[test]
@@ -140,6 +138,6 @@ mod tests {
         assert_eq!(buf[(0, 0)].bg, Color::Indexed(4));
         assert!(buf[(0, 0)].modifier.contains(Modifier::BOLD));
         terminal.process(b"\nnext\nend");
-        assert!(terminal.vt.lines().count() <= 4);
+        assert!(terminal.vt.screen().all_lines().count() <= 4);
     }
 }

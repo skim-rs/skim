@@ -363,9 +363,12 @@ fn callback_pty_parses_terminal_sequences() {
             };
             let parser = parser.read().unwrap();
             assert_eq!(parser.vt.size(), (if wrap { 20 } else { 1024 }, 5));
-            assert_eq!(parser.vt.text(), ["hello", "  世界", "next", "    end", ""]);
             assert_eq!(
-                parser.vt.line(0).cells()[0].pen().foreground(),
+                parser.vt.primary_screen().text(),
+                ["hello", "  世界", "next", "    end", ""]
+            );
+            assert_eq!(
+                parser.vt.screen().line(0).unwrap().cells()[0].pen().foreground(),
                 Some(avt::Color::Indexed(1))
             );
             assert!(matches!(tui.event_rx.try_recv(), Ok(super::Event::PreviewReady)));
