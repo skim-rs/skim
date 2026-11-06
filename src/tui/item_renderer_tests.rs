@@ -223,6 +223,84 @@ fn first_sub_line_content_keeps_display_longer_than_text() {
 }
 
 #[test]
+fn wrapped_content_expands_tabs_across_spans_and_multiline_sub_lines() {
+    let theme = ColorTheme::default();
+    let mut renderer = renderer(&theme);
+    renderer.wrap = true;
+    renderer.multiline = Some("|");
+    renderer.manual_hscroll = 3;
+    renderer.keep_right = true;
+    let text = "界\tb\tend";
+    let item = matched_item(text, Some(MatchRange::Chars(vec![0, 2])));
+
+    for (tabstop, expected) in [(1, "界 b end"), (2, "界  b end"), (4, "界  b   end")] {
+        renderer.tabstop = tabstop;
+        for is_first in [true, false] {
+            let state = SubLineState {
+                is_current: true,
+                is_selected: false,
+                is_first,
+                is_first_sub_line: is_first,
+                needs_ellipsis: false,
+            };
+            let line = renderer.content_line(&item, text, &state, 0, 3);
+            assert_eq!(line_text(&line), expected);
+            if is_first {
+                assert_eq!(line.spans[0].style, theme.current_match);
+            }
+        }
+    }
+}
+
+#[test]
+fn wrapped_item_renders_expanded_tabs_without_clipping() {
+    let theme = ColorTheme::default();
+    let mut renderer = renderer(&theme);
+    renderer.wrap = true;
+    let item = matched_item("a\tbcdefgh", Some(MatchRange::CharRange(8, 9)));
+    let mut out = Vec::new();
+    renderer.render_item(&item, false, false, 0, 2, 0, &mut out);
+
+    let mut buf = Buffer::empty(Rect::new(0, 0, 8, 2));
+    List::new(out).render(buf.area, &mut buf);
+    for (y, expected) in [(0, "  a   bc"), (1, "defgh   ")] {
+        let text: String = (0..8).map(|x| buf.cell((x, y)).unwrap().symbol()).collect();
+        assert_eq!(text, expected);
+    }
+}
+
+#[test]
+fn highlight_line_fills_padding_on_all_wrapped_rows_only_when_current() {
+    let theme = ColorTheme {
+        current: Style::default().bg(Color::Blue),
+        ..ColorTheme::default()
+    };
+    let mut renderer = renderer(&theme);
+
+    for wrap in [false, true] {
+        renderer.wrap = wrap;
+        for highlight_line in [false, true] {
+            renderer.highlight_line = highlight_line;
+            for is_current in [false, true] {
+                let text = if wrap { "abcdefghijk" } else { "abc" };
+                let item = renderer.list_item_from_spans(vec![Span::raw(text)], is_current);
+                let height = if wrap { 2 } else { 1 };
+                let mut buf = Buffer::empty(Rect::new(0, 0, 8, height));
+                List::new(vec![item]).render(buf.area, &mut buf);
+                let expected = if highlight_line && is_current {
+                    Color::Blue
+                } else {
+                    Color::Reset
+                };
+                for y in 0..height {
+                    assert_eq!(buf.cell((7, y)).unwrap().bg, expected);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn calc_hscroll_container_narrower_than_ellipsis_returns_no_shift() {
     let theme = ColorTheme::default();
     let mut renderer = renderer(&theme);
