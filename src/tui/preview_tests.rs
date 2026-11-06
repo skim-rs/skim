@@ -334,41 +334,57 @@ fn callback_pty_parses_terminal_sequences() {
 
     for streaming in [false, true] {
         for wrap in [false, true] {
-            let callback = if streaming {
-                super::PreviewCallback::streaming(|_, _, mut writer| {
-                    writer.write_all(b"old\x1b[2J\x1b[").unwrap();
-                    writer.write_all(b"H\x1b[31mhello\x1b[2;3H").unwrap();
-                    writer.write_all("世界\nnext\x1b[20l\nend".as_bytes()).unwrap();
-                    Ok(())
-                })
-            } else {
-                super::PreviewCallback::from(|_| {
-                    vec!["old\x1b[2J\x1b[H\x1b[31mhello\x1b[2;3H世界\nnext\x1b[20l\nend".into()]
-                })
-            };
-            let mut tui = super::super::Tui::new_with_height_and_backend(
-                TestBackend::new(20, 5),
-                super::super::Size::Percent(100),
-            )
-            .unwrap();
-            let mut preview = Preview::default();
-            preview.rows = 5;
-            preview.cols = 20;
-            preview.wrap = wrap;
-            preview.spawn_callback(&mut tui, &callback, true, Vec::new(), None);
-            preview.thread_handle.take().unwrap().join().unwrap();
-            let content = preview.content.read().unwrap();
-            let PreviewContent::Terminal(parser) = &*content else {
-                panic!("expected terminal preview");
-            };
-            let parser = parser.read().unwrap();
-            assert_eq!(parser.vt.size(), (if wrap { 20 } else { 1024 }, 5));
-            assert_eq!(parser.vt.text(), ["hello", "  世界", "next", "    end", ""]);
-            assert_eq!(
-                parser.vt.line(0).cells()[0].pen().foreground(),
-                Some(avt::Color::Indexed(1))
-            );
-            assert!(matches!(tui.event_rx.try_recv(), Ok(super::Event::PreviewReady)));
+            for clear in ["", "\x1b[2J"] {
+                let callback = if streaming {
+                    super::PreviewCallback::streaming(move |_, _, mut writer| {
+                        write!(writer, "old{clear}\x1b[").unwrap();
+                        writer.write_all(b"H\x1b[31mhello\x1b[2;3H").unwrap();
+                        writer.write_all("世界\nnext\x1b[20l\nend".as_bytes()).unwrap();
+                        Ok(())
+                    })
+                } else {
+                    super::PreviewCallback::from(move |_| {
+                        vec![format!("old{clear}\x1b[H\x1b[31mhello\x1b[2;3H世界\nnext\x1b[20l\nend")]
+                    })
+                };
+                let mut tui = super::super::Tui::new_with_height_and_backend(
+                    TestBackend::new(20, 5),
+                    super::super::Size::Percent(100),
+                )
+                .unwrap();
+                let mut preview = Preview::default();
+                preview.rows = 5;
+                preview.cols = 20;
+                preview.wrap = wrap;
+                preview.spawn_callback(&mut tui, &callback, true, Vec::new(), None);
+                preview.thread_handle.take().unwrap().join().unwrap();
+                let content = preview.content.read().unwrap();
+                let PreviewContent::Terminal(parser) = &*content else {
+                    panic!("expected terminal preview");
+                };
+                let parser = parser.read().unwrap();
+                assert_eq!(parser.vt.size(), (if wrap { 20 } else { 1024 }, 5));
+                assert_eq!(
+                    parser.vt.screen().line(0).unwrap().cells()[0].pen().foreground(),
+                    Some(avt::Color::Indexed(1))
+                );
+                let visible = ["hello", "  世界", "next", "    end", ""];
+                assert_eq!(
+                    parser
+                        .vt
+                        .primary_screen()
+                        .visible_lines()
+                        .map(|line| line.text().trim_end().to_owned())
+                        .collect::<Vec<_>>(),
+                    visible
+                );
+                let mut expected = visible.to_vec();
+                if !clear.is_empty() {
+                    expected.insert(0, "old");
+                }
+                assert_eq!(parser.vt.primary_screen().text(), expected);
+                assert!(matches!(tui.event_rx.try_recv(), Ok(super::Event::PreviewReady)));
+            }
         }
     }
 }

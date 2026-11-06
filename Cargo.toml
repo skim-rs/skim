@@ -66,7 +66,7 @@ collapsible_match = "allow"
 default_trait_access = "allow"
 
 [dependencies]
-avt = "0.18"
+avt = "0.19"
 ansi-to-tui = "8.0.1"
 assert_enum_variants = "0.1.2"
 clap = { version = "4.6.1" , optional = true, features = ["cargo", "derive", "unstable-markdown"] }
