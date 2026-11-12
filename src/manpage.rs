@@ -463,7 +463,7 @@ mod tests {
     #[cfg(all(feature = "image", feature = "listen", feature = "frizbee"))]
     #[test]
     fn shipped_manpage_matches_generator() {
-        assert_eq!(manpage_str(), include_str!("../man/man1/sk.1"));
+        assert_eq!(manpage_str(), include_str!("../man/man1/sk.1").replace("\r\n", "\n"));
     }
 
     #[test]
