@@ -941,6 +941,16 @@ fn handle_key_mapped_returns_keymap_action() {
 }
 
 #[test]
+fn handle_key_matches_shifted_unicode_binding() {
+    for binding in ["shift-ä", "Ä"] {
+        let mut app = App::default();
+        app.options.keymap = crate::binds::KeyMap::from(format!("{binding}:abort").as_str());
+        let events = app.handle_key(&KeyEvent::new(KeyCode::Char('Ä'), KeyModifiers::SHIFT));
+        assert!(matches!(events.as_slice(), [Event::Action(Action::Abort)]));
+    }
+}
+
+#[test]
 fn handle_key_unmapped_returns_empty() {
     let mut app = App::default();
     let events = app.handle_key(&KeyEvent::new(KeyCode::Char('c'), KeyModifiers::ALT));

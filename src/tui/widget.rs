@@ -34,7 +34,7 @@ pub trait SkimWidget: Sized {
     ///
     /// This is made to be reused from a blanket `std::default::Default` trait impl
     #[must_use]
-    fn _default() -> Self {
+    fn default_inner() -> Self {
         Self::from_options(&SkimOptions::default(), Arc::new(ColorTheme::default()))
     }
 }

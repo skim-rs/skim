@@ -43,10 +43,12 @@ fn no_clear_preserves_rows_in_inline_and_fullscreen_modes() -> std::io::Result<(
                     ""
                 };
                 let command = format!(
-                    "printf 'retained-a\\nretained-b\\nretained-c\\n' | {}{} --no-clear --height={height} {margin} --layout={layout} --info=hidden --header=retained-header --prompt='retained-prompt>'",
+                    "printf 'retained-%s\\n' a b c | {}{} --no-clear --height={height} {margin} --layout={layout} --info=hidden --header=retained-''header --prompt='retained-''prompt>'",
                     common::SKIM_SHELL_ENV_CLEAR,
                     common::SK.replace('\\', "/")
                 );
+                // The echoed command must not contain any rendered label.
+                assert!(expected.iter().all(|label| !command.contains(label)));
                 zellij.send_keys(&[Str(&command), Enter])?;
                 // ConPTY can put the header and prompt on the same captured row.
                 zellij.until(|lines| {

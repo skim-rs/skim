@@ -46,7 +46,7 @@ pub struct Header {
 
 impl Default for Header {
     fn default() -> Self {
-        Self::_default()
+        Self::default_inner()
     }
 }
 

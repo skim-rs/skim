@@ -98,7 +98,7 @@ pub struct ItemList {
 
 impl Default for ItemList {
     fn default() -> Self {
-        Self::_default()
+        Self::default_inner()
     }
 }
 

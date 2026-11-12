@@ -222,7 +222,7 @@ pub fn get_default_key_map() -> KeyMap {
 ///
 /// # Errors
 /// Returns an error if the key string is empty, contains an unknown modifier,
-/// or does not correspond to a recognised key name.
+/// does not correspond to a recognised key name, or its shifted form needs multiple characters.
 pub fn parse_key(key: &str) -> Result<KeyEvent> {
     if key.is_empty() {
         return Err(eyre!("Cannot parse empty key"));
@@ -248,7 +248,14 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
 
     let keycode: KeyCode;
     if key.chars().count() == 1 {
-        let char = key.chars().next().unwrap_or_default();
+        let mut char = key.chars().next().unwrap_or_default();
+        if mods.contains(KeyModifiers::SHIFT) && !char.is_ascii() {
+            let mut uppercase = char.to_uppercase();
+            char = uppercase.next().unwrap_or(char);
+            if uppercase.next().is_some() {
+                return Err(eyre!("Shifted key {key} needs multiple characters"));
+            }
+        }
         if char.is_uppercase() {
             mods |= KeyModifiers::SHIFT;
             keycode = KeyCode::Char(char.to_ascii_lowercase());

@@ -30,6 +30,19 @@ fn documented_key_names_parse() {
 }
 
 #[test]
+fn shifted_unicode_keys_match_uppercase_bindings() {
+    for (lower, upper) in [('ä', 'Ä'), ('é', 'É'), ('λ', 'Λ')] {
+        for prefix in ["", "alt-", "ctrl-"] {
+            assert_eq!(
+                parse_key(&format!("{prefix}shift-{lower}")).unwrap(),
+                parse_key(&format!("{prefix}{upper}")).unwrap()
+            );
+        }
+    }
+    assert!(parse_key("shift-ß").is_err());
+}
+
+#[test]
 fn test_parse_key() {
     assert_eq!(
         parse_key("a").unwrap(),

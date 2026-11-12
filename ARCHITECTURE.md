@@ -170,7 +170,7 @@ The single crate exports:
 - A **library** (`lib`): all types under `skim::*`, suitable for embedding.
 - A **binary** (`sk`, requires feature `cli`): the `clap`-based CLI.
 
-The `cli` feature gates `clap`, `clap_complete`, `shlex`, `env_logger`, and `clap_mangen`.
+The `cli` feature gates `clap`, `clap_complete`, `clap_complete_nushell`, `shlex`, `env_logger`, `clap_mangen`, and `roff`.
 
 The `image` feature (enabled by default) gates image preview support, including the
 `image` and `ratatui-image` dependencies, the `ImageProtocol` enum, the
@@ -674,7 +674,7 @@ Tui::exit()
 
 Inline entry and resume clear the final viewport through Ratatui's `resize()` even when its size is unchanged. This removes shell text that the first buffer diff would otherwise leave in blank cells, without a cursor-position query. Construction does not add this clear; minimum-height enlargement still clears through its existing resize path.
 
-`Skim::output()` sets the private `Tui::no_clear` flag before final teardown. `--no-clear` preserves the final interface but still restores terminal input modes. In both inline and fullscreen modes, exit moves the cursor to the last viewport row and writes a newline before stdout or the shell resumes. This prevents output from overwriting the retained interface. Scrolling can move its top rows off screen, particularly in fullscreen mode. A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_terminal(false)` always restores the screen on panics.
+`Skim::init_tui_with()` sets the private `Tui::no_clear` flag when attaching either the default or a caller-provided backend, before event handling can exit the terminal. `Tui::exit()` records a completed exit so repeated calls, including `Drop`, do not repeat cleanup or cursor movement. Entering or resuming the terminal resets this state. `--no-clear` preserves the final interface but still restores terminal input modes. In both inline and fullscreen modes, exit moves the cursor to the last viewport row and writes a newline before stdout or the shell resumes. This prevents output from overwriting the retained interface. Scrolling can move its top rows off screen, particularly in fullscreen mode. A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_terminal(false)` always restores the screen on panics.
 
 **Foreground `execute` actions:** the `execute(cmd)` action must hand the terminal to a child process (e.g. an editor or an interactive TUI like `ncdu`). `handle_action` only expands the command and returns `Event::RunExecute(cmd)`; the actual run happens in `App::handle_event` (which owns the `Tui`) via the `run_foreground(tui, cmd)` helper in `src/tui/app.rs`. `run_foreground` calls `Tui::stop_and_join()` — which cancels the event-pump task **and blocks until it has dropped its `EventStream`** — so skim's reader stops consuming terminal input before the child starts; otherwise the two race for keystrokes and interactive children appear to freeze. It then leaves the alternate screen / raw mode, spawns the child with its **own** stdin opened from the controlling terminal (`/dev/tty`, or `CONIN$` on Windows; falls back to inheriting skim's stdin), waits for it, restores terminal modes, and calls `Tui::start()` to respawn the reader. Giving the child its own tty stdin is what lets `execute` work when skim's own stdin is a pipe (`find | sk`). `execute-silent(cmd)` needs no terminal and is still spawned directly inside `handle_action` with stdout/stderr sent to `/dev/null`.
 

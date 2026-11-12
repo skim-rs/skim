@@ -56,6 +56,20 @@ fn started_skim(items: &[&str]) -> Skim<TestBackend> {
     started_skim_with(SkimOptions::default().build(), items)
 }
 
+#[test]
+fn attaching_tui_sets_no_clear_before_event_handling() {
+    for no_clear in [false, true] {
+        let options = crate::options::SkimOptionsBuilder::default()
+            .no_clear(no_clear)
+            .build()
+            .unwrap();
+        let mut skim = Skim::<TestBackend>::init(options, None).unwrap();
+        let tui = Tui::new_with_height_and_backend(TestBackend::new(40, 10), Size::Percent(100)).unwrap();
+        skim.init_tui_with(tui);
+        assert_eq!(skim.tui_ref().no_clear, no_clear);
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn no_clear_start_keeps_items_until_reload_results_or_completion() {

@@ -151,7 +151,7 @@ impl Skim {
         }
         let min_height = crate::options::parse_min_height(&self.app.options.min_height).map_err(eyre::Report::msg)?;
         tui.min_height(min_height)?;
-        self.tui = Some(tui);
+        self.init_tui_with(tui);
         Ok(())
     }
 
@@ -353,7 +353,8 @@ where
     ///
     /// Use this instead of [`init_tui()`](Skim::init_tui) when you need a
     /// non-default backend (e.g. `TestBackend` for snapshot tests).
-    pub fn init_tui_with(&mut self, tui: Tui<Backend>) {
+    pub fn init_tui_with(&mut self, mut tui: Tui<Backend>) {
+        tui.no_clear = self.app.options.no_clear;
         self.tui = Some(tui);
     }
 
@@ -634,9 +635,6 @@ where
         let final_event = self.final_event.clone();
         let final_key = self.final_key;
 
-        if let Some(tui) = self.tui.as_mut() {
-            tui.no_clear = self.app.options.no_clear;
-        }
         drop(self);
 
         SkimOutput {

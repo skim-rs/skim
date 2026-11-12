@@ -155,7 +155,7 @@ pub struct Input {
 
 impl Default for Input {
     fn default() -> Self {
-        Self::_default()
+        Self::default_inner()
     }
 }
 

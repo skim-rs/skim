@@ -24,6 +24,7 @@ use super::{Event, Size, TICK_RATE};
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
+#[allow(clippy::struct_excessive_bools)]
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<BufWriter<std::io::Stderr>>>
 where
     B::Error: Send + Sync + 'static,
@@ -46,6 +47,7 @@ where
     rect: Option<Rect>,
     enable_mouse: bool,
     pub(crate) no_clear: bool,
+    exited: bool,
 }
 
 impl Tui {
@@ -125,6 +127,7 @@ where
             is_fullscreen: lines.is_none(),
             enable_mouse: true,
             no_clear: false,
+            exited: false,
         })
     }
 
@@ -148,6 +151,8 @@ where
     ///
     /// Returns an error if enabling raw mode or terminal features fails.
     pub fn enter_terminal(&mut self) -> Result<()> {
+        // Keep cleanup enabled if setup fails after raw mode is enabled.
+        self.exited = false;
         crossterm::terminal::enable_raw_mode()?;
         // On Windows, install a console ctrl handler so that CTRL_C_EVENT
         // performs terminal cleanup instead of killing the process abruptly.
@@ -165,6 +170,9 @@ where
     /// Returns an error if disabling raw mode or mouse capture fails.
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
+        if self.exited {
+            return Ok(());
+        }
         cleanup_terminal(self.no_clear)?;
         // Remove our console ctrl handler now that raw mode is off.
         #[cfg(windows)]
@@ -185,6 +193,7 @@ where
                 self.set_cursor_position(orig)?;
             }
         }
+        self.exited = true;
         Ok(())
     }
     /// Stops the TUI event loop
@@ -299,6 +308,7 @@ where
     }
 
     fn execute_enter(&mut self) -> Result<()> {
+        self.exited = false;
         crossterm::execute!(stderr(), EnableBracketedPaste)?;
         if self.enable_mouse {
             crossterm::execute!(stderr(), EnableMouseCapture)?;
@@ -544,6 +554,27 @@ mod tests {
         let tui = fullscreen_tui();
         assert!(tui.is_fullscreen);
         assert!(tui.enable_mouse);
+    }
+
+    #[test]
+    fn repeated_exit_keeps_cursor_position_until_reentry() {
+        for fullscreen in [false, true] {
+            let mut tui = fullscreen_tui();
+            tui.is_fullscreen = fullscreen;
+            tui.no_clear = true;
+            tui.exit().expect("first exit failed");
+            assert!(tui.exited);
+            assert_eq!(tui.get_cursor_position().unwrap(), (0, 23).into());
+
+            tui.set_cursor_position((7, 7)).unwrap();
+            tui.exit().expect("repeated exit failed");
+            assert_eq!(tui.get_cursor_position().unwrap(), (7, 7).into());
+
+            tui.execute_enter().expect("reentry failed");
+            assert!(!tui.exited);
+            tui.exit().expect("exit after reentry failed");
+            assert_eq!(tui.get_cursor_position().unwrap(), (0, 23).into());
+        }
     }
 
     #[test]
