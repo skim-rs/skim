@@ -147,7 +147,7 @@ skim_v2: Previous skim fuzzy matching algorithm (v2)
 \fB\-\-case\fR \fI<CASE>\fR [default: smart]
 Case sensitivity
 
-Determines whether or not to ignore case while matching Note: this is not used for the Frizbee matcher, which uses a penalty system to favor case\-sensitivity without enforcing it
+Determines whether or not to ignore case while matching
 .br
 
 .br
@@ -164,7 +164,7 @@ smart: Smart case: case\-insensitive unless query contains uppercase
 \fB\-\-typos\fR [\fI<TYPOS>\fR] [default: disabled]
 Enable typo\-tolerant matching
 
-When passed without a value (\-\-typos), uses adaptive formula (pattern_length / 4). When passed with a value (e.g. \-\-typos=2), uses that exact number as the maximum allowed typos. \-\-typos=0 explicitly disables typo tolerance. Applies to both fzy and frizbee matchers.
+For fzy and frizbee, \-\-typos uses an adaptive limit (pattern_length / 4), and \-\-typos=N sets the maximum number of typos. Arinae uses its own typo model; any non\-zero value enables it without setting a limit. \-\-typos=0 disables typo tolerance. Ignored by skim_v2 and clangd.
 .TP
 \fB\-\-no\-typos\fR
 Disable typo\-tolerant matching
@@ -180,9 +180,13 @@ Enable split matching and set delimiter
 Split matching runs the matcher in splits: foo:bar will match all items matching foo, then :, then bar if the delimiter is present, or match normally if not.
 .TP
 \fB\-\-last\-match\fR
-Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
+Prefer the last equally scoring match with the Arinae algorithm
+
+This helps path ranking prefer a match in the last path component. Has no effect with other algorithms, exact matching, or regex matching.
 .TP
 \fB\-\-scheme\fR \fI<SCHEME>\fR [default: default]
+Matching preset: default, path (prefer the last path component), or history (prefer input order)
+.br
 
 .br
 \fIPossible values:\fR
@@ -190,7 +194,7 @@ Highlight the last match found, not the first one This makes tiebreak more perti
 .IP \(bu 2
 default: Default scheme, no modifications to the options
 .IP \(bu 2
-path: Path scheme: will find the furthest match in the item and set pathname as the main tiebreak
+path: Path scheme: enable last\-match for Arinae and rank by score, then pathname
 .IP \(bu 2
 history: History scheme: will force index as the first tiebreak
 .RE
@@ -302,7 +306,9 @@ optimized where empty query results actually mean "empty" and previous results s
 cleared.
 .TP
 \fB\-\-no\-clear\-start\fR
-Do not clear items on start
+Keep previous items while a reload command starts
+
+Replace them when the new command produces results, or clear them when it finishes empty.
 .TP
 \fB\-\-no\-clear\fR
 Do not clear screen on exit
@@ -489,7 +495,7 @@ Each item\*(Aqs text will be split on the separator and each part will be displa
 \fB\-\-scrollbar\fR \fI<THUMB>\fR [default: ▐]
 Set scrollbar style for the item list
 
-The optional value is used as the indicator
+The value is used as the indicator
 .TP
 \fB\-\-no\-scrollbar\fR
 Disable the scrollbar in the item list
@@ -565,7 +571,7 @@ Examples:
   # Initial scroll offset is set to the line number of each line of
   # git grep output *minus* 5 lines (\-5)
   git grep \-\-line\-number \*(Aq\*(Aq |
-    sk \-\-delimiter:  \-\-preview \*(Aqnl {1}\*(Aq \-\-preview\-window +{2}\-5
+    sk \-\-delimiter : \-\-preview \*(Aqnl {1}\*(Aq \-\-preview\-window +{2}\-5
   
               # Preview with bat, matching line in the middle of the window (\-/2)
               git grep \-\-line\-number \*(Aq\*(Aq |
@@ -616,7 +622,7 @@ Print the command as the first line (after print\-query)
 Print the score after each item
 .TP
 \fB\-\-print\-header\fR
-Print the header as the first line (after print\-score)
+Print the header before the items (after print\-query and print\-cmd)
 .TP
 \fB\-\-print\-current\fR
 Print the current (highlighted) item as the first line (after print\-header)
@@ -656,13 +662,15 @@ Pre\-select the items read from this file
 .TP
 \fB\-f\fR, \fB\-\-filter\fR \fI<FILTER>\fR
 Query for filter mode
+
+If \-\-query is also set, it supplies the query instead.
 .TP
 \fB\-\-shell\fR \fI<SHELL>\fR
 Generate shell completion script
 
 Generate completion script for the specified shell: bash, zsh, fish, etc. The output can be directly sourced or saved to a file for automatic loading. Examples: source <(sk \-\-shell bash) (immediate use) sk \-\-shell bash >> ~/.bash_completion (persistent use)
 
-Supported shells: bash, zsh, fish, powershell, elvish
+Supported shells: bash, zsh, fish, powershell, elvish, nushell
 .br
 
 .br
@@ -698,7 +706,7 @@ The socket expects Actions in Ron format (similar to Rust code), see ./src/tui/e
 \fB\-\-remote\fR [\fI<REMOTE>...\fR]
 Send commands to an IPC socket with optional name (defaults to sk)
 
-The commands are read from stdin, one per line, in the same format as the actions in the bind flag. They can also be chained using + as a separator. All other arguments will be ignored
+The commands are read from stdin, one per line, in the same format as the actions in the bind flag. They can also be chained using + as a separator. Sends actions without starting the finder interface
 .TP
 \fB\-\-log\-level\fR \fI<LOG_LEVEL>\fR
 Set the log level
@@ -708,7 +716,7 @@ Pipe log output to a file
 .SH DEPRECATED
 .TP
 \fB\-\-expect\fR \fI<EXPECT>\fR [default: ]
-Deprecated, kept for compatibility purposes. See accept() bind instead
+Accepted for compatibility; has no effect. Use \-\-bind \*(AqKEY:accept(KEY)\*(Aq instead
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
 .SH MODES
@@ -734,7 +742,7 @@ The command is specified with the `\-\-cmd` option.
 .br
 
 .br
-Example: `sk \-\-cmd \*(Aqrg {} \-\-color=always\*(Aq \-\-interactive` will use `rg` to search for the query
+Example: `sk \-\-cmd \*(Aqrg {q} \-\-color=always\*(Aq \-\-interactive` will use `rg` to search for the query
 .br
 in the current directory and display the results interactively.
 .br
@@ -1142,7 +1150,7 @@ Follow\-up chains use non\-recursive (`noremap`) semantics: their actions do not
 .br
 In the `preview` flag, `execute`, `reload`, `set\-query`... binds, sk will expand placeholders:
 .br
-* {} (or \-\-replstr if used) will be expanded to the current item.
+* {} (or the string set with \-I) will be expanded to the current item.
 .br
 * {q} (or {cq} for legacy reasons) will be expanded to the current query input.
 .br
@@ -1302,7 +1310,7 @@ Available attrs:
 .br
     * b | bold
 .br
-    * u | underline
+    * u | underlined
 .br
     * c | crossed\-out
 .br

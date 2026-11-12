@@ -1102,6 +1102,19 @@ fn render_default_app_populates_buffer() {
 }
 
 #[test]
+fn render_with_margins_larger_than_the_screen() {
+    let options = crate::options::SkimOptionsBuilder::default()
+        .margin("100%")
+        .header("header")
+        .border(crate::tui::BorderType::Rounded)
+        .preview("echo preview")
+        .build()
+        .unwrap();
+    let mut app = App::from_options(options, Arc::new(crate::theme::ColorTheme::default()), String::new());
+    let _ = render(&mut app, 80, 24);
+}
+
+#[test]
 fn render_with_preview_and_border() {
     let mut app = app_with_items(&["one", "two"]);
     app.options.preview = Some("echo hi".to_string());

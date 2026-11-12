@@ -19,6 +19,17 @@ fn test_parse_action_chain() {
     );
 }
 #[test]
+fn documented_key_names_parse() {
+    for (name, code) in [
+        ("del", KeyCode::Delete),
+        ("pgdn", KeyCode::PageDown),
+        ("é", KeyCode::Char('é')),
+    ] {
+        assert_eq!(parse_key(name).unwrap(), KeyEvent::new(code, KeyModifiers::NONE));
+    }
+}
+
+#[test]
 fn test_parse_key() {
     assert_eq!(
         parse_key("a").unwrap(),

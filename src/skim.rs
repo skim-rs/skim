@@ -191,6 +191,10 @@ where
     /// # Errors
     ///
     /// Returns an error if parsing the height or other options fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the margin is invalid.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
         let height = Size::try_from(options.height.as_str())?;
 
@@ -275,10 +279,11 @@ where
         }
         // Clear items
         self.app.item_pool.clear();
-        // Clear displayed items unless no_clear_if_empty is set
-        if !self.app.options.no_clear_if_empty {
+        // Keep the old display until replacement results arrive when requested.
+        if !self.app.options.no_clear_if_empty && !self.app.options.no_clear_start {
             self.app.item_list.clear();
         }
+        self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
         self.start_reader(new_cmd);
     }
@@ -629,6 +634,9 @@ where
         let final_event = self.final_event.clone();
         let final_key = self.final_key;
 
+        if let Some(tui) = self.tui.as_mut() {
+            tui.no_clear = self.app.options.no_clear;
+        }
         drop(self);
 
         SkimOutput {

@@ -247,7 +247,7 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
     let key = parts.last().unwrap_or(&"").to_string();
 
     let keycode: KeyCode;
-    if key.len() == 1 {
+    if key.chars().count() == 1 {
         let char = key.chars().next().unwrap_or_default();
         if char.is_uppercase() {
             mods |= KeyModifiers::SHIFT;
@@ -276,7 +276,8 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             "home" => KeyCode::Home,
             "end" => KeyCode::End,
             "pgup" => KeyCode::PageUp,
-            "pgdown" => KeyCode::PageDown,
+            "pgdown" | "pgdn" => KeyCode::PageDown,
+            "del" | "delete" => KeyCode::Delete,
             s => match SkimEvent::from_name(s) {
                 Some(event) => event.key_code(),
                 None => return Err(eyre!("Unknown key {}", s)),

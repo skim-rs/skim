@@ -53,7 +53,7 @@ Color formats:
 Available attrs:
     * x | regular: resets the modifiers, use it before the others
     * b | bold
-    * u | underline
+    * u | underlined
     * c | crossed-out
     * d | dim
     * i | italic
@@ -82,7 +82,7 @@ the results. It is enabled by the `--interactive` (or `-i`) option or by binding
 `toggle-interactive` action (default: <ctrl-q>).
 The command is specified with the `--cmd` option.
 
-Example: `sk --cmd 'rg {} --color=always' --interactive` will use `rg` to search for the query
+Example: `sk --cmd 'rg {q} --color=always' --interactive` will use `rg` to search for the query
 in the current directory and display the results interactively.
 ";
 
@@ -347,7 +347,7 @@ Exact search can be enabled by default by the `--exact` command-line flag. In ex
         "COMMAND EXPANSION",
         "
 In the `preview` flag, `execute`, `reload`, `set-query`... binds, sk will expand placeholders:
-* {} (or --replstr if used) will be expanded to the current item.
+* {} (or the string set with -I) will be expanded to the current item.
 * {q} (or {cq} for legacy reasons) will be expanded to the current query input.
 * {+} will be expanded to either the currently selected items in multi-select mode, or the current
  item in single-select.
@@ -440,6 +440,30 @@ mod tests {
             out.contains(version),
             "manpage should contain package version {version}"
         );
+    }
+
+    #[test]
+    fn help_and_manpage_document_every_visible_option() {
+        let mut command = SkimOptions::command();
+        let help = command.render_long_help().to_string();
+        let man = manpage_str();
+        for arg in command.get_arguments().filter(|arg| !arg.is_hide_set()) {
+            if let Some(short) = arg.get_short() {
+                assert!(help.contains(&format!("-{short}")), "help is missing -{short}");
+                assert!(man.contains(&format!("\\-{short}")), "manpage is missing -{short}");
+            }
+            if let Some(long) = arg.get_long() {
+                assert!(help.contains(&format!("--{long}")), "help is missing --{long}");
+                let escaped = format!("\\-\\-{}", long.replace('-', "\\-"));
+                assert!(man.contains(&escaped), "manpage is missing --{long}");
+            }
+        }
+    }
+
+    #[cfg(all(feature = "image", feature = "listen", feature = "frizbee"))]
+    #[test]
+    fn shipped_manpage_matches_generator() {
+        assert_eq!(manpage_str(), include_str!("../man/man1/sk.1"));
     }
 
     #[test]

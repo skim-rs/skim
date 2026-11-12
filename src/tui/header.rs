@@ -173,7 +173,7 @@ impl SkimWidget for Header {
         };
 
         let container_height = if self.border.is_some() {
-            area.height - 2
+            area.height.saturating_sub(2)
         } else {
             area.height
         };

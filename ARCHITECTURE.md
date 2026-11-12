@@ -347,11 +347,13 @@ if let Event::Reload(new_cmd) = &evt {
 
 1. Kills `reader_control` (waits for all reader threads to stop)
 2. Clears `ItemPool`
-3. Clears `ItemList` (unless `no_clear_if_empty`)
+3. Clears `ItemList` unless `no_clear_if_empty` or `no_clear_start` retains the old display
 4. Calls `app.restart_matcher(force=true)`
 5. Calls `start_reader(…)`, also used at startup, to start `reader.collect(…)`
 
 With `--interactive --cmd --min-query-length`, `start_reader()` skips command execution when the input is too short. Reload still stops the old reader and clears its items, including under `--no-clear-if-empty`. The reader control is absent and both reader-completion flags are set, so sync/filter startup does not wait for a command that was not started. The existing matcher length check still hides results. `--disabled` keeps its existing length-check bypass.
+
+`ItemList::keep_on_reload` retains old items until replacement results arrive. The first non-empty batch replaces the old list and clears its selection, even if that batch uses an incremental merge strategy. `App::render()` clears a retained list when a reload finishes without matches, unless `--no-clear-if-empty` is set.
 
 **Key files:** `src/skim.rs` (`handle_reload`, `tick`), `src/tui/app.rs` (`expand_cmd`, `handle_action` → `RefreshCmd`)
 
@@ -663,15 +665,16 @@ Tui::enter()
 
 Tui::exit()
   ├─ Tui::stop() / cancel()
-  ├─ cleanup_terminal()
-  │    ├─ execute!(DisableMouseCapture, DisableBracketedPaste, LeaveAlternateScreen, Show)
+  ├─ cleanup_terminal(no_clear)
+  │    ├─ disable mouse / bracketed paste; show cursor
+  │    ├─ unless no_clear: LeaveAlternateScreen
   │    └─ disable_raw_mode()
-  └─ if inline: clear() + reset cursor to top of drawing area
+  └─ if inline and not no_clear: clear() + reset cursor to top of drawing area
 ```
 
 Inline entry and resume clear the final viewport through Ratatui's `resize()` even when its size is unchanged. This removes shell text that the first buffer diff would otherwise leave in blank cells, without a cursor-position query. Construction does not add this clear; minimum-height enlargement still clears through its existing resize path.
 
-A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_terminal()` runs even on panics.
+`Skim::output()` sets the private `Tui::no_clear` flag before final teardown. `--no-clear` preserves the final interface but still restores terminal input modes. In both inline and fullscreen modes, exit moves the cursor to the last viewport row and writes a newline before stdout or the shell resumes. This prevents output from overwriting the retained interface. Scrolling can move its top rows off screen, particularly in fullscreen mode. A panic hook is installed once (`PANIC_HOOK_SET: Once`) to ensure `cleanup_terminal(false)` always restores the screen on panics.
 
 **Foreground `execute` actions:** the `execute(cmd)` action must hand the terminal to a child process (e.g. an editor or an interactive TUI like `ncdu`). `handle_action` only expands the command and returns `Event::RunExecute(cmd)`; the actual run happens in `App::handle_event` (which owns the `Tui`) via the `run_foreground(tui, cmd)` helper in `src/tui/app.rs`. `run_foreground` calls `Tui::stop_and_join()` — which cancels the event-pump task **and blocks until it has dropped its `EventStream`** — so skim's reader stops consuming terminal input before the child starts; otherwise the two race for keystrokes and interactive children appear to freeze. It then leaves the alternate screen / raw mode, spawns the child with its **own** stdin opened from the controlling terminal (`/dev/tty`, or `CONIN$` on Windows; falls back to inheriting skim's stdin), waits for it, restores terminal modes, and calls `Tui::start()` to respawn the reader. Giving the child its own tty stdin is what lets `execute` work when skim's own stdin is a pipe (`find | sk`). `execute-silent(cmd)` needs no terminal and is still spawned directly inside `handle_action` with stdout/stderr sent to `/dev/null`.
 
@@ -784,6 +787,8 @@ pub struct SkimRender {
 `apply(area: Rect) → AppLayout` is then a cheap, allocation-free split. Bordered
 widgets share adjacent border rows and columns by default;
 `SkimOptions::border_no_collapse` keeps their areas separate.
+
+`LayoutTemplate::margin` stores four `Size` values in top/right/bottom/left order. `parse_margin()` accepts the one-to-four-value CLI forms. CLI parsing rejects invalid margins. Library layout construction panics with an explicit message for an invalid margin, before TUI entry. `apply()` removes the margins before splitting widget areas, recalculates percentages after resizing, and saturates dimensions when margins exceed the available space.
 
 `SkimOptions::separator` enables an opt-in repeating horizontal separator;
 `no_separator` disables it. `SkimOptions::build()` normalizes disabled or empty
@@ -1277,10 +1282,10 @@ Passing `--border` without a value means `plain`. Passing a value accepts Ratatu
 
 Query and command histories are managed in `SkimOptions`:
 
-- Loaded at startup via `SkimOptions::init_histories()` from files specified by `--history-file` / `--cmd-history-file`.
+- Loaded at startup via `SkimOptions::init_histories()` from files specified by `--history` / `--cmd-history`.
 - Stored in `App::query_history` / `App::cmd_history`.
 - Navigation with `Action::NextHistory` / `Action::PreviousHistory` uses `history_index: Option<usize>` and `saved_input: String` to restore the original input when returning to the live query.
-- Written back to file at exit in `sk_main` via `write_history_to_file()`, which deduplicates the last entry and enforces `--history-size`.
+- Written back to file at exit in `sk_main` via `write_history_to_file()`, which skips empty new entries, deduplicates the last entry, and enforces `--history-size` / `--cmd-history-size`, including zero and reduced limits.
 
 ---
 

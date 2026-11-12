@@ -82,7 +82,16 @@ impl SkimOutput {
 
         if opts.print_current {
             if let Some(ref current) = self.current {
-                write!(out, "{}{}", current.output(), opts.output_ending)?;
+                if opts.strip_ansi {
+                    write!(
+                        out,
+                        "{}{}",
+                        crate::helper::item::strip_ansi(&current.output()).0,
+                        opts.output_ending
+                    )?;
+                } else {
+                    write!(out, "{}{}", current.output(), opts.output_ending)?;
+                }
             } else {
                 write!(out, "{}", opts.output_ending)?;
             }
@@ -240,6 +249,18 @@ mod tests {
         let mut out = output_with(vec![matched("a", 0)], Event::Action(Action::Accept(None)));
         out.current = Some(matched("cur", 0));
         assert_eq!(render(&out, &o), "cur\na\n");
+    }
+
+    #[test]
+    fn print_current_respects_ansi_output_flags() {
+        let mut out = output_with(Vec::new(), Event::Action(Action::Accept(None)));
+        out.current = Some(matched("\x1b[31mred\x1b[0m", 0));
+        for (strip, expected) in [(true, "red\n"), (false, "\x1b[31mred\x1b[0m\n")] {
+            let mut options = opts();
+            options.print_current = true;
+            options.strip_ansi = strip;
+            assert_eq!(render(&out, &options), expected);
+        }
     }
 
     #[test]

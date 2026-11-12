@@ -174,6 +174,15 @@ impl Widget for &mut App {
             res |= self.preview.render(preview_area, buf);
         }
 
+        if self.item_list.keep_on_reload
+            && self.reader_done
+            && self.matcher_control.stopped()
+            && self.item_pool.num_not_taken() == 0
+            && self.matcher_control.get_num_matched() == 0
+            && !self.options.no_clear_if_empty
+        {
+            self.item_list.clear();
+        }
         res |= self.item_list.render(self.layout.list_area, buf);
 
         // Render the input after the item list so that the status shows correct information.

@@ -34,8 +34,8 @@ ignore\:"Case-insensitive matching"
 smart\:"Smart case\: case-insensitive unless query contains uppercase"))' \
 '--typos=[Enable typo-tolerant matching]::TYPOS:_default' \
 '--split-match=[Enable split matching and set delimiter]::SPLIT_MATCH:_default' \
-'--scheme=[]:SCHEME:((default\:"Default scheme, no modifications to the options"
-path\:"Path scheme\: will find the furthest match in the item and set pathname as the main tiebreak"
+'--scheme=[Matching preset\: default, path (prefer the last path component), or history (prefer input order)]:SCHEME:((default\:"Default scheme, no modifications to the options"
+path\:"Path scheme\: enable last-match for Arinae and rank by score, then pathname"
 history\:"History scheme\: will force index as the first tiebreak"))' \
 '*-b+[Comma-separated key, event, and action bindings]::BIND:_default' \
 '*--bind=[Comma-separated key, event, and action bindings]::BIND:_default' \
@@ -145,7 +145,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--footer-label=[]:FOOTER_LABEL:_default' \
 '--footer-label-pos=[]:FOOTER_LABEL_POS:_default' \
 '--with-shell=[]:WITH_SHELL:_default' \
-'--expect=[Deprecated, kept for compatibility purposes. See accept() bind instead]:EXPECT:_default' \
+'--expect=[Accepted for compatibility; has no effect. Use --bind '\''KEY\:accept(KEY)'\'' instead]:EXPECT:_default' \
 '--tac[Show results in reverse order]' \
 '--no-sort[Do not sort the results]' \
 '-e[Run in exact mode]' \
@@ -153,7 +153,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--regex[Start in regex mode instead of fuzzy-match]' \
 '--no-typos[Disable typo-tolerant matching]' \
 '--normalize[Normalize unicode characters]' \
-'--last-match[Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts]' \
+'--last-match[Prefer the last equally scoring match with the Arinae algorithm]' \
 '-m[Enable multiple selection]' \
 '--multi[Enable multiple selection]' \
 '--no-multi[Disable multiple selection]' \
@@ -164,7 +164,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--no-hscroll[Disable horizontal scroll]' \
 '--keep-right[Keep the right end of the line visible on overflow]' \
 '--no-clear-if-empty[Do not clear previous line if the command returns an empty result]' \
-'--no-clear-start[Do not clear items on start]' \
+'--no-clear-start[Keep previous items while a reload command starts]' \
 '--no-clear[Do not clear screen on exit]' \
 '--show-cmd-error[Show error message if command fails]' \
 '--cycle[Cycle the results by wrapping around when scrolling]' \
@@ -184,7 +184,7 @@ single-matcher\:"Limit the matcher thread pool to a single thread"))' \
 '--print-query[Print the query as the first line]' \
 '--print-cmd[Print the command as the first line (after print-query)]' \
 '--print-score[Print the score after each item]' \
-'--print-header[Print the header as the first line (after print-score)]' \
+'--print-header[Print the header before the items (after print-query and print-cmd)]' \
 '--print-current[Print the current (highlighted) item as the first line (after print-header)]' \
 '--no-strip-ansi[Print the ANSI codes, making the output exactly match the input even when --ansi is on]' \
 '-1[Do not enter the TUI if the query passed in -q matches only one item and return it]' \
