@@ -23,7 +23,7 @@ impl BitOrAssign for SkimRender {
 }
 
 /// Trait for Skim TUI widgets
-pub trait SkimWidget: Sized {
+pub(crate) trait SkimWidget: Sized {
     /// Create a widget from options and theme
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self;
 

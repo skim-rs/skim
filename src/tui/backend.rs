@@ -562,6 +562,7 @@ mod tests {
             let mut tui = fullscreen_tui();
             tui.is_fullscreen = fullscreen;
             tui.no_clear = true;
+            tui.execute_enter().expect("initial entry failed");
             tui.exit().expect("first exit failed");
             assert!(tui.exited);
             assert_eq!(tui.get_cursor_position().unwrap(), (0, 23).into());

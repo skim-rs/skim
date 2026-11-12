@@ -765,10 +765,10 @@ A 200 ms debounce (`restart_matcher_debounced`) is applied to query-change event
 
 ### Widget System
 
-All TUI widgets implement `SkimWidget`:
+All TUI widgets implement the crate-private `SkimWidget` trait. `SkimRender` remains public:
 
 ```rust
-pub trait SkimWidget: Sized {
+pub(crate) trait SkimWidget: Sized {
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self;
     fn render(&mut self, area: Rect, buf: &mut Buffer) -> SkimRender;
 }
