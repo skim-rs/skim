@@ -673,7 +673,7 @@ fn execute_action_expands_and_defers_to_event_loop() {
     app.input.value = "hello".to_string();
     let events = act(&mut app, Action::Execute("echo {q}".to_string()));
     assert!(
-        matches!(events.as_slice(), [Event::RunExecute(cmd)] if cmd.contains("hello")),
+        matches!(events.as_slice(), [Event::RunExecute(cmd, ..)] if cmd.contains("hello")),
         "expected RunExecute with expanded query, got {events:?}"
     );
 }
@@ -699,7 +699,7 @@ fn run_execute_event_runs_command_and_restarts_reader() {
 
     let noop = if cfg!(windows) { "rem" } else { "true" };
     rt.block_on(async {
-        app.handle_event(&mut tui, &Event::RunExecute(noop.to_string()))
+        app.handle_event(&mut tui, &Event::RunExecute(noop.to_string(), Vec::new(), Vec::new()))
             .expect("handle_event failed");
     });
 
@@ -1007,6 +1007,394 @@ fn expand_cmd_substitutes_query() {
     app.input.value = "myquery".to_string();
     let expanded = app.expand_cmd("echo {q}", false);
     assert!(expanded.contains("myquery"));
+}
+
+#[test]
+fn child_env_exports_core_state_under_both_prefixes() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.input.value = "qry".to_string();
+    app.item_list.select_row(0);
+    app.term_area = Rect::new(0, 0, 80, 24);
+    app.preview.rows = 10;
+    app.preview.cols = 40;
+    app.options.nth = vec!["2".to_string()];
+    app.options.with_nth = vec!["1".to_string()];
+    app.options.preview = Some("echo {}".to_string());
+    app.layout.preview_area = Some(Rect::new(3, 20, 80, 4));
+
+    let env = app.child_env();
+    let get = |key: &str| {
+        env.iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
+    };
+
+    // Every value is exported under both prefixes.
+    for (skim, fzf, value) in [
+        ("SKIM_QUERY", "FZF_QUERY", "qry"),
+        ("SKIM_CURRENT_ITEM", "FZF_CURRENT_ITEM", "a"),
+        ("SKIM_SELECTED_ITEMS", "FZF_SELECTED_ITEMS", "a"),
+        ("SKIM_SELECT_COUNT", "FZF_SELECT_COUNT", "1"),
+        ("SKIM_POS", "FZF_POS", "1"),
+        ("SKIM_LINES", "FZF_LINES", "24"),
+        ("SKIM_COLUMNS", "FZF_COLUMNS", "80"),
+        ("SKIM_DIRECTION", "FZF_DIRECTION", "up"),
+        ("SKIM_INPUT_STATE", "FZF_INPUT_STATE", "enabled"),
+        ("SKIM_PROMPT", "FZF_PROMPT", "> "),
+        ("SKIM_POINTER", "FZF_POINTER", ">"),
+        ("SKIM_PREVIEW_LINES", "FZF_PREVIEW_LINES", "10"),
+        ("SKIM_PREVIEW_COLUMNS", "FZF_PREVIEW_COLUMNS", "40"),
+        ("SKIM_PREVIEW_TOP", "FZF_PREVIEW_TOP", "20"),
+        ("SKIM_PREVIEW_LEFT", "FZF_PREVIEW_LEFT", "3"),
+        ("SKIM_NTH", "FZF_NTH", "2"),
+        ("SKIM_WITH_NTH", "FZF_WITH_NTH", "1"),
+    ] {
+        assert_eq!(get(skim), Some(value), "{skim}");
+        assert_eq!(get(fzf), Some(value), "{fzf}");
+    }
+}
+
+#[test]
+fn child_env_omits_variables_that_do_not_apply() {
+    // No preview, no wrap, no nth, and an empty list: the matching variables
+    // are absent, not empty.
+    let app = App::default();
+    let env = app.child_env();
+    let get = |key: &str| env.iter().find(|(name, _)| name == key).map(|(_, v)| v.as_str());
+    for key in [
+        "SKIM_CURRENT_ITEM",
+        "FZF_CURRENT_ITEM",
+        "SKIM_NTH",
+        "FZF_NTH",
+        "SKIM_WITH_NTH",
+        "FZF_WITH_NTH",
+        "SKIM_WRAP",
+        "FZF_WRAP",
+        "SKIM_PREVIEW_LINES",
+        "FZF_PREVIEW_LINES",
+        "SKIM_PREVIEW_TOP",
+        "FZF_PREVIEW_TOP",
+    ] {
+        assert_eq!(get(key), None, "{key}");
+    }
+    // The always-on variables are still present.
+    assert_eq!(get("SKIM_POS"), Some("0"));
+    assert_eq!(get("SKIM_DIRECTION"), Some("up"));
+    assert_eq!(get("SKIM_INPUT_STATE"), Some("enabled"));
+}
+
+#[test]
+fn child_env_wrap_and_disabled_reflect_options() {
+    let mut app = app_with_items(&["a"]);
+    app.options.wrap_items = true;
+    app.options.disabled = true;
+    app.options.layout = TuiLayout::Reverse;
+    let env = app.child_env();
+    let get = |key: &str| env.iter().find(|(name, _)| name == key).map(|(_, v)| v.as_str());
+    assert_eq!(get("SKIM_WRAP"), Some("char"));
+    assert_eq!(get("FZF_WRAP"), Some("char"));
+    assert_eq!(get("SKIM_INPUT_STATE"), Some("disabled"));
+    assert_eq!(get("SKIM_DIRECTION"), Some("down"));
+}
+
+#[test]
+fn child_env_exports_last_action_and_key() {
+    let mut app = app_with_items(&["a"]);
+    let get = |app: &App, key: &str| {
+        app.child_env()
+            .into_iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value)
+    };
+
+    // Present but empty before any input, like fzf.
+    assert_eq!(get(&app, "SKIM_ACTION"), Some(String::new()));
+    assert_eq!(get(&app, "FZF_KEY"), Some(String::new()));
+
+    app.handle_key(&KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+    assert_eq!(get(&app, "SKIM_KEY"), Some("b".to_string()));
+    assert_eq!(get(&app, "FZF_KEY"), Some("b".to_string()));
+
+    app.handle_action(&Action::Down(1)).unwrap();
+    assert_eq!(get(&app, "SKIM_ACTION"), Some("down".to_string()));
+    assert_eq!(get(&app, "FZF_ACTION"), Some("down".to_string()));
+
+    // Synthetic events routed through the keymap must not overwrite the key.
+    app.handle_key(&crate::binds::SkimEvent::Change.into());
+    assert_eq!(get(&app, "SKIM_KEY"), Some("b".to_string()));
+}
+
+#[test]
+fn follow_up_action_overwrites_last_action() {
+    // `act-up:execute-silent(…)` dispatches `execute-silent` as a follow-up, so
+    // the child must see `ACTION=execute-silent`, not `up`.
+    let mut options = SkimOptions::default();
+    options.bind = vec!["act-up:ignore".to_string()];
+    let options = options.build();
+    let mut app = App::from_options(options, Arc::new(crate::theme::ColorTheme::default()), String::new());
+
+    app.handle_action(&Action::Up(1)).unwrap();
+    assert_eq!(app.last_action.as_deref(), Some("ignore"));
+}
+
+#[test]
+fn execute_captures_env_before_a_later_action_runs() {
+    // The `execute` event is handled later by the event loop, so the snapshot
+    // must be taken while `execute` is still the running action.
+    let mut app = app_with_items(&["a"]);
+    app.input.value = "kept".to_string();
+    let events = app.handle_action(&Action::Execute("true".to_string())).unwrap();
+    act(&mut app, Action::SetQuery("later".to_string()));
+
+    let [Event::RunExecute(_, env, _)] = events.as_slice() else {
+        panic!("expected one RunExecute, got {events:?}");
+    };
+    let query = env
+        .iter()
+        .find(|(name, _)| name == "SKIM_QUERY")
+        .map(|(_, v)| v.clone());
+    let action = env
+        .iter()
+        .find(|(name, _)| name == "SKIM_ACTION")
+        .map(|(_, v)| v.clone());
+    assert_eq!(query.as_deref(), Some("kept"));
+    assert_eq!(action.as_deref(), Some("execute"));
+}
+
+#[test]
+fn queued_execute_actions_keep_snapshots_in_dispatch_order() {
+    let mut app = app_with_items(&["a"]);
+    let events = act(
+        &mut app,
+        Action::IfQueryEmpty("execute(true)+toggle+execute(true)".to_string(), None),
+    );
+    let envs: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::RunExecute(_, env, _) => Some(env),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(envs.len(), 2);
+    for (env, expected_count) in envs.into_iter().zip(["0", "1"]) {
+        for prefix in ["SKIM", "FZF"] {
+            let get = |suffix| {
+                env.iter()
+                    .find(|(name, _)| name == &format!("{prefix}_{suffix}"))
+                    .unwrap()
+                    .1
+                    .as_str()
+            };
+            assert_eq!(get("SELECT_COUNT"), expected_count);
+            assert_eq!(get("ACTION"), "execute");
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn execute_silent_exports_environment() {
+    use std::time::{Duration, Instant};
+
+    let output = tempfile::NamedTempFile::new().unwrap();
+    let mut app = app_with_items(&["a"]);
+    app.input.value = "kept".to_string();
+    act(
+        &mut app,
+        Action::ExecuteSilent(format!(
+            "printf '%s:%s:%s' \"$SKIM_QUERY\" \"$FZF_QUERY\" \"$SKIM_ACTION\" > {}",
+            shlex::try_quote(output.path().to_str().unwrap()).unwrap(),
+        )),
+    );
+    let started = Instant::now();
+    loop {
+        if std::fs::read_to_string(output.path()).unwrap() == "kept:kept:execute-silent" {
+            break;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "execute-silent environment not received"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn child_env_unset_lists_omitted_names() {
+    let app = app_with_items(&["a"]);
+    let unset = app.child_env_unset();
+    // No preview and no `--nth`: those groups are absent from the snapshot, so
+    // they must be removed from the inherited environment.
+    for name in [
+        "SKIM_PREVIEW_LINES",
+        "FZF_PREVIEW_TOP",
+        "SKIM_NTH",
+        "FZF_WITH_NTH",
+        "SKIM_WRAP",
+    ] {
+        assert!(unset.iter().any(|n| n == name), "{name} should be unset");
+    }
+    // Exported names are not in the unset list.
+    for name in ["SKIM_QUERY", "FZF_QUERY", "SKIM_CURRENT_ITEM", "FZF_KEY"] {
+        assert!(!unset.iter().any(|n| n == name), "{name} should be kept");
+    }
+    // Every name is either exported or unset, never both and never neither.
+    let exported: Vec<String> = app.child_env().into_iter().map(|(name, _)| name).collect();
+    for name in App::child_env_names() {
+        assert_eq!(
+            exported.contains(&name),
+            !unset.contains(&name),
+            "{name} must be in exactly one of exported/unset"
+        );
+    }
+}
+
+#[test]
+fn child_env_omits_oversized_selected_items() {
+    let mut app = app_with_items(&["a", "b"]);
+    app.item_list.selection.insert(crate::item::MatchedItem::new(
+        Arc::new("x".repeat(70 * 1024)),
+        crate::Rank::default(),
+        None,
+        &crate::item::RankBuilder::default(),
+    ));
+    let env = app.child_env();
+    assert!(!env.iter().any(|(name, _)| name == "SKIM_SELECTED_ITEMS"));
+    assert!(app.child_env_unset().iter().any(|n| n == "FZF_SELECTED_ITEMS"));
+}
+
+#[test]
+fn child_env_join_selected_items_with_newlines() {
+    let mut app = app_with_items(&["a", "b", "c"]);
+    app.item_list.select_row(0);
+    app.item_list.select_row(2);
+    let env = app.child_env();
+    let selected = env
+        .iter()
+        .find(|(name, _)| name == "SKIM_SELECTED_ITEMS")
+        .map(|(_, value)| value.as_str());
+    assert_eq!(selected, Some("a\nc"));
+}
+
+#[test]
+fn child_env_uses_empty_and_zero_when_nothing_selected() {
+    let app = App::default();
+    let env = app.child_env();
+    let get = |key: &str| {
+        env.iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
+    };
+    assert_eq!(get("SKIM_CURRENT_ITEM"), None);
+    assert_eq!(get("SKIM_SELECTED_ITEMS"), Some(""));
+    assert_eq!(get("SKIM_SELECT_COUNT"), Some("0"));
+    assert_eq!(get("SKIM_TOTAL_COUNT"), Some("0"));
+    assert_eq!(get("SKIM_MATCH_COUNT"), Some("0"));
+    assert_eq!(get("SKIM_POS"), Some("0"));
+}
+
+#[test]
+fn child_env_value_size_limit_counts_bytes_without_truncation() {
+    for (value, exported) in [
+        ("x".repeat(MAX_ENV_VALUE_BYTES), true),
+        ("x".repeat(MAX_ENV_VALUE_BYTES + 1), false),
+        ("é".repeat(MAX_ENV_VALUE_BYTES / 2), true),
+        ("é".repeat(MAX_ENV_VALUE_BYTES / 2 + 1), false),
+    ] {
+        let mut app = app_with_items(&[&value]);
+        app.item_list.select_row(0);
+        app.input.value.clone_from(&value);
+        let (env, unset) = app.child_env_snapshot();
+        for prefix in ["SKIM", "FZF"] {
+            for suffix in ["QUERY", "CURRENT_ITEM", "SELECTED_ITEMS"] {
+                let name = format!("{prefix}_{suffix}");
+                let actual = env.iter().find(|(key, _)| key == &name).map(|(_, v)| v);
+                assert_eq!(actual, exported.then_some(&value), "{name}");
+                assert_eq!(unset.contains(&name), !exported, "{name}");
+            }
+        }
+    }
+}
+
+#[test]
+fn child_env_strips_ansi_from_current_and_selected_items() {
+    let mut app = app_with_items(&["\x1b[31mred\x1b[0m"]);
+    app.item_list.select_row(0);
+    let env = app.child_env();
+    for prefix in ["SKIM", "FZF"] {
+        for suffix in ["CURRENT_ITEM", "SELECTED_ITEMS"] {
+            let name = format!("{prefix}_{suffix}");
+            assert_eq!(env.iter().find(|(key, _)| key == &name).unwrap().1, "red");
+        }
+    }
+}
+
+#[test]
+fn reload_actions_capture_selection_and_expand_before_clearing() {
+    for action in [
+        Action::Reload(Some("echo {+}".to_string())),
+        Action::Reload(None),
+        Action::SetCmd("echo {+}".to_string()),
+    ] {
+        let mut app = app_with_items(&["alpha", "beta"]);
+        app.item_list.select_row(0);
+        app.item_list.select_row(1);
+        app.cmd = "echo default".to_string();
+        let events = act(&mut app, action.clone());
+        let [Event::Reload(cmd)] = events.as_slice() else {
+            panic!("expected reload, got {events:?}");
+        };
+        if !matches!(action, Action::Reload(None)) {
+            assert!(cmd.contains("alpha") && cmd.contains("beta"), "{cmd}");
+        }
+        assert!(app.item_list.selection.is_empty());
+        let (env, _) = app.pending_reload_env.pop_front().unwrap();
+        for prefix in ["SKIM", "FZF"] {
+            let get = |suffix| {
+                &env.iter()
+                    .find(|(key, _)| key == &format!("{prefix}_{suffix}"))
+                    .unwrap()
+                    .1
+            };
+            assert_eq!(get("SELECTED_ITEMS"), "alpha\nbeta");
+            assert_eq!(get("SELECT_COUNT"), "2");
+            assert_eq!(get("ACTION"), action.name());
+        }
+    }
+}
+
+#[test]
+fn queued_reloads_keep_the_query_at_dispatch() {
+    let mut app = app_with_items(&["alpha"]);
+    app.options.interactive = true;
+    app.options.cmd = Some("echo {}".to_string());
+    app.cmd = "echo {}".to_string();
+    act(&mut app, Action::SetQuery("first".to_string()));
+    act(&mut app, Action::SetQuery("second".to_string()));
+    for expected in ["first", "second"] {
+        let (env, _) = app.pending_reload_env.pop_front().unwrap();
+        assert_eq!(env.iter().find(|(key, _)| key == "SKIM_QUERY").unwrap().1, expected);
+    }
+    assert!(app.pending_reload_env.is_empty());
+}
+
+#[test]
+fn child_env_omits_values_exec_cannot_carry() {
+    let mut app = app_with_items(&["a\0b"]);
+    app.item_list.select_row(0);
+    let env = app.child_env();
+    let get = |key: &str| {
+        env.iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
+    };
+    // The NUL-containing item text is skipped on both prefixes...
+    assert_eq!(get("SKIM_CURRENT_ITEM"), None);
+    assert_eq!(get("FZF_CURRENT_ITEM"), None);
+    assert_eq!(get("SKIM_SELECTED_ITEMS"), None);
+    // ...but the NUL-free variables are still exported.
+    assert_eq!(get("SKIM_QUERY"), Some(""));
+    assert_eq!(get("FZF_SELECT_COUNT"), Some("1"));
 }
 
 #[test]
@@ -1925,6 +2313,57 @@ fn run_preview_positioned_text_neg_and_percent_offsets() {
     app.run_preview(&mut tui).unwrap();
     // h_scroll = cols(40) - 3 = 37, plus h_offset = 25% of 40 = 10 → 47.
     assert_eq!(app.preview.scroll_x, 47);
+}
+
+#[cfg(unix)]
+#[test]
+fn all_command_preview_variants_receive_state_without_shell_expansion() {
+    struct EnvPreviewItem(String, bool);
+    impl SkimItem for EnvPreviewItem {
+        fn text(&self) -> std::borrow::Cow<'_, str> {
+            "item".into()
+        }
+        fn preview(&self, _: PreviewContext) -> ItemPreview {
+            if self.1 {
+                ItemPreview::CommandWithPos(self.0.clone(), crate::PreviewPosition::default())
+            } else {
+                ItemPreview::Command(self.0.clone())
+            }
+        }
+    }
+
+    for variant in 0..3 {
+        let output = tempfile::NamedTempFile::new().unwrap();
+        let cmd = format!(
+            "printf '%s|%s|%s' \"$SKIM_QUERY\" \"$FZF_QUERY\" \"$SKIM_CURRENT_ITEM\" > {}",
+            shlex::try_quote(output.path().to_str().unwrap()).unwrap(),
+        );
+        let item: Arc<dyn SkimItem> = if variant == 0 {
+            Arc::new("item".to_string())
+        } else {
+            Arc::new(EnvPreviewItem(cmd.clone(), variant == 2))
+        };
+        let mut app = app_with_one(item);
+        app.options.preview = Some(cmd);
+        app.input.value = "é ' \" $HOME; $(false)\nline".to_string();
+        app.last_preview_spawn = past_instant(Duration::from_secs(1));
+        let expected = format!("{0}|{0}|item", app.input.value);
+        let mut tui = test_tui();
+        app.run_preview(&mut tui).unwrap();
+        let started = Instant::now();
+        let received = loop {
+            if std::fs::read_to_string(output.path()).unwrap() == expected {
+                break true;
+            }
+            if started.elapsed() >= Duration::from_secs(2) {
+                break false;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        app.preview.kill();
+        app.preview.thread_handle.take().unwrap().join().unwrap();
+        assert!(received, "preview variant {variant} did not receive the snapshot");
+    }
 }
 
 /// A [`SkimItem`] whose preview runs a shell command.

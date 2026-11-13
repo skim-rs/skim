@@ -115,6 +115,7 @@ insta = "1.47"
 rand = "0.10.0"
 serde_json = { version = "=1.0.154" }
 serial_test = "=3.5.0"
+shlex = "2.0.1"
 
 [[bench]]
 name = "read_and_match"

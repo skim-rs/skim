@@ -124,6 +124,20 @@ fn invoke_with_show_error_redirects_stderr() {
 }
 
 #[test]
+fn invoke_exports_child_env() {
+    // `set_env` (issue #1195) makes the spawned command inherit the variables.
+    let cmd = if cfg!(windows) {
+        "echo %SKIM_QUERY%"
+    } else {
+        "printf '%s' \"$SKIM_QUERY\""
+    };
+    let mut reader = SkimItemReader::default();
+    reader.set_env(&[("SKIM_QUERY".to_string(), "hi".to_string())], &[]);
+    let (rx, _tx) = reader.invoke(cmd, Arc::new(AtomicUsize::new(0)));
+    assert_eq!(drain(rx), vec!["hi"]);
+}
+
+#[test]
 fn read0_false_restores_newline_ending() {
     let opt = SkimItemReaderOption::default().read0(true).read0(false).build();
     assert_eq!(opt.line_ending, b'\n');

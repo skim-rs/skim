@@ -34,6 +34,11 @@ pub trait CommandCollector {
     /// than spawning additional OS threads.  The default implementation is a
     /// no-op; collectors that support pool-based I/O should override it.
     fn set_thread_pool(&mut self, _pool: Arc<ThreadPool>) {}
+
+    /// Sets the environment variables exported to the commands this collector
+    /// spawns. The default implementation is a no-op; collectors that spawn
+    /// processes should override it.
+    fn set_env(&mut self, _env: &[(String, String)], _unset: &[String]) {}
 }
 
 /// Handle for controlling a running reader
@@ -116,6 +121,12 @@ impl Reader {
     /// separate OS threads.
     pub fn set_thread_pool(&mut self, pool: Arc<ThreadPool>) {
         self.cmd_collector.borrow_mut().set_thread_pool(pool);
+    }
+
+    /// Forwards environment variables (see issue #1195) to the underlying
+    /// [`CommandCollector`] so the next command it spawns inherits them.
+    pub fn set_child_env(&mut self, env: &[(String, String)], unset: &[String]) {
+        self.cmd_collector.borrow_mut().set_env(env, unset);
     }
 
     /// Starts the reader and returns a control handle

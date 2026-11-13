@@ -241,7 +241,10 @@ where
     /// Start the reader and matcher, but do not enter the TUI yet
     pub fn start(&mut self) {
         debug!("Starting reader with initial_cmd: {:?}", self.initial_cmd);
-        self.start_reader(&self.initial_cmd.clone());
+        // Give the initial command the same contract as a reload: it sees the
+        // state skim starts with (`--query`, counts, geometry, …).
+        let (env, unset) = self.app.child_env_snapshot();
+        self.start_reader(&self.initial_cmd.clone(), &env, &unset);
         self.app.restart_matcher(true);
         // If the TUI is already available (e.g. test harnesses that build the
         // TUI before starting), fire the `start` event now. In the normal
@@ -273,6 +276,14 @@ where
     /// be reused by test harnesses without reimplementing it.
     pub fn handle_reload(&mut self, new_cmd: &str) {
         debug!("reloading with cmd {new_cmd}");
+        // Export the state that triggered the reload (issue #1195) *before*
+        // clearing anything, so the command still sees the focused and
+        // selected items and the counts they imply.
+        let (env, unset) = self
+            .app
+            .pending_reload_env
+            .pop_front()
+            .unwrap_or_else(|| self.app.child_env_snapshot());
         // Kill the current reader
         if let Some(rc) = self.reader_control.as_mut() {
             rc.kill();
@@ -285,10 +296,10 @@ where
         }
         self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
-        self.start_reader(new_cmd);
+        self.start_reader(new_cmd, &env, &unset);
     }
 
-    fn start_reader(&mut self, cmd: &str) {
+    fn start_reader(&mut self, cmd: &str, env: &[(String, String)], unset: &[String]) {
         let query_too_short =
             self.app.options.interactive && self.app.options.cmd.is_some() && self.app.query_below_min_length();
         self.reader_control = if query_too_short {
@@ -296,6 +307,7 @@ where
             self.app.item_list.clear();
             None
         } else {
+            self.reader.set_child_env(env, unset);
             Some(self.reader.collect(self.app.item_pool.clone(), cmd))
         };
         self.reader_done = query_too_short;

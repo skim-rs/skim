@@ -67,7 +67,17 @@
             export VAGRANT_LIBVIRT_OVMF_CODE="${pkgs.OVMF.fd}/FV/OVMF_CODE.fd"
           '';
 
-          mkShell = packages: shellHook: pkgs.mkShell { inherit packages shellHook; };
+          mkShell =
+            packages: shellHook:
+            pkgs.mkShell {
+              inherit packages;
+              shellHook = ''
+                echo "Making sure the rust toolchains are available"
+                ${lib.getExe pkgs.rustup} -q install --no-update --no-self-update
+                ${lib.getExe pkgs.rustup} -q install --no-update --no-self-update nightly
+                ${shellHook}
+              '';
+            };
         in
         {
           default = mkShell base "";
