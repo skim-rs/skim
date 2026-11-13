@@ -5,6 +5,19 @@ pub mod insta;
 #[macro_use]
 pub mod zellij;
 
+/// Build an echo command for the fixed snapshot fixtures, which contain no literal quotes.
+pub fn echo_command(args: &str) -> String {
+    #[cfg(unix)]
+    {
+        format!("echo {args}")
+    }
+    #[cfg(windows)]
+    {
+        // CMD echo keeps argument quotes; remove them after storing the expanded fixture.
+        format!(r#"set skim_test_echo={args}&cmd /v:on /c echo !skim_test_echo:"=!"#)
+    }
+}
+
 /// Raw binary path. Use `Command::new(SK)` to spawn directly; apply
 /// `SKIM_ENV_REMOVES` via `.env_remove()` on the command when needed.
 /// For shell-command strings (e.g. sent to tmux) prepend `SKIM_SHELL_ENV_CLEAR`.

@@ -26,4 +26,4 @@ description: "input: interactive\noptions: -i --min-query-length 3 --cmd printf 
 "                                                                                "
 "                                                                                "
 "c> li                                                                           "
-cursor: (25, 6)
+cursor: (24, 6)

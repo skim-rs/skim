@@ -256,7 +256,7 @@ pub fn get_default_key_map() -> KeyMap {
 ///
 /// # Errors
 /// Returns an error if the key string is empty, contains an unknown modifier,
-/// or does not correspond to a recognised key name.
+/// does not correspond to a recognised key name, or its shifted form needs multiple characters.
 pub fn parse_key(key: &str) -> Result<KeyEvent> {
     if key.is_empty() {
         return Err(eyre!("Cannot parse empty key"));
@@ -281,8 +281,15 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
     let key = parts.last().unwrap_or(&"").to_string();
 
     let keycode: KeyCode;
-    if key.len() == 1 {
-        let char = key.chars().next().unwrap_or_default();
+    if key.chars().count() == 1 {
+        let mut char = key.chars().next().unwrap_or_default();
+        if mods.contains(KeyModifiers::SHIFT) && !char.is_ascii() {
+            let mut uppercase = char.to_uppercase();
+            char = uppercase.next().unwrap_or(char);
+            if uppercase.next().is_some() {
+                return Err(eyre!("Shifted key {key} needs multiple characters"));
+            }
+        }
         if char.is_uppercase() {
             mods |= KeyModifiers::SHIFT;
             keycode = KeyCode::Char(char.to_ascii_lowercase());
@@ -310,7 +317,8 @@ pub fn parse_key(key: &str) -> Result<KeyEvent> {
             "home" => KeyCode::Home,
             "end" => KeyCode::End,
             "pgup" => KeyCode::PageUp,
-            "pgdown" => KeyCode::PageDown,
+            "pgdown" | "pgdn" => KeyCode::PageDown,
+            "del" | "delete" => KeyCode::Delete,
             s => match SkimEvent::from_name(s) {
                 Some(event) => event.key_code(),
                 None => return Err(eyre!("Unknown key {}", s)),

@@ -26,4 +26,4 @@ description: "input: items [\"a\", \"b\", \"c\"]\noptions: --inline-info"
 "  b                                                                             "
 "> a                                                                             "
 ">   < 3/3                                                                    0/0"
-cursor: (25, 3)
+cursor: (24, 3)

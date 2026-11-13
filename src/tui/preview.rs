@@ -305,7 +305,7 @@ pub struct Preview {
 
 impl Default for Preview {
     fn default() -> Self {
-        Self::_default()
+        Self::default_inner()
     }
 }
 

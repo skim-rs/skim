@@ -26,4 +26,4 @@ description: "input: items [\"a\", \"b\", \"c\"]\noptions: --header-lines 1 --in
 "> b                                                                             "
 "  a                                                                             "
 ">   < 2/2                                                                    0/0"
-cursor: (25, 3)
+cursor: (24, 3)

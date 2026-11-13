@@ -1,0 +1,16 @@
+---
+source: tests/options.rs
+description: "input: items [\"a\", \"b\", \"c\"]\noptions: --separator=─ --color=separator:#666666,info:208,header:123 --header=Header"
+---
+(18, 0..1) " " fg=Indexed(161)
+(18, 1..2) " " fg=Indexed(168)
+(19, 0..1) " " fg=Indexed(161)
+(19, 1..2) " " fg=Indexed(168)
+(20, 0..1) ">" fg=Indexed(161)
+(20, 1..2) " " fg=Indexed(168)
+(20, 2..3) "a" bg=Indexed(236)
+(21, 0..80) "  Header                                                                        " fg=Indexed(123)
+(22, 0..5) "  3/3" fg=Indexed(208)
+(22, 6..76) "──────────────────────────────────────────────────────────────────────" fg=Rgb(102, 102, 102) mod=DIM
+(22, 77..80) "0/0" fg=Indexed(208)
+(23, 0..2) "> " fg=Indexed(110)

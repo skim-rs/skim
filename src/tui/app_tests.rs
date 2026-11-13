@@ -941,6 +941,16 @@ fn handle_key_mapped_returns_keymap_action() {
 }
 
 #[test]
+fn handle_key_matches_shifted_unicode_binding() {
+    for binding in ["shift-ä", "Ä"] {
+        let mut app = App::default();
+        app.options.keymap = crate::binds::KeyMap::from(format!("{binding}:abort").as_str());
+        let events = app.handle_key(&KeyEvent::new(KeyCode::Char('Ä'), KeyModifiers::SHIFT));
+        assert!(matches!(events.as_slice(), [Event::Action(Action::Abort)]));
+    }
+}
+
+#[test]
 fn handle_key_unmapped_returns_empty() {
     let mut app = App::default();
     let events = app.handle_key(&KeyEvent::new(KeyCode::Char('c'), KeyModifiers::ALT));
@@ -1398,6 +1408,19 @@ fn render_default_app_populates_buffer() {
     assert!(rendered.contains("alpha"));
     // Cursor position is updated during render.
     assert!(app.cursor_pos.0 <= 80);
+}
+
+#[test]
+fn render_with_margins_larger_than_the_screen() {
+    let options = crate::options::SkimOptionsBuilder::default()
+        .margin("100%")
+        .header("header")
+        .border(crate::tui::BorderType::Rounded)
+        .preview("echo preview")
+        .build()
+        .unwrap();
+    let mut app = App::from_options(options, Arc::new(crate::theme::ColorTheme::default()), String::new());
+    let _ = render(&mut app, 80, 24);
 }
 
 #[test]

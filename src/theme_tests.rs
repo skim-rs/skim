@@ -1,6 +1,31 @@
 use super::*;
 
 #[test]
+fn separator_style_is_independent_in_all_palettes() {
+    for palette in [
+        "none",
+        "bw",
+        "16",
+        "dark",
+        "light",
+        "molokai",
+        "catppuccin-mocha",
+        "catppuccin-macchiato",
+        "catppuccin-latte",
+        "catppuccin-frappe",
+    ] {
+        let base = ColorTheme::from_options(palette);
+        assert!(base.separator.add_modifier.contains(Modifier::DIM));
+        let custom = ColorTheme::from_options(&format!("{palette},separator:#666666:bold"));
+        assert_eq!(custom.separator.fg, Some(Color::Rgb(102, 102, 102)));
+        assert!(custom.separator.add_modifier.contains(Modifier::BOLD));
+        assert_eq!(custom.border, base.border);
+        assert_eq!(custom.header, base.header);
+        assert_eq!(custom.info, base.info);
+    }
+}
+
+#[test]
 fn test_base_themes() {
     // Test that base themes have expected properties
     let none = ColorTheme::none();

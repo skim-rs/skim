@@ -26,4 +26,4 @@ description: "input: items [\"a\", \"b\", \"c\"]\noptions: --info inline:SEP\naf
 "                                                                                "
 "> a                                                                             "
 "> aSEP1/3                                                                    0/0"
-cursor: (25, 4)
+cursor: (24, 4)

@@ -22,6 +22,8 @@
   </a>
 </p>
 
+<p align="center"><a href="https://build.demoshell.com/launch?snapshot=skim%2Ftui%3Askim&utm_source=badge" title="Live demo by Demoshell"><img src="https://build.demoshell.com/v1/embed/badge.svg"></a></p>
+
 > Life is short, skim!
 
 We spend so much of our time navigating through files, lines, and commands. That's where Skim comes in!
@@ -237,6 +239,8 @@ Bindings for Fish, Bash and Zsh are available in the `shell` directory:
     - `ctrl-r` to select an history entry through `sk`
     - `alt-c`  to `cd` into a directory selected through `sk`
     - (not available in `fish`) `**` to complete file paths, for example `ls **<tab>` will show a `sk` widget to select a folder
+
+When these widgets open in a tmux or Zellij popup (`--popup`), the popup is named after what it is for — `skim: files`, `skim: command history` or `skim: directories` — so it is easy to tell apart from other popups. Use `--popup-name` to name your own.
 
 To enable these features, source the `key-bindings.{shell}` file and set up completions according to your shell's documentation or see below.
 

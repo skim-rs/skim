@@ -7,6 +7,18 @@ pub fn is_available() -> bool {
     cfg!(unix) && std::env::var("TMUX").is_ok() && which::which("tmux").is_ok()
 }
 
+/// Escape a user-provided popup title so tmux treats it as literal text.
+///
+/// `-T` is a format string, so `#` must be doubled, and tmux ends a command at
+/// an argument ending in `;`, which must be backslash-escaped.
+fn escape_tmux_format(label: &str) -> String {
+    let escaped = label.replace('#', "##");
+    match escaped.strip_suffix(';') {
+        Some(without) => format!("{without}\\;"),
+        None => escaped,
+    }
+}
+
 pub(super) struct TmuxPopup {
     cmd: Command,
 }
@@ -24,6 +36,13 @@ impl TmuxPopup {
                 .ok()
                 .map_or(".".to_string(), |d| d.to_string_lossy().to_string()),
         ]);
+
+        // `-T` is a tmux format (tmux 3.4+), so escape it and only set it when
+        // the user asked for a label, keeping older tmux and untitled popups
+        // working as before.
+        if let Some(label) = options.popup_name.as_deref() {
+            cmd.args(["-T", &escape_tmux_format(label)]);
+        }
 
         let border = {
             use crate::tui::BorderType::{ForceOff, None, Plain, Rounded, Thick};

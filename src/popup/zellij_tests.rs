@@ -8,6 +8,12 @@ fn opts(popup: &str) -> crate::SkimOptions {
         .expect("valid options")
 }
 
+fn opts_with_name(popup: &str, label: &str) -> crate::SkimOptions {
+    let mut opts = opts(popup);
+    opts.popup_name = Some(label.to_string());
+    opts
+}
+
 fn args(popup: &ZellijPopup) -> Vec<String> {
     popup.cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect()
 }
@@ -178,4 +184,18 @@ fn add_env_appends_to_env_string() {
     popup.add_env("FOO", "bar");
     popup.add_env("BAZ", "qux");
     assert_eq!(popup.env, " FOO=bar BAZ=qux");
+}
+
+#[test]
+fn default_pane_name_is_skim() {
+    let popup = ZellijPopup::build(&opts("center"));
+    let a = args(&popup);
+    assert_eq!(get_flag(&a, "--name"), Some("skim"));
+}
+
+#[test]
+fn pane_name_from_popup_name() {
+    let popup = ZellijPopup::build(&opts_with_name("center", "Command history"));
+    let a = args(&popup);
+    assert_eq!(get_flag(&a, "--name"), Some("Command history"));
 }

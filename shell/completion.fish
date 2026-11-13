@@ -25,8 +25,8 @@ ignore\t'Case-insensitive matching'
 smart\t'Smart case: case-insensitive unless query contains uppercase'"
 complete -c sk -l typos -d 'Enable typo-tolerant matching' -r
 complete -c sk -l split-match -d 'Enable split matching and set delimiter' -r
-complete -c sk -l scheme -r -f -a "default\t'Default scheme, no modifications to the options'
-path\t'Path scheme: will find the furthest match in the item and set pathname as the main tiebreak'
+complete -c sk -l scheme -d 'Matching preset: default, path (prefer the last path component), or history (prefer input order)' -r -f -a "default\t'Default scheme, no modifications to the options'
+path\t'Path scheme: enable last-match for Arinae and rank by score, then pathname'
 history\t'History scheme: will force index as the first tiebreak'"
 complete -c sk -s b -l bind -d 'Comma-separated key, event, and action bindings' -r
 complete -c sk -s c -l cmd -d 'Command to invoke dynamically in interactive mode' -r
@@ -49,6 +49,7 @@ complete -c sk -l ellipsis -d 'The characters used to display truncated lines' -
 complete -c sk -l info -d 'Set matching result count display position' -r
 complete -c sk -l header -d 'Set header, displayed next to the info' -r
 complete -c sk -l header-lines -d 'Number of lines of the input treated as header' -r
+complete -c sk -l separator -d 'Draw a repeating horizontal separator on the status line' -r
 complete -c sk -l border -d 'Draw borders around the UI components' -r -f -a "force-off\t'ForceOff disables borders around popups too set with no_border'
 none\t''
 plain\t''
@@ -90,6 +91,7 @@ zsh\t'Zsh'"
 complete -c sk -l listen -d 'Run an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l popup -d 'Run in a tmux or zellij popup' -r
+complete -c sk -l popup-name -d 'Name of the popup pane (Zellij) / title of the popup (tmux)' -r
 complete -c sk -l log-level -d 'Set the log level' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
 complete -c sk -l flags -d 'Feature flags' -r -f -a "no-preview-pty\t'Disable preview PTY on Linux'
@@ -102,7 +104,6 @@ complete -c sk -l jump-labels -r
 complete -c sk -l tail -r
 complete -c sk -l style -r
 complete -c sk -l padding -r
-complete -c sk -l border-label -r
 complete -c sk -l border-label-pos -r
 complete -c sk -l wrap-sign -r
 complete -c sk -l gap -r
@@ -117,7 +118,6 @@ complete -c sk -l list-border -r
 complete -c sk -l list-label -r
 complete -c sk -l list-label-pos -r
 complete -c sk -l info-command -r
-complete -c sk -l separator -r
 complete -c sk -l ghost -r
 complete -c sk -l input-border -r
 complete -c sk -l input-label -r
@@ -131,14 +131,14 @@ complete -c sk -l footer-border -r
 complete -c sk -l footer-label -r
 complete -c sk -l footer-label-pos -r
 complete -c sk -l with-shell -r
-complete -c sk -l expect -d 'Deprecated, kept for compatibility purposes. See accept() bind instead' -r
+complete -c sk -l expect -d 'Accepted for compatibility; has no effect. Use --bind \'KEY:accept(KEY)\' instead' -r
 complete -c sk -l tac -d 'Show results in reverse order'
 complete -c sk -l no-sort -d 'Do not sort the results'
 complete -c sk -s e -l exact -d 'Run in exact mode'
 complete -c sk -l regex -d 'Start in regex mode instead of fuzzy-match'
 complete -c sk -l no-typos -d 'Disable typo-tolerant matching'
 complete -c sk -l normalize -d 'Normalize unicode characters'
-complete -c sk -l last-match -d 'Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts'
+complete -c sk -l last-match -d 'Prefer the last equally scoring match with the Arinae algorithm'
 complete -c sk -s m -l multi -d 'Enable multiple selection'
 complete -c sk -l no-multi -d 'Disable multiple selection'
 complete -c sk -l no-mouse -d 'Disable mouse'
@@ -147,7 +147,7 @@ complete -c sk -l highlight-line -d 'Highlight the entire current line, not just
 complete -c sk -l no-hscroll -d 'Disable horizontal scroll'
 complete -c sk -l keep-right -d 'Keep the right end of the line visible on overflow'
 complete -c sk -l no-clear-if-empty -d 'Do not clear previous line if the command returns an empty result'
-complete -c sk -l no-clear-start -d 'Do not clear items on start'
+complete -c sk -l no-clear-start -d 'Keep previous items while a reload command starts'
 complete -c sk -l no-clear -d 'Do not clear screen on exit'
 complete -c sk -l show-cmd-error -d 'Show error message if command fails'
 complete -c sk -l cycle -d 'Cycle the results by wrapping around when scrolling'
@@ -157,6 +157,7 @@ complete -c sk -l no-height -d 'Disable height (force full screen)'
 complete -c sk -l ansi -d 'Parse ANSI color codes in input strings'
 complete -c sk -l no-info -d 'Alias for --info=hidden'
 complete -c sk -l inline-info -d 'Alias for --info=inline'
+complete -c sk -l no-separator -d 'Disable the horizontal separator'
 complete -c sk -l border-no-collapse -d 'Do not collapse adjacent borders into a shared row or column'
 complete -c sk -l no-border -d 'Disables all borders, including in tmux/zellij popups'
 complete -c sk -l wrap -d 'Wrap items in the item list'
@@ -166,7 +167,7 @@ complete -c sk -l print0 -d 'Print output delimited by ASCII NUL(\\0) characters
 complete -c sk -l print-query -d 'Print the query as the first line'
 complete -c sk -l print-cmd -d 'Print the command as the first line (after print-query)'
 complete -c sk -l print-score -d 'Print the score after each item'
-complete -c sk -l print-header -d 'Print the header as the first line (after print-score)'
+complete -c sk -l print-header -d 'Print the header before the items (after print-query and print-cmd)'
 complete -c sk -l print-current -d 'Print the current (highlighted) item as the first line (after print-header)'
 complete -c sk -l no-strip-ansi -d 'Print the ANSI codes, making the output exactly match the input even when --ansi is on'
 complete -c sk -s 1 -l select-1 -d 'Do not enter the TUI if the query passed in -q matches only one item and return it'
@@ -184,7 +185,6 @@ complete -c sk -l no-multi-line
 complete -c sk -l raw
 complete -c sk -l track
 complete -c sk -l no-input
-complete -c sk -l no-separator
 complete -c sk -l header-first
 complete -c sk -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c sk -s V -l version -d 'Print version'

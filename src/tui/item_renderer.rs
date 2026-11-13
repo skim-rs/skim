@@ -275,11 +275,19 @@ impl<'a> ItemRenderer<'a> {
         match_start_char: usize,
         match_end_char: usize,
     ) -> Line<'static> {
-        if state.is_first && state.is_first_sub_line {
+        let mut line = if state.is_first && state.is_first_sub_line {
             self.first_sub_line_content(item, sub_text, state.is_current, match_start_char, match_end_char)
         } else {
             self.continuation_sub_line_content(sub_text, state.is_current)
+        };
+        if self.wrap {
+            let mut width = 0;
+            for span in &mut line.spans {
+                span.content = self.expand_tabs(&span.content, width).into();
+                width += self.text_display_width(&span.content);
+            }
         }
+        line
     }
 
     fn first_sub_line_content(
@@ -368,21 +376,17 @@ impl<'a> ItemRenderer<'a> {
     }
 
     fn list_item_from_spans(&self, spans: Vec<Span<'static>>, is_current: bool) -> ListItem<'static> {
+        let mut text = ratatui::text::Text::from(Line::from(spans));
         if self.wrap {
-            wrap_text(
-                ratatui::text::Text::from(Line::from(spans)),
+            text = wrap_text(
+                text,
                 self.container_width + self.selector_icon.chars().count() + self.multi_select_icon.chars().count(),
-            )
-            .into()
-        } else {
-            let mut line = Line::from(spans);
-            // When highlight_line is enabled, set the line's style to the current theme
-            // so ratatui fills the entire row width with the current background color.
-            if self.highlight_line && is_current {
-                line = line.style(self.theme.current);
-            }
-            line.into()
+            );
         }
+        if self.highlight_line && is_current {
+            text = text.style(self.theme.current);
+        }
+        text.into()
     }
 
     fn base_style(&self, is_current: bool) -> ratatui::style::Style {

@@ -15,6 +15,16 @@ fn enqueue_items_batches_in_order_and_closes_when_sender_is_dropped() {
     assert!(rx.recv().is_err());
 }
 
+#[test]
+#[should_panic(expected = "Invalid margin: \"margin needs one to four non-negative row counts or percentages\"")]
+fn init_panics_for_invalid_margin() {
+    let options = crate::options::SkimOptionsBuilder::default()
+        .margin("invalid")
+        .build()
+        .unwrap();
+    let _ = Skim::<TestBackend>::init(options, None);
+}
+
 /// Spin until `cond` holds or a short timeout elapses.
 fn wait_until(mut cond: impl FnMut() -> bool) {
     let start = Instant::now();
@@ -44,6 +54,81 @@ fn started_skim_with(options: SkimOptions, items: &[&str]) -> Skim<TestBackend> 
 
 fn started_skim(items: &[&str]) -> Skim<TestBackend> {
     started_skim_with(SkimOptions::default().build(), items)
+}
+
+#[test]
+fn attaching_tui_sets_no_clear_before_event_handling() {
+    for no_clear in [false, true] {
+        let options = crate::options::SkimOptionsBuilder::default()
+            .no_clear(no_clear)
+            .build()
+            .unwrap();
+        let mut skim = Skim::<TestBackend>::init(options, None).unwrap();
+        let tui = Tui::new_with_height_and_backend(TestBackend::new(40, 10), Size::Percent(100)).unwrap();
+        skim.init_tui_with(tui);
+        assert_eq!(skim.tui_ref().no_clear, no_clear);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn no_clear_start_keeps_items_until_reload_results_or_completion() {
+    for (no_clear_start, no_clear_if_empty, replacement) in [
+        (true, false, "new"),
+        (true, false, ""),
+        (false, true, "new"),
+        (false, true, ""),
+        (true, true, "new"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("ready");
+        let command = format!(
+            "while [ ! -f '{}' ]; do sleep 0.01; done; printf '{replacement}'",
+            gate.to_string_lossy()
+        );
+        let mut options = SkimOptions::default();
+        options.no_clear_start = no_clear_start;
+        options.no_clear_if_empty = no_clear_if_empty;
+        let mut skim = Skim::<TestBackend>::init(options.build(), None).unwrap();
+        skim.app.item_list.items.push(crate::item::MatchedItem::new(
+            Arc::new("old".to_string()),
+            crate::Rank::default(),
+            None,
+            &crate::item::RankBuilder::default(),
+        ));
+        skim.app.item_list.select_row(0);
+        let render = |skim: &mut Skim<TestBackend>| {
+            let area = ratatui::layout::Rect::new(0, 0, 40, 10);
+            let mut buffer = ratatui::buffer::Buffer::empty(area);
+            ratatui::widgets::Widget::render(&mut skim.app, area, &mut buffer);
+        };
+        skim.handle_reload(&command);
+        wait_until(|| skim.matcher_stopped());
+        render(&mut skim);
+        assert_eq!(skim.app.item_list.items[0].item.text(), "old");
+        std::fs::write(gate, "").unwrap();
+        wait_until(|| {
+            skim.check_reader();
+            skim.app.restart_matcher(false);
+            render(&mut skim);
+            skim.reader_done() && skim.matcher_stopped() && skim.app.item_pool.num_not_taken() == 0
+        });
+        render(&mut skim);
+        assert_eq!(
+            skim.app.item_list.selection.len(),
+            usize::from(replacement.is_empty() && no_clear_if_empty)
+        );
+        let items = &skim.app.item_list.items;
+        if replacement.is_empty() && !no_clear_if_empty {
+            assert_eq!(items.as_slice(), []);
+        } else {
+            assert_eq!(items.len(), 1);
+            assert_eq!(
+                items[0].item.text(),
+                if replacement.is_empty() { "old" } else { replacement }
+            );
+        }
+    }
 }
 
 #[test]

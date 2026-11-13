@@ -16,6 +16,12 @@ fn opts_with_border(tmux: &str, border: crate::tui::BorderType) -> crate::SkimOp
         .expect("valid options")
 }
 
+fn opts_with_name(popup: &str, label: &str) -> crate::SkimOptions {
+    let mut opts = opts(popup);
+    opts.popup_name = Some(label.to_string());
+    opts
+}
+
 #[test]
 fn border_none_does_not_panic() {
     // Ensure each BorderType variant can be passed without panicking.
@@ -122,4 +128,33 @@ fn add_env_appends_e_flag() {
     popup.add_env("FOO", "bar");
     let a = args(&popup);
     assert!(a.windows(2).any(|w| w[0] == "-e" && w[1] == "FOO=bar"));
+}
+
+#[test]
+fn no_title_without_popup_name() {
+    let popup = TmuxPopup::build(&opts("center"));
+    let a = args(&popup);
+    assert!(!a.iter().any(|arg| arg == "-T"));
+}
+
+#[test]
+fn title_from_popup_name() {
+    let popup = TmuxPopup::build(&opts_with_name("center", "Command history"));
+    let a = args(&popup);
+    assert_eq!(get_flag(&a, "-T"), Some("Command history"));
+}
+
+#[test]
+fn escape_tmux_format_plain_unchanged() {
+    assert_eq!(escape_tmux_format("skim"), "skim");
+}
+
+#[test]
+fn escape_tmux_format_doubles_hash() {
+    assert_eq!(escape_tmux_format("C# notes"), "C## notes");
+}
+
+#[test]
+fn escape_tmux_format_escapes_trailing_semicolon() {
+    assert_eq!(escape_tmux_format("history;"), "history\\;");
 }

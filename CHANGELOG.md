@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking Changes
+
+- Make `SkimWidget` crate-private. Downstream code can no longer import or implement this internal trait, or call its methods.
+
+## [5.9.0] - 2026-10-27
+
+### 🚀 Features
+
+- Add separator flag (#1208)
+
+### 🐛 Bug Fixes
+
+- Properly clear the inline frame even if a resize is not necessary (#1212)
+
+## [5.8.0] - 2026-10-20
+
+### 🚀 Features
+
+- *(lib)* Add preview streaming (#1188)
+- Use `--popup-name` to name popup panes (#1203)
+
+### 🐛 Bug Fixes
+
+- *(fzy)* Keep the best first-character match when computing indices (#1198)
+- *(fzy)* Make highlighted indices follow the scored path (#1202)
+- Quote args on windows too (#1205)
+
+### 📚 Documentation
+
+- Add link to a live browser demo (#1204)
+
+### New Contributors
+* @kooler made their first contribution in [#1204](https://github.com/skim-rs/skim/pull/1204)
+* @ybai08 made their first contribution in [#1202](https://github.com/skim-rs/skim/pull/1202)
+
 ## [5.7.4] - 2026-10-04
 
 ### 🐛 Bug Fixes

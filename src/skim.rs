@@ -151,7 +151,7 @@ impl Skim {
         }
         let min_height = crate::options::parse_min_height(&self.app.options.min_height).map_err(eyre::Report::msg)?;
         tui.min_height(min_height)?;
-        self.tui = Some(tui);
+        self.init_tui_with(tui);
         Ok(())
     }
 
@@ -191,6 +191,10 @@ where
     /// # Errors
     ///
     /// Returns an error if parsing the height or other options fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the margin is invalid.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
         let height = Size::try_from(options.height.as_str())?;
 
@@ -211,7 +215,7 @@ where
         // reader
         // In interactive mode, expand all placeholders ({}, {q}, etc) with initial query (empty or from --query)
         let initial_cmd = if app.options.interactive && app.options.cmd.is_some() {
-            let expanded = app.expand_cmd(&cmd, true);
+            let expanded = app.expand_shell_cmd(&cmd, true)?;
             log::debug!("Interactive mode: initial_cmd = {expanded:?} (from template {cmd:?})");
             expanded
         } else {
@@ -282,10 +286,11 @@ where
         }
         // Clear items
         self.app.item_pool.clear();
-        // Clear displayed items unless no_clear_if_empty is set
-        if !self.app.options.no_clear_if_empty {
+        // Keep the old display until replacement results arrive when requested.
+        if !self.app.options.no_clear_if_empty && !self.app.options.no_clear_start {
             self.app.item_list.clear();
         }
+        self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
         self.start_reader(new_cmd, &env, &unset);
     }
@@ -356,7 +361,8 @@ where
     ///
     /// Use this instead of [`init_tui()`](Skim::init_tui) when you need a
     /// non-default backend (e.g. `TestBackend` for snapshot tests).
-    pub fn init_tui_with(&mut self, tui: Tui<Backend>) {
+    pub fn init_tui_with(&mut self, mut tui: Tui<Backend>) {
+        tui.no_clear = self.app.options.no_clear;
         self.tui = Some(tui);
     }
 

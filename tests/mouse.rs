@@ -41,7 +41,7 @@ fn mouse_down_list_row(h: &common::insta::TestHarness, row: u16) -> MouseEvent {
 insta_test!(
     mouse_selection_refreshes_preview,
     ["first", "second", "third"],
-    &["--layout", "reverse", "--preview", "echo preview:{}"],
+    &["--layout", "reverse", "--preview", &common::echo_command("preview:{}")],
     {
         @snap;
         @mouse(|h| mouse_down_list_row(h, 1));

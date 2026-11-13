@@ -26,4 +26,4 @@ description: "input: items [\"a\", \"b\", \"c\"]\noptions: --header test_header 
 "> a                                                                             "
 "  test_header                                                                   "
 ">   < 3/3                                                                    0/0"
-cursor: (25, 3)
+cursor: (24, 3)

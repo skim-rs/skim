@@ -196,6 +196,15 @@ impl Widget for &mut App {
             res |= self.preview.render(preview_area, buf);
         }
 
+        if self.item_list.keep_on_reload
+            && self.reader_done
+            && self.matcher_control.stopped()
+            && self.item_pool.num_not_taken() == 0
+            && self.matcher_control.get_num_matched() == 0
+            && !self.options.no_clear_if_empty
+        {
+            self.item_list.clear();
+        }
         res |= self.item_list.render(self.layout.list_area, buf);
 
         // Render the input after the item list so that the status shows correct information.
@@ -231,7 +240,13 @@ impl Widget for &mut App {
         self.cursor_pos = (
             self.layout.input_area.x + self.input.cursor_pos() + u16::from(has_border),
             self.layout.input_area.y
-                + u16::from(!(self.options.layout == TuiLayout::Reverse && self.options.border.is_none())),
+                + if has_border {
+                    1
+                } else if self.options.layout == TuiLayout::Reverse {
+                    0
+                } else {
+                    self.layout.input_area.height.saturating_sub(1)
+                },
         );
         if res.run_preview {
             self.pending_preview_run = true;
@@ -503,8 +518,13 @@ impl App {
     fn on_query_changed(&mut self) -> Vec<Event> {
         // In interactive mode with --cmd, execute the command with {} substitution
         if self.options.interactive && self.options.cmd.is_some() {
-            let expanded_cmd = self.expand_cmd(&self.cmd, true);
-            return vec![Event::Reload(expanded_cmd)];
+            return match self.expand_shell_cmd(&self.cmd, true) {
+                Ok(cmd) => vec![Event::Reload(cmd)],
+                Err(err) => {
+                    log::warn!("Command expansion rejected: {err}");
+                    vec![]
+                }
+            };
         }
         self.restart_matcher_debounced();
         vec![
@@ -593,7 +613,7 @@ impl App {
                 ItemPreview::Command(cmd) => {
                     let (env, unset) = self.child_env_snapshot();
                     self.preview
-                        .spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env, &unset)?;
+                        .spawn(tui, &self.expand_shell_cmd(&cmd, quote_cmd), &env, &unset)?;
                 }
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                     self.preview.content(&t.bytes().collect::<Vec<_>>())?;
@@ -602,7 +622,8 @@ impl App {
                     // Execute command and apply position after content is ready
                     let (env, unset) = self.child_env_snapshot();
                     self.preview
-                        .spawn(tui, &self.expand_cmd(&cmd, quote_cmd), &env, &unset)?;
+                        .spawn(tui, &self.expand_shell_cmd(&cmd, quote_cmd), &env, &unset)?;
+
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
                         crate::tui::Size::Fixed(n) => n,
@@ -643,8 +664,11 @@ impl App {
                 ItemPreview::Global => {
                     let (env, unset) = self.child_env_snapshot();
                     self.preview
-                        .spawn(tui, &self.expand_cmd(preview_opt, quote_cmd), &env, &unset)?;
+                        .spawn(tui, &self.expand_shell_cmd(preview_opt, quote_cmd), &env, &unset)?;
                 }
+                ItemPreview::Global => self
+                    .preview
+                    .spawn(tui, &self.expand_shell_cmd(preview_opt, quote_cmd)?)?,
             }
             if preview_ready {
                 let _ = tui.event_tx.try_send(Event::PreviewReady);
@@ -1044,13 +1068,13 @@ impl App {
                 // skim's input reader and toggle terminal modes), which this
                 // method does not have. Expand the command here and hand it to
                 // the event loop, which runs it via `Event::RunExecute`.
-                let expanded_cmd = self.expand_cmd(cmd, true);
+                let expanded_cmd = self.expand_shell_cmd(cmd, true)?;
                 debug!("execute: {expanded_cmd}");
                 self.pending_execute_env.push_back(self.child_env_snapshot());
                 return Ok(vec![Event::RunExecute(expanded_cmd)]);
             }
             ExecuteSilent(cmd) => {
-                let expanded_cmd = self.expand_cmd(cmd, true);
+                let expanded_cmd = self.expand_shell_cmd(cmd, true)?;
                 debug!("execute-silent: {expanded_cmd}");
                 let mut command = crate::shell_cmd(&expanded_cmd);
                 let (env, unset) = self.child_env_snapshot();
@@ -1238,7 +1262,7 @@ impl App {
             Redraw => return Ok(vec![Event::Clear]),
             Reload(Some(s)) => {
                 self.item_list.clear_selection();
-                return Ok(vec![Event::Reload(self.expand_cmd(s, true))]);
+                return Ok(vec![Event::Reload(self.expand_shell_cmd(s, true)?)]);
             }
             Reload(None) => {
                 self.item_list.clear_selection();
@@ -1247,7 +1271,7 @@ impl App {
             RefreshCmd => {
                 // Refresh the command (reload in interactive mode)
                 if self.options.interactive {
-                    let expanded_cmd = self.expand_cmd(&self.cmd, true);
+                    let expanded_cmd = self.expand_shell_cmd(&self.cmd, true)?;
                     return Ok(vec![Event::Reload(expanded_cmd)]);
                 }
             }
@@ -1299,7 +1323,7 @@ impl App {
                 self.cmd.clone_from(cmd);
                 self.options.cmd = Some(cmd.clone());
                 self.item_list.clear_selection();
-                let expanded_cmd = self.expand_cmd(cmd, true);
+                let expanded_cmd = self.expand_shell_cmd(cmd, true)?;
                 return Ok(vec![Event::Reload(expanded_cmd)]);
             }
             SetHeader(opt_header) => {
@@ -1516,6 +1540,15 @@ impl App {
 
     fn yank(&mut self, contents: String) {
         self.yank_register = contents;
+    }
+
+    /// Expand a shell command, rejecting line breaks that CMD cannot safely quote.
+    pub(crate) fn expand_shell_cmd(&self, cmd: &str, quote_args: bool) -> Result<String> {
+        let expanded = self.expand_cmd(cmd, quote_args);
+        if cfg!(windows) && expanded.contains(['\r', '\n']) {
+            bail!("CMD command expansion cannot contain CR or LF");
+        }
+        Ok(expanded)
     }
 
     /// Expand placeholders in a command string with current app state.

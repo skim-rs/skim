@@ -78,6 +78,44 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
     BufReader::new(file).lines().collect()
 }
 
+// Escape for the child process's argv parser, then for CMD's metacharacter parser.
+// Shell-bound expansion must reject CR/LF separately; CMD cannot safely quote them.
+// This quotes a CMD /c argument, not batch-file source, where literal `%` must be doubled.
+#[cfg(any(windows, test))]
+fn quote_cmd_arg(s: &str) -> String {
+    let mut quoted = String::from("\"");
+    let mut slashes = 0;
+    for c in s.chars() {
+        if c == '"' {
+            quoted.extend(std::iter::repeat_n('\\', slashes + 1));
+        }
+        quoted.push(c);
+        slashes = if c == '\\' { slashes + 1 } else { 0 };
+    }
+    quoted.extend(std::iter::repeat_n('\\', slashes));
+    quoted.push('"');
+
+    let mut escaped = String::new();
+    for c in quoted.chars() {
+        if "&|<>()^%!\"".contains(c) {
+            escaped.push('^');
+        }
+        escaped.push(c);
+    }
+    escaped
+}
+
+fn quote_shell_arg(s: &str) -> String {
+    #[cfg(windows)]
+    {
+        quote_cmd_arg(s)
+    }
+    #[cfg(not(windows))]
+    {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+}
+
 /// Replace the fields in `pattern` with the items, expanding {...} patterns
 ///
 /// Replaces:
@@ -86,6 +124,13 @@ pub fn read_file_lines(filename: &str) -> std::result::Result<Vec<String>, std::
 /// - `{+}` -> all selected items (multi-select)
 /// - `{q}` -> current query
 /// - `{cq}` -> current command query
+///
+/// With `quote_args`, replacements are arguments for `sh` on Unix or CMD on Windows.
+/// Placeholders must not be enclosed in additional quotes. Commands that invoke
+/// another shell must also account for that shell's parsing rules.
+/// On Windows, writing the result as batch-file source requires doubling literal
+/// `%` characters. This extra step is not used for direct CMD invocation or `%*`
+/// forwarding; `CALL` adds another expansion pass and needs separate handling.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
 pub fn printf<'a>(
@@ -96,17 +141,12 @@ pub fn printf<'a>(
     current: &Option<MatchedItem>,
     query: &str,
     command_query: &str,
-    mut quote_args: bool,
+    quote_args: bool,
 ) -> String {
-    // Windows uses different shell quoting conventions (double quotes, caret escaping)
-    // that are incompatible with the Unix-style single-quote escaping implemented here.
-    if cfg!(windows) {
-        quote_args = false;
-    }
     let escape_arg = |s: &str, quote: bool| {
         let mut res = s.replace('\0', "\\0").clone();
         if quote && quote_args {
-            res = format!("'{}'", res.replace('\'', "'\\''"));
+            res = quote_shell_arg(&res);
         }
         res
     };
@@ -170,12 +210,12 @@ pub fn printf<'a>(
                                 if expanded.is_empty() {
                                     expanded = current
                                         .as_ref()
-                                        .map(|i| escape_arg(&accessor(i), quote_args))
+                                        .map(|i| escape_arg(&accessor(i), quote_individually))
                                         .unwrap_or_default();
                                 }
 
                                 if quote_args && !quote_individually {
-                                    let _ = write!(replaced, "'{expanded}'");
+                                    replaced.push_str(&quote_shell_arg(&expanded));
                                 } else {
                                     replaced.push_str(&expanded);
                                 }
@@ -206,7 +246,7 @@ pub fn printf<'a>(
                                             .unwrap_or_default();
 
                                         if quote_args && !quote_individually {
-                                            let _ = write!(replaced, "'{expanded}'");
+                                            replaced.push_str(&quote_shell_arg(&expanded));
                                         } else {
                                             replaced.push_str(&expanded);
                                         }

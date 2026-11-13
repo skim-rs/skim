@@ -19,6 +19,60 @@ sk_test!(sk_version_short, "", &["-V"], {
   @output[0] starts_with("sk ");
 });
 
+#[test]
+fn no_clear_preserves_rows_in_inline_and_fullscreen_modes() -> std::io::Result<()> {
+    let expected = [
+        "retained-a",
+        "retained-b",
+        "retained-c",
+        "retained-header",
+        "retained-prompt>",
+    ];
+    for layout in ["default", "reverse", "reverse-list"] {
+        for exit_key in [Enter, Escape] {
+            for (height, near_bottom) in [("100%", false), ("10%", false), ("10%", true)] {
+                let zellij = common::zellij::ZellijController::new_named("noclearrows")?;
+                if near_bottom {
+                    zellij.send_keys(&[Str("printf '\\n%.0s' {1..22}"), Enter])?;
+                    zellij.until(|lines| lines.first().is_some_and(|line| line.trim() == "skim$"))?;
+                }
+                // Leave top rows for scrolling when a fullscreen layout puts the prompt at the top.
+                let margin = if height == "100%" && layout != "default" {
+                    "--margin=3,0"
+                } else {
+                    ""
+                };
+                let command = format!(
+                    "printf 'retained-%s\\n' a b c | {}{} --no-clear --height={height} {margin} --layout={layout} --info=hidden --header=retained-''header --prompt='retained-''prompt>'",
+                    common::SKIM_SHELL_ENV_CLEAR,
+                    common::SK.replace('\\', "/")
+                );
+                // The echoed command must not contain any rendered label.
+                assert!(expected.iter().all(|label| !command.contains(label)));
+                zellij.send_keys(&[Str(&command), Enter])?;
+                // ConPTY can put the header and prompt on the same captured row.
+                zellij.until(|lines| {
+                    expected
+                        .iter()
+                        .all(|expected| lines.iter().any(|line| line.contains(expected)))
+                })?;
+                let before = zellij.capture()?;
+                let retained: Vec<_> = before
+                    .iter()
+                    .filter(|line| expected.iter().any(|expected| line.contains(expected)))
+                    .map(|line| line.trim().to_string())
+                    .collect();
+                zellij.send_keys(std::slice::from_ref(&exit_key))?;
+                zellij.until(|lines| {
+                    lines.first().is_some_and(|line| line.trim() == "skim$")
+                        && retained.iter().all(|kept| lines.iter().any(|line| line.trim() == kept))
+                })?;
+            }
+        }
+    }
+    Ok(())
+}
+
 sk_test!(inline_clear_on_exit, @cmd "seq 1 10", &["--height=50%"], {
     @capture[0] starts_with(">");
     @keys Escape;

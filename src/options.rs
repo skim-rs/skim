@@ -100,8 +100,7 @@ pub enum MatchScheme {
     /// Default scheme, no modifications to the options
     #[default]
     Default,
-    /// Path scheme: will find the furthest match in the item and set `pathname` as the main
-    /// tiebreak
+    /// Path scheme: enable last-match for Arinae and rank by score, then pathname
     Path,
     /// History scheme: will force `index` as the first tiebreak
     History,
@@ -283,8 +282,6 @@ pub struct SkimOptions {
     /// Case sensitivity
     ///
     /// Determines whether or not to ignore case while matching
-    /// Note: this is not used for the Frizbee matcher, which uses a penalty system to favor
-    /// case-sensitivity without enforcing it
     #[cfg_attr(
         feature = "cli",
         arg(long, default_value = "smart", value_enum, help_heading = "Search")
@@ -293,10 +290,10 @@ pub struct SkimOptions {
 
     /// Enable typo-tolerant matching
     ///
-    /// When passed without a value (`--typos`), uses adaptive formula (`pattern_length` / 4).
-    /// When passed with a value (e.g. `--typos=2`), uses that exact number as the
-    /// maximum allowed typos. `--typos=0` explicitly disables typo tolerance.
-    /// Applies to both fzy and frizbee matchers.
+    /// For fzy and frizbee, --typos uses an adaptive limit (`pattern_length` / 4),
+    /// and --typos=N sets the maximum number of typos.
+    /// Arinae uses its own typo model; any non-zero value enables it without setting a limit.
+    /// --typos=0 disables typo tolerance. Ignored by `skim_v2` and clangd.
     #[cfg_attr(
         feature = "cli",
         arg(long, default_value = "disabled", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, overrides_with = "no_typos", help_heading = "Search")
@@ -328,12 +325,14 @@ pub struct SkimOptions {
     )]
     pub split_match: Option<char>,
 
-    /// Highlight the last match found, not the first one
-    /// This makes tiebreak more pertinent on path items where we want to prioritize a match on the
-    /// last parts
+    /// Prefer the last equally scoring match with the Arinae algorithm
+    ///
+    /// This helps path ranking prefer a match in the last path component.
+    /// Has no effect with other algorithms, exact matching, or regex matching.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub last_match: bool,
 
+    /// Matching preset: default, path (prefer the last path component), or history (prefer input order)
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search", default_value = "default"))]
     scheme: Option<MatchScheme>,
 
@@ -476,7 +475,9 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub no_clear_if_empty: bool,
 
-    /// Do not clear items on start
+    /// Keep previous items while a reload command starts
+    ///
+    /// Replace them when the new command produces results, or clear them when it finishes empty.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_clear_start: bool,
 
@@ -561,7 +562,8 @@ pub struct SkimOptions {
     /// Example: 1,10%
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment)
+        arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment,
+            value_parser = |value: &str| crate::tui::layout::parse_margin(value).map(|_| value.to_string()))
     )]
     pub margin: String,
 
@@ -661,6 +663,21 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, default_value = "0", help_heading = "Display"))]
     pub header_lines: usize,
 
+    /// Draw a repeating horizontal separator on the status line
+    ///
+    /// With inline info it follows the status on the prompt line. With inline-right
+    /// or hidden info it occupies a separate line. Disabled by default; an empty
+    /// string also disables it. An enabled border row is reused where possible.
+    #[cfg_attr(
+        feature = "cli",
+        arg(long, help_heading = "Display", overrides_with = "no_separator")
+    )]
+    pub separator: Option<String>,
+
+    /// Disable the horizontal separator
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", overrides_with = "separator"))]
+    pub no_separator: bool,
+
     /// Draw borders around the UI components
     ///
     #[cfg_attr(
@@ -698,7 +715,7 @@ pub struct SkimOptions {
 
     /// Set scrollbar style for the item list
     ///
-    /// The optional value is used as the indicator
+    /// The value is used as the indicator
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -788,7 +805,7 @@ pub struct SkimOptions {
     /// # Initial scroll offset is set to the line number of each line of
     /// # git grep output *minus* 5 lines (-5)
     /// git grep --line-number '' |
-    ///   sk --delimiter:  --preview 'nl {1}' --preview-window +{2}-5
+    ///   sk --delimiter : --preview 'nl {1}' --preview-window +{2}-5
     ///
     ///             # Preview with bat, matching line in the middle of the window (-/2)
     ///             git grep --line-number '' |
@@ -861,7 +878,7 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_score: bool,
 
-    /// Print the header as the first line (after print-score)
+    /// Print the header before the items (after print-query and print-cmd)
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_header: bool,
 
@@ -917,6 +934,8 @@ pub struct SkimOptions {
     pub pre_select_file: Option<String>,
 
     /// Query for filter mode
+    ///
+    /// If --query is also set, it supplies the query instead.
     #[cfg_attr(feature = "cli", arg(long, short, help_heading = "Scripting"))]
     pub filter: Option<String>,
 
@@ -927,7 +946,7 @@ pub struct SkimOptions {
     /// Examples: `source <(sk --shell bash)` (immediate use)
     ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
     ///
-    /// Supported shells: bash, zsh, fish, powershell, elvish
+    /// Supported shells: bash, zsh, fish, powershell, elvish, nushell
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",
@@ -960,7 +979,7 @@ pub struct SkimOptions {
     ///
     /// The commands are read from stdin, one per line, in the same format as the actions in the
     /// bind flag. They can also be chained using `+` as a separator.
-    /// All other arguments will be ignored
+    /// Sends actions without starting the finder interface
     #[cfg(feature = "listen")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
@@ -970,8 +989,17 @@ pub struct SkimOptions {
     /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     /// Note: this will try to detect a Zellij session, then a Tmux session
     /// This means that in nested sessions, `skim` will prioritize Zellij over Tmux
+    ///
+    /// The popup pane is named after `--popup-name` (default: `skim`).
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]
     pub popup: Option<String>,
+
+    /// Name of the popup pane (Zellij) / title of the popup (tmux)
+    ///
+    /// Only used with `--popup`. Defaults to `skim` in Zellij; tmux popups get no title
+    /// unless this is set. `--border-label` is accepted as an fzf-compatible alias.
+    #[cfg_attr(feature = "cli", arg(long, help_heading = "Display", alias = "border-label"))]
+    pub popup_name: Option<String>,
 
     /// Set the log level
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
@@ -1019,9 +1047,6 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     padding: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    border_label: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
     border_label_pos: Option<String>,
@@ -1078,12 +1103,6 @@ pub struct SkimOptions {
     info_command: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
-    separator: Option<String>,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
-    no_separator: bool,
-    #[cfg_attr(feature = "cli", arg(long, hide = true))]
-    #[builder(setter(skip))]
     ghost: Option<String>,
     #[cfg_attr(feature = "cli", arg(long, hide = true))]
     #[builder(setter(skip))]
@@ -1125,7 +1144,7 @@ pub struct SkimOptions {
     #[builder(setter(skip))]
     with_shell: Option<String>,
 
-    /// Deprecated, kept for compatibility purposes. See `accept()` bind instead.
+    /// Accepted for compatibility; has no effect. Use --bind 'KEY:accept(KEY)' instead.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
     expect: String,
 
@@ -1221,7 +1240,7 @@ impl Default for SkimOptions {
             height: String::from("100%"),
             no_height: Default::default(),
             min_height: String::from("10"),
-            margin: Default::default(),
+            margin: String::from("0"),
             prompt: String::from("> "),
             cmd_prompt: String::from("c> "),
             selector_icon: String::from(">"),
@@ -1276,8 +1295,8 @@ impl Default for SkimOptions {
             style: Default::default(),
             no_color: Default::default(),
             padding: Default::default(),
-            border_label: Default::default(),
             border_label_pos: Default::default(),
+            popup_name: Default::default(),
             highlight_line: Default::default(),
             wrap_sign: Default::default(),
             no_multi_line: Default::default(),
@@ -1397,6 +1416,9 @@ impl SkimOptions {
                 KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL),
                 vec![Action::NextHistory],
             );
+        }
+        if self.no_separator || self.separator.as_ref().is_some_and(String::is_empty) {
+            self.separator = None;
         }
         if self.no_scrollbar {
             self.scrollbar = String::new();

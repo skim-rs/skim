@@ -1,4 +1,4 @@
-use super::{PopupWindowDir, SkimPopup};
+use super::{PopupWindowDir, SkimPopup, popup_name};
 use crate::SkimOptions;
 use crate::tui::Size;
 
@@ -50,7 +50,7 @@ impl ZellijPopup {
             .arg("--block-until-exit")
             .arg("--close-on-exit")
             .args(["--pinned", "true"])
-            .args(["--name", "skim"])
+            .args(["--name", popup_name(options)])
             .args([
                 "--cwd",
                 &std::env::current_dir()

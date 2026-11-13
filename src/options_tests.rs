@@ -6,6 +6,39 @@ use crate::field::FieldRange;
 use crate::item::RankCriteria;
 use crate::tui::statusline::InfoDisplay;
 
+#[test]
+fn separator_is_opt_in_and_available_to_library_users() {
+    assert!(SkimOptions::default().separator.is_none());
+    let options = SkimOptionsBuilder::default().separator("─").build().unwrap();
+    assert_eq!(options.separator.as_deref(), Some("─"));
+    let options = SkimOptionsBuilder::default()
+        .separator("─")
+        .no_separator(true)
+        .build()
+        .unwrap();
+    assert!(options.separator.is_none());
+    let options = SkimOptionsBuilder::default().separator("").build().unwrap();
+    assert!(options.separator.is_none());
+}
+
+#[test]
+fn separator_flags_override_in_argument_order() {
+    assert!(
+        merge(None, Some("--separator=─ --no-separator"), None)
+            .build()
+            .separator
+            .is_none()
+    );
+    assert_eq!(
+        merge(None, Some("--no-separator --separator=─"), None)
+            .build()
+            .separator
+            .as_deref(),
+        Some("─")
+    );
+    assert!(merge(None, Some("--separator="), None).build().separator.is_none());
+}
+
 /// Helper: invoke the env-free arg merger with `prog = "sk"` and no real CLI args.
 fn merge(
     options_file_content: Option<&[u8]>,
@@ -393,4 +426,18 @@ fn negative_field_indices_parse_for_every_nth_flag() {
     // ...and a negative index inside a comma-separated list.
     let opts = parse_args(&["--with-nth", "2,-1"]).expect("--with-nth 2,-1 should parse");
     assert_eq!(opts.with_nth, vec!["2".to_string(), "-1".to_string()]);
+}
+
+#[test]
+fn popup_name_parses_and_border_label_is_its_alias() {
+    let opts = parse_args(&["--popup", "--popup-name", "Command history"]).expect("--popup-name should parse");
+    assert_eq!(opts.popup_name.as_deref(), Some("Command history"));
+
+    // fzf compatibility: --border-label sets the same option.
+    let opts = parse_args(&["--popup", "--border-label", "Command history"]).expect("--border-label should parse");
+    assert_eq!(opts.popup_name.as_deref(), Some("Command history"));
+
+    // Not set at all → backends fall back to their defaults.
+    let opts = parse_args(&["--popup"]).expect("--popup should parse");
+    assert_eq!(opts.popup_name, None);
 }

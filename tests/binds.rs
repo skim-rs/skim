@@ -176,7 +176,7 @@ insta_test!(bind_toggle_interactive_queries, @interactive, &["--bind", "ctrl-a:t
     @snap;
 });
 
-insta_test!(bind_set_preview_cmd, ["a", "b", "c"], &["--preview", "echo initial {}", "--bind", "ctrl-a:set-preview-cmd(echo new {})"], {
+insta_test!(bind_set_preview_cmd, ["a", "b", "c"], &["--preview", &common::echo_command("initial {}"), "--bind", &format!("ctrl-a:set-preview-cmd({})", common::echo_command("new {}"))], {
     @snap;
     @ctrl 'a';
     @snap;
