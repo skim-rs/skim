@@ -72,10 +72,6 @@ pub struct App {
     pub(crate) last_action: Option<String>,
     /// Name of the last real key pressed, exported as `SKIM_KEY`/`FZF_KEY`.
     pub(crate) last_key: Option<String>,
-    /// Environment snapshot captured when `execute` was dispatched, so a
-    /// deferred [`Event::RunExecute`] uses the state of the action that queued
-    /// it rather than whatever ran in between.
-    pending_execute_env: VecDeque<ChildEnv>,
     /// Environment snapshots for reload events, captured before actions clear the selection.
     pub(crate) pending_reload_env: VecDeque<ChildEnv>,
 
@@ -278,7 +274,6 @@ impl Default for App {
             final_action: None,
             last_action: None,
             last_key: None,
-            pending_execute_env: VecDeque::new(),
             pending_reload_env: VecDeque::new(),
             cursor_pos: (0, 0),
             term_area: Rect::default(),
@@ -357,7 +352,6 @@ impl App {
             final_action: None,
             last_action: None,
             last_key: None,
-            pending_execute_env: VecDeque::new(),
             pending_reload_env: VecDeque::new(),
             cursor_pos: (0, 0),
             term_area: Rect::default(),
@@ -759,12 +753,8 @@ impl App {
                     warn!("RunPreview: error {e:?}");
                 }
             }
-            Event::RunExecute(cmd) => {
-                let (env, unset) = self
-                    .pending_execute_env
-                    .pop_front()
-                    .unwrap_or_else(|| self.child_env_snapshot());
-                tui.run_execute(cmd, &env, &unset)?;
+            Event::RunExecute(cmd, env, unset) => {
+                tui.run_execute(cmd, env, unset)?;
                 self.handle_event(tui, &Event::Redraw)?;
             }
             Event::Clear => {
@@ -1070,8 +1060,8 @@ impl App {
                 // the event loop, which runs it via `Event::RunExecute`.
                 let expanded_cmd = self.expand_shell_cmd(cmd, true)?;
                 debug!("execute: {expanded_cmd}");
-                self.pending_execute_env.push_back(self.child_env_snapshot());
-                return Ok(vec![Event::RunExecute(expanded_cmd)]);
+                let (env, unset) = self.child_env_snapshot();
+                return Ok(vec![Event::RunExecute(expanded_cmd, env, unset)]);
             }
             ExecuteSilent(cmd) => {
                 let expanded_cmd = self.expand_shell_cmd(cmd, true)?;

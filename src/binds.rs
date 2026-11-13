@@ -343,6 +343,11 @@ pub fn key_name(key: &KeyEvent) -> String {
         return event.name().to_string();
     }
 
+    // Crossterm can report back-tab with every modifier set; that is still shift-tab.
+    if key.code == KeyCode::BackTab && key.modifiers == KeyModifiers::all() {
+        return "shift-tab".to_string();
+    }
+
     let mut name = String::new();
     if key.modifiers.contains(KeyModifiers::CONTROL) {
         name.push_str("ctrl-");

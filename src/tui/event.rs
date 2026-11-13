@@ -44,8 +44,10 @@ pub enum Event {
     /// Carries the already-expanded command line. Handled by the TUI event
     /// loop (which has access to the [`Tui`](crate::tui::Tui)) rather than by
     /// `handle_action`, because running a foreground process requires
-    /// suspending skim's own input reader and toggling terminal modes.
-    RunExecute(String),
+    /// suspending skim's own input reader and toggling terminal modes. Also
+    /// carries the environment pairs to export and the names to unset, captured
+    /// when the action was dispatched.
+    RunExecute(String, Vec<(String, String)>, Vec<String>),
     /// Redraw the screen
     Redraw,
     /// Reload with a new command

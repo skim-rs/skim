@@ -215,6 +215,10 @@ fn key_name_formats_fzf_style() {
     assert_eq!(key_name(&parse_key("alt-bspace").unwrap()), "alt-backspace");
     // A shift on a non-character key keeps the prefix.
     assert_eq!(key_name(&KeyEvent::new(KeyCode::Tab, KeyModifiers::SHIFT)), "shift-tab");
+    assert_eq!(
+        key_name(&KeyEvent::new(KeyCode::BackTab, KeyModifiers::all())),
+        "shift-tab"
+    );
     // Synthetic events report their event name.
     for event in [
         SkimEvent::Start,

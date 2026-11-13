@@ -673,7 +673,7 @@ fn execute_action_expands_and_defers_to_event_loop() {
     app.input.value = "hello".to_string();
     let events = act(&mut app, Action::Execute("echo {q}".to_string()));
     assert!(
-        matches!(events.as_slice(), [Event::RunExecute(cmd)] if cmd.contains("hello")),
+        matches!(events.as_slice(), [Event::RunExecute(cmd, ..)] if cmd.contains("hello")),
         "expected RunExecute with expanded query, got {events:?}"
     );
 }
@@ -699,7 +699,7 @@ fn run_execute_event_runs_command_and_restarts_reader() {
 
     let noop = if cfg!(windows) { "rem" } else { "true" };
     rt.block_on(async {
-        app.handle_event(&mut tui, &Event::RunExecute(noop.to_string()))
+        app.handle_event(&mut tui, &Event::RunExecute(noop.to_string(), Vec::new(), Vec::new()))
             .expect("handle_event failed");
     });
 
@@ -1144,13 +1144,11 @@ fn execute_captures_env_before_a_later_action_runs() {
     let mut app = app_with_items(&["a"]);
     app.input.value = "kept".to_string();
     let events = app.handle_action(&Action::Execute("true".to_string())).unwrap();
-    assert!(matches!(events.as_slice(), [Event::RunExecute(_)]));
     act(&mut app, Action::SetQuery("later".to_string()));
 
-    let (env, _) = app
-        .pending_execute_env
-        .pop_front()
-        .expect("execute must snapshot its env");
+    let [Event::RunExecute(_, env, _)] = events.as_slice() else {
+        panic!("expected one RunExecute, got {events:?}");
+    };
     let query = env
         .iter()
         .find(|(name, _)| name == "SKIM_QUERY")
@@ -1170,9 +1168,15 @@ fn queued_execute_actions_keep_snapshots_in_dispatch_order() {
         &mut app,
         Action::IfQueryEmpty("execute(true)+toggle+execute(true)".to_string(), None),
     );
-    assert_eq!(events.iter().filter(|e| matches!(e, Event::RunExecute(_))).count(), 2);
-    for expected_count in ["0", "1"] {
-        let (env, _) = app.pending_execute_env.pop_front().expect("missing execute snapshot");
+    let envs: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::RunExecute(_, env, _) => Some(env),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(envs.len(), 2);
+    for (env, expected_count) in envs.into_iter().zip(["0", "1"]) {
         for prefix in ["SKIM", "FZF"] {
             let get = |suffix| {
                 env.iter()
@@ -1185,7 +1189,6 @@ fn queued_execute_actions_keep_snapshots_in_dispatch_order() {
             assert_eq!(get("ACTION"), "execute");
         }
     }
-    assert!(app.pending_execute_env.is_empty());
 }
 
 #[cfg(unix)]
