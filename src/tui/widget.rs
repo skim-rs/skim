@@ -23,7 +23,7 @@ impl BitOrAssign for SkimRender {
 }
 
 /// Trait for Skim TUI widgets
-pub trait SkimWidget: Sized {
+pub(crate) trait SkimWidget: Sized {
     /// Create a widget from options and theme
     fn from_options(options: &SkimOptions, theme: Arc<ColorTheme>) -> Self;
 
@@ -34,7 +34,7 @@ pub trait SkimWidget: Sized {
     ///
     /// This is made to be reused from a blanket `std::default::Default` trait impl
     #[must_use]
-    fn _default() -> Self {
+    fn default_inner() -> Self {
         Self::from_options(&SkimOptions::default(), Arc::new(ColorTheme::default()))
     }
 }

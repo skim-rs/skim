@@ -100,8 +100,7 @@ pub enum MatchScheme {
     /// Default scheme, no modifications to the options
     #[default]
     Default,
-    /// Path scheme: will find the furthest match in the item and set `pathname` as the main
-    /// tiebreak
+    /// Path scheme: enable last-match for Arinae and rank by score, then pathname
     Path,
     /// History scheme: will force `index` as the first tiebreak
     History,
@@ -283,8 +282,6 @@ pub struct SkimOptions {
     /// Case sensitivity
     ///
     /// Determines whether or not to ignore case while matching
-    /// Note: this is not used for the Frizbee matcher, which uses a penalty system to favor
-    /// case-sensitivity without enforcing it
     #[cfg_attr(
         feature = "cli",
         arg(long, default_value = "smart", value_enum, help_heading = "Search")
@@ -293,10 +290,10 @@ pub struct SkimOptions {
 
     /// Enable typo-tolerant matching
     ///
-    /// When passed without a value (`--typos`), uses adaptive formula (`pattern_length` / 4).
-    /// When passed with a value (e.g. `--typos=2`), uses that exact number as the
-    /// maximum allowed typos. `--typos=0` explicitly disables typo tolerance.
-    /// Applies to both fzy and frizbee matchers.
+    /// For fzy and frizbee, --typos uses an adaptive limit (`pattern_length` / 4),
+    /// and --typos=N sets the maximum number of typos.
+    /// Arinae uses its own typo model; any non-zero value enables it without setting a limit.
+    /// --typos=0 disables typo tolerance. Ignored by `skim_v2` and clangd.
     #[cfg_attr(
         feature = "cli",
         arg(long, default_value = "disabled", default_missing_value = "smart", num_args = 0..=1, value_parser = parse_typos, overrides_with = "no_typos", help_heading = "Search")
@@ -328,12 +325,14 @@ pub struct SkimOptions {
     )]
     pub split_match: Option<char>,
 
-    /// Highlight the last match found, not the first one
-    /// This makes tiebreak more pertinent on path items where we want to prioritize a match on the
-    /// last parts
+    /// Prefer the last equally scoring match with the Arinae algorithm
+    ///
+    /// This helps path ranking prefer a match in the last path component.
+    /// Has no effect with other algorithms, exact matching, or regex matching.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search"))]
     pub last_match: bool,
 
+    /// Matching preset: default, path (prefer the last path component), or history (prefer input order)
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Search", default_value = "default"))]
     scheme: Option<MatchScheme>,
 
@@ -476,7 +475,9 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface", verbatim_doc_comment))]
     pub no_clear_if_empty: bool,
 
-    /// Do not clear items on start
+    /// Keep previous items while a reload command starts
+    ///
+    /// Replace them when the new command produces results, or clear them when it finishes empty.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Interface"))]
     pub no_clear_start: bool,
 
@@ -561,7 +562,8 @@ pub struct SkimOptions {
     /// Example: 1,10%
     #[cfg_attr(
         feature = "cli",
-        arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment)
+        arg(long, default_value = "0", help_heading = "Layout", verbatim_doc_comment,
+            value_parser = |value: &str| crate::tui::layout::parse_margin(value).map(|_| value.to_string()))
     )]
     pub margin: String,
 
@@ -713,7 +715,7 @@ pub struct SkimOptions {
 
     /// Set scrollbar style for the item list
     ///
-    /// The optional value is used as the indicator
+    /// The value is used as the indicator
     #[cfg_attr(
         feature = "cli",
         arg(
@@ -803,7 +805,7 @@ pub struct SkimOptions {
     /// # Initial scroll offset is set to the line number of each line of
     /// # git grep output *minus* 5 lines (-5)
     /// git grep --line-number '' |
-    ///   sk --delimiter:  --preview 'nl {1}' --preview-window +{2}-5
+    ///   sk --delimiter : --preview 'nl {1}' --preview-window +{2}-5
     ///
     ///             # Preview with bat, matching line in the middle of the window (-/2)
     ///             git grep --line-number '' |
@@ -876,7 +878,7 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_score: bool,
 
-    /// Print the header as the first line (after print-score)
+    /// Print the header before the items (after print-query and print-cmd)
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting"))]
     pub print_header: bool,
 
@@ -932,6 +934,8 @@ pub struct SkimOptions {
     pub pre_select_file: Option<String>,
 
     /// Query for filter mode
+    ///
+    /// If --query is also set, it supplies the query instead.
     #[cfg_attr(feature = "cli", arg(long, short, help_heading = "Scripting"))]
     pub filter: Option<String>,
 
@@ -942,7 +946,7 @@ pub struct SkimOptions {
     /// Examples: `source <(sk --shell bash)` (immediate use)
     ///          `sk --shell bash >> ~/.bash_completion` (persistent use)
     ///
-    /// Supported shells: bash, zsh, fish, powershell, elvish
+    /// Supported shells: bash, zsh, fish, powershell, elvish, nushell
     #[cfg(feature = "cli")]
     #[cfg_attr(
         feature = "cli",
@@ -975,7 +979,7 @@ pub struct SkimOptions {
     ///
     /// The commands are read from stdin, one per line, in the same format as the actions in the
     /// bind flag. They can also be chained using `+` as a separator.
-    /// All other arguments will be ignored
+    /// Sends actions without starting the finder interface
     #[cfg(feature = "listen")]
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
@@ -1140,7 +1144,7 @@ pub struct SkimOptions {
     #[builder(setter(skip))]
     with_shell: Option<String>,
 
-    /// Deprecated, kept for compatibility purposes. See `accept()` bind instead.
+    /// Accepted for compatibility; has no effect. Use --bind 'KEY:accept(KEY)' instead.
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Deprecated", default_value = ""))]
     expect: String,
 
@@ -1236,7 +1240,7 @@ impl Default for SkimOptions {
             height: String::from("100%"),
             no_height: Default::default(),
             min_height: String::from("10"),
-            margin: Default::default(),
+            margin: String::from("0"),
             prompt: String::from("> "),
             cmd_prompt: String::from("c> "),
             selector_icon: String::from(">"),

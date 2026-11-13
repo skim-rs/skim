@@ -30,7 +30,7 @@ unsafe extern "system" {
 unsafe extern "system" fn ctrl_c_handler(ctrl_type: u32) -> i32 {
     match ctrl_type {
         CTRL_C_EVENT | CTRL_BREAK_EVENT | CTRL_CLOSE_EVENT => {
-            let _ = cleanup_terminal();
+            let _ = cleanup_terminal(false);
             // 130 = 128 + SIGINT, the conventional exit code for Ctrl-C.
             std::process::exit(130);
         }

@@ -151,7 +151,7 @@ impl Skim {
         }
         let min_height = crate::options::parse_min_height(&self.app.options.min_height).map_err(eyre::Report::msg)?;
         tui.min_height(min_height)?;
-        self.tui = Some(tui);
+        self.init_tui_with(tui);
         Ok(())
     }
 
@@ -191,6 +191,10 @@ where
     /// # Errors
     ///
     /// Returns an error if parsing the height or other options fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the margin is invalid.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
         let height = Size::try_from(options.height.as_str())?;
 
@@ -275,10 +279,11 @@ where
         }
         // Clear items
         self.app.item_pool.clear();
-        // Clear displayed items unless no_clear_if_empty is set
-        if !self.app.options.no_clear_if_empty {
+        // Keep the old display until replacement results arrive when requested.
+        if !self.app.options.no_clear_if_empty && !self.app.options.no_clear_start {
             self.app.item_list.clear();
         }
+        self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
         self.start_reader(new_cmd);
     }
@@ -348,7 +353,8 @@ where
     ///
     /// Use this instead of [`init_tui()`](Skim::init_tui) when you need a
     /// non-default backend (e.g. `TestBackend` for snapshot tests).
-    pub fn init_tui_with(&mut self, tui: Tui<Backend>) {
+    pub fn init_tui_with(&mut self, mut tui: Tui<Backend>) {
+        tui.no_clear = self.app.options.no_clear;
         self.tui = Some(tui);
     }
 

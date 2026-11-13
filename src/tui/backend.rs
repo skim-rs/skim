@@ -24,6 +24,7 @@ use super::{Event, Size, TICK_RATE};
 static PANIC_HOOK_SET: Once = Once::new();
 
 /// Terminal user interface handler for skim
+#[allow(clippy::struct_excessive_bools)]
 pub struct Tui<B: Backend = ratatui::backend::CrosstermBackend<BufWriter<std::io::Stderr>>>
 where
     B::Error: Send + Sync + 'static,
@@ -45,6 +46,8 @@ where
     /// The terminal's rect (drawing) area, set if the layout is inline
     rect: Option<Rect>,
     enable_mouse: bool,
+    pub(crate) no_clear: bool,
+    exited: bool,
 }
 
 impl Tui {
@@ -123,6 +126,8 @@ where
             cancellation_token: CancellationToken::default(),
             is_fullscreen: lines.is_none(),
             enable_mouse: true,
+            no_clear: false,
+            exited: false,
         })
     }
 
@@ -146,6 +151,8 @@ where
     ///
     /// Returns an error if enabling raw mode or terminal features fails.
     pub fn enter_terminal(&mut self) -> Result<()> {
+        // Keep cleanup enabled if setup fails after raw mode is enabled.
+        self.exited = false;
         crossterm::terminal::enable_raw_mode()?;
         // On Windows, install a console ctrl handler so that CTRL_C_EVENT
         // performs terminal cleanup instead of killing the process abruptly.
@@ -163,22 +170,30 @@ where
     /// Returns an error if disabling raw mode or mouse capture fails.
     pub fn exit(&mut self) -> Result<()> {
         self.stop();
-        cleanup_terminal()?;
+        if self.exited {
+            return Ok(());
+        }
+        cleanup_terminal(self.no_clear)?;
         // Remove our console ctrl handler now that raw mode is off.
         #[cfg(windows)]
         super::windows::uninstall_ctrl_c_handler();
-        // When using the inline layout, we want to remove all previous output
-        //  -> reset cursor at the top of the drawing area
-        if !self.is_fullscreen {
+        if self.no_clear || !self.is_fullscreen {
             let area = self.get_frame().area();
-            let orig = ratatui::layout::Position { x: area.x, y: area.y };
-            crossterm::execute!(
-                stderr(),
-                cursor::MoveTo(orig.x, orig.y),
-                Clear(ClearType::FromCursorDown)
-            )?;
-            self.set_cursor_position(orig)?;
+            if self.no_clear {
+                // Put stdout and the shell below the retained interface, scrolling if needed.
+                self.set_cursor_position((area.x, area.bottom().saturating_sub(1)))?;
+                crossterm::execute!(stderr(), crossterm::style::Print("\r\n"))?;
+            } else {
+                let orig = ratatui::layout::Position { x: area.x, y: area.y };
+                crossterm::execute!(
+                    stderr(),
+                    cursor::MoveTo(orig.x, orig.y),
+                    Clear(ClearType::FromCursorDown)
+                )?;
+                self.set_cursor_position(orig)?;
+            }
         }
+        self.exited = true;
         Ok(())
     }
     /// Stops the TUI event loop
@@ -293,6 +308,7 @@ where
     }
 
     fn execute_enter(&mut self) -> Result<()> {
+        self.exited = false;
         crossterm::execute!(stderr(), EnableBracketedPaste)?;
         if self.enable_mouse {
             crossterm::execute!(stderr(), EnableMouseCapture)?;
@@ -470,7 +486,7 @@ fn set_panic_hook() {
     PANIC_HOOK_SET.call_once(|| {
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |panic_info| {
-            let _ = cleanup_terminal();
+            let _ = cleanup_terminal(false);
             #[cfg(windows)]
             super::windows::uninstall_ctrl_c_handler();
             hook(panic_info);
@@ -479,22 +495,20 @@ fn set_panic_hook() {
 }
 
 /// Perform terminal cleanup: disable mouse capture, bracketed paste,
-/// leave alternate screen, show cursor, and disable raw mode.
+/// leave alternate screen unless `no_clear` is set, show cursor, and disable raw mode.
 ///
 /// This is safe to call from any thread since:
 /// - Escape sequences are written atomically to stderr
 /// - `SetConsoleMode` (used by `disable_raw_mode`) is thread-safe on Windows
-pub(crate) fn cleanup_terminal() -> std::io::Result<()> {
+pub(crate) fn cleanup_terminal(no_clear: bool) -> std::io::Result<()> {
     if let Err(e) = crossterm::execute!(stderr(), PopKeyboardEnhancementFlags) {
         warn!("Failed to remove keyboard enhancement flags: {e}");
     }
-    crossterm::execute!(
-        stderr(),
-        DisableMouseCapture,
-        DisableBracketedPaste,
-        LeaveAlternateScreen,
-        cursor::Show
-    )?;
+    crossterm::execute!(stderr(), DisableMouseCapture, DisableBracketedPaste)?;
+    if !no_clear {
+        crossterm::execute!(stderr(), LeaveAlternateScreen)?;
+    }
+    crossterm::execute!(stderr(), cursor::Show)?;
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
 }
@@ -540,6 +554,28 @@ mod tests {
         let tui = fullscreen_tui();
         assert!(tui.is_fullscreen);
         assert!(tui.enable_mouse);
+    }
+
+    #[test]
+    fn repeated_exit_keeps_cursor_position_until_reentry() {
+        for fullscreen in [false, true] {
+            let mut tui = fullscreen_tui();
+            tui.is_fullscreen = fullscreen;
+            tui.no_clear = true;
+            tui.execute_enter().expect("initial entry failed");
+            tui.exit().expect("first exit failed");
+            assert!(tui.exited);
+            assert_eq!(tui.get_cursor_position().unwrap(), (0, 23).into());
+
+            tui.set_cursor_position((7, 7)).unwrap();
+            tui.exit().expect("repeated exit failed");
+            assert_eq!(tui.get_cursor_position().unwrap(), (7, 7).into());
+
+            tui.execute_enter().expect("reentry failed");
+            assert!(!tui.exited);
+            tui.exit().expect("exit after reentry failed");
+            assert_eq!(tui.get_cursor_position().unwrap(), (0, 23).into());
+        }
     }
 
     #[test]

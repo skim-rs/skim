@@ -208,23 +208,19 @@ fn write_history_to_file(
     limit: usize,
     filename: &str,
 ) -> Result<(), std::io::Error> {
-    if orig_history.last().map(String::as_str) == Some(latest) {
+    if orig_history.len() <= limit && orig_history.last().map(String::as_str) == Some(latest) {
         // no point of having at the end of the history 5x the same command...
         return Ok(());
     }
-    let additional_lines = usize::from(!latest.trim().is_empty());
-    let start_index = if orig_history.len() + additional_lines > limit {
-        orig_history.len() + additional_lines - limit
-    } else {
-        0
-    };
-
-    let mut history = orig_history[start_index..].to_vec();
-    history.push(latest.to_string());
+    let mut history = orig_history.to_vec();
+    if !latest.trim().is_empty() && history.last().map(String::as_str) != Some(latest) {
+        history.push(latest.to_string());
+    }
+    let start_index = history.len().saturating_sub(limit);
 
     let file = File::create(filename)?;
     let mut file = BufWriter::new(file);
-    file.write_all(history.join("\n").as_bytes())?;
+    file.write_all(history[start_index..].join("\n").as_bytes())?;
     Ok(())
 }
 
@@ -273,6 +269,17 @@ mod tests {
         let file_str = file.to_str().unwrap();
         // An empty latest adds 0 to the length, so no truncation occurs at limit 3.
         write_history_to_file(&["a".to_string(), "b".to_string(), "c".to_string()], "", 3, file_str).unwrap();
-        assert_eq!(read(&file), "a\nb\nc\n");
+        assert_eq!(read(&file), "a\nb\nc");
+    }
+
+    #[test]
+    fn write_history_enforces_zero_and_reduced_limits() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hist");
+        let history = ["a".to_string(), "b".to_string()];
+        for (latest, limit, expected) in [("c", 0, ""), ("", 0, ""), ("b", 0, ""), ("b", 1, "b")] {
+            write_history_to_file(&history, latest, limit, file.to_str().unwrap()).unwrap();
+            assert_eq!(read(&file), expected, "latest={latest:?}, limit={limit}");
+        }
     }
 }

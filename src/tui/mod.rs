@@ -10,7 +10,7 @@ pub use app::App;
 pub use event::Event;
 pub use preview::PreviewCallback;
 use thiserror::Error;
-pub use widget::{SkimRender, SkimWidget};
+pub use widget::SkimRender;
 mod app;
 mod backend;
 pub(crate) mod util;

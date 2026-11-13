@@ -64,6 +64,7 @@ pub struct LayoutTemplate {
     /// `[list, header, input]`; when `true` they map to
     /// `[input, header, list]`.  Applied in step 2 of [`Self::apply`].
     work_layout: Layout,
+    margin: [Size; 4],
 }
 
 impl LayoutTemplate {
@@ -74,6 +75,10 @@ impl LayoutTemplate {
     /// [`Header::height()`](super::header::Header::height), which returns a
     /// value fixed at construction time from `options.header_lines` and the
     /// line-count of `options.header`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the margin is invalid.
     #[must_use]
     pub fn from_options(options: &SkimOptions, header_height: u16) -> Self {
         let has_border = options.border.is_some();
@@ -146,6 +151,7 @@ impl LayoutTemplate {
             preview_layout,
             collapse_borders,
             work_layout,
+            margin: parse_margin(&options.margin).expect("Invalid margin"),
         }
     }
 
@@ -153,6 +159,20 @@ impl LayoutTemplate {
     /// absolute [`AppLayout`] for one render frame.
     #[must_use]
     pub fn apply(&self, area: Rect) -> AppLayout {
+        let [top, right, bottom, left] = std::array::from_fn(|i| {
+            let total = if i % 2 == 0 { area.height } else { area.width };
+            match self.margin[i] {
+                Size::Fixed(value) => value.min(total),
+                Size::Percent(value) => u16::try_from(u32::from(total) * u32::from(value) / 100).unwrap_or(total),
+                Size::Neg(_) => unreachable!("negative margins are rejected by parse_margin"),
+            }
+        });
+        let area = Rect::new(
+            area.x.saturating_add(left),
+            area.y.saturating_add(top),
+            area.width.saturating_sub(left).saturating_sub(right),
+            area.height.saturating_sub(top).saturating_sub(bottom),
+        );
         // ── Step 1: carve out the preview from the full area ─────────────────
         let (work_area, preview_area): (Rect, Option<Rect>) = match &self.preview_layout {
             Some(layout) => {
@@ -248,6 +268,23 @@ impl AppLayout {
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
+
+pub(crate) fn parse_margin(value: &str) -> Result<[Size; 4], &'static str> {
+    let sizes = value
+        .split(',')
+        .map(|part| match Size::try_from(part.trim()) {
+            Ok(size @ (Size::Fixed(_) | Size::Percent(_))) => Ok(size),
+            _ => Err("margin needs one to four non-negative row counts or percentages"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    match sizes.as_slice() {
+        [all] => Ok([*all; 4]),
+        [tb, rl] => Ok([*tb, *rl, *tb, *rl]),
+        [top, rl, bottom] => Ok([*top, *rl, *bottom, *rl]),
+        [top, right, bottom, left] => Ok([*top, *right, *bottom, *left]),
+        _ => Err("margin needs one to four non-negative row counts or percentages"),
+    }
+}
 
 fn extend_up(mut rect: Rect, top: u16) -> Rect {
     if rect.y > top {

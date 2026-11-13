@@ -35,6 +35,36 @@ fn separator_only_adds_a_row_for_inline_right_or_hidden_info() {
     }
 }
 
+#[test]
+fn margins_apply_to_all_widgets_and_resize() {
+    for (margin, expected) in [
+        ("2", Rect::new(2, 2, 76, 20)),
+        ("1,10%", Rect::new(8, 1, 64, 22)),
+        ("1,2,3", Rect::new(2, 1, 76, 20)),
+        ("1,2,3,4", Rect::new(4, 1, 74, 20)),
+    ] {
+        let options = SkimOptionsBuilder::default().margin(margin).build().unwrap();
+        assert_eq!(
+            AppLayout::compute(area(), &options, 0),
+            AppLayout::compute(expected, &SkimOptions::default(), 0),
+            "{margin}"
+        );
+    }
+    let options = SkimOptionsBuilder::default().margin("10%").build().unwrap();
+    let template = LayoutTemplate::from_options(&options, 0);
+    assert_eq!(template.apply(Rect::new(5, 7, 100, 50)).list_area.x, 15);
+    assert_eq!(template.apply(Rect::new(5, 7, 200, 50)).list_area.x, 25);
+    let options = SkimOptionsBuilder::default().margin("100%").build().unwrap();
+    assert!(AppLayout::compute(area(), &options, 0).list_area.is_empty());
+}
+
+#[test]
+fn margins_reject_invalid_values() {
+    for value in ["", "-1", "101%", "1,2,3,4,5", "1,,2", "bad"] {
+        assert!(parse_margin(value).is_err(), "{value}");
+    }
+}
+
 // A convenient 80×24 terminal area.
 fn area() -> Rect {
     Rect::new(0, 0, 80, 24)

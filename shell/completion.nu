@@ -54,8 +54,8 @@ module completions {
     --no-typos                # Disable typo-tolerant matching
     --normalize               # Normalize unicode characters
     --split-match: string     # Enable split matching and set delimiter
-    --last-match              # Highlight the last match found, not the first one This makes tiebreak more pertinent on path items where we want to prioritize a match on the last parts
-    --scheme: string@"nu-complete sk scheme"
+    --last-match              # Prefer the last equally scoring match with the Arinae algorithm
+    --scheme: string@"nu-complete sk scheme" # Matching preset: default, path (prefer the last path component), or history (prefer input order)
     --bind(-b): string        # Comma-separated key, event, and action bindings
     --multi(-m)               # Enable multiple selection
     --no-multi                # Disable multiple selection
@@ -69,7 +69,7 @@ module completions {
     --keep-right              # Keep the right end of the line visible on overflow
     --skip-to-pattern: string # Show the matched pattern at the line start
     --no-clear-if-empty       # Do not clear previous line if the command returns an empty result
-    --no-clear-start          # Do not clear items on start
+    --no-clear-start          # Keep previous items while a reload command starts
     --no-clear                # Do not clear screen on exit
     --show-cmd-error          # Show error message if command fails
     --cycle                   # Cycle the results by wrapping around when scrolling
@@ -116,7 +116,7 @@ module completions {
     --print-query             # Print the query as the first line
     --print-cmd               # Print the command as the first line (after print-query)
     --print-score             # Print the score after each item
-    --print-header            # Print the header as the first line (after print-score)
+    --print-header            # Print the header before the items (after print-query and print-cmd)
     --print-current           # Print the current (highlighted) item as the first line (after print-header)
     --output-format: string   # Set the output format If set, overrides all print_ options Will be expanded the same way as preview or commands
     --no-strip-ansi           # Print the ANSI codes, making the output exactly match the input even when --ansi is on
@@ -181,7 +181,7 @@ module completions {
     --footer-label: string
     --footer-label-pos: string
     --with-shell: string
-    --expect: string          # Deprecated, kept for compatibility purposes. See accept() bind instead
+    --expect: string          # Accepted for compatibility; has no effect. Use --bind 'KEY:accept(KEY)' instead
     --help(-h)                # Print help (see more with '--help')
     --version(-V)             # Print version
   ]

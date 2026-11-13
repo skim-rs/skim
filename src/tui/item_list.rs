@@ -75,8 +75,9 @@ pub struct ItemList {
     selector: Option<Rc<dyn Selector>>,
     pre_select_target: usize, // How many items we want to pre-select
     no_clear_if_empty: bool,
-    interactive: bool,              // Whether we're in interactive mode
-    showing_stale_items: bool,      // True when displaying old items due to no_clear_if_empty
+    interactive: bool,         // Whether we're in interactive mode
+    showing_stale_items: bool, // True when displaying old items due to no_clear_if_empty
+    pub(crate) keep_on_reload: bool,
     pub(crate) manual_hscroll: i32, // Manual horizontal scroll offset for ScrollLeft/ScrollRight
     pub(crate) selector_icon: String,
     pub(crate) multi_select_icon: String,
@@ -97,7 +98,7 @@ pub struct ItemList {
 
 impl Default for ItemList {
     fn default() -> Self {
-        Self::_default()
+        Self::default_inner()
     }
 }
 
@@ -209,6 +210,7 @@ impl ItemList {
         self.offset = 0;
         self.sub_offset = 0;
         self.showing_stale_items = false;
+        self.keep_on_reload = false;
     }
     /// Scrolls the list by `rows` terminal rows, counting each item's sub-lines.
     /// Positive = toward higher indices (up the screen in default layout).
@@ -453,6 +455,7 @@ impl SkimWidget for ItemList {
             no_clear_if_empty,
             interactive,
             showing_stale_items: false,
+            keep_on_reload: false,
             manual_hscroll: 0,
             items: Default::default(),
             selection: Default::default(),
@@ -531,14 +534,23 @@ impl SkimWidget for ItemList {
             let items_are_empty_or_blank =
                 processed.items.is_empty() || processed.items.iter().all(|item| item.item.text().trim().is_empty());
 
-            if this.interactive && this.no_clear_if_empty && items_are_empty_or_blank && !this.items.is_empty() {
+            if !this.items.is_empty()
+                && ((this.keep_on_reload && processed.items.is_empty())
+                    || (this.interactive && this.no_clear_if_empty && items_are_empty_or_blank))
+            {
                 debug!(
                     "no_clear_if_empty: keeping {} old items for display (new items are empty/blank)",
                     this.items.len()
                 );
                 this.showing_stale_items = true;
             } else {
-                match processed.merge {
+                let merge = if this.keep_on_reload {
+                    this.clear();
+                    MergeStrategy::Replace
+                } else {
+                    processed.merge
+                };
+                match merge {
                     MergeStrategy::Replace => {
                         this.items = processed.items;
                         this.sub_offset = 0;

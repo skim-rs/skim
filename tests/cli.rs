@@ -31,6 +31,8 @@ fn run_sk_argv(pipe_input: &str, argv: &[&str], envs: &[(&str, &str)]) -> (Optio
         .env_remove("SKIM_DEFAULT_OPTIONS")
         .env_remove("SKIM_DEFAULT_COMMAND")
         .env_remove("SKIM_OPTIONS_FILE")
+        .env_remove("SKIM_LOG")
+        .env_remove("SKIM_LOG_FILE")
         .stdin(if pipe_input.is_empty() {
             Stdio::null()
         } else {
@@ -71,6 +73,70 @@ fn run_sk(pipe_input: &str, args: &str) -> (Option<i32>, String, String) {
     let argv = shlex::split(args).expect("args should tokenize");
     let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
     run_sk_argv(pipe_input, &refs, &[])
+}
+
+#[test]
+fn disabled_items_are_not_printed_in_filter_mode() {
+    let (code, stdout, stderr) = run_sk("enabled\\ndisabled", "--filter '' --disable-pattern '^disabled$'");
+    assert_eq!(code, Some(0), "{stderr}");
+    assert_eq!(stdout, "enabled\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn show_cmd_error_includes_command_stderr() {
+    for (extra, expected) in [(vec![], ""), (vec!["--show-cmd-error"], "command-error\n")] {
+        let mut args = vec!["-i", "--cmd", "echo command-error >&2; exit 1", "--filter", ""];
+        args.extend(extra);
+        let (_, stdout, _) = run_sk_argv("", &args, &[]);
+        assert_eq!(stdout, expected);
+    }
+}
+
+#[test]
+fn margin_rejects_invalid_cli_values() {
+    for value in ["-1", "101%", "1,,2", "1,2,3,4,5"] {
+        let (code, _, stderr) = run_sk_argv("item", &["--filter", "", "--margin", value], &[]);
+        assert_eq!(code, Some(2), "{value}: {stderr}");
+    }
+}
+
+#[test]
+fn zero_history_limits_write_empty_files() {
+    let dir = tempfile::tempdir().unwrap();
+    for (history_flag, size_flag) in [("--history", "--history-size"), ("--cmd-history", "--cmd-history-size")] {
+        let path = dir.path().join("history");
+        std::fs::write(&path, "old\nentries\n").unwrap();
+        let (code, _, stderr) = run_sk_argv(
+            "item",
+            &[
+                "--select-1",
+                "-q",
+                "item",
+                history_flag,
+                path.to_str().unwrap(),
+                size_flag,
+                "0",
+            ],
+            &[],
+        );
+        assert_eq!(code, Some(0), "{stderr}");
+        assert_eq!(std::fs::read(path).unwrap(), b"");
+    }
+}
+
+#[test]
+fn print_current_strips_ansi_unless_disabled() {
+    for (extra, expected) in [
+        (vec![], "red\nred\n"),
+        (vec!["--no-strip-ansi"], "\x1b[31mred\x1b[0m\n\x1b[31mred\x1b[0m\n"),
+    ] {
+        let mut args = vec!["--ansi", "--select-1", "--print-current", "-q", "red"];
+        args.extend(extra);
+        let (code, stdout, stderr) = run_sk_argv("\x1b[31mred\x1b[0m", &args, &[]);
+        assert_eq!(code, Some(0), "{stderr}");
+        assert_eq!(stdout, expected);
+    }
 }
 
 #[test]
@@ -278,12 +344,12 @@ fn log_file_initializes_logger() {
     let log_path = log.to_str().unwrap();
     let (code, _stdout, _) = run_sk_argv(
         "1\\n2\\n3",
-        &["--select-1", "-q", "3", "--log-file", log_path],
-        &[("SKIM_LOG", "trace")],
+        &["--select-1", "-q", "3", "--log-file", log_path, "--log-level", "trace"],
+        &[],
     );
     assert_eq!(code, Some(0));
     // The log file was created by the file target.
-    assert!(log.exists());
+    assert!(std::fs::read_to_string(&log).unwrap().contains("TRACE"));
     let _ = std::fs::remove_file(&log);
 }
 
