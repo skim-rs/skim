@@ -1145,6 +1145,7 @@ fn execute_captures_env_before_a_later_action_runs() {
     app.input.value = "kept".to_string();
     let events = app.handle_action(&Action::Execute("true".to_string())).unwrap();
     assert!(matches!(events.as_slice(), [Event::RunExecute(_)]));
+    act(&mut app, Action::SetQuery("later".to_string()));
 
     let (env, _) = app
         .pending_execute_env
@@ -1287,6 +1288,91 @@ fn child_env_uses_empty_and_zero_when_nothing_selected() {
     assert_eq!(get("SKIM_TOTAL_COUNT"), Some("0"));
     assert_eq!(get("SKIM_MATCH_COUNT"), Some("0"));
     assert_eq!(get("SKIM_POS"), Some("0"));
+}
+
+#[test]
+fn child_env_value_size_limit_counts_bytes_without_truncation() {
+    for (value, exported) in [
+        ("x".repeat(MAX_ENV_VALUE_BYTES), true),
+        ("x".repeat(MAX_ENV_VALUE_BYTES + 1), false),
+        ("é".repeat(MAX_ENV_VALUE_BYTES / 2), true),
+        ("é".repeat(MAX_ENV_VALUE_BYTES / 2 + 1), false),
+    ] {
+        let mut app = app_with_items(&[&value]);
+        app.item_list.select_row(0);
+        app.input.value.clone_from(&value);
+        let (env, unset) = app.child_env_snapshot();
+        for prefix in ["SKIM", "FZF"] {
+            for suffix in ["QUERY", "CURRENT_ITEM", "SELECTED_ITEMS"] {
+                let name = format!("{prefix}_{suffix}");
+                let actual = env.iter().find(|(key, _)| key == &name).map(|(_, v)| v);
+                assert_eq!(actual, exported.then_some(&value), "{name}");
+                assert_eq!(unset.contains(&name), !exported, "{name}");
+            }
+        }
+    }
+}
+
+#[test]
+fn child_env_strips_ansi_from_current_and_selected_items() {
+    let mut app = app_with_items(&["\x1b[31mred\x1b[0m"]);
+    app.item_list.select_row(0);
+    let env = app.child_env();
+    for prefix in ["SKIM", "FZF"] {
+        for suffix in ["CURRENT_ITEM", "SELECTED_ITEMS"] {
+            let name = format!("{prefix}_{suffix}");
+            assert_eq!(env.iter().find(|(key, _)| key == &name).unwrap().1, "red");
+        }
+    }
+}
+
+#[test]
+fn reload_actions_capture_selection_and_expand_before_clearing() {
+    for action in [
+        Action::Reload(Some("echo {+}".to_string())),
+        Action::Reload(None),
+        Action::SetCmd("echo {+}".to_string()),
+    ] {
+        let mut app = app_with_items(&["alpha", "beta"]);
+        app.item_list.select_row(0);
+        app.item_list.select_row(1);
+        app.cmd = "echo default".to_string();
+        let events = act(&mut app, action.clone());
+        let [Event::Reload(cmd)] = events.as_slice() else {
+            panic!("expected reload, got {events:?}");
+        };
+        if !matches!(action, Action::Reload(None)) {
+            assert!(cmd.contains("alpha") && cmd.contains("beta"), "{cmd}");
+        }
+        assert!(app.item_list.selection.is_empty());
+        let (env, _) = app.pending_reload_env.pop_front().unwrap();
+        for prefix in ["SKIM", "FZF"] {
+            let get = |suffix| {
+                &env.iter()
+                    .find(|(key, _)| key == &format!("{prefix}_{suffix}"))
+                    .unwrap()
+                    .1
+            };
+            assert_eq!(get("SELECTED_ITEMS"), "alpha\nbeta");
+            assert_eq!(get("SELECT_COUNT"), "2");
+            assert_eq!(get("ACTION"), action.name());
+        }
+    }
+}
+
+#[test]
+fn queued_reloads_keep_the_query_at_dispatch() {
+    let mut app = app_with_items(&["alpha"]);
+    app.options.interactive = true;
+    app.options.cmd = Some("echo {}".to_string());
+    app.cmd = "echo {}".to_string();
+    act(&mut app, Action::SetQuery("first".to_string()));
+    act(&mut app, Action::SetQuery("second".to_string()));
+    for expected in ["first", "second"] {
+        let (env, _) = app.pending_reload_env.pop_front().unwrap();
+        assert_eq!(env.iter().find(|(key, _)| key == "SKIM_QUERY").unwrap().1, expected);
+    }
+    assert!(app.pending_reload_env.is_empty());
 }
 
 #[test]
@@ -2224,6 +2310,57 @@ fn run_preview_positioned_text_neg_and_percent_offsets() {
     app.run_preview(&mut tui).unwrap();
     // h_scroll = cols(40) - 3 = 37, plus h_offset = 25% of 40 = 10 → 47.
     assert_eq!(app.preview.scroll_x, 47);
+}
+
+#[cfg(unix)]
+#[test]
+fn all_command_preview_variants_receive_state_without_shell_expansion() {
+    struct EnvPreviewItem(String, bool);
+    impl SkimItem for EnvPreviewItem {
+        fn text(&self) -> std::borrow::Cow<'_, str> {
+            "item".into()
+        }
+        fn preview(&self, _: PreviewContext) -> ItemPreview {
+            if self.1 {
+                ItemPreview::CommandWithPos(self.0.clone(), crate::PreviewPosition::default())
+            } else {
+                ItemPreview::Command(self.0.clone())
+            }
+        }
+    }
+
+    for variant in 0..3 {
+        let output = tempfile::NamedTempFile::new().unwrap();
+        let cmd = format!(
+            "printf '%s|%s|%s' \"$SKIM_QUERY\" \"$FZF_QUERY\" \"$SKIM_CURRENT_ITEM\" > {}",
+            shlex::try_quote(output.path().to_str().unwrap()).unwrap(),
+        );
+        let item: Arc<dyn SkimItem> = if variant == 0 {
+            Arc::new("item".to_string())
+        } else {
+            Arc::new(EnvPreviewItem(cmd.clone(), variant == 2))
+        };
+        let mut app = app_with_one(item);
+        app.options.preview = Some(cmd);
+        app.input.value = "é ' \" $HOME; $(false)\nline".to_string();
+        app.last_preview_spawn = past_instant(Duration::from_secs(1));
+        let expected = format!("{0}|{0}|item", app.input.value);
+        let mut tui = test_tui();
+        app.run_preview(&mut tui).unwrap();
+        let started = Instant::now();
+        let received = loop {
+            if std::fs::read_to_string(output.path()).unwrap() == expected {
+                break true;
+            }
+            if started.elapsed() >= Duration::from_secs(2) {
+                break false;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        app.preview.kill();
+        app.preview.thread_handle.take().unwrap().join().unwrap();
+        assert!(received, "preview variant {variant} did not receive the snapshot");
+    }
 }
 
 /// A [`SkimItem`] whose preview runs a shell command.

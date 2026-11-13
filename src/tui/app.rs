@@ -76,6 +76,8 @@ pub struct App {
     /// deferred [`Event::RunExecute`] uses the state of the action that queued
     /// it rather than whatever ran in between.
     pending_execute_env: VecDeque<ChildEnv>,
+    /// Environment snapshots for reload events, captured before actions clear the selection.
+    pub(crate) pending_reload_env: VecDeque<ChildEnv>,
 
     /// Current cursor position (x, y)
     pub cursor_pos: (u16, u16),
@@ -277,6 +279,7 @@ impl Default for App {
             last_action: None,
             last_key: None,
             pending_execute_env: VecDeque::new(),
+            pending_reload_env: VecDeque::new(),
             cursor_pos: (0, 0),
             term_area: Rect::default(),
             matcher: Matcher::builder(Rc::new(ExactOrFuzzyEngineFactory::builder().build()))
@@ -355,6 +358,7 @@ impl App {
             last_action: None,
             last_key: None,
             pending_execute_env: VecDeque::new(),
+            pending_reload_env: VecDeque::new(),
             cursor_pos: (0, 0),
             term_area: Rect::default(),
             matcher: Matcher::from_options(&options),
@@ -519,7 +523,7 @@ impl App {
         // In interactive mode with --cmd, execute the command with {} substitution
         if self.options.interactive && self.options.cmd.is_some() {
             return match self.expand_shell_cmd(&self.cmd, true) {
-                Ok(cmd) => vec![Event::Reload(cmd)],
+                Ok(cmd) => vec![self.reload_event(cmd)],
                 Err(err) => {
                     log::warn!("Command expansion rejected: {err}");
                     vec![]
@@ -613,7 +617,7 @@ impl App {
                 ItemPreview::Command(cmd) => {
                     let (env, unset) = self.child_env_snapshot();
                     self.preview
-                        .spawn(tui, &self.expand_shell_cmd(&cmd, quote_cmd), &env, &unset)?;
+                        .spawn(tui, &self.expand_shell_cmd(&cmd, quote_cmd)?, &env, &unset)?;
                 }
                 ItemPreview::Text(t) | ItemPreview::AnsiText(t) => {
                     self.preview.content(&t.bytes().collect::<Vec<_>>())?;
@@ -622,7 +626,7 @@ impl App {
                     // Execute command and apply position after content is ready
                     let (env, unset) = self.child_env_snapshot();
                     self.preview
-                        .spawn(tui, &self.expand_shell_cmd(&cmd, quote_cmd), &env, &unset)?;
+                        .spawn(tui, &self.expand_shell_cmd(&cmd, quote_cmd)?, &env, &unset)?;
 
                     // Apply position offsets
                     let v_scroll = match preview_position.v_scroll {
@@ -664,11 +668,8 @@ impl App {
                 ItemPreview::Global => {
                     let (env, unset) = self.child_env_snapshot();
                     self.preview
-                        .spawn(tui, &self.expand_shell_cmd(preview_opt, quote_cmd), &env, &unset)?;
+                        .spawn(tui, &self.expand_shell_cmd(preview_opt, quote_cmd)?, &env, &unset)?;
                 }
-                ItemPreview::Global => self
-                    .preview
-                    .spawn(tui, &self.expand_shell_cmd(preview_opt, quote_cmd)?)?,
             }
             if preview_ready {
                 let _ = tui.event_tx.try_send(Event::PreviewReady);
@@ -951,7 +952,6 @@ impl App {
         Ok(events)
     }
 
-    #[allow(clippy::too_many_lines)]
     #[allow(clippy::too_many_lines)]
     fn dispatch_action(&mut self, act: &Action) -> Result<Vec<Event>> {
         #[allow(clippy::enum_glob_use)]
@@ -1260,19 +1260,20 @@ impl App {
                 return Ok(self.on_query_changed());
             }
             Redraw => return Ok(vec![Event::Clear]),
-            Reload(Some(s)) => {
+            Reload(cmd) => {
+                let expanded_cmd = match cmd {
+                    Some(cmd) => self.expand_shell_cmd(cmd, true)?,
+                    None => self.cmd.clone(),
+                };
+                let event = self.reload_event(expanded_cmd);
                 self.item_list.clear_selection();
-                return Ok(vec![Event::Reload(self.expand_shell_cmd(s, true)?)]);
-            }
-            Reload(None) => {
-                self.item_list.clear_selection();
-                return Ok(vec![Event::Reload(self.cmd.clone())]);
+                return Ok(vec![event]);
             }
             RefreshCmd => {
                 // Refresh the command (reload in interactive mode)
                 if self.options.interactive {
                     let expanded_cmd = self.expand_shell_cmd(&self.cmd, true)?;
-                    return Ok(vec![Event::Reload(expanded_cmd)]);
+                    return Ok(vec![self.reload_event(expanded_cmd)]);
                 }
             }
             RefreshPreview => {
@@ -1322,9 +1323,10 @@ impl App {
                 // immediately re-run it.
                 self.cmd.clone_from(cmd);
                 self.options.cmd = Some(cmd.clone());
-                self.item_list.clear_selection();
                 let expanded_cmd = self.expand_shell_cmd(cmd, true)?;
-                return Ok(vec![Event::Reload(expanded_cmd)]);
+                let event = self.reload_event(expanded_cmd);
+                self.item_list.clear_selection();
+                return Ok(vec![event]);
             }
             SetHeader(opt_header) => {
                 opt_header.clone_into(&mut self.options.header);
@@ -1567,6 +1569,11 @@ impl App {
             &self.input.value,
             quote_args,
         )
+    }
+
+    fn reload_event(&mut self, cmd: String) -> Event {
+        self.pending_reload_env.push_back(self.child_env_snapshot());
+        Event::Reload(cmd)
     }
 
     /// Environment variables skim exports to its child processes (preview,

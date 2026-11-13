@@ -261,7 +261,7 @@ fn reload_command_sees_the_state_before_the_list_is_cleared() {
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("reload");
     let cmd = format!(
-        "printf '%s|%s' \"$SKIM_CURRENT_ITEM\" \"$SKIM_SELECTED_ITEMS\" > '{}'",
+        "printf '%s|%s|%s|%s' \"$SKIM_CURRENT_ITEM\" \"$SKIM_SELECTED_ITEMS\" \"$SKIM_QUERY\" \"$SKIM_ACTION\" > '{}'",
         log.to_string_lossy().replace('\'', "'\\''")
     );
     let mut skim = started_skim(&["alpha", "beta"]);
@@ -273,9 +273,19 @@ fn reload_command_sees_the_state_before_the_list_is_cleared() {
     ));
     skim.app.item_list.current = 0;
     skim.app.item_list.toggle();
+    let tui = skim.tui.as_mut().unwrap();
+    skim.app
+        .handle_event(tui, &Event::Action(Action::Reload(Some(cmd))))
+        .unwrap();
+    let cmd = loop {
+        if let Event::Reload(cmd) = tui.event_rx.try_recv().unwrap() {
+            break cmd;
+        }
+    };
+    skim.app.input.value = "later".to_string();
     skim.handle_reload(&cmd);
     wait_until(|| std::fs::read_to_string(&log).is_ok_and(|text| !text.is_empty()));
-    assert_eq!(std::fs::read_to_string(&log).unwrap(), "alpha|alpha");
+    assert_eq!(std::fs::read_to_string(&log).unwrap(), "alpha|alpha||reload");
 }
 
 #[test]

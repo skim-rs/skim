@@ -279,7 +279,11 @@ where
         // Export the state that triggered the reload (issue #1195) *before*
         // clearing anything, so the command still sees the focused and
         // selected items and the counts they imply.
-        let (env, unset) = self.app.child_env_snapshot();
+        let (env, unset) = self
+            .app
+            .pending_reload_env
+            .pop_front()
+            .unwrap_or_else(|| self.app.child_env_snapshot());
         // Kill the current reader
         if let Some(rc) = self.reader_control.as_mut() {
             rc.kill();
