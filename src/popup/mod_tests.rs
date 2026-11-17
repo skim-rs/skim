@@ -113,3 +113,60 @@ fn check_env_reflects_multiplexer_availability() {
     let expected = tmux::is_available() || zellij::is_available();
     assert_eq!(check_env(), expected);
 }
+
+// ── PopupLayout::parse ────────────────────────────────────────────────────
+
+fn layout(dir: PopupWindowDir, height: &'static str, width: &'static str) -> PopupLayout<'static> {
+    PopupLayout { dir, height, width }
+}
+
+#[test]
+fn layout_single_size_spans_anchored_edge() {
+    use PopupWindowDir::{Bottom, Center, Left, Right, Top};
+    assert_eq!(PopupLayout::parse("center,40%"), layout(Center, "40%", "40%"));
+    assert_eq!(PopupLayout::parse("top,40%"), layout(Top, "40%", "100%"));
+    assert_eq!(PopupLayout::parse("bottom,40%"), layout(Bottom, "40%", "100%"));
+    assert_eq!(PopupLayout::parse("left,40%"), layout(Left, "100%", "40%"));
+    assert_eq!(PopupLayout::parse("right,40%"), layout(Right, "100%", "40%"));
+}
+
+#[test]
+fn layout_defaults_to_half() {
+    assert_eq!(
+        PopupLayout::parse("bottom"),
+        layout(PopupWindowDir::Bottom, "50%", "100%")
+    );
+}
+
+#[test]
+fn layout_two_sizes_put_anchored_axis_first() {
+    assert_eq!(
+        PopupLayout::parse("top,30%,80%"),
+        layout(PopupWindowDir::Top, "30%", "80%")
+    );
+    assert_eq!(
+        PopupLayout::parse("left,30%,80%"),
+        layout(PopupWindowDir::Left, "80%", "30%")
+    );
+    assert_eq!(
+        PopupLayout::parse("center,30%,80%"),
+        layout(PopupWindowDir::Center, "80%", "30%")
+    );
+}
+
+// ── shell helpers ─────────────────────────────────────────────────────────
+
+#[test]
+fn push_env_assignment_quotes_value() {
+    let mut env = String::new();
+    push_env_assignment(&mut env, "PLAIN", "1");
+    push_env_assignment(&mut env, "SPACED", "a b");
+    assert_eq!(env, " PLAIN=1 SPACED=a' b'");
+}
+
+#[test]
+fn push_quoted_arg_matches_sh_quote() {
+    let mut args = String::new();
+    push_quoted_arg(&mut args, "it's");
+    assert_eq!(args, format!(" {}", sh_quote("it's")));
+}

@@ -1,33 +1,27 @@
 use super::*;
-use crate::options::SkimOptionsBuilder;
-
-fn opts(popup: &str) -> crate::SkimOptions {
-    SkimOptionsBuilder::default()
-        .popup(popup)
-        .build()
-        .expect("valid options")
-}
-
-fn args(popup: &RexPopup) -> Vec<String> {
-    popup.cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect()
-}
+use crate::popup::test_util::{args, opts};
 
 #[test]
 fn always_runs_and_waits() {
-    let a = args(&RexPopup::build(&opts("center")));
+    let a = args(&RexPopup::build(&opts("center")).cmd);
     assert_eq!(&a[..2], ["run", "--wait"]);
 }
 
 #[test]
 fn center_opens_without_split() {
-    let a = args(&RexPopup::build(&opts("center,60%")));
+    let a = args(&RexPopup::build(&opts("center,60%")).cmd);
     assert!(!a.iter().any(|s| s.starts_with("--split") || s.starts_with("--ratio")));
 }
 
 #[test]
 fn directions_map_to_splits() {
-    for (dir, side) in [("top", "above"), ("bottom", "below"), ("left", "left"), ("right", "right")] {
-        let a = args(&RexPopup::build(&opts(&format!("{dir},40%"))));
+    for (dir, side) in [
+        ("top", "above"),
+        ("bottom", "below"),
+        ("left", "left"),
+        ("right", "right"),
+    ] {
+        let a = args(&RexPopup::build(&opts(&format!("{dir},40%"))).cmd);
         assert!(a.contains(&format!("--split={side}")), "{dir}: {a:?}");
         assert!(a.contains(&"--ratio=0.40".to_string()), "{dir}: {a:?}");
     }
@@ -35,14 +29,8 @@ fn directions_map_to_splits() {
 
 #[test]
 fn default_size_is_half() {
-    let a = args(&RexPopup::build(&opts("bottom")));
+    let a = args(&RexPopup::build(&opts("bottom")).cmd);
     assert!(a.contains(&"--ratio=0.50".to_string()));
-}
-
-#[test]
-fn two_sizes_keep_split_axis() {
-    let a = args(&RexPopup::build(&opts("top,30%,80%")));
-    assert!(a.contains(&"--ratio=0.30".to_string()));
 }
 
 #[test]

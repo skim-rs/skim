@@ -5,18 +5,18 @@
 //! status. Rex has no tmux-style transient popup on the CLI, so directional
 //! popups are rendered as a split of the current block (`--split` + `--ratio`)
 //! and a centered popup opens in a new window.
-use super::{PopupWindowDir, SkimPopup};
+use super::{
+    PopupLayout, PopupWindowDir, SkimPopup, current_dir_string, multiplexer_command, multiplexer_detected,
+    push_env_assignment, sh_quote, term_extent,
+};
 use crate::SkimOptions;
 use crate::tui::Size;
 
-use std::fmt::Write as _;
 use std::process::{Command, ExitStatus, Stdio};
 
 /// Rex sets `$REX_SESSION` in every terminal it spawns.
 pub fn is_available() -> bool {
-    cfg!(unix)
-        && std::env::var("REX_SESSION").is_ok_and(|s| !s.is_empty())
-        && which::which("rex").is_ok()
+    cfg!(unix) && multiplexer_detected("REX_SESSION", "rex")
 }
 
 pub(super) struct RexPopup {
@@ -25,17 +25,9 @@ pub(super) struct RexPopup {
     cwd: String,
 }
 
-/// Terminal extent along an axis, read from `$COLUMNS`/`$LINES` with a fallback.
-fn term_extent(var: &str, fallback: u16) -> u16 {
-    std::env::var(var)
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .filter(|&n| n > 0)
-        .unwrap_or(fallback)
-}
-
 /// Convert a popup size to the fraction of the split block given to the popup.
 fn size_to_ratio(size: Size, total: u16) -> f32 {
+    let total = total.max(1);
     let ratio = match size {
         Size::Percent(p) => f32::from(p) / 100.0,
         Size::Fixed(cells) => f32::from(cells) / f32::from(total),
@@ -46,50 +38,36 @@ fn size_to_ratio(size: Size, total: u16) -> f32 {
 
 impl RexPopup {
     fn build(options: &SkimOptions) -> Self {
-        // `is_available` already guarantees rex is on PATH before we reach
-        // here in production; fall back to the bare name so arg-building (and
-        // tests) work even when the binary cannot be resolved.
-        let mut cmd = Command::new(which::which("rex").unwrap_or_else(|_| "rex".into()));
+        let mut cmd = multiplexer_command("rex");
         cmd.arg("run").arg("--wait");
 
-        let arg = options.popup.as_ref().expect("this arg should be present to get here");
-        let (raw_dir, size) = arg.split_once(',').unwrap_or((arg, "50%"));
-        // Only the size along the split axis matters: `top,40%,80%` keeps 40%.
-        let size = size.split_once(',').map_or(size, |(lhs, _)| lhs);
-        let size = Size::try_from(size).unwrap_or(Size::Percent(50));
-
-        let split = match PopupWindowDir::from(raw_dir) {
-            PopupWindowDir::Top => Some(("above", term_extent("LINES", 24))),
-            PopupWindowDir::Bottom => Some(("below", term_extent("LINES", 24))),
-            PopupWindowDir::Left => Some(("left", term_extent("COLUMNS", 80))),
-            PopupWindowDir::Right => Some(("right", term_extent("COLUMNS", 80))),
+        let PopupLayout { dir, height, width } = PopupLayout::from_options(options);
+        // Only the size along the split axis matters.
+        let split = match dir {
+            PopupWindowDir::Top => Some(("above", height, "ROWS")),
+            PopupWindowDir::Bottom => Some(("below", height, "ROWS")),
+            PopupWindowDir::Left => Some(("left", width, "COLUMNS")),
+            PopupWindowDir::Right => Some(("right", width, "COLUMNS")),
             // No floating layer on the CLI: a centered popup gets its own window
             PopupWindowDir::Center => None,
         };
-        if let Some((side, total)) = split {
+        if let Some((side, size, extent_var)) = split {
+            let size = Size::try_from(size).unwrap_or(Size::Percent(50));
             cmd.arg(format!("--split={side}"))
-                .arg(format!("--ratio={:.2}", size_to_ratio(size, total)));
+                .arg(format!("--ratio={:.2}", size_to_ratio(size, term_extent(extent_var))));
         }
 
         Self {
             cmd,
             env: String::new(),
-            cwd: std::env::current_dir()
-                .ok()
-                .map_or(".".to_string(), |d| d.to_string_lossy().to_string()),
+            cwd: current_dir_string(),
         }
     }
-}
 
-impl RexPopup {
     /// The shell script run in the new block. Its cwd and env are not
     /// guaranteed to be ours, so both are set in the script itself.
     fn script(&self, command: &str) -> String {
-        format!(
-            "cd {} &&{} {command}",
-            String::from_utf8_lossy(&shell_quote::Sh::quote_vec(&self.cwd)),
-            self.env
-        )
+        format!("cd {} &&{} {command}", sh_quote(&self.cwd), self.env)
     }
 }
 
@@ -99,11 +77,7 @@ impl SkimPopup for RexPopup {
     }
 
     fn add_env(&mut self, key: &str, value: &str) {
-        let _ = write!(
-            self.env,
-            " {key}={}",
-            String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value))
-        );
+        push_env_assignment(&mut self.env, key, value);
     }
 
     fn run_and_wait(&mut self, command: &str) -> std::io::Result<ExitStatus> {

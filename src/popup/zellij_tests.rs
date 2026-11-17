@@ -1,26 +1,5 @@
 use super::*;
-use crate::options::SkimOptionsBuilder;
-
-fn opts(popup: &str) -> crate::SkimOptions {
-    SkimOptionsBuilder::default()
-        .popup(popup)
-        .build()
-        .expect("valid options")
-}
-
-fn opts_with_name(popup: &str, label: &str) -> crate::SkimOptions {
-    let mut opts = opts(popup);
-    opts.popup_name = Some(label.to_string());
-    opts
-}
-
-fn args(popup: &ZellijPopup) -> Vec<String> {
-    popup.cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect()
-}
-
-fn get_flag<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
-    args.windows(2).find(|w| w[0] == flag).map(|w| w[1].as_str())
-}
+use crate::popup::test_util::{args, get_flag, opts, opts_with_border, opts_with_name};
 
 // ── middle_coord ────────────────────────────────────────────────────────
 // Tests that mutate COLUMNS are annotated with #[serial] so they never run
@@ -88,7 +67,7 @@ fn align_end_coord_fixed_uses_env_var() {
 #[test]
 fn center_default_size() {
     let popup = ZellijPopup::build(&opts("center"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert_eq!(get_flag(&a, "--height"), Some("50%"));
     assert_eq!(get_flag(&a, "--width"), Some("50%"));
 }
@@ -96,7 +75,7 @@ fn center_default_size() {
 #[test]
 fn top_direction() {
     let popup = ZellijPopup::build(&opts("top,40%"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert_eq!(get_flag(&a, "--height"), Some("40%"));
     assert_eq!(get_flag(&a, "--width"), Some("100%"));
     assert_eq!(get_flag(&a, "-y"), Some("0"));
@@ -105,7 +84,7 @@ fn top_direction() {
 #[test]
 fn left_direction() {
     let popup = ZellijPopup::build(&opts("left,30%"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert_eq!(get_flag(&a, "--width"), Some("30%"));
     assert_eq!(get_flag(&a, "-x"), Some("0"));
 }
@@ -116,7 +95,7 @@ fn right_direction() {
     // SAFETY: serialised by #[serial]; no concurrent reads of COLUMNS.
     unsafe { std::env::set_var("COLUMNS", "80") };
     let popup = ZellijPopup::build(&opts("right,25%"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     // width = 25%, x = align_end_coord(25%, "COLUMNS") = 75%
     assert_eq!(get_flag(&a, "--width"), Some("25%"));
     assert_eq!(get_flag(&a, "-x"), Some("75%"));
@@ -129,7 +108,7 @@ fn bottom_direction() {
     // SAFETY: serialised by #[serial]; no concurrent reads of ROWS.
     unsafe { std::env::set_var("ROWS", "40") };
     let popup = ZellijPopup::build(&opts("bottom,25%"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert_eq!(get_flag(&a, "--height"), Some("25%"));
     assert_eq!(get_flag(&a, "--width"), Some("100%"));
     // y = align_end_coord(25%, "ROWS") = 75%
@@ -141,7 +120,7 @@ fn bottom_direction() {
 fn explicit_height_and_width() {
     // Two comma-separated sizes give explicit height,width per direction.
     let popup = ZellijPopup::build(&opts("center,40%,30%"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     // Center: (height, width) = (rhs, lhs) = (30%, 40%)
     assert_eq!(get_flag(&a, "--height"), Some("30%"));
     assert_eq!(get_flag(&a, "--width"), Some("40%"));
@@ -156,25 +135,20 @@ fn from_options_builds_popup() {
 #[test]
 fn borderless_when_no_border_option() {
     let popup = ZellijPopup::build(
-        &SkimOptionsBuilder::default()
+        &crate::options::SkimOptionsBuilder::default()
             .popup("center")
             .no_border(true)
             .build()
             .unwrap(),
     );
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert!(a.contains(&"--borderless".to_string()));
 }
 
 #[test]
 fn no_borderless_when_border_set() {
-    let opts = SkimOptionsBuilder::default()
-        .popup("center")
-        .border(crate::tui::BorderType::Plain)
-        .build()
-        .expect("valid options");
-    let popup = ZellijPopup::build(&opts);
-    let a = args(&popup);
+    let popup = ZellijPopup::build(&opts_with_border("center", crate::tui::BorderType::Plain));
+    let a = args(&popup.cmd);
     assert!(!a.contains(&"--borderless".to_string()));
 }
 
@@ -189,13 +163,13 @@ fn add_env_appends_to_env_string() {
 #[test]
 fn default_pane_name_is_skim() {
     let popup = ZellijPopup::build(&opts("center"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert_eq!(get_flag(&a, "--name"), Some("skim"));
 }
 
 #[test]
 fn pane_name_from_popup_name() {
     let popup = ZellijPopup::build(&opts_with_name("center", "Command history"));
-    let a = args(&popup);
+    let a = args(&popup.cmd);
     assert_eq!(get_flag(&a, "--name"), Some("Command history"));
 }
