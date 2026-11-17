@@ -989,7 +989,6 @@ pub struct SkimOptions {
     /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
     /// Note: this will try to detect a Zellij session, then a Tmux session, then a Rex session
     /// This means that in nested sessions, `skim` will prioritize Zellij over Tmux over Rex
-    /// In Rex, directional popups split the current block and `center` opens a new window
     ///
     /// The popup pane is named after `--popup-name` (default: `skim`).
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]

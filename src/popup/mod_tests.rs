@@ -33,6 +33,24 @@ fn popup_name_uses_configured_name() {
     assert_eq!(popup_name(&opts), "Command history");
 }
 
+#[test]
+fn popup_forwards_color_settings_but_not_terminal_identity() {
+    for name in [
+        "SKIM_DEFAULT_COMMAND",
+        "SKIM_DEFAULT_OPTIONS",
+        "RUST_LOG",
+        "PATH",
+        "LS_COLORS",
+        "COLORTERM",
+        "NO_COLOR",
+    ] {
+        assert!(should_forward_env(name), "{name}");
+    }
+    for name in ["TERM", "REX_BLOCK", "REX_SESSION", "UNRELATED", "LS_COLORS_EXTRA"] {
+        assert!(!should_forward_env(name), "{name}");
+    }
+}
+
 // ── sanitize_value ────────────────────────────────────────────────────────
 
 #[test]

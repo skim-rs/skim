@@ -302,7 +302,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
     };
 
     for (name, value) in std::env::vars() {
-        if name.starts_with("SKIM") || name == "PATH" || name.starts_with("RUST") {
+        if should_forward_env(&name) {
             let value = sanitize_value(value);
             debug!("adding {name} = {value} to the command's env");
             popup.add_env(&name, &value);
@@ -399,6 +399,12 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 
 fn push_quoted_arg(args_str: &mut String, arg: &str) {
     let _ = write!(args_str, " {}", sh_quote(arg));
+}
+
+fn should_forward_env(name: &str) -> bool {
+    name.starts_with("SKIM")
+        || name.starts_with("RUST")
+        || matches!(name, "PATH" | "LS_COLORS" | "COLORTERM" | "NO_COLOR")
 }
 
 fn sanitize_value(value: String) -> String {

@@ -624,7 +624,7 @@ fn opt_exit_0() -> std::io::Result<()> {
         .stdin(std::process::Stdio::null())
         .output()?;
     assert_eq!(res.status.code(), Some(1));
-    assert_eq!(res.stdout, &[]);
+    assert!(res.stdout.is_empty());
     Ok(())
 }
 
@@ -640,7 +640,7 @@ fn opt_exit_0_windows() -> std::io::Result<()> {
         .stdin(std::process::Stdio::null())
         .output()?;
     assert_eq!(res.status.code(), Some(1));
-    assert_eq!(res.stdout, &[]);
+    assert!(res.stdout.is_empty());
     Ok(())
 }
 

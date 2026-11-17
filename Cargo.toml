@@ -96,6 +96,7 @@ regex = "1.12.3"
 roff = { version = "1.1.1", optional = true }
 ron = { version = "0.12.1", optional = true }
 serde = { version = "1.0.228", features = ["derive"], optional = true }
+serde_json = "=1.0.154"
 shell-quote = "0.8.0"
 shlex = { version = "2.0.1", optional = true }
 tempfile = "3.27.0"
@@ -113,7 +114,6 @@ criterion = { version = "0.8.2", features = ["async_tokio"] }
 gnuplot = "0.0.46"
 insta = "1.47"
 rand = "0.10.0"
-serde_json = { version = "=1.0.154" }
 serial_test = "=3.5.0"
 shlex = "2.0.1"
 
