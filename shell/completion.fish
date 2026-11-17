@@ -90,7 +90,7 @@ power-shell\t'PowerShell'
 zsh\t'Zsh'"
 complete -c sk -l listen -d 'Run an IPC socket with optional name (defaults to sk)' -r
 complete -c sk -l remote -d 'Send commands to an IPC socket with optional name (defaults to sk)' -r
-complete -c sk -l popup -d 'Run in a tmux or zellij popup' -r
+complete -c sk -l popup -d 'Run in a tmux, zellij or rex popup' -r
 complete -c sk -l popup-name -d 'Name of the popup pane (Zellij) / title of the popup (tmux)' -r
 complete -c sk -l log-level -d 'Set the log level' -r
 complete -c sk -l log-file -d 'Pipe log output to a file' -r
