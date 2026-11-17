@@ -984,11 +984,11 @@ pub struct SkimOptions {
     #[cfg_attr(feature = "cli", arg(long, help_heading = "Scripting", default_missing_value = "sk", num_args=0..))]
     pub remote: Option<String>,
 
-    /// Run in a tmux or zellij popup
+    /// Run in a tmux, zellij or rex popup
     ///
     /// Format: `sk --popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
-    /// Note: this will try to detect a Zellij session, then a Tmux session
-    /// This means that in nested sessions, `skim` will prioritize Zellij over Tmux
+    /// Note: this will try to detect a Zellij session, then a Tmux session, then a Rex session
+    /// This means that in nested sessions, `skim` will prioritize Zellij over Tmux over Rex
     ///
     /// The popup pane is named after `--popup-name` (default: `skim`).
     #[cfg_attr(feature = "cli", arg(long, verbatim_doc_comment, help_heading = "Display", default_missing_value = "center,50%", num_args=0.., alias = "tmux"))]

@@ -104,7 +104,7 @@ power-shell\:"PowerShell"
 zsh\:"Zsh"))' \
 '--listen=[Run an IPC socket with optional name (defaults to sk)]::LISTEN:_default' \
 '--remote=[Send commands to an IPC socket with optional name (defaults to sk)]::REMOTE:_default' \
-'--popup=[Run in a tmux or zellij popup]::POPUP:_default' \
+'--popup=[Run in a tmux, zellij or rex popup]::POPUP:_default' \
 '--popup-name=[Name of the popup pane (Zellij) / title of the popup (tmux)]:POPUP_NAME:_default' \
 '--log-level=[Set the log level]:LOG_LEVEL:_default' \
 '--log-file=[Pipe log output to a file]:LOG_FILE:_default' \

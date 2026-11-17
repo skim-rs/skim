@@ -105,8 +105,10 @@ skim/                  ← workspace root
 │   ├── field.rs       ← field range parsing (--nth / --with-nth / --hide-nth)
 │   ├── spinlock.rs    ← lightweight SpinLock<T>
 │   ├── util.rs        ← printf helper, misc utilities
-│   ├── popup/         ← tmux & zellij popup integration
-│   │   ├── mod.rs           ← SkimPopup trait, run_with(), check_env(), SkimPopupOutput
+│   ├── popup/         ← tmux, zellij & rex popup integration
+│   │   ├── mod.rs           ← SkimPopup trait, run_with(), check_env(), SkimPopupOutput, PopupLayout + shared backend helpers
+│   │   ├── rex.rs           ← RexPopup (API floating layers/splits, wait and close)
+│   │   ├── test_util.rs     ← option/arg helpers shared by the backends' unit tests
 │   │   ├── tmux.rs          ← TmuxPopup (builds/runs tmux display-popup)
 │   │   └── zellij.rs        ← ZellijPopup (builds/runs zellij run --floating)
 │   ├── prelude.rs     ← convenience re-exports
@@ -391,24 +393,25 @@ When `--popup [direction[,size[,size]]]` (alias `--tmux`) is set, the binary cal
 **`check_env()`** returns `true` only when:
 
 - `$_SKIM_POPUP` is **not** set in the environment (prevents the child process from recursing back into popup mode), and
-- at least one supported multiplexer is detected: tmux (`$TMUX` set) or Zellij (`$ZELLIJ` set).
+- at least one supported multiplexer is detected: tmux (`$TMUX` set), Zellij (`$ZELLIJ` set) or Rex (`$REX_SESSION` set).
 
 The popup flow:
 
 1. Creates a temp directory for IPC (`/tmp/sk-popup-XXXXXXXX/`).
 2. If stdin is piped, creates a named FIFO (`tmp_stdin`) and spawns a thread to relay stdin into it incrementally so the child can stream-read.
 3. Reconstructs the `sk` command line from `std::env::args()`, shell-quotes every retained argument, strips `--popup`/`--tmux`, `--output-format`, and `--print-cmd`, then appends `--print-query --print-header --print-current --print-score`.
-4. Forwards all `SKIM_*`, `RUST*`, and `PATH` environment variables to the child via the multiplexer's `-e` flag, **plus `_SKIM_POPUP=1`** to prevent re-entry.
+4. Forwards all `SKIM_*`, `RUST*`, `PATH`, and the color settings `LS_COLORS`, `COLORTERM`, and `NO_COLOR` to the child via the multiplexer's `-e` flag (Zellij and Rex: `KEY=value` prefixes in the shell command), **plus `_SKIM_POPUP=1`** to prevent re-entry. `TERM` stays under the multiplexer's control.
 5. Launches the popup via the appropriate backend:
    - **tmux**: `tmux display-popup -E … sh -c <cmd> > stdout_file`
    - **Zellij**: `zellij run --floating --name <name> … -- sh -c <cmd> > stdout_file`
+   - **Rex**: `rex api call --session <REX_SESSION> session.new_layer <JSON>` creates a centered floating pane; `session.new_split` creates directional panes, anchored to `$REX_BLOCK` when set. Layer bounds are `[x, y, width, height]` fractions; split ratios describe the before part, so bottom/right invert the requested fraction. Fixed sizes are divided by `$ROWS`/`$COLUMNS`. The layout starts `sh -c 'cd <cwd> && <env> <cmd> > stdout_file'` with `shell: none` and `exit.on_completion: false`. Keeping the terminal open prevents a fast exit from losing its status before `rex wait --session <REX_SESSION> <block_id>` starts. After the wait, `rex api call … block.close` removes the pane, including on abort or wait failure. API errors are returned to the caller; an already closed pane is allowed during cleanup. `--popup-name` and borders are not applied.
 
    Library callers can set the popup name with `SkimOptionsBuilder::popup_name`.
    The popup pane is named from `--popup-name` (alias `--border-label`, kept for fzf compatibility), matching how fzf names its Zellij pane and tmux popup. Zellij always passes `--name` (defaulting to `skim`); tmux passes `-T <name>` only when a name is set, so untitled popups and tmux < 3.4 keep working. The shipped shell key bindings name the popup by purpose (`skim: files`, `skim: command history`, `skim: directories`), so a popup identifies itself.
 6. Waits for the popup process to exit.
 7. Parses the structured stdout file (`query\nheader\ncurrent_item\nitem1\nscore1\n…`) into a synthetic `SkimOutput`; `cmd` is reconstructed from the parent options because `--print-cmd` is deliberately stripped.
 
-The internal `SkimPopup` trait abstracts the two multiplexer backends:
+The internal `SkimPopup` trait abstracts the multiplexer backends:
 
 ```rust
 trait SkimPopup {
@@ -418,11 +421,11 @@ trait SkimPopup {
 }
 ```
 
-`TmuxPopup` and `ZellijPopup` each implement this trait. The active backend is selected at runtime: Zellij takes priority if both are available.
+`TmuxPopup`, `ZellijPopup` and `RexPopup` each implement this trait. They share helpers from `popup/mod.rs` rather than re-implementing them: `PopupLayout::parse` turns the `--popup` value into a direction plus raw height/width strings (each backend converts them to its own syntax), `multiplexer_detected`/`multiplexer_command` detect and resolve the binary, `current_dir_string`, `term_extent` (`$COLUMNS`/`$ROWS`, default 80), and `sh_quote`/`push_env_assignment` for building `sh -c` commands. Their unit tests share `popup/test_util.rs`. The active backend is selected at runtime, innermost-first: Zellij, then tmux, then Rex (Rex is usually the outer terminal when nested).
 
 The child `sk` process runs fully independently inside the popup. The parent reads back a synthetic `SkimOutput` from the captured file. Because `_SKIM_POPUP=1` is set in the child's environment, `check_env()` returns `false` in the child, so it runs as a normal interactive skim session regardless of what `SKIM_DEFAULT_OPTIONS` contains. The stdin relay thread stops when the popup exits, avoiding broken-pipe noise if the child closes its FIFO early.
 
-**Key files:** `src/popup/mod.rs` (`run_with`, `check_env`), `src/popup/tmux.rs` (`TmuxPopup`), `src/popup/zellij.rs` (`ZellijPopup`), `src/bin/main.rs` (`check_and_run_popup`)
+**Key files:** `src/popup/mod.rs` (`run_with`, `check_env`), `src/popup/tmux.rs` (`TmuxPopup`), `src/popup/zellij.rs` (`ZellijPopup`), `src/popup/rex.rs` (`RexPopup`), `src/bin/main.rs` (`check_and_run_popup`)
 
 ---
 
