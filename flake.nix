@@ -60,7 +60,7 @@
               cargo-binstall
             ];
             hook = ''
-              command -v hk >/dev/null 2>&1 || cargo binstall hk@2.13.0
+              command -v hk >/dev/null 2>&1 && hk install -q || true
             '';
           };
           gungraun = {
