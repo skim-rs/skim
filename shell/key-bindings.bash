@@ -17,7 +17,7 @@ __skim_select__() {
     -o -type f -print \
     -o -type d -print \
     -o -type l -print 2> /dev/null | cut -b3-"}"
-	eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS" $(__skimcmd) --popup-name='skim: files' -m "$@" | while read -r item; do
+	eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_CTRL_T_OPTS" "$(__skimcmd)" --popup-name='skim: files' -m "$@" | while read -r item; do
 		printf '%q ' "$item"
 	done
 	echo
@@ -26,7 +26,7 @@ __skim_select__() {
 if [[ $- =~ i ]]; then
 
 	__skimcmd() {
-		[ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; } &&
+		[ "$TMUX_PANE" != "" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ "$SKIM_TMUX_OPTS" != "" ]; } &&
 			echo "sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}}" || echo "sk"
 	}
 
@@ -40,8 +40,8 @@ if [[ $- =~ i ]]; then
 		local cmd dir
 		cmd="${SKIM_ALT_C_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
     -o -type d -printf '%P\\n' 2>/dev/null"}"
-		dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" $(__skimcmd) --popup-name='skim: directories' --no-multi)
-		if [ -n "$dir" ]; then
+		dir=$(eval "$cmd" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_ALT_C_OPTS" "$(__skimcmd)" --popup-name='skim: directories' --no-multi)
+		if [ "$dir" != "" ]; then
 		  printf 'cd %q' "$dir"
 		fi
 	}
@@ -65,11 +65,11 @@ if [[ $- =~ i ]]; then
         { cmd = cmd "\n" $0 }
         END { if (cmd != "" && !seen[cmd]++) printf "%s%d%s\t%s%c", c_idx, HISTCMD - idx, c_reset, cmd, 0 }
       ' |
-				SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n2..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0 --multiline $ansi_opt" $(__skimcmd) --popup-name='skim: command history' --query "$READLINE_LINE"
+				SKIM_DEFAULT_OPTIONS="$SKIM_DEFAULT_OPTIONS -n2..,.. --bind=ctrl-r:toggle-sort $SKIM_CTRL_R_OPTS --no-multi --read0 --multiline $ansi_opt" "$(__skimcmd)" --popup-name='skim: command history' --query "$READLINE_LINE"
 		) || return
 		echo -e "\033[0m"
 		READLINE_LINE=${output#*$'\t'}
-		if [ -z "$READLINE_POINT" ]; then
+		if [ "$READLINE_POINT" = "" ]; then
 			echo "$READLINE_LINE"
 		else
 			READLINE_POINT=0x7fffffff
@@ -134,12 +134,12 @@ if [[ $- =~ i ]]; then
 	__skim_comprun() {
 		if [ "$(type -t _skim_comprun 2>&1)" = function ]; then
 			_skim_comprun "$@"
-		elif [ -n "$TMUX_PANE" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ -n "$SKIM_TMUX_OPTS" ]; }; then
+		elif [ "$TMUX_PANE" != "" ] && { [ "${SKIM_TMUX:-0}" != 0 ] || [ "$SKIM_TMUX_OPTS" != "" ]; }; then
 			# Name the popup after the command being completed, when known.
 			local name="$1" name_opt=()
 			shift
-			[ -n "$name" ] && name_opt=(--popup-name="skim: $name")
-			sk --tmux=${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}} "${name_opt[@]}" "$@"
+			[ "$name" != "" ] && name_opt=(--popup-name="skim: $name")
+			sk --tmux="${SKIM_TMUX_OPTS:-center,${SKIM_TMUX_HEIGHT:-40%}}" "${name_opt[@]}" "$@"
 		else
 			shift
 			sk "$@"
@@ -158,9 +158,9 @@ if [[ $- =~ i ]]; then
 		orig_cmd="$1"
 		orig_var="_skim_orig_completion_$cmd"
 		orig="${!orig_var##*#}"
-		if [ -n "$orig" ] && type "$orig" >/dev/null 2>&1; then
-			$orig "$@"
-		elif [ -n "$_skim_completion_loader" ]; then
+		if [ "$orig" != "" ] && type "$orig" >/dev/null 2>&1; then
+			"$orig" "$@"
+		elif [ "$_skim_completion_loader" != "" ]; then
 			orig_complete=$(complete -p "$orig_cmd" 2>/dev/null)
 			_completion_loader "$@"
 			ret=$?
@@ -173,7 +173,7 @@ if [[ $- =~ i ]]; then
 					eval "$orig_complete"
 				fi
 			fi
-			return $ret
+			return "$ret"
 		fi
 	}
 
@@ -189,17 +189,17 @@ if [[ $- =~ i ]]; then
 
 			[[ $base = *"/"* ]] && dir="$base"
 			while true; do
-				if [ -z "$dir" ] || [ -d "$dir" ]; then
+				if [ "$dir" = "" ] || [ -d "$dir" ]; then
 					leftover=${base/#"$dir"/}
 					leftover=${leftover/#\//}
-					[ -z "$dir" ] && dir='.'
+					[ "$dir" = "" ] && dir='.'
 					[ "$dir" != "/" ] && dir="${dir/%\//}"
 					matches=$(eval "$1 $(printf %q "$dir")" | SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $2" __skim_comprun "$4" -q "$leftover" | while read -r item; do
 						printf "%q$3 " "$item"
 					done)
 					matches=${matches% }
 					[[ -z "$3" ]] && [[ "$__skim_nospace_commands" = *" ${COMP_WORDS[0]} "* ]] && matches="$matches "
-					if [ -n "$matches" ]; then
+					if [ "$matches" != "" ]; then
 						COMPREPLY=("$matches")
 					else
 						COMPREPLY=("$cur")
@@ -252,9 +252,9 @@ if [[ $- =~ i ]]; then
 		if [[ "$cur" == *"$trigger" ]]; then
 			cur=${cur:0:${#cur}-${#trigger}}
 
-			selected=$(SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $str_arg" __skim_comprun "${rest[0]}" "${args[@]}" -q "$cur" | $post | tr '\n' ' ')
+			selected=$(SKIM_DEFAULT_OPTIONS="--reverse $SKIM_DEFAULT_OPTIONS $SKIM_COMPLETION_OPTS $str_arg" __skim_comprun "${rest[0]}" "${args[@]}" -q "$cur" | "$post" | tr '\n' ' ')
 			selected=${selected% } # Strip trailing space not to repeat "-o nospace"
-			if [ -n "$selected" ]; then
+			if [ "$selected" != "" ]; then
 				COMPREPLY=("$selected")
 			else
 				COMPREPLY=("$cur")
@@ -338,7 +338,7 @@ if [[ $- =~ i ]]; then
 
 	# Preserve existing completion
 	eval "$(complete |
-		sed -E '/-F/!d; / _skim/d; '"/ ($(echo $d_cmds $a_cmds | sed 's/ /|/g; s/+/\\+/g'))$/"'!d' |
+		sed -E '/-F/!d; / _skim/d; '"/ ($(echo "$d_cmds" "$a_cmds" | sed 's/ /|/g; s/+/\\+/g'))$/"'!d' |
 		__skim_orig_completion_filter)"
 
 	if type _completion_loader >/dev/null 2>&1; then
@@ -352,21 +352,21 @@ if [[ $- =~ i ]]; then
 		opts="$3"
 		orig_var="_skim_orig_completion_${cmd//[^A-Za-z0-9_]/_}"
 		orig="${!orig_var}"
-		if [ -n "$orig" ]; then
+		if [ "$orig" != "" ]; then
 			printf -v def "$orig" "$func"
 			eval "$def"
 		else
-			complete -F "$func" $opts "$cmd"
+			complete -F "$func" "$opts" "$cmd"
 		fi
 	}
 
 	# Anything
-	for cmd in $a_cmds; do
+	for cmd in "${a_cmds[@]}"; do
 		__skim_defc "$cmd" _skim_path_completion "-o default -o bashdefault"
 	done
 
 	# Directory
-	for cmd in $d_cmds; do
+	for cmd in "${d_cmds[@]}"; do
 		__skim_defc "$cmd" _skim_dir_completion "-o nospace -o dirnames"
 	done
 

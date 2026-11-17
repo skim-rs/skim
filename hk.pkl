@@ -1,0 +1,30 @@
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Builtins.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
+
+local linters = new Mapping {
+    ["trailing_whitespace"] = (Builtins.trailing_whitespace) {
+      exclude = List("wix/", "man/", ".github/ISSUE_TEMPLATE/", ".github/pull_request_template.md")
+    }
+    ["merge_conflicts"] = Builtins.check_merge_conflict
+    ["actionlint"] = (Builtins.actionlint) {
+      exclude = List(".github/workflows/release.yml")
+    }
+    ["cargo_clippy"] = Builtins.cargo_clippy
+    ["cargo_fmt"] = new Step {
+      glob = List("**/*.rs", "**/rustfmt.toml", "**/.rustfmt.toml")
+      check = "cargo +nightly fmt --check"
+      check_list_files = "cargo +nightly fmt --check -- --files-with-diff"
+      fix = "cargo +nightly fmt"
+    }
+    ["just_format"] = Builtins.just_format
+    ["shellharden"] = (Builtins.shellharden) {
+      exclude = List("shell/completion.*")
+    }
+    // ["zizmor"] = (Builtins.zizmor) { // readd once support for YAML anchors get better
+    //   exclude = List(".github/workflows/release.yml")
+    // }
+
+}
+
+steps = linters

@@ -47,6 +47,8 @@
             llvm
             cargo-bloat
             cargo-public-api
+            actionlint
+            zizmor
           ];
           gungraun = with pkgs; [
             valgrind
@@ -72,9 +74,8 @@
             pkgs.mkShell {
               inherit packages;
               shellHook = ''
-                echo "Making sure the rust toolchains are available"
-                ${lib.getExe pkgs.rustup} -q install --no-update --no-self-update
-                ${lib.getExe pkgs.rustup} -q install --no-update --no-self-update nightly
+                ${lib.getExe pkgs.rustup} -q install --no-update --no-self-update >/dev/null
+                ${lib.getExe pkgs.rustup} -q install --no-update --no-self-update nightly >/dev/null # Keep stderr
                 ${shellHook}
               '';
             };

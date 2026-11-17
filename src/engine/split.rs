@@ -11,7 +11,7 @@ use std::fmt::{Display, Error, Formatter};
 pub struct SplitMatchEngine {
     /// The engine to match the "before delimiter" part
     before_engine: Box<dyn MatchEngine>,
-    /// The engine to match the "after delimiter" part  
+    /// The engine to match the "after delimiter" part
     after_engine: Box<dyn MatchEngine>,
     /// The delimiter character used for splitting
     delimiter: char,
