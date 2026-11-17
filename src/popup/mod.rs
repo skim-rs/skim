@@ -1,8 +1,9 @@
-//! Tmux & Zellij integration utilities.
+//! Tmux, Zellij & Rex integration utilities.
 //!
-//! This module provides functionality for running skim within tmux/zellij panes,
-//! allowing skim to be used as a tmux popup or split pane.
+//! This module provides functionality for running skim within tmux/zellij/rex panes,
+//! allowing skim to be used as a popup or split pane.
 
+mod rex;
 mod tmux;
 mod zellij;
 
@@ -23,6 +24,7 @@ use crate::tui::Event;
 use crate::tui::actions::Action;
 use crate::{Rank, SkimItem, SkimOptions, SkimOutput};
 
+use rex::RexPopup;
 use tmux::TmuxPopup;
 use zellij::ZellijPopup;
 
@@ -81,7 +83,7 @@ impl SkimItem for SkimPopupOutput {
 /// (`$_SKIM_POPUP`)
 #[must_use]
 pub fn check_env() -> bool {
-    std::env::var("_SKIM_POPUP").is_err() && (tmux::is_available() || zellij::is_available())
+    std::env::var("_SKIM_POPUP").is_err() && (tmux::is_available() || zellij::is_available() || rex::is_available())
 }
 
 /// Run skim in a tmux popup
@@ -211,6 +213,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         ZellijPopup::from_options(opts)
     } else if tmux::is_available() {
         TmuxPopup::from_options(opts)
+    } else if rex::is_available() {
+        RexPopup::from_options(opts)
     } else {
         panic!("You shouldn't have been able to get here");
     };

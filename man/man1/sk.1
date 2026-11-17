@@ -501,11 +501,12 @@ The value is used as the indicator
 Disable the scrollbar in the item list
 .TP
 \fB\-\-popup\fR [\fI<POPUP>...\fR]
-Run in a tmux or zellij popup
+Run in a tmux, zellij or rex popup
 
 Format: `sk \-\-popup <center|top|bottom|left|right>[,SIZE[%]][,SIZE[%]]`
-Note: this will try to detect a Zellij session, then a Tmux session
-This means that in nested sessions, `skim` will prioritize Zellij over Tmux
+Note: this will try to detect a Zellij session, then a Tmux session, then a Rex session
+This means that in nested sessions, `skim` will prioritize Zellij over Tmux over Rex
+In Rex, directional popups split the current block and `center` opens a new window
 
 The popup pane is named after `\-\-popup\-name` (default: `skim`).
 .TP
