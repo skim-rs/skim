@@ -4,13 +4,15 @@
 //! allowing skim to be used as a popup or split pane.
 
 mod rex;
+#[cfg(test)]
+mod test_util;
 mod tmux;
 mod zellij;
 
 use std::borrow::Cow;
 use std::fmt::Write as FmtWrite;
 use std::io::{BufRead as _, BufReader, BufWriter, IsTerminal as _, Write as _};
-use std::process::ExitStatus;
+use std::process::{Command, ExitStatus};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -46,6 +48,86 @@ const DEFAULT_POPUP_NAME: &str = "skim";
 /// [`DEFAULT_POPUP_NAME`]; tmux only gets a title when one is set.
 fn popup_name(options: &SkimOptions) -> &str {
     options.popup_name.as_deref().unwrap_or(DEFAULT_POPUP_NAME)
+}
+
+/// Placement of the popup, parsed from `--popup <dir>[,SIZE[,SIZE]]`.
+///
+/// Sizes stay unparsed so each backend can convert them to its own syntax.
+/// With a single size, the popup spans the whole edge it is anchored to
+/// (`100%`); a centered popup uses that size on both axes. With two sizes,
+/// the first is the size along the anchored axis (height for top/bottom,
+/// width otherwise).
+#[derive(Debug, PartialEq, Eq)]
+struct PopupLayout<'a> {
+    dir: PopupWindowDir,
+    height: &'a str,
+    width: &'a str,
+}
+
+impl<'a> PopupLayout<'a> {
+    fn parse(arg: &'a str) -> Self {
+        let (raw_dir, size) = arg.split_once(',').unwrap_or((arg, "50%"));
+        let dir = PopupWindowDir::from(raw_dir);
+        let (height, width) = if let Some((lhs, rhs)) = size.split_once(',') {
+            match dir {
+                PopupWindowDir::Center | PopupWindowDir::Left | PopupWindowDir::Right => (rhs, lhs),
+                PopupWindowDir::Top | PopupWindowDir::Bottom => (lhs, rhs),
+            }
+        } else {
+            match dir {
+                PopupWindowDir::Left | PopupWindowDir::Right => ("100%", size),
+                PopupWindowDir::Top | PopupWindowDir::Bottom => (size, "100%"),
+                PopupWindowDir::Center => (size, size),
+            }
+        };
+        Self { dir, height, width }
+    }
+
+    /// The layout requested by `--popup`, which must be set to get here.
+    fn from_options(options: &'a SkimOptions) -> Self {
+        Self::parse(
+            options
+                .popup
+                .as_deref()
+                .expect("this arg should be present to get here"),
+        )
+    }
+}
+
+/// Whether we run inside the multiplexer that sets `env_var`, with `bin` on PATH.
+fn multiplexer_detected(env_var: &str, bin: &str) -> bool {
+    std::env::var(env_var).is_ok_and(|v| !v.is_empty()) && which::which(bin).is_ok()
+}
+
+/// A command running the multiplexer binary `bin`.
+///
+/// `is_available` already guarantees the binary is on PATH before we reach
+/// here in production; fall back to the bare name so arg-building (and tests)
+/// work even when the binary cannot be resolved.
+fn multiplexer_command(bin: &str) -> Command {
+    Command::new(which::which(bin).unwrap_or_else(|_| bin.into()))
+}
+
+/// The current directory as a string, `.` if it cannot be read.
+fn current_dir_string() -> String {
+    std::env::current_dir()
+        .ok()
+        .map_or(".".to_string(), |d| d.to_string_lossy().to_string())
+}
+
+/// Terminal extent read from `var` (e.g. `COLUMNS`), falling back to 80 cells.
+fn term_extent(var: &str) -> u16 {
+    std::env::var(var).map_or(80u16, |s| s.parse().unwrap_or(80))
+}
+
+/// Quote `value` for a POSIX shell.
+fn sh_quote(value: &str) -> String {
+    String::from_utf8_lossy(&shell_quote::Sh::quote_vec(value)).into_owned()
+}
+
+/// Append a ` KEY=value` assignment, shell-quoted, to an env prefix for `sh -c`.
+fn push_env_assignment(env: &mut String, key: &str, value: &str) {
+    let _ = write!(env, " {key}={}", sh_quote(value));
 }
 
 impl From<&str> for PopupWindowDir {
@@ -316,12 +398,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
 }
 
 fn push_quoted_arg(args_str: &mut String, arg: &str) {
-    use shell_quote::{Quote as _, Sh};
-    let _ = write!(
-        args_str,
-        " {}",
-        String::from_utf8(Sh::quote(arg)).expect("Failed to parse quoted arg as utf8, this should not happen")
-    );
+    let _ = write!(args_str, " {}", sh_quote(arg));
 }
 
 fn sanitize_value(value: String) -> String {

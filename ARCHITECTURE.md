@@ -106,8 +106,9 @@ skim/                  ← workspace root
 │   ├── spinlock.rs    ← lightweight SpinLock<T>
 │   ├── util.rs        ← printf helper, misc utilities
 │   ├── popup/         ← tmux, zellij & rex popup integration
-│   │   ├── mod.rs           ← SkimPopup trait, run_with(), check_env(), SkimPopupOutput
+│   │   ├── mod.rs           ← SkimPopup trait, run_with(), check_env(), SkimPopupOutput, PopupLayout + shared backend helpers
 │   │   ├── rex.rs           ← RexPopup (builds/runs rex run --wait)
+│   │   ├── test_util.rs     ← option/arg helpers shared by the backends' unit tests
 │   │   ├── tmux.rs          ← TmuxPopup (builds/runs tmux display-popup)
 │   │   └── zellij.rs        ← ZellijPopup (builds/runs zellij run --floating)
 │   ├── prelude.rs     ← convenience re-exports
@@ -403,7 +404,7 @@ The popup flow:
 5. Launches the popup via the appropriate backend:
    - **tmux**: `tmux display-popup -E … sh -c <cmd> > stdout_file`
    - **Zellij**: `zellij run --floating --name <name> … -- sh -c <cmd> > stdout_file`
-   - **Rex**: `rex run --wait [--split=<above|below|left|right> --ratio=<0..1>] -- sh -c 'cd <cwd> && <env> <cmd> > stdout_file'`. Rex's CLI has no transient popup, so `top`/`bottom`/`left`/`right` split the current block (the size along the split axis becomes the ratio; fixed sizes are divided by `$LINES`/`$COLUMNS`) and `center` opens a new window. `rex run` takes no env flag, so env vars and the cwd are set inside the shell script; `--popup-name` and borders are not applied.
+   - **Rex**: `rex run --wait [--split=<above|below|left|right> --ratio=<0..1>] -- sh -c 'cd <cwd> && <env> <cmd> > stdout_file'`. Rex's CLI has no transient popup, so `top`/`bottom`/`left`/`right` split the current block (the size along the split axis becomes the ratio; fixed sizes are divided by `$ROWS`/`$COLUMNS`, as Zellij does) and `center` opens a new window. `rex run` takes no env flag, so env vars and the cwd are set inside the shell script; `--popup-name` and borders are not applied.
 
    Library callers can set the popup name with `SkimOptionsBuilder::popup_name`.
    The popup pane is named from `--popup-name` (alias `--border-label`, kept for fzf compatibility), matching how fzf names its Zellij pane and tmux popup. Zellij always passes `--name` (defaulting to `skim`); tmux passes `-T <name>` only when a name is set, so untitled popups and tmux < 3.4 keep working. The shipped shell key bindings name the popup by purpose (`skim: files`, `skim: command history`, `skim: directories`), so a popup identifies itself.
@@ -420,7 +421,7 @@ trait SkimPopup {
 }
 ```
 
-`TmuxPopup`, `ZellijPopup` and `RexPopup` each implement this trait. The active backend is selected at runtime, innermost-first: Zellij, then tmux, then Rex (Rex is usually the outer terminal when nested).
+`TmuxPopup`, `ZellijPopup` and `RexPopup` each implement this trait. They share helpers from `popup/mod.rs` rather than re-implementing them: `PopupLayout::parse` turns the `--popup` value into a direction plus raw height/width strings (each backend converts them to its own syntax), `multiplexer_detected`/`multiplexer_command` detect and resolve the binary, `current_dir_string`, `term_extent` (`$COLUMNS`/`$ROWS`, default 80), and `sh_quote`/`push_env_assignment` for building `sh -c` commands. Their unit tests share `popup/test_util.rs`. The active backend is selected at runtime, innermost-first: Zellij, then tmux, then Rex (Rex is usually the outer terminal when nested).
 
 The child `sk` process runs fully independently inside the popup. The parent reads back a synthetic `SkimOutput` from the captured file. Because `_SKIM_POPUP=1` is set in the child's environment, `check_env()` returns `false` in the child, so it runs as a normal interactive skim session regardless of what `SKIM_DEFAULT_OPTIONS` contains. The stdin relay thread stops when the popup exits, avoiding broken-pipe noise if the child closes its FIFO early.
 
