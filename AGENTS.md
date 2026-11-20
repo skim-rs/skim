@@ -14,28 +14,6 @@
 - Format: `cargo +nightly fmt` (check only: `cargo +nightly fmt --check`)
 - Fuzz (requires nightly + `cargo install cargo-fuzz`): `cargo +nightly fuzz run <target>` — see `fuzz/README.md` for target list
 
-## Code Style
-- Format with 120 char line width (defined in .rustfmt.toml)
-- Use standard Rust naming conventions (snake_case for functions/variables, CamelCase for types)
-- Organize imports by standard library, external crates, then internal modules
-- Prefer Option/Result types for error handling over panicking
-- Use proper error propagation with `?` operator
-- Document public API with rustdoc comments
-- Use meaningful type annotations, especially for public functions
-- Follow the existing structure for new modules (see src/engine/ or src/model/)
-- Implement relevant traits (SkimItem, etc.) for new types when needed
-
-## Architecture Documentation
-- `ARCHITECTURE.md` documents the full architecture: data flow, operating modes, subsystems, threading model, and public API.
-- **Update `ARCHITECTURE.md` whenever you make structural changes**, including:
-  - Adding, removing, or renaming modules, structs, or traits
-  - Changing the data flow between subsystems (reader → pool → matcher → TUI)
-  - Adding new operating modes or modifying existing ones
-  - Changing the threading model or synchronization primitives
-  - Adding or removing public API surface (`SkimItem`, `SkimOptions`, `SkimOutput`, etc.)
-  - Changing the event/action system or key binding infrastructure
-
-
 ## Testing
 
 The end-to-end tests drive a real `sk` process through a terminal, using the

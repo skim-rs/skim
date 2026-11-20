@@ -133,7 +133,7 @@ jobs:
           cargo +nightly llvm-cov nextest --locked --release --profile ci --branch --bins --lib --examples --tests --no-report
           cargo +nightly llvm-cov report --release --cobertura --output-path coverage.xml
           cargo +nightly llvm-cov report --release --html
-          echo "COVERAGE_PERCENT=$(cargo +nightly llvm-cov report --release | tail -n1 | awk '{ print $13 }')" | tee --append $GITHUB_ENV
+          echo "COVERAGE_PERCENT=$(cargo +nightly llvm-cov report --release | tail -n1 | awk '{ print $13 }')" | tee --append "$GITHUB_ENV"
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
@@ -270,7 +270,7 @@ jobs:
           tool: cargo-public-api@0.52
       - run: rustup toolchain install nightly-x86_64-unknown-linux-gnu
         name: Install nightly toolchain
-      # Compare two repository revisions so cargo-public-api uses their committed
+      # Compare two repository revisions so cargo-public-api locks to their committed
       # lockfiles. A registry comparison resolves the released crate again and can
       # fail when a new, broken transitive dependency is published.
       - run: git fetch --force --tags
