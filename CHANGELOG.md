@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.0] - 2026-11-20
+
+### 🚀 Features
+
+- Export information as env vars to children commands (preview and interactive) (#1200)
+
+### 🐛 Bug Fixes
+
+- Multiline+wrapping breaks highlight-line and tabstop
+- [**breaking**] Restore no-op flags margin, no-clear and no-clear-start (#1220)
+
+### ⚙️ Miscellaneous Tasks
+
+- [**breaking**] Cleanup and lint everything. Removes sk-tmux (#1223)
+
 ## [Unreleased]
 
 ### Breaking Changes
