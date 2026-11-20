@@ -58,6 +58,7 @@
               actionlint
               zizmor
               cargo-binstall
+              hk
             ];
             hook = ''
               command -v hk >/dev/null 2>&1 && hk install -q || true
