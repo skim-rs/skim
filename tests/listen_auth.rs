@@ -22,14 +22,22 @@ fn listener_rejects_other_user() -> io::Result<()> {
     let name = format!("sk-auth-{:016x}", rand::rng().random::<u64>());
     let mut zellij = ZellijController::new_named("listen-auth")?;
     zellij.start_sk(Some("printf 'item\\n'"), &["--listen", &name, "--header", "auth-ready"])?;
-    zellij.until(|lines| lines.iter().any(|line| line.trim() == "auth-ready"))?;
+    zellij.until(|lines| {
+        lines
+            .iter()
+            .any(|line| line.split_whitespace().next() == Some("auth-ready"))
+    })?;
 
     assert_other_user_rejected(&name)?;
 
     let stream = Stream::connect(name.to_ns_name::<GenericNamespaced>()?)?;
     let action = Action::SetHeader(Some("auth-allowed".to_owned()));
     writeln!(stream.as_write(), "{}", ron::to_string(&action).unwrap())?;
-    zellij.until(|lines| lines.iter().any(|line| line.trim() == "auth-allowed"))
+    zellij.until(|lines| {
+        lines
+            .iter()
+            .any(|line| line.split_whitespace().next() == Some("auth-allowed"))
+    })
 }
 
 #[cfg(unix)]
