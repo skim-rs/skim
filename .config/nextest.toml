@@ -27,7 +27,7 @@ e2e = { max-threads = 1 }
 fail-fast = false
 retries = 2
 [[profile.default.overrides]]
-filter = 'binary(interactive) | binary(listen) | binary(popup) | binary(execute)'
+filter = 'binary(interactive) | binary(listen) | binary(listen_auth) | binary(popup) | binary(execute)'
 test-group = 'e2e'
 [profile.default.junit]
 path = "junit.xml"
@@ -35,7 +35,7 @@ path = "junit.xml"
 [profile.ci]
 retries = 9
 [[profile.ci.overrides]]
-filter = 'binary(interactive) | binary(listen) | binary(popup) | binary(execute)'
+filter = 'binary(interactive) | binary(listen) | binary(listen_auth) | binary(popup) | binary(execute)'
 test-group = 'e2e'
 
 # Valgrind profile for memory leak detection

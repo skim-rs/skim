@@ -154,7 +154,7 @@ const REMOTE_SECTION: &str = "
 skim can be controlled from other processes, using the `--listen` (and optionally `--remote`) flags.
 
 To achieve this, run the server instance using `sk --listen optional_address` (the address defaults to `sk`).
-It will then start listening on a named socket for instructions.
+It will then start listening on a named socket for instructions. Only clients that run as the same user can send instructions.
 
 To send instructions, you can use `sk --remote optional_address` or any other tool that allows us to interact with such sockets,
 such as `socat` on linux: `echo 'ToggleIn' | socat -u STDIN ABSTRACT-CONNECT:optional_address`. Instructions correspond to skim's Actions and need to be sent in Ron format.

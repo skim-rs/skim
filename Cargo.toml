@@ -30,7 +30,7 @@ frizbee = ["dep:frizbee"]
 # Enable image previews (renders the preview argument as an image)
 image = ["dep:image", "dep:ratatui-image"]
 # Enable the IPC socket (--listen / --remote), driving skim from other processes
-listen = ["dep:interprocess", "dep:ron", "dep:serde"]
+listen = ["dep:interprocess", "dep:ron", "dep:serde", "nix/user", "dep:windows-sys"]
 # Enable gungraun (Valgrind-based) benchmarks
 gungraun = ["dep:gungraun"]
 
@@ -106,6 +106,9 @@ tokio-util = "0.7.18"
 unicode-display-width = "0.3.0"
 unicode-normalization = "0.1.25"
 which = "8.0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Threading"], optional = true }
 
 [dev-dependencies]
 assert_enum_variants = "0.1.2"
