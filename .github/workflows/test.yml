@@ -91,12 +91,24 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Run doctests
         run: cargo test --doc
-      - name: "Run tests"
-        # Do not use `--all-targets` to avoid running benches
-        run: cargo nextest run --release --locked --profile ci --bins --lib --examples --tests
+      - name: Run tests
+        shell: pwsh
         env:
           LC_ALL: en_US.UTF-8
           TERM: xterm-256color
+          SKIM_TEST_LISTENER_AUTH: ${{ runner.environment == 'github-hosted' && '1' || '0' }}
+        run: |
+          # Only create the test account on a disposable GitHub-hosted Windows runner.
+          if ($IsWindows -and $env:SKIM_TEST_LISTENER_AUTH -eq '1') {
+            $account = 'sk-auth-' + [Guid]::NewGuid().ToString('N').Substring(0, 12)
+            $password = 'Sk1!' + [Guid]::NewGuid().ToString('N')
+            Write-Output "::add-mask::$password"
+            New-LocalUser -Name $account -Password (ConvertTo-SecureString $password -AsPlainText -Force) -ErrorAction Stop | Out-Null
+            $env:SKIM_TEST_OTHER_USER = $account
+            $env:SKIM_TEST_OTHER_PASSWORD = $password
+          }
+          # Do not use `--all-targets` to avoid running benches.
+          cargo nextest run --release --locked --profile ci --bins --lib --examples --tests
       - name: Show snapshot diffs on failure
         if: failure()
         run: |

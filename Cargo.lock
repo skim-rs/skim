@@ -2731,6 +2731,7 @@ dependencies = [
  "unicode-display-width",
  "unicode-normalization",
  "which",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

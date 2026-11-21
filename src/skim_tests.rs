@@ -2,6 +2,34 @@ use super::*;
 use ratatui::backend::TestBackend;
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "listen")]
+#[tokio::test]
+async fn listener_accepts_same_user() {
+    use interprocess::local_socket::traits::tokio::*;
+    use interprocess::local_socket::{GenericNamespaced, ToNsName as _};
+
+    let name = format!("skim-test-user-{}", std::process::id());
+    let mut options = SkimOptions::default();
+    options.listen = Some(name.clone());
+    let mut skim = Skim::<TestBackend>::init(options.build(), None).unwrap();
+    skim.init_listener().unwrap();
+    let _client = RemoteStream::connect(name.to_ns_name::<GenericNamespaced>().unwrap())
+        .await
+        .unwrap();
+    let peer = skim.listener.as_ref().unwrap().accept().await.unwrap();
+    #[cfg(unix)]
+    {
+        use nix::unistd::{Uid, geteuid};
+
+        let uid = geteuid();
+        check_remote_user(&peer, uid).unwrap();
+        let other_uid = Uid::from_raw(uid.as_raw() ^ 1);
+        let err = check_remote_user(&peer, other_uid).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+    }
+    drop(peer);
+}
+
 #[test]
 fn enqueue_items_batches_in_order_and_closes_when_sender_is_dropped() {
     let (_, rx) = enqueue_items((0..1025).map(|index| index.to_string())).unwrap();

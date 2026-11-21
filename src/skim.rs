@@ -26,6 +26,79 @@ type RemoteStream = interprocess::local_socket::tokio::Stream;
 #[cfg(not(feature = "listen"))]
 type RemoteStream = std::convert::Infallible;
 
+#[cfg(all(feature = "listen", unix))]
+fn check_remote_user(stream: &RemoteStream, uid: nix::unistd::Uid) -> std::io::Result<()> {
+    use interprocess::local_socket::traits::StreamCommon as _;
+    use std::io::{Error, ErrorKind};
+
+    if stream.peer_creds()?.euid() != Some(uid.as_raw()) {
+        return Err(Error::new(ErrorKind::PermissionDenied, "peer user ID does not match"));
+    }
+    Ok(())
+}
+
+#[cfg(all(feature = "listen", windows))]
+fn remote_pipe_security() -> std::io::Result<interprocess::os::windows::security_descriptor::SecurityDescriptor> {
+    use interprocess::os::windows::security_descriptor::{AsSecurityDescriptorMutExt as _, SecurityDescriptor};
+    use std::io::Error;
+    use std::mem::{MaybeUninit, size_of};
+    use std::os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle};
+    use std::ptr::{null, null_mut};
+    use windows_sys::Win32::Foundation::{ERROR_SUCCESS, LocalFree};
+    use windows_sys::Win32::Security::Authorization::{
+        BuildTrusteeWithSidW, EXPLICIT_ACCESS_W, SET_ACCESS, SetEntriesInAclW,
+    };
+    use windows_sys::Win32::Security::{
+        GetTokenInformation, SECURITY_MAX_SID_SIZE, TOKEN_QUERY, TOKEN_USER, TokenUser,
+    };
+    use windows_sys::Win32::Storage::FileSystem::{FILE_GENERIC_READ, FILE_GENERIC_WRITE};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    #[repr(C)]
+    struct TokenUserBuffer {
+        user: TOKEN_USER,
+        sid: [u8; SECURITY_MAX_SID_SIZE as usize],
+    }
+
+    let mut security = SecurityDescriptor::new()?;
+    let mut token = null_mut();
+    let mut user = MaybeUninit::<TokenUserBuffer>::uninit();
+    // The buffers have the required size and alignment. Each successful call initializes its output.
+    unsafe {
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw mut token) == 0 {
+            return Err(Error::last_os_error());
+        }
+        let token = OwnedHandle::from_raw_handle(token);
+        let mut size = 0;
+        if GetTokenInformation(
+            token.as_raw_handle(),
+            TokenUser,
+            user.as_mut_ptr().cast(),
+            u32::try_from(size_of::<TokenUserBuffer>()).unwrap(),
+            &raw mut size,
+        ) == 0
+        {
+            return Err(Error::last_os_error());
+        }
+        let mut entry = EXPLICIT_ACCESS_W {
+            grfAccessPermissions: FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+            grfAccessMode: SET_ACCESS,
+            ..Default::default()
+        };
+        BuildTrusteeWithSidW(&raw mut entry.Trustee, (*user.as_ptr()).user.User.Sid);
+        let mut acl = null_mut();
+        let status = SetEntriesInAclW(1, &raw const entry, null(), &raw mut acl);
+        if status != ERROR_SUCCESS {
+            return Err(Error::from_raw_os_error(status.cast_signed()));
+        }
+        if let Err(err) = security.set_dacl(acl, false) {
+            LocalFree(acl.cast());
+            return Err(err);
+        }
+    }
+    Ok(security)
+}
+
 fn enqueue_items<I, T>(items: I) -> Result<(SkimItemSender, SkimItemReceiver)>
 where
     I: IntoIterator<Item = T>,
@@ -607,13 +680,14 @@ where
     fn init_listener(&mut self) -> Result<()> {
         #[cfg(feature = "listen")]
         if let Some(socket_name) = &self.app.options.listen {
-            self.listener = Some(
-                interprocess::local_socket::ListenerOptions::new()
-                    .name(interprocess::local_socket::ToNsName::to_ns_name::<
-                        interprocess::local_socket::GenericNamespaced,
-                    >(socket_name.to_owned())?)
-                    .create_tokio()?,
-            );
+            use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName as _};
+            #[cfg(windows)]
+            use interprocess::os::windows::local_socket::ListenerOptionsExt as _;
+
+            let options = ListenerOptions::new().name(socket_name.clone().to_ns_name::<GenericNamespaced>()?);
+            #[cfg(windows)]
+            let options = options.security_descriptor(remote_pipe_security()?);
+            self.listener = Some(options.create_tokio()?);
         }
         Ok(())
     }
@@ -789,6 +863,11 @@ where
             } => {
                 #[cfg(feature = "listen")]
                 {
+                    #[cfg(unix)]
+                    if let Err(err) = check_remote_user(&stream, nix::unistd::geteuid()) {
+                        warn!("listener: rejected connection: {err}");
+                        return Ok(self.app.should_quit);
+                    }
                     debug!("Listener accepted a connection");
                     let event_tx_clone_ipc = self.tui.as_ref().expect("TUI should be initialized before listening").event_tx.clone();
                     tokio::spawn(async move {
