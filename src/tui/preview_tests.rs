@@ -448,7 +448,7 @@ fn callback_pty_parses_terminal_sequences() {
                 let parser = parser.read().unwrap();
                 assert_eq!(parser.vt.size(), (if wrap { 20 } else { 1024 }, 5));
                 assert_eq!(
-                    parser.vt.screen().line(0).unwrap().cells()[0].pen().foreground(),
+                    parser.vt.screen().row(0).unwrap().cells()[0].pen().foreground(),
                     Some(avt::Color::Indexed(1))
                 );
                 let visible = ["hello", "  世界", "next", "    end", ""];
@@ -456,7 +456,7 @@ fn callback_pty_parses_terminal_sequences() {
                     parser
                         .vt
                         .primary_screen()
-                        .visible_lines()
+                        .visible_rows()
                         .map(|line| line.text().trim_end().to_owned())
                         .collect::<Vec<_>>(),
                     visible

@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::io::Cursor;
 
 use clap::Parser;
@@ -23,7 +24,7 @@ use skim::{Skim, SkimItemReceiver};
 /// - Reader completion is checked via `Skim::check_reader()`, identical to
 ///   production
 pub struct TestHarness {
-    /// The Skim instance backed by a TestBackend for snapshot testing.
+    /// The Skim instance backed by a `TestBackend` for snapshot testing.
     pub skim: Skim<TestBackend>,
     /// Tokio runtime for async operations (preview commands, etc.)
     pub runtime: tokio::runtime::Runtime,
@@ -35,7 +36,7 @@ impl TestHarness {
     /// Process all pending events from the event queue.
     ///
     /// This is the core method that processes events just like the real event loop
-    /// in `lib.rs`. It drains the event_rx channel and calls `app.handle_event()`
+    /// in `lib.rs`. It drains the `event_rx` channel and calls `app.handle_event()`
     /// for each event, mimicking the actual application behavior.
     ///
     /// For `Event::Reload`, it delegates to `Skim::handle_reload()` — the same
@@ -151,13 +152,13 @@ impl TestHarness {
         }
 
         // If the reader is running (not done), wait for it + matcher
-        if !self.skim.reader_done() {
-            self.wait_for_reader_and_matcher()?;
-        } else {
+        if self.skim.reader_done() {
             // Always wait for the matcher to ensure results are consumed.
             // Even if stopped() is already true, wait_for_matcher will
             // render and process heartbeat to consume processed_items.
             self.wait_for_matcher()?;
+        } else {
+            self.wait_for_reader_and_matcher()?;
         }
         Ok(())
     }
@@ -213,7 +214,7 @@ impl TestHarness {
                 if !md.is_empty() {
                     attrs.push(format!("mod={md:?}"));
                 }
-                out.push_str(&format!("({y}, {start}..{x}) {text:?} {}\n", attrs.join(" ")));
+                let _ = writeln!(out, "({y}, {start}..{x}) {text:?} {}", attrs.join(" "));
             }
         }
         if out.is_empty() {
@@ -371,8 +372,7 @@ impl TestHarness {
                 .preview
                 .thread_handle
                 .as_ref()
-                .map(|h| h.is_finished())
-                .unwrap_or(true);
+                .is_none_or(std::thread::JoinHandle::is_finished);
             if finished {
                 // One final drain to catch any events emitted right at thread exit
                 self.tick()?;
@@ -407,8 +407,7 @@ impl TestHarness {
         let is_abort = self
             .final_event
             .as_ref()
-            .map(|event| !matches!(event, Event::Action(Action::Accept(_))))
-            .unwrap_or(true);
+            .is_none_or(|event| !matches!(event, Event::Action(Action::Accept(_))));
 
         Some(if is_abort { 130 } else { 0 })
     }
@@ -551,7 +550,7 @@ pub fn fmt_opts(opts: &[&str]) -> String {
     opts.join(" ")
 }
 
-/// Parse SkimOptions from CLI-style arguments.
+/// Parse `SkimOptions` from CLI-style arguments.
 pub fn parse_options(args: &[&str]) -> SkimOptions {
     let mut full_args = vec!["sk"];
     full_args.extend(args);

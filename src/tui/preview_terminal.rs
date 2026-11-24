@@ -51,7 +51,7 @@ impl PreviewTerminal {
     pub(crate) fn total_lines(&self) -> usize {
         self.vt
             .screen()
-            .all_lines()
+            .all_rows()
             .enumerate()
             .filter(|(_, line)| line.cells().iter().any(|cell| cell.ne(&avt::Cell::default())))
             .map(|(index, _)| index + 1)
@@ -60,7 +60,7 @@ impl PreviewTerminal {
     }
 
     pub(crate) fn render(&self, area: Rect, buf: &mut Buffer, scroll_y: usize, scroll_x: usize) {
-        for (y, line) in (area.y..area.bottom()).zip(self.vt.screen().all_lines().skip(scroll_y)) {
+        for (y, line) in (area.y..area.bottom()).zip(self.vt.screen().all_rows().skip(scroll_y)) {
             for (x, cell) in (area.x..area.right()).zip(line.cells().iter().skip(scroll_x)) {
                 if cell.width() == 0 {
                     continue;
@@ -138,6 +138,6 @@ mod tests {
         assert_eq!(buf[(0, 0)].bg, Color::Indexed(4));
         assert!(buf[(0, 0)].modifier.contains(Modifier::BOLD));
         terminal.process(b"\nnext\nend");
-        assert!(terminal.vt.screen().all_lines().count() <= 4);
+        assert!(terminal.vt.screen().all_rows().count() <= 4);
     }
 }
