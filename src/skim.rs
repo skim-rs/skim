@@ -362,14 +362,14 @@ where
         if let Some(rc) = self.reader_control.as_mut() {
             rc.kill();
         }
+        let old = self.app.item_pool.clear();
         // Keep the old display until replacement results arrive when requested.
-        if !self.app.options.no_clear_if_empty && !self.app.options.no_clear_start {
-            self.app.item_list.clear();
+        if self.app.options.no_clear_if_empty || self.app.options.no_clear_start {
+            self.app.item_list.detach_from_pool(&self.app.item_pool, old);
         } else {
-            self.app.item_list.detach_from_pool();
+            self.app.item_list.clear();
+            drop(old);
         }
-        // Clear items
-        self.app.item_pool.clear();
         self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
         self.start_reader(new_cmd, &env, &unset);
@@ -592,7 +592,7 @@ where
                 if app.query_below_min_length() {
                     if reader_control.is_none_or(ReaderControl::is_done) {
                         debug!("filter mode: query shorter than --min-query-length, no results");
-                        app.item_list.items.clear();
+                        app.item_list.clear_items();
                         return false;
                     }
                     std::thread::sleep(Duration::from_millis(1));
@@ -606,18 +606,10 @@ where
                 std::thread::sleep(Duration::from_millis(1));
                 app.restart_matcher(false);
             }
-            app.item_list.items = app
-                .item_list
-                .processed_items
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .take()
-                .unwrap_or_default()
-                .into_items()
-                .into_iter()
-                .filter(|i| !i.item.disabled())
-                .collect();
-            debug!("filter mode: matched {} items", app.item_list.items.len());
+            if let Some(processed) = app.item_list.take_processed() {
+                app.item_list.apply_processed(processed);
+            }
+            debug!("filter mode: matched {} items", app.item_list.len());
             return false;
         }
 
@@ -664,14 +656,9 @@ where
             };
             trace!("checking for matched item count before entering: {matched}/{min_items_before_enter}");
             if matched == min_items_before_enter - 1 {
-                app.item_list.items = app
-                    .item_list
-                    .processed_items
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .take()
-                    .unwrap_or_default()
-                    .into_items();
+                if let Some(processed) = app.item_list.take_processed() {
+                    app.item_list.apply_processed(processed);
+                }
                 debug!("early exit, result: {:?}", app.results());
                 return false;
             }

@@ -7,8 +7,7 @@ use ratatui::style::Style;
 use ratatui::widgets::{List, Widget};
 
 use super::*;
-use crate::item::RankBuilder;
-use crate::{Rank, SkimItem};
+use crate::SkimItem;
 
 fn renderer(theme: &ColorTheme) -> ItemRenderer<'_> {
     ItemRenderer {
@@ -33,11 +32,7 @@ fn renderer(theme: &ColorTheme) -> ItemRenderer<'_> {
 }
 
 fn matched_item(text: &str) -> MatchedItem {
-    MatchedItem::new(
-        Arc::new(text.to_owned()) as Arc<dyn SkimItem>,
-        Rank::default(),
-        &RankBuilder::default(),
-    )
+    MatchedItem::new(Arc::new(text.to_owned()), 0, 0)
 }
 
 fn line_text(line: &Line<'_>) -> String {
@@ -129,8 +124,8 @@ fn prefix_spans_uses_state_for_icons_and_first_line_fields() {
     renderer.show_index = true;
 
     let mut item = matched_item("alpha");
-    item.rank.score = 42;
-    item.rank.index = 7;
+    item.score = 42;
+    item.index = 7;
 
     let current_selected = SubLineState {
         is_current: true,
@@ -209,11 +204,7 @@ fn continuation_sub_line_content_applies_hscroll() {
 fn first_sub_line_content_keeps_display_longer_than_text() {
     let theme = ColorTheme::default();
     let renderer = renderer(&theme);
-    let item = MatchedItem::new(
-        Arc::new(DisplayLongerThanText) as Arc<dyn SkimItem>,
-        Rank::default(),
-        &RankBuilder::default(),
-    );
+    let item = MatchedItem::new(Arc::new(DisplayLongerThanText), 0, 0);
 
     let line = renderer.first_sub_line_content(&item, None, "ab", false, 0, 0);
 

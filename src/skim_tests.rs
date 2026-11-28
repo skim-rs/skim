@@ -118,11 +118,7 @@ fn no_clear_start_keeps_items_until_reload_results_or_completion() {
         options.no_clear_start = no_clear_start;
         options.no_clear_if_empty = no_clear_if_empty;
         let mut skim = Skim::<TestBackend>::init(options.build(), None).unwrap();
-        skim.app.item_list.items.push(crate::item::MatchedItem::new(
-            Arc::new("old".to_string()),
-            crate::Rank::default(),
-            &crate::item::RankBuilder::default(),
-        ));
+        skim.app.item_list.set_test_items(&skim.app.item_pool, &["old"]);
         skim.app.item_list.select_row(0);
         let render = |skim: &mut Skim<TestBackend>| {
             let area = ratatui::layout::Rect::new(0, 0, 40, 10);
@@ -212,18 +208,14 @@ fn interactive_min_query_length_gates_command_lifecycle() {
     wait_until(|| !skim.app.item_pool.is_empty());
     assert_eq!(std::fs::read_to_string(&log).unwrap(), "run\n");
     assert!(!skim.reader_done());
-    skim.app.item_list.items.push(crate::item::MatchedItem::new(
-        Arc::new("old result".to_string()),
-        crate::Rank::default(),
-        &crate::item::RankBuilder::default(),
-    ));
+    skim.app.item_list.set_test_items(&skim.app.item_pool, &["old result"]);
 
     skim.app.input.value.pop();
     skim.handle_reload(&cmd);
     assert!(skim.reader_done());
     assert!(skim.reader_control.is_none());
     assert!(skim.app.item_pool.is_empty());
-    assert_eq!(skim.app.item_list.items, [] as [crate::item::MatchedItem; 0]);
+    assert!(skim.app.item_list.is_empty());
     assert_eq!(std::fs::read_to_string(&log).unwrap(), "run\n");
 
     skim.app.input.value.push('é');
@@ -291,11 +283,7 @@ fn reload_command_sees_the_state_before_the_list_is_cleared() {
         log.to_string_lossy().replace('\'', "'\\''")
     );
     let mut skim = started_skim(&["alpha", "beta"]);
-    skim.app.item_list.items.push(crate::item::MatchedItem::new(
-        Arc::new("alpha".to_string()),
-        crate::Rank::default(),
-        &crate::item::RankBuilder::default(),
-    ));
+    skim.app.item_list.set_test_items(&skim.app.item_pool, &["alpha"]);
     skim.app.item_list.current = 0;
     skim.app.item_list.toggle();
     let tui = skim.tui.as_mut().unwrap();
@@ -321,7 +309,10 @@ fn should_enter_is_false_in_filter_mode() {
     let mut skim = started_skim_with(options, &["a", "b", "c"]);
     // Filter mode processes everything synchronously and never enters the TUI.
     assert!(!skim.should_enter());
-    assert_eq!(skim.app().item_list.items.len(), 3);
+    assert_eq!(skim.app().item_list.len(), 3);
+    let output = skim.output();
+    assert_eq!(output.selected_items.len(), 3);
+    assert!(output.current.is_none());
 }
 
 #[test]
@@ -337,7 +328,7 @@ fn filter_mode_terminates_when_query_is_below_min_query_length() {
         let options = options.build();
         let mut skim = started_skim_with(options, &["a", "b", "c"]);
         let entered = skim.should_enter();
-        let _ = done_tx.send((entered, skim.app().item_list.items.len()));
+        let _ = done_tx.send((entered, skim.app().item_list.len()));
     });
 
     let (entered, matched) = done_rx
@@ -357,7 +348,7 @@ fn filter_mode_matches_when_query_meets_min_query_length() {
     let options = options.build();
     let mut skim = started_skim_with(options, &["abc", "xyz"]);
     assert!(!skim.should_enter());
-    assert_eq!(skim.app().item_list.items.len(), 1);
+    assert_eq!(skim.app().item_list.len(), 1);
 }
 
 #[test]
@@ -463,19 +454,16 @@ fn multi_selection_flows_into_output_and_serializes() {
     // visible list on render, so we populate it directly and exercise selection +
     // output + serialization. (The reader -> matcher half is covered by
     // `reader_and_matcher_complete`.)
-    use crate::Rank;
-    use crate::item::{MatchedItem, RankBuilder};
-
     let mut options = SkimOptions::default();
     options.multi = true;
     let options = options.build();
     let mut skim = started_skim_with(options, &["a", "b", "c"]);
     wait_until(|| skim.check_reader());
+    skim.app.restart_matcher(true);
     wait_until(|| skim.matcher_stopped());
 
-    let rb = RankBuilder::default();
-    let mk = |t: &str| MatchedItem::new(Arc::new(t.to_string()) as Arc<dyn SkimItem>, Rank::default(), &rb);
-    skim.app_mut().item_list.append(&mut vec![mk("a"), mk("b"), mk("c")]);
+    let processed = skim.app.item_list.take_processed().unwrap();
+    skim.app.item_list.apply_processed(processed);
     // Toggle "a" and "c" into the selection, as BTab would.
     skim.app_mut().item_list.toggle_at(0);
     skim.app_mut().item_list.toggle_at(2);

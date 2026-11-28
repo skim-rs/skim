@@ -4,24 +4,20 @@ use super::*;
 use crate::Rank;
 use crate::item::RankBuilder;
 
-fn matched(text: &str, index: i32) -> MatchedItem {
-    let item: std::sync::Arc<dyn crate::SkimItem> = std::sync::Arc::new(text.to_string());
-    MatchedItem::new(
-        item,
-        Rank {
+fn entry(index: i32, score: i32) -> MatchEntry {
+    MatchEntry::new(
+        &Rank {
+            score,
             index,
-            ..Default::default()
+            ..Rank::default()
         },
         &RankBuilder::default(),
     )
 }
 
 fn list(n: usize) -> ItemList {
-    let mut il = ItemList::default();
-    let mut items: Vec<MatchedItem> = (0..n)
-        .map(|i| matched(&format!("item{i}"), i32::try_from(i).unwrap()))
-        .collect();
-    il.append(&mut items);
+    let texts: Vec<_> = (0..n).map(|i| format!("item{i}")).collect();
+    let mut il = ItemList::from_texts(&texts.iter().map(String::as_str).collect::<Vec<_>>());
     il.height = 10;
     il
 }
@@ -42,14 +38,10 @@ fn selection_and_selected_skip_disabled_items() {
         }
     }
 
-    let rb = RankBuilder::default();
-    let disabled = MatchedItem::new(
-        std::sync::Arc::new(Disabled("foo")) as std::sync::Arc<dyn crate::SkimItem>,
-        Rank::default(),
-        &rb,
-    );
+    let pool = Arc::new(ItemPool::new());
+    pool.append(vec![Arc::new(Disabled("foo")), Arc::new("bar".to_owned())]);
     let mut il = ItemList::default();
-    il.append(&mut vec![disabled, matched("bar", 1)]);
+    il.append(&pool, &mut vec![entry(0, 0), entry(1, 0)]);
     il.height = 10;
 
     // Cursor on the disabled row: `selected()` returns nothing.
@@ -168,7 +160,7 @@ fn clear_resets_state() {
     il.current = 2;
     il.select_all();
     il.clear();
-    assert_eq!(il.items, [] as [MatchedItem; 0]);
+    assert!(il.is_empty());
     assert!(il.selection.is_empty());
     assert_eq!(il.current, 0);
 }
@@ -198,13 +190,6 @@ fn select_row_adds_specific_item() {
 }
 
 #[test]
-fn processed_items_default_replaces() {
-    let pi = ProcessedItems::default();
-    assert_eq!(pi.items, [] as [MatchedItem; 0]);
-    assert!(matches!(pi.merge, MergeStrategy::Replace));
-}
-
-#[test]
 fn toggle_at_on_empty_list_is_noop() {
     let mut il = ItemList::default();
     // No items → early return without panicking.
@@ -221,12 +206,12 @@ fn item_at_visual_row_out_of_range_is_none() {
 
 #[test]
 fn append_clears_stale_flag() {
-    let mut il = list(2);
+    let pool = pool_of(3);
+    let mut il = ItemList::default();
+    il.append(&pool, &mut vec![entry(0, 0), entry(1, 0)]);
     il.showing_stale_items = true;
-    let mut more = vec![matched("extra", 2)];
-    il.append(&mut more);
-    assert!(!il.showing_stale_items);
-    assert_eq!(il.items.len(), 3);
+    il.append(&pool, &mut vec![entry(2, 0)]);
+    assert_eq!(il.count(), 3);
 }
 
 fn render_list(il: &mut ItemList, w: u16, h: u16) {
@@ -237,41 +222,77 @@ fn render_list(il: &mut ItemList, w: u16, h: u16) {
     il.render(area, &mut buf);
 }
 
-fn set_processed(il: &ItemList, items: Vec<MatchedItem>, merge: MergeStrategy) {
-    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
-        items,
-        merge,
-        generation: il.matcher_generation.load(std::sync::atomic::Ordering::Acquire),
-        engine: None,
+fn processed(pool: Arc<ItemPool>, indices: &[i32]) -> ProcessedItems {
+    ProcessedItems {
+        items: Arc::new(indices.iter().map(|&index| entry(index, 0)).collect()),
+        pool,
+        prepended: 0,
+        generation: 0,
+        engine: Arc::new(crate::engine::all::MatchAllEngine::builder().build()),
         all: None,
-    });
+    }
 }
 
 #[test]
-fn render_applies_replace_strategy() {
+fn render_swaps_full_list() {
     let mut il = list(2);
-    set_processed(&il, vec![matched("new", 0)], MergeStrategy::Replace);
+    let next = processed(pool_of(3), &[2, 0, 1]);
+    let entries = Arc::clone(&next.items);
+    *il.processed_items.lock().unwrap() = Some(next);
     render_list(&mut il, 20, 5);
-    // Replace swaps the whole list.
-    assert_eq!(il.items.len(), 1);
-    assert_eq!(il.items[0].text(), "new");
+    assert!(Arc::ptr_eq(&entries, &il.items));
+    assert_eq!(texts(&il), ["item2", "item0", "item1"]);
+}
+
+#[test]
+fn get_resolves_entry_through_pool() {
+    let pool = pool_of(3);
+    let mut il = ItemList::default();
+    il.append(&pool, &mut vec![entry(2, 42)]);
+    let item = il.get(0).unwrap();
+    assert_eq!(item.text(), "item2");
+    assert_eq!(item.index, 2);
+    assert_eq!(item.score, 42);
+}
+
+#[test]
+fn selected_item_keeps_its_match_after_query_change() {
+    use crate::engine::exact::ExactEngine;
+
+    let pool = pool_of(2);
+    let mut il = ItemList::default();
+    il.apply_processed(ProcessedItems {
+        engine: Arc::new(ExactEngine::builder("item0", Default::default()).build()),
+        ..processed(Arc::clone(&pool), &[0])
+    });
+    il.select_row(0);
+    il.apply_processed(ProcessedItems {
+        engine: Arc::new(ExactEngine::builder("item1", Default::default()).build()),
+        generation: 1,
+        ..processed(pool, &[1])
+    });
+
+    let old = &il.selection[0];
+    assert_eq!(old.text(), "item0");
+    assert_eq!(old.rank().unwrap().index, 0);
+    assert_eq!(
+        old.match_result().unwrap().range_char_indices(&old.text()),
+        [0, 1, 2, 3, 4]
+    );
+    assert_eq!(il.selected().unwrap().rank().unwrap().index, 1);
 }
 
 /// Highlights are computed at render time, only for the visible items.
 #[test]
 fn render_computes_matched_range_for_visible_items_only() {
     let mut il = ItemList::default();
-    let items: Vec<MatchedItem> = (0..10).map(|i| matched(&format!("foo{i}"), i)).collect();
-    let engine = crate::engine::exact::ExactEngine::builder("foo", Default::default()).build();
+    let engine = crate::engine::exact::ExactEngine::builder("item", Default::default()).build();
     *il.processed_items.lock().unwrap() = Some(ProcessedItems {
-        items,
-        merge: MergeStrategy::Replace,
-        generation: 0,
-        engine: Some(std::sync::Arc::new(engine)),
-        all: None,
+        engine: Arc::new(engine),
+        ..processed(pool_of(10), &(0..10).collect::<Vec<_>>())
     });
     render_list(&mut il, 20, 3);
-    let mut cached: Vec<i32> = il.highlights.keys().copied().collect();
+    let mut cached: Vec<_> = il.highlights.keys().copied().collect();
     cached.sort_unstable();
     assert_eq!(cached, [0, 1, 2]);
     assert!(il.highlights.values().all(Option::is_some));
@@ -279,7 +300,7 @@ fn render_computes_matched_range_for_visible_items_only() {
     // Scrolling keeps only the visible rows.
     il.current = 9;
     render_list(&mut il, 20, 3);
-    let mut cached: Vec<i32> = il.highlights.keys().copied().collect();
+    let mut cached: Vec<_> = il.highlights.keys().copied().collect();
     cached.sort_unstable();
     assert_eq!(cached, [7, 8, 9]);
 }
@@ -287,75 +308,29 @@ fn render_computes_matched_range_for_visible_items_only() {
 #[test]
 fn render_discards_results_from_stale_generation() {
     let mut il = list(2);
-    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
-        items: vec![matched("stale", 0)],
-        merge: MergeStrategy::Replace,
-        generation: 0,
-        engine: None,
-        all: None,
-    });
-    il.matcher_generation.store(1, std::sync::atomic::Ordering::Release);
-
+    *il.processed_items.lock().unwrap() = Some(processed(pool_of(1), &[0]));
+    il.matcher_generation.store(1, Ordering::Release);
     render_list(&mut il, 20, 5);
-    assert_eq!(il.items.len(), 2);
-    assert!(il.items.iter().all(|item| item.text() != "stale"));
+    assert_eq!(texts(&il), ["item0", "item1"]);
 }
 
 #[test]
-fn render_applies_append_strategy() {
-    let mut il = list(2);
-    set_processed(&il, vec![matched("extra", 2)], MergeStrategy::Append);
-    render_list(&mut il, 20, 5);
-    // Append grows the existing list.
-    assert_eq!(il.items.len(), 3);
-}
-
-#[test]
-fn render_applies_sorted_merge_strategy() {
-    let mut il = ItemList::default();
-    il.height = 10;
-    let mut base = vec![matched("a", 0)];
-    il.append(&mut base);
-    set_processed(&il, vec![matched("b", 1)], MergeStrategy::SortedMerge);
-    render_list(&mut il, 20, 5);
-    assert_eq!(il.items.len(), 2);
-}
-
-#[test]
-fn render_prepends_tac_batch_and_follows_head() {
-    let mut il = ItemList::default();
-    let mut base = vec![matched("c", 2), matched("b", 1), matched("a", 0)];
-    il.append(&mut base);
-    set_processed(&il, vec![matched("e", 4), matched("d", 3)], MergeStrategy::Prepend);
-
-    render_list(&mut il, 20, 5);
-
-    let texts: Vec<_> = il.items.iter().map(|item| item.item.text().into_owned()).collect();
-    assert_eq!(texts, ["e", "d", "c", "b", "a"]);
-    assert_eq!(il.current, 0);
-    assert_eq!(
-        il.selected().as_ref().map(|item| item.item.text().into_owned()),
-        Some("e".into())
-    );
-}
-
-#[test]
-fn render_prepend_preserves_focus_away_from_head() {
-    let mut il = ItemList::default();
-    let mut base = vec![matched("c", 2), matched("b", 1), matched("a", 0)];
-    il.append(&mut base);
-    il.current = 1;
-    il.offset = 1;
-    set_processed(&il, vec![matched("e", 4), matched("d", 3)], MergeStrategy::Prepend);
-
-    render_list(&mut il, 20, 5);
-
-    assert_eq!(il.current, 3);
-    assert_eq!(il.offset, 3);
-    assert_eq!(
-        il.selected().as_ref().map(|item| item.item.text().into_owned()),
-        Some("b".into())
-    );
+fn render_prepend_follows_head_or_preserves_focus_away_from_head() {
+    let pool = pool_of(5);
+    for (current, expected) in [(0, 0), (1, 3)] {
+        let mut il = ItemList::default();
+        il.apply_processed(processed(Arc::clone(&pool), &[2, 1, 0]));
+        il.current = current;
+        il.offset = current;
+        *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+            prepended: 2,
+            ..processed(Arc::clone(&pool), &[4, 3, 2, 1, 0])
+        });
+        render_list(&mut il, 20, 5);
+        assert_eq!(il.current, expected);
+        assert_eq!(il.offset, expected);
+        assert_eq!(texts(&il), ["item4", "item3", "item2", "item1", "item0"]);
+    }
 }
 
 #[test]
@@ -363,7 +338,7 @@ fn render_empty_list_does_not_panic() {
     let mut il = ItemList::default();
     il.height = 5;
     render_list(&mut il, 20, 5);
-    assert_eq!(il.items, [] as [MatchedItem; 0]);
+    assert!(il.is_empty());
 }
 
 #[test]
@@ -375,96 +350,89 @@ fn render_scrolled_list_shows_lower_items() {
     assert!(il.current < il.items.len());
 }
 
-fn pool_of(n: usize) -> std::sync::Arc<crate::item::ItemPool> {
-    let pool = crate::item::ItemPool::new();
+fn pool_of(n: usize) -> Arc<ItemPool> {
+    let pool = Arc::new(ItemPool::new());
     pool.append(
         (0..n)
-            .map(|i| std::sync::Arc::new(format!("item{i}")) as std::sync::Arc<dyn crate::SkimItem>)
+            .map(|i| Arc::new(format!("item{i}")) as Arc<dyn SkimItem>)
             .collect(),
     );
-    std::sync::Arc::new(pool)
-}
-
-fn all_items(pool: &std::sync::Arc<crate::item::ItemPool>, len: usize, descending: bool) -> AllItems {
-    AllItems {
-        pool: pool.clone(),
-        len,
-        descending,
-        rank_builder: std::sync::Arc::new(RankBuilder::default()),
-    }
+    pool
 }
 
 fn texts(il: &ItemList) -> Vec<String> {
-    (0..il.len()).map(|i| il.get(i).unwrap().text().into_owned()).collect()
+    il.resolve_all().iter().map(|i| i.text().into_owned()).collect()
 }
 
-/// The empty query lists the pool items without a `MatchedItem` each.
 #[test]
 fn empty_query_lists_pool_in_index_order() {
-    let pool = pool_of(3);
+    let pool = pool_of(4);
     for (descending, expected) in [
         (false, ["item0", "item1", "item2"]),
         (true, ["item2", "item1", "item0"]),
     ] {
         let mut il = ItemList::default();
         *il.processed_items.lock().unwrap() = Some(ProcessedItems {
-            all: Some(all_items(&pool, 3, descending)),
-            ..ProcessedItems::default()
+            all: Some(AllItems { len: 3, descending }),
+            ..processed(Arc::clone(&pool), &[])
         });
         render_list(&mut il, 20, 5);
-        assert_eq!(il.items.len(), 0);
+        assert!(il.items.is_empty());
         assert_eq!(texts(&il), expected);
-        assert_eq!(il.get(0).unwrap().rank.index, if descending { 2 } else { 0 });
-        // Out of range, and items beyond `len` (not matched yet) are not listed.
+        let first = il.get(0).unwrap();
+        assert_eq!(first.index, if descending { 2 } else { 0 });
+        assert_eq!(first.score, 0);
         assert!(il.get(3).is_none());
     }
 }
 
-/// New items come before the list when descending: keep the focused item.
 #[test]
 fn empty_query_descending_growth_keeps_focus() {
     let pool = pool_of(5);
     let mut il = ItemList::default();
-    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
-        all: Some(all_items(&pool, 3, true)),
-        ..ProcessedItems::default()
+    il.apply_processed(ProcessedItems {
+        all: Some(AllItems {
+            len: 3,
+            descending: true,
+        }),
+        ..processed(Arc::clone(&pool), &[])
     });
-    render_list(&mut il, 20, 5);
-    il.current = 1; // "item1"
+    il.current = 1;
     *il.processed_items.lock().unwrap() = Some(ProcessedItems {
-        all: Some(all_items(&pool, 5, true)),
-        merge: MergeStrategy::SortedMerge,
-        ..ProcessedItems::default()
+        all: Some(AllItems {
+            len: 5,
+            descending: true,
+        }),
+        ..processed(Arc::clone(&pool), &[])
     });
     render_list(&mut il, 20, 5);
     assert_eq!(il.len(), 5);
     assert_eq!(il.get(il.current).unwrap().text(), "item1");
-    // A real result list replaces the view.
-    set_processed(&il, vec![matched("x", 0)], MergeStrategy::Replace);
+    *il.processed_items.lock().unwrap() = Some(processed(pool, &[2]));
     render_list(&mut il, 20, 5);
     assert!(il.all.is_none());
-    assert_eq!(texts(&il), ["x"]);
+    assert_eq!(texts(&il), ["item2"]);
 }
 
 #[test]
-fn processed_into_items_builds_the_view() {
-    let pool = pool_of(2);
-    let processed = ProcessedItems {
-        all: Some(all_items(&pool, 2, true)),
-        ..ProcessedItems::default()
-    };
-    let texts: Vec<_> = processed.into_items().iter().map(|i| i.text().into_owned()).collect();
-    assert_eq!(texts, ["item1", "item0"]);
-}
-
-/// A reload clears the pool: a view that must stay displayed keeps its items.
-#[test]
-fn detach_from_pool_survives_pool_clear() {
-    let pool = pool_of(2);
-    let mut il = ItemList::default();
-    il.all = Some(all_items(&pool, 2, false));
-    il.detach_from_pool();
-    pool.clear();
-    assert!(il.all.is_none());
-    assert_eq!(texts(&il), ["item0", "item1"]);
+fn detach_keeps_old_items_after_pool_clear() {
+    for all in [
+        None,
+        Some(AllItems {
+            len: 2,
+            descending: true,
+        }),
+    ] {
+        let pool = pool_of(2);
+        let mut il = ItemList::default();
+        il.apply_processed(ProcessedItems {
+            all,
+            ..processed(Arc::clone(&pool), &[1, 0])
+        });
+        il.detach_from_pool(&pool, pool.clear());
+        pool.append(vec![Arc::new("new0".to_owned()), Arc::new("new1".to_owned())]);
+        assert_eq!(texts(&il), ["item1", "item0"]);
+        il.detach_from_pool(&pool, pool.clear());
+        assert_eq!(texts(&il), ["item1", "item0"]);
+    }
 }

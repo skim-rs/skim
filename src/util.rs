@@ -179,7 +179,7 @@ pub fn printf<'a>(
                                 replaced.push_str(
                                     current
                                         .as_ref()
-                                        .map(|i| i.rank.index)
+                                        .map(|i| i.index)
                                         .unwrap_or_default()
                                         .to_string()
                                         .as_str(),
@@ -188,7 +188,7 @@ pub fn printf<'a>(
                             s if s == "+n" || s.starts_with("+n:") || s == "+" || s.starts_with("+:") => {
                                 let is_n = s.starts_with("+n");
                                 let accessor = if is_n {
-                                    |i: &MatchedItem| i.rank.index.to_string()
+                                    |i: &MatchedItem| i.index.to_string()
                                 } else {
                                     |i: &MatchedItem| strip_ansi(&i.output()).0
                                 };

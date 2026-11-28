@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -11,102 +12,74 @@ use ratatui::widgets::{
 };
 use regex::Regex;
 
-use crate::item::{ItemPool, MatchedItem, RankBuilder};
+use crate::item::{ItemPool, MatchEntry, MatchedItem};
 use crate::options::feature_flag;
 use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::item_renderer::ItemRenderer;
 use crate::tui::options::TuiLayout;
 use crate::tui::widget::{SkimRender, SkimWidget};
-use crate::{MatchEngine, MatchRange, Rank, Selector, SkimOptions};
+use crate::{MatchEngine, MatchRange, Selector, SkimItem, SkimOptions};
 
-/// How to apply processed items to the display list
-#[derive(Default, Clone, Copy)]
-pub(crate) enum MergeStrategy {
-    /// Replace the entire item list (full re-match or first result)
-    #[default]
-    Replace,
-    /// Merge into existing list using sorted merge by rank
-    SortedMerge,
-    /// Append to existing list without sorting (for --no-sort)
-    Append,
-    /// Prepend to existing list without sorting (for --tac --no-sort)
-    Prepend,
+enum ItemSource {
+    Pool(Arc<ItemPool>),
+    Detached(Arc<Vec<Arc<dyn SkimItem>>>),
 }
 
-/// Empty query: all the first `len` items of the pool are matched, in index
-/// order. They are listed without a `MatchedItem` each (64 bytes per item):
-/// `get` builds the ones that are read.
-#[derive(Clone)]
-pub(crate) struct AllItems {
-    pub(crate) pool: Arc<ItemPool>,
-    pub(crate) len: usize,
-    /// Highest index first (`--tac`, `-index` tiebreak)
-    pub(crate) descending: bool,
-    pub(crate) rank_builder: Arc<RankBuilder>,
-}
-
-impl AllItems {
-    fn to_items(&self) -> Vec<MatchedItem> {
-        (0..self.len).filter_map(|position| self.get(position)).collect()
-    }
-
-    fn get(&self, position: usize) -> Option<MatchedItem> {
-        let index = if self.descending {
-            self.len.checked_sub(position + 1)?
-        } else {
-            position
-        };
-        let item = self.pool.get(index).filter(|_| position < self.len)?;
-        // Same rank as `MatchAllEngine` gives.
-        let rank = Rank {
-            index: i32::try_from(index).unwrap_or(i32::MAX),
-            ..self.rank_builder.build_rank(0, 0, 0, &item.text())
-        };
-        Some(MatchedItem::new(item, rank, &self.rank_builder))
-    }
-}
-
-/// Processed items ready for rendering
-pub(crate) struct ProcessedItems {
-    pub(crate) items: Vec<MatchedItem>,
-    /// Set instead of `items` for the empty query
-    pub(crate) all: Option<AllItems>,
-    pub(crate) merge: MergeStrategy,
-    pub(crate) generation: usize,
-    /// Engine that matched `items`, used to compute highlights for the displayed items
-    pub(crate) engine: Option<Arc<dyn MatchEngine>>,
-}
-
-impl Default for ProcessedItems {
+impl Default for ItemSource {
     fn default() -> Self {
-        Self {
-            items: Vec::new(),
-            merge: MergeStrategy::Replace,
-            generation: 0,
-            engine: None,
-            all: None,
+        Self::Detached(Arc::default())
+    }
+}
+
+impl ItemSource {
+    fn get(&self, index: usize) -> Option<Arc<dyn SkimItem>> {
+        match self {
+            Self::Pool(pool) => pool.get(index),
+            Self::Detached(items) => items.get(index).cloned(),
+        }
+    }
+
+    fn with_items<R>(&self, f: impl FnOnce(&[Arc<dyn SkimItem>]) -> R) -> R {
+        match self {
+            Self::Pool(pool) => pool.with_items(f),
+            Self::Detached(items) => f(items),
         }
     }
 }
 
-/// Number of listed items: `all` if set, else `items`
-fn listed_len(items: &[MatchedItem], all: Option<&AllItems>) -> usize {
-    all.map_or(items.len(), |all| all.len)
+/// Empty query: all the first `len` items are matched, with no stored entries.
+#[derive(Clone, Copy)]
+pub(crate) struct AllItems {
+    pub(crate) len: usize,
+    /// Highest index first (for example with `--tac`).
+    pub(crate) descending: bool,
 }
 
-/// Listed item at `position`: from `all` if set, else from `items`
-fn listed_get(items: &[MatchedItem], all: Option<&AllItems>, position: usize) -> Option<MatchedItem> {
+/// A complete result list ready for rendering.
+pub(crate) struct ProcessedItems {
+    pub(crate) items: Arc<Vec<MatchEntry>>,
+    /// Set instead of `items` for the empty query.
+    pub(crate) all: Option<AllItems>,
+    pub(crate) pool: Arc<ItemPool>,
+    pub(crate) prepended: usize,
+    pub(crate) generation: usize,
+    /// Computes highlights for the displayed items.
+    pub(crate) engine: Arc<dyn MatchEngine>,
+}
+
+fn listed_index(items: &[MatchEntry], all: Option<AllItems>, position: usize) -> Option<(usize, i32)> {
     match all {
-        Some(all) => all.get(position),
-        None => items.get(position).cloned(),
-    }
-}
-
-impl ProcessedItems {
-    /// The items as a list of `MatchedItem`s (built for the empty query)
-    pub(crate) fn into_items(self) -> Vec<MatchedItem> {
-        self.all.map_or(self.items, |all| all.to_items())
+        Some(all) if position < all.len => Some((
+            if all.descending {
+                all.len - 1 - position
+            } else {
+                position
+            },
+            0,
+        )),
+        Some(_) => None,
+        None => items.get(position).map(|entry| (entry.index as usize, entry.score)),
     }
 }
 
@@ -114,16 +87,19 @@ impl ProcessedItems {
 #[allow(clippy::struct_excessive_bools)]
 pub struct ItemList {
     /// The listed items, unless `all` is set. Read them with `len` and `get`.
-    pub(crate) items: Vec<MatchedItem>,
-    /// Empty query: the listed items are all the items of the pool
-    pub(crate) all: Option<AllItems>,
+    items: Arc<Vec<MatchEntry>>,
+    /// Empty query: the listed items are all the items of the pool.
+    all: Option<AllItems>,
+    source: ItemSource,
+    displayed_generation: Option<usize>,
+    no_sort: bool,
     pub(crate) selection: IndexSet<MatchedItem>,
     pub(crate) processed_items: Arc<Mutex<Option<ProcessedItems>>>,
     pub(crate) matcher_generation: Arc<AtomicUsize>,
     /// Engine of the displayed items; computes their highlights at render time
     engine: Option<Arc<dyn MatchEngine>>,
-    /// Highlights of the visible rows, by `rank.index` (unique per item in the pool)
-    pub(crate) highlights: HashMap<i32, Option<MatchRange>>,
+    /// Highlights of the visible rows, by input index.
+    pub(crate) highlights: HashMap<usize, Option<MatchRange>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     /// How many leading sub-lines of items[offset] have been scrolled off the top.
@@ -177,7 +153,7 @@ impl ItemList {
     /// Number of listed items
     #[must_use]
     pub fn len(&self) -> usize {
-        listed_len(&self.items, self.all.as_ref())
+        self.all.map_or(self.items.len(), |all| all.len)
     }
 
     /// Whether no item is listed
@@ -189,15 +165,106 @@ impl ItemList {
     /// The listed item at `position`
     #[must_use]
     pub fn get(&self, position: usize) -> Option<MatchedItem> {
-        listed_get(&self.items, self.all.as_ref(), position)
+        let (index, score) = listed_index(&self.items, self.all, position)?;
+        Some(MatchedItem::with_engine(
+            self.source.get(index)?,
+            index,
+            score,
+            self.engine.clone(),
+        ))
     }
 
-    /// Call before the pool is cleared when the list must stay displayed: a
-    /// view of the pool (empty query) would empty with it, so build its items.
-    pub(crate) fn detach_from_pool(&mut self) {
-        if let Some(all) = self.all.take() {
-            self.items = all.to_items();
+    fn resolve_range(&self, positions: Range<usize>) -> Vec<MatchedItem> {
+        let mut resolved = Vec::with_capacity(positions.len());
+        self.source.with_items(|source| {
+            resolved.extend(positions.filter_map(|position| {
+                let (index, score) = listed_index(&self.items, self.all, position)?;
+                Some(MatchedItem::with_engine(
+                    Arc::clone(source.get(index)?),
+                    index,
+                    score,
+                    self.engine.clone(),
+                ))
+            }));
+        });
+        resolved
+    }
+
+    pub(crate) fn resolve_all(&self) -> Vec<MatchedItem> {
+        self.resolve_range(0..self.len())
+    }
+
+    /// Retain the old storage when the pool is cleared but the list stays visible.
+    pub(crate) fn detach_from_pool(&mut self, pool: &Arc<ItemPool>, old: Vec<Arc<dyn SkimItem>>) {
+        if matches!(&self.source, ItemSource::Pool(source) if Arc::ptr_eq(source, pool)) {
+            self.source = ItemSource::Detached(Arc::new(old));
         }
+    }
+
+    pub(crate) fn take_processed(&self) -> Option<ProcessedItems> {
+        let pending = self
+            .processed_items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        pending.filter(|result| result.generation == self.matcher_generation.load(Ordering::Acquire))
+    }
+
+    pub(crate) fn apply_processed(&mut self, processed: ProcessedItems) {
+        let same_generation = self.displayed_generation == Some(processed.generation);
+        let added = if same_generation {
+            processed.all.map_or(processed.prepended, |all| {
+                all.len.saturating_sub(self.len()) * usize::from(all.descending)
+            })
+        } else {
+            0
+        };
+        self.items = processed.items;
+        self.all = processed.all;
+        self.source = ItemSource::Pool(processed.pool);
+        self.displayed_generation = Some(processed.generation);
+        if added > 0 || self.all.is_some() {
+            self.keep_focus_after_prepend(added);
+        } else if !same_generation || !self.no_sort {
+            self.sub_offset = 0;
+        }
+        self.showing_stale_items = false;
+        self.engine = Some(processed.engine);
+        self.highlights.clear();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_test_items(&mut self, pool: &Arc<ItemPool>, items: &[&str]) {
+        use crate::Rank;
+        use crate::item::RankBuilder;
+
+        self.clear_items();
+        let start = pool.append(
+            items
+                .iter()
+                .map(|&s| Arc::new(s.to_owned()) as Arc<dyn SkimItem>)
+                .collect(),
+        ) - items.len();
+        let builder = RankBuilder::default();
+        let mut entries = (start..start + items.len())
+            .map(|index| {
+                MatchEntry::new(
+                    &Rank {
+                        index: i32::try_from(index).unwrap(),
+                        ..Rank::default()
+                    },
+                    &builder,
+                )
+            })
+            .collect();
+        self.append(pool, &mut entries);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_texts(texts: &[&str]) -> Self {
+        let mut list = Self::default();
+        list.set_test_items(&Arc::default(), texts);
+        list
     }
 
     /// Returns the count of items for status display.
@@ -214,27 +281,16 @@ impl ItemList {
         self.get(self.cursor()).filter(|i| !i.item.disabled())
     }
 
-    /// Appends new matched items to the list
-    /// (With the empty query the list shows the pool: the items must be in it,
-    /// and they are listed after the next matcher run.)
-    pub fn append(&mut self, items: &mut Vec<MatchedItem>) {
-        if self.all.is_none() {
-            self.items.append(items);
+    /// Appends entries from `pool`. An existing list from another source, or an
+    /// empty-query view of the pool, is updated only by the matcher.
+    pub fn append(&mut self, pool: &Arc<ItemPool>, items: &mut Vec<MatchEntry>) {
+        if self.is_empty() {
+            self.source = ItemSource::Pool(Arc::clone(pool));
         }
-        self.showing_stale_items = false;
-    }
-
-    /// Prepends a batch while preserving either the head-following behavior or
-    /// the item currently focused by a user who has moved away from the head.
-    fn prepend(&mut self, mut items: Vec<MatchedItem>) {
-        if items.is_empty() {
-            return;
+        if self.all.is_none() && matches!(&self.source, ItemSource::Pool(source) if Arc::ptr_eq(source, pool)) {
+            Arc::make_mut(&mut self.items).append(items);
+            self.showing_stale_items = false;
         }
-
-        let added = items.len();
-        items.append(&mut self.items);
-        self.items = items;
-        self.keep_focus_after_prepend(added);
     }
 
     /// `added` items were put before the list: stay at the head if the cursor
@@ -249,13 +305,37 @@ impl ItemList {
         }
     }
 
+    fn pre_select(&mut self) {
+        // Resolve in batches so we stop at the target without holding the pool lock
+        // during calls to a custom selector.
+        const BATCH: usize = 256;
+        let Some(selector) = &self.selector else { return };
+        if !self.multi_select {
+            return;
+        }
+        for start in (0..self.len()).step_by(BATCH) {
+            if self.selection.len() >= self.pre_select_target {
+                return;
+            }
+            let items = self.resolve_range(start..(start + BATCH).min(self.len()));
+            for (index, item) in (start..).zip(items) {
+                if selector.should_select(index, item.item.as_ref()) {
+                    self.selection.insert(item);
+                    if self.selection.len() >= self.pre_select_target {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     /// Toggles the selection state of the item at the given index
     pub fn toggle_at(&mut self, index: usize) {
         let Some(item) = self.get(index) else {
             return;
         };
         trace!("Toggled item {} at index {}", item.text(), index);
-        toggle_item(&mut self.selection, &item);
+        toggle_item(&mut self.selection, item);
         trace!(
             "Selection is now {:#?}",
             self.selection.iter().map(|item| item.item.text()).collect::<Vec<_>>()
@@ -267,10 +347,8 @@ impl ItemList {
     }
     /// Toggles the selection state of all items
     pub fn toggle_all(&mut self) {
-        for position in 0..self.len() {
-            if let Some(item) = self.get(position) {
-                toggle_item(&mut self.selection, &item);
-            }
+        for item in self.resolve_all() {
+            toggle_item(&mut self.selection, item);
         }
     }
 
@@ -288,11 +366,8 @@ impl ItemList {
     }
     /// Selects all items
     pub fn select_all(&mut self) {
-        for position in 0..self.len() {
-            if let Some(item) = self.get(position).filter(|item| !item.disabled()) {
-                self.selection.insert(item);
-            }
-        }
+        self.selection
+            .extend(self.resolve_all().into_iter().filter(|item| !item.disabled()));
     }
     /// Clears all selections
     pub fn clear_selection(&mut self) {
@@ -300,9 +375,16 @@ impl ItemList {
     }
     /// Clears all items from the list
     pub fn clear(&mut self) {
-        self.items.clear();
-        self.all = None;
+        self.clear_items();
         self.selection.clear();
+    }
+
+    pub(crate) fn clear_items(&mut self) {
+        self.items = Arc::default();
+        self.all = None;
+        self.source = ItemSource::default();
+        self.displayed_generation = None;
+        self.engine = None;
         self.highlights.clear();
         self.current = 0;
         self.offset = 0;
@@ -559,6 +641,9 @@ impl SkimWidget for ItemList {
             manual_hscroll: 0,
             items: Default::default(),
             all: None,
+            source: ItemSource::default(),
+            displayed_generation: None,
+            no_sort: options.no_sort,
             selection: Default::default(),
             offset: Default::default(),
             sub_offset: 0,
@@ -618,109 +703,32 @@ impl SkimWidget for ItemList {
         }
         let initial_current = this.selected();
 
-        // Check for pre-processed items from background thread (non-blocking).
-        // Bind the result separately so the lock guard is dropped before a merge
-        // mutates the item list.
-        let processed = this
-            .processed_items
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take();
-        let current_generation = this.matcher_generation.load(Ordering::Acquire);
-        let processed = processed.filter(|result| result.generation == current_generation);
-        let items_updated = if let Some(processed) = processed {
-            let processed_len = listed_len(&processed.items, processed.all.as_ref());
+        let processed = this.take_processed();
+        let items_updated = processed.is_some();
+        if let Some(processed) = processed {
+            let processed_len = processed.all.map_or(processed.items.len(), |all| all.len);
             debug!("Render: Got {processed_len} processed items");
-
-            // Check if items are empty or blank for no_clear_if_empty handling
-            let items_are_empty_or_blank = (0..processed_len)
-                .filter_map(|position| listed_get(&processed.items, processed.all.as_ref(), position))
-                .all(|item| item.item.text().trim().is_empty());
 
             if !this.is_empty()
                 && ((this.keep_on_reload && processed_len == 0)
-                    || (this.interactive && this.no_clear_if_empty && items_are_empty_or_blank))
+                    || (this.interactive
+                        && this.no_clear_if_empty
+                        && (0..processed_len).all(|position| {
+                            listed_index(&processed.items, processed.all, position)
+                                .and_then(|(index, _)| processed.pool.get(index))
+                                .is_none_or(|item| item.text().trim().is_empty())
+                        })))
             {
-                debug!(
-                    "no_clear_if_empty: keeping {} old items for display (new items are empty/blank)",
-                    this.len()
-                );
+                debug!("no_clear_if_empty: keeping {} old items for display", this.len());
                 this.showing_stale_items = true;
             } else {
-                let merge = if this.keep_on_reload {
+                if this.keep_on_reload {
                     this.clear();
-                    MergeStrategy::Replace
-                } else {
-                    processed.merge
-                };
-                if let Some(all) = processed.all {
-                    // Empty query: new items come after the list, or before it
-                    // when descending.
-                    let added = match merge {
-                        MergeStrategy::Replace => 0,
-                        _ => all.len.saturating_sub(this.len()) * usize::from(all.descending),
-                    };
-                    this.items = Vec::new();
-                    this.all = Some(all);
-                    this.keep_focus_after_prepend(added);
-                } else {
-                    this.all = None;
-                    match merge {
-                        MergeStrategy::Replace => {
-                            this.items = processed.items;
-                            this.sub_offset = 0;
-                        }
-                        MergeStrategy::SortedMerge => {
-                            let existing = std::mem::take(&mut this.items);
-                            this.items = MatchedItem::sorted_merge(existing, processed.items);
-                            this.sub_offset = 0;
-                        }
-                        MergeStrategy::Append => {
-                            this.items.extend(processed.items);
-                        }
-                        MergeStrategy::Prepend => {
-                            this.prepend(processed.items);
-                        }
-                    }
                 }
-                this.showing_stale_items = false;
-                if processed.engine.is_some() {
-                    this.engine = processed.engine;
-                    // Computed with the previous engine (query).
-                    this.highlights.clear();
-                }
-
-                // Apply pre-selection only when new items arrive and only if we haven't reached target
-                // This runs once per item batch, not on every render
-                if this.multi_select
-                    && let Some(selector) = &this.selector
-                    && this.selection.len() < this.pre_select_target
-                {
-                    debug!(
-                        "Applying pre-selection to {} items (currently {} selected, target {})",
-                        this.len(),
-                        this.selection.len(),
-                        this.pre_select_target
-                    );
-                    for index in 0..this.len() {
-                        if this.selection.len() >= this.pre_select_target {
-                            break;
-                        }
-                        let Some(item) = this.get(index) else { continue };
-                        let should_select = selector.should_select(index, item.item.as_ref());
-                        if should_select {
-                            debug!("Pre-selecting item[{}]: '{}'", index, item.item.text());
-                            this.selection.insert(item);
-                        }
-                    }
-                    debug!("Pre-selected {} items total", this.selection.len());
-                }
+                this.apply_processed(processed);
+                this.pre_select();
             }
-
-            true
-        } else {
-            false
-        };
+        }
 
         // The matcher only ranks items: compute the highlights of the visible
         // rows here, and reuse the ones of the previous frame.
@@ -735,9 +743,9 @@ impl SkimWidget for ItemList {
                 let Some(item) = this.get(idx) else { break };
                 let range = this
                     .highlights
-                    .remove(&item.rank.index)
+                    .remove(&item.index)
                     .unwrap_or_else(|| engine.match_item(item.item.as_ref()).map(|result| result.matched_range));
-                highlights.insert(item.rank.index, range);
+                highlights.insert(item.index, range);
             }
         }
         this.highlights = highlights;
@@ -760,7 +768,7 @@ impl SkimWidget for ItemList {
             let is_current = idx == this.current;
             let is_selected = this.selection.contains(item);
             let skip_subs = if idx == this.offset { sub_offset } else { 0 };
-            let matched_range = this.highlights.get(&item.rank.index).and_then(Option::as_ref);
+            let matched_range = this.highlights.get(&item.index).and_then(Option::as_ref);
             rows_used += renderer.render_item(
                 item,
                 matched_range,
@@ -835,11 +843,9 @@ impl SkimWidget for ItemList {
     }
 }
 
-fn toggle_item(sel: &mut IndexSet<MatchedItem>, item: &MatchedItem) {
-    if sel.contains(item) {
-        sel.shift_remove(item);
-    } else if !item.disabled() {
-        sel.insert(item.clone());
+fn toggle_item(sel: &mut IndexSet<MatchedItem>, item: MatchedItem) {
+    if !sel.shift_remove(&item) && !item.disabled() {
+        sel.insert(item);
     }
 }
 

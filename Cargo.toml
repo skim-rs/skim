@@ -136,6 +136,10 @@ name = "filter"
 harness = false
 
 [[bench]]
+name = "merge"
+harness = false
+
+[[bench]]
 name = "partial"
 harness = false
 

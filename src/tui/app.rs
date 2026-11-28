@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::helper::item::strip_ansi;
-use crate::item::{ItemPool, MatchedItem};
-use crate::matcher::{Matcher, MatcherControl};
+use crate::item::{ItemPool, MatchEntry, MatchedItem};
+use crate::matcher::{Matcher, MatcherControl, MergeStrategy};
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::input::StatusInfo;
 use crate::tui::layout::{AppLayout, LayoutTemplate};
@@ -532,11 +532,9 @@ impl App {
         events
     }
 
-    /// Gives back memory once skim is idle: the spare capacity of the item list
-    /// and pool (they grow by doubling while items stream in), and the freed
-    /// memory that the allocator still holds.
+    /// Gives back the spare capacity of the item pool and any memory that the
+    /// allocator still holds once skim is idle.
     fn release_memory(&mut self) {
-        self.item_list.items.shrink_to_fit();
         self.item_pool.shrink_to_fit();
         // The matcher threads are idle now, so the allocator would keep it.
         crate::release_freed_memory();
@@ -615,17 +613,9 @@ impl App {
                 },
                 width: self.preview.cols as usize,
                 height: self.preview.rows as usize,
-                current_index: selected
-                    .as_ref()
-                    .map(|i| i.rank.index.unsigned_abs() as usize)
-                    .unwrap_or_default(),
+                current_index: selected.as_ref().map(|i| i.index).unwrap_or_default(),
                 current_selection: &selected.map(|i| i.text().into_owned()).unwrap_or_default(),
-                selected_indices: &self
-                    .item_list
-                    .selection
-                    .iter()
-                    .map(|v| v.rank.index.unsigned_abs() as usize)
-                    .collect::<Vec<_>>(),
+                selected_indices: &self.item_list.selection.iter().map(|v| v.index).collect::<Vec<_>>(),
                 selections: &selection_str,
             };
             let preview = item.preview(ctx);
@@ -729,11 +719,13 @@ impl App {
             Event::Render => {
                 // Always render to avoid freezing, but the render function itself can optimize
                 tui.get_frame();
+                let started = std::time::Instant::now();
                 tui.draw(|f| {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-                // Matcher output is merged into the item list during rendering,
+                trace!("render done in {:?}", started.elapsed());
+                // Matcher output is applied to the item list during rendering,
                 // so this is where result-driven focus changes become observable.
                 if let Some(event) = self.take_focus_event() {
                     tui.event_tx.try_send(event)?;
@@ -872,8 +864,8 @@ impl App {
             }
             Event::ClearItems => {
                 // The old items stay displayed until the new results arrive.
-                self.item_list.detach_from_pool();
-                self.item_pool.clear();
+                let old = self.item_pool.clear();
+                self.item_list.detach_from_pool(&self.item_pool, old);
                 self.restart_matcher(true);
             }
             Event::AppendItems(items) => {
@@ -996,14 +988,18 @@ impl App {
             AppendAndSelect => {
                 let value = self.input.value.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
-                let rank = Rank {
-                    index: i32::try_from(self.item_pool.len()).unwrap_or(i32::MAX),
-                    ..Default::default()
-                };
-                self.item_pool.append(vec![item.clone()]);
-                let item = MatchedItem::new(item, rank, &self.matcher.rank_builder);
-                self.item_list.append(&mut vec![item.clone()]);
-                self.item_list.selection.insert(item);
+                let len = self.item_pool.append(vec![item.clone()]);
+                let index = len.saturating_sub(1);
+                // A line reserved for the header has no index in the matchable pool.
+                if len != 0 {
+                    let rank = Rank {
+                        index: i32::try_from(index)?,
+                        ..Rank::default()
+                    };
+                    let entry = MatchEntry::new(&rank, &self.matcher.rank_builder);
+                    self.item_list.append(&self.item_pool, &mut vec![entry]);
+                }
+                self.item_list.selection.insert(MatchedItem::new(item, index, 0));
                 self.restart_matcher_debounced();
                 return Ok(self.on_selection_changed());
             }
@@ -1452,8 +1448,10 @@ impl App {
     /// Returns the selected items as results
     pub fn results(&mut self) -> Vec<MatchedItem> {
         if self.options.filter.is_some() {
-            // In filter mode, drain items to avoid cloning
-            std::mem::take(&mut self.item_list.items)
+            let mut items = self.item_list.resolve_all();
+            self.item_list.clear_items();
+            items.retain(|item| !item.disabled());
+            items
         } else if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list.selection.clone().into_iter().collect()
         } else if let Some(sel) = self.item_list.selected() {
@@ -1481,7 +1479,6 @@ impl App {
     /// If `force` is false, the matcher will only be restarted if there are new items
     /// to process or if the previous matcher has completed.
     pub fn restart_matcher(&mut self, force: bool) {
-        use crate::tui::item_list::MergeStrategy;
         // Check if query meets minimum length requirement
         if self.query_below_min_length() {
             // Query is too short, clear items and don't run matcher
@@ -1492,10 +1489,8 @@ impl App {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
-            self.item_list.items.clear();
-            self.item_list.all = None;
-            self.item_list.current = 0;
-            self.item_list.offset = 0;
+            self.matcher.clear_results();
+            self.item_list.clear_items();
             return;
         }
 

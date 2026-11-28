@@ -1,4 +1,24 @@
-# Breaking changes: two-pass matching
+# Breaking changes: pool-indexed match results
+
+- `MatchedItem` exposes `item`, `index: usize` and `score: i32`. This applies to
+  `SkimOutput::selected_items` and `SkimOutput::current`. Use `item.index` and
+  `item.score` instead of `item.rank.index` and `item.rank.score`.
+- Construct results with `MatchedItem::new(item, index, score)`. For items
+  returned by `Skim`, use `item.rank()` to recompute the full rank, including
+  the input index. If you also need the matched range, use `item.match_result()`
+  instead. These methods use the engine that matched the item, even if the
+  query changed after selection. Neither method needs the original options.
+  Items without an engine, such as items made with `MatchedItem::new` or
+  received from a popup subprocess, return `None`.
+- `MatchedItem` no longer implements `Ord` or `PartialOrd`. Use
+  `skim::item::MatchEntry::new(&rank, &rank_builder)` for rank-based sorting and
+  `MatchEntry::merge_sorted` to merge sorted entries. `ItemList::append` now takes
+  the pool and entries that refer to it.
+- `ItemPool::clear()` returns the old non-header items in input order. Callers
+  can keep them or drop the returned vector. The pool supports at most
+  `i32::MAX` non-header items.
+
+# Earlier breaking changes: two-pass matching
 
 Skim now matches in two passes:
 
@@ -22,11 +42,10 @@ computes them for the visible rows only, and keeps them itself.
 - `MatchedItem::new(item, rank, matched_range, rank_builder)` is now
   `MatchedItem::new(item, rank, rank_builder)`.
 
-Migration: if you need the range of an item, compute it with the engine:
+Migration: use the retained engine through the item returned by `Skim`:
 
 ```rust
-let engine = Matcher::create_engine_factory(&options).create_engine_with_case(query, options.case);
-let range = engine.match_item(item.item.as_ref()).map(|r| r.matched_range);
+let range = item.match_result().map(|result| result.matched_range);
 ```
 
 ## `MatchEngine` has a new method, `match_rank`

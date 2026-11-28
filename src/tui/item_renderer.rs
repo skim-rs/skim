@@ -245,10 +245,10 @@ impl<'a> ItemRenderer<'a> {
             prefix_selected_style,
         ));
         if self.show_score {
-            self.push_first_line_field(&mut prefix, state, item.rank.score);
+            self.push_first_line_field(&mut prefix, state, item.score);
         }
         if self.show_index {
-            self.push_first_line_field(&mut prefix, state, item.rank.index);
+            self.push_first_line_field(&mut prefix, state, item.index);
         }
 
         prefix
@@ -313,7 +313,7 @@ impl<'a> ItemRenderer<'a> {
     ) -> Line<'static> {
         let first_sub_char_len = first_sub_line.chars().count();
         let dl = item.item.display(DisplayContext {
-            score: item.rank.score,
+            score: item.score,
             matches: Self::display_matches(matched_range),
             container_width: self.container_width,
             base_style: self.base_style(is_current),

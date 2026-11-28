@@ -113,7 +113,7 @@ impl SkimOutput {
                 write!(out, "{}{}", item.output(), opts.output_ending)?;
             }
             if opts.print_score {
-                write!(out, "{}{}", item.rank.score, opts.output_ending)?;
+                write!(out, "{}{}", item.score, opts.output_ending)?;
             }
         }
 
@@ -168,16 +168,12 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent};
 
     use super::*;
-    use crate::item::{MatchedItem, RankBuilder};
-    use crate::{Rank, SkimItem};
+    use crate::SkimItem;
+    use crate::item::MatchedItem;
 
     fn matched(text: &str, score: i32) -> MatchedItem {
         let item: Arc<dyn SkimItem> = Arc::new(text.to_string());
-        let rank = Rank {
-            score,
-            ..Default::default()
-        };
-        MatchedItem::new(item, rank, &RankBuilder::default())
+        MatchedItem::new(item, 0, score)
     }
 
     fn output_with(items: Vec<MatchedItem>, final_event: Event) -> SkimOutput {
