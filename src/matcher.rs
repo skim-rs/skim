@@ -346,8 +346,9 @@ impl Matcher {
             // the frequency of atomic counter updates / interrupt checks.
             const CHUNK_SIZE: usize = 1 << 12;
 
-            // Convert items into an Arc slice so all workers can share them.
-            let shared_items: Arc<[Arc<dyn SkimItem>]> = items.into();
+            // Share the batch with the workers. `Arc<Vec>`, not `Arc<[_]>`: that
+            // conversion would copy the whole batch.
+            let shared_items: Arc<Vec<Arc<dyn SkimItem>>> = Arc::new(items);
 
             // Clones for the process_chunk closure.
             let matcher_engine: Arc<dyn MatchEngine> = Arc::from(matcher_engine);
@@ -381,7 +382,7 @@ impl Matcher {
                             // item's stable ordinal in the original input stream.
                             let index = input_index(tac, start, total, batch_index);
                             rank.index = i32::try_from(index).unwrap_or(i32::MAX);
-                            local_matches.push(MatchedItem::new(Arc::clone(item), rank, None, &rank_builder_for_work));
+                            local_matches.push(MatchedItem::new(Arc::clone(item), rank, &rank_builder_for_work));
                         }
                     }
                     let chunk_matched = local_matches.len();
@@ -461,7 +462,6 @@ mod tests {
                 index,
                 ..Default::default()
             },
-            None,
             &RankBuilder::default(),
         )
     }
@@ -515,7 +515,7 @@ mod tests {
                 let item: Arc<dyn SkimItem> = Arc::new(text.to_string());
                 let mut result = engine.match_item(item.as_ref()).unwrap();
                 result.rank.index = i32::try_from(index).unwrap();
-                MatchedItem::new(item, result.rank, Some(result.matched_range), &rank_builder)
+                MatchedItem::new(item, result.rank, &rank_builder)
             })
             .collect();
         matches.sort();

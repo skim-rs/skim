@@ -97,3 +97,14 @@ fn as_any_downcasts_mutably() {
     s.push_str(" world");
     assert_eq!(value, "hello world");
 }
+/// Option 15 must be mimalloc's purge delay: in mimalloc v3 it is the only
+/// option with a default of 1000 (ms). Catches a renumbering on update.
+#[test]
+fn allocator_purge_delay_is_set() {
+    // SAFETY: plain FFI calls.
+    let before = unsafe { crate::mi_option_get(crate::MI_OPTION_PURGE_DELAY) };
+    // Another test in this process may have set it already.
+    assert!(before == 1000 || before == 10, "unexpected option value {before}");
+    crate::set_allocator_purge_delay();
+    assert_eq!(unsafe { crate::mi_option_get(crate::MI_OPTION_PURGE_DELAY) }, 10);
+}

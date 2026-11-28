@@ -35,7 +35,6 @@ fn matched(text: &str, index: i32) -> MatchedItem {
             index,
             ..Default::default()
         },
-        None,
         &RankBuilder::default(),
     )
 }
@@ -1255,7 +1254,6 @@ fn child_env_omits_oversized_selected_items() {
     app.item_list.selection.insert(crate::item::MatchedItem::new(
         Arc::new("x".repeat(70 * 1024)),
         crate::Rank::default(),
-        None,
         &crate::item::RankBuilder::default(),
     ));
     let env = app.child_env();
@@ -2203,7 +2201,7 @@ impl SkimItem for TextPreviewItem {
 
 fn app_with_one(item: Arc<dyn SkimItem>) -> App {
     let mut app = App::default();
-    let mut matched_items = vec![MatchedItem::new(item, Rank::default(), None, &RankBuilder::default())];
+    let mut matched_items = vec![MatchedItem::new(item, Rank::default(), &RankBuilder::default())];
     app.item_list.append(&mut matched_items);
     app.item_list.height = 10;
     app

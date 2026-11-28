@@ -269,6 +269,7 @@ where
     ///
     /// Panics if the margin is invalid.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
+        crate::set_allocator_purge_delay();
         let height = Size::try_from(options.height.as_str())?;
 
         // application state

@@ -11,17 +11,18 @@ Skim now matches in two passes:
 The `Skim::*` entry points and `SkimOptions` do not change. The ranking,
 the sort order and the `--filter` output do not change either.
 
-## `MatchedItem::matched_range` is `None` until the item is displayed
+## `MatchedItem` has no `matched_range` field, and `MatchedItem::new` lost its argument
 
-Before, all matched items had `matched_range: Some(..)`. Now the matcher
-creates `MatchedItem`s with `matched_range: None`. The item list fills it in
-when it renders the item.
+Skim creates one `MatchedItem` per matched item, so its size matters (it went
+from 88 to 64 bytes). The highlights are display state: the item list now
+computes them for the visible rows only, and keeps them itself.
 
-Effect for library users: in `SkimOutput::selected_items`, items that skim
-never displayed (for example after `select-all`) have `matched_range: None`.
-In `--filter` mode, no item has it.
+- The `MatchedItem::matched_range` field is removed. This includes the items in
+  `SkimOutput::selected_items` and `SkimOutput::current`.
+- `MatchedItem::new(item, rank, matched_range, rank_builder)` is now
+  `MatchedItem::new(item, rank, rank_builder)`.
 
-Migration: if you need the range, compute it with the engine:
+Migration: if you need the range of an item, compute it with the engine:
 
 ```rust
 let engine = Matcher::create_engine_factory(&options).create_engine_with_case(query, options.case);

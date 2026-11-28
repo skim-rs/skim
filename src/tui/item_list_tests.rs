@@ -12,7 +12,6 @@ fn matched(text: &str, index: i32) -> MatchedItem {
             index,
             ..Default::default()
         },
-        None,
         &RankBuilder::default(),
     )
 }
@@ -47,7 +46,6 @@ fn selection_and_selected_skip_disabled_items() {
     let disabled = MatchedItem::new(
         std::sync::Arc::new(Disabled("foo")) as std::sync::Arc<dyn crate::SkimItem>,
         Rank::default(),
-        None,
         &rb,
     );
     let mut il = ItemList::default();
@@ -271,8 +269,17 @@ fn render_computes_matched_range_for_visible_items_only() {
         engine: Some(std::sync::Arc::new(engine)),
     });
     render_list(&mut il, 20, 3);
-    assert!(il.items[..3].iter().all(|item| item.matched_range.is_some()));
-    assert!(il.items[3..].iter().all(|item| item.matched_range.is_none()));
+    let mut cached: Vec<i32> = il.highlights.keys().copied().collect();
+    cached.sort_unstable();
+    assert_eq!(cached, [0, 1, 2]);
+    assert!(il.highlights.values().all(Option::is_some));
+
+    // Scrolling keeps only the visible rows.
+    il.current = 9;
+    render_list(&mut il, 20, 3);
+    let mut cached: Vec<i32> = il.highlights.keys().copied().collect();
+    cached.sort_unstable();
+    assert_eq!(cached, [7, 8, 9]);
 }
 
 #[test]

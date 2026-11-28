@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -17,7 +18,7 @@ use crate::tui::BorderType;
 use crate::tui::item_renderer::ItemRenderer;
 use crate::tui::options::TuiLayout;
 use crate::tui::widget::{SkimRender, SkimWidget};
-use crate::{MatchEngine, Selector, SkimOptions};
+use crate::{MatchEngine, MatchRange, Selector, SkimOptions};
 
 /// How to apply processed items to the display list
 #[derive(Default, Clone, Copy)]
@@ -62,6 +63,8 @@ pub struct ItemList {
     pub(crate) matcher_generation: Arc<AtomicUsize>,
     /// Engine of the displayed items; computes their highlights at render time
     engine: Option<Arc<dyn MatchEngine>>,
+    /// Highlights of the visible rows, by `rank.index` (unique per item in the pool)
+    pub(crate) highlights: HashMap<i32, Option<MatchRange>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     /// How many leading sub-lines of items[offset] have been scrolled off the top.
@@ -211,6 +214,7 @@ impl ItemList {
     pub fn clear(&mut self) {
         self.items.clear();
         self.selection.clear();
+        self.highlights.clear();
         self.current = 0;
         self.offset = 0;
         self.sub_offset = 0;
@@ -443,6 +447,7 @@ impl SkimWidget for ItemList {
             processed_items,
             matcher_generation,
             engine: None,
+            highlights: HashMap::new(),
             reserved: 0, // header_lines are now displayed in the Header widget, not ItemList
             direction: match options.layout {
                 TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
@@ -576,6 +581,8 @@ impl SkimWidget for ItemList {
                 this.showing_stale_items = false;
                 if processed.engine.is_some() {
                     this.engine = processed.engine;
+                    // Computed with the previous engine (query).
+                    this.highlights.clear();
                 }
 
                 // Apply pre-selection only when new items arrive and only if we haven't reached target
@@ -609,7 +616,9 @@ impl SkimWidget for ItemList {
             false
         };
 
-        // The matcher only ranks items: compute the highlights of the visible items here.
+        // The matcher only ranks items: compute the highlights of the visible
+        // rows here, and reuse the ones of the previous frame.
+        let mut highlights = HashMap::with_capacity(available_rows);
         if let Some(engine) = &this.engine {
             let mut rows = 0usize;
             for idx in this.offset..this.items.len() {
@@ -617,12 +626,15 @@ impl SkimWidget for ItemList {
                     break;
                 }
                 rows += this.item_row_count(idx);
-                let item = &mut this.items[idx];
-                if item.matched_range.is_none() {
-                    item.matched_range = engine.match_item(item.item.as_ref()).map(|result| result.matched_range);
-                }
+                let item = &this.items[idx];
+                let range = this
+                    .highlights
+                    .remove(&item.rank.index)
+                    .unwrap_or_else(|| engine.match_item(item.item.as_ref()).map(|result| result.matched_range));
+                highlights.insert(item.rank.index, range);
             }
         }
+        this.highlights = highlights;
 
         let icon_width = this.selector_icon.chars().count() + this.multi_select_icon.chars().count();
         let container_width = (inner_area.width as usize).saturating_sub(icon_width);
@@ -639,9 +651,11 @@ impl SkimWidget for ItemList {
             }
             let is_current = idx == this.current;
             let is_selected = this.selection.contains(item);
+            let matched_range = this.highlights.get(&item.rank.index).and_then(Option::as_ref);
             let skip_subs = if idx == this.offset { sub_offset } else { 0 };
             rows_used += renderer.render_item(
                 item,
+                matched_range,
                 is_current,
                 is_selected,
                 skip_subs,

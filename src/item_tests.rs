@@ -10,7 +10,7 @@ fn matched(text: &str, index: i32, score: i32) -> MatchedItem {
         index,
         ..Default::default()
     };
-    MatchedItem::new(item(text), rank, None, &RankBuilder::default())
+    MatchedItem::new(item(text), rank, &RankBuilder::default())
 }
 
 #[test]
@@ -59,8 +59,8 @@ fn path_name_offset_counts_chars_not_bytes() {
 fn pathname_tiebreak_prefers_filename_match_with_non_ascii_dir() {
     // "ééééé/a" matches in the filename (best), "a/xxxxx" matches in the dir part.
     let rb = RankBuilder::new(vec![RankCriteria::PathName, RankCriteria::Index]);
-    let in_filename = MatchedItem::new(item("ééééé/a"), rb.build_rank(0, 6, 7, "ééééé/a"), None, &rb);
-    let in_dir = MatchedItem::new(item("a/xxxxx"), rb.build_rank(0, 0, 1, "a/xxxxx"), None, &rb);
+    let in_filename = MatchedItem::new(item("ééééé/a"), rb.build_rank(0, 6, 7, "ééééé/a"), &rb);
+    let in_dir = MatchedItem::new(item("a/xxxxx"), rb.build_rank(0, 0, 1, "a/xxxxx"), &rb);
 
     assert!(
         in_filename < in_dir,
@@ -102,20 +102,20 @@ fn matched_item_ordering_reverses_stable_input_index_for_tac() {
     };
 
     let normal_builder = RankBuilder::new(vec![RankCriteria::Index]);
-    let old = MatchedItem::new(item("old"), old_rank, None, &normal_builder);
-    let new = MatchedItem::new(item("new"), new_rank, None, &normal_builder);
+    let old = MatchedItem::new(item("old"), old_rank, &normal_builder);
+    let new = MatchedItem::new(item("new"), new_rank, &normal_builder);
     assert!(old < new);
 
     let tac_builder = RankBuilder::new(vec![RankCriteria::Index]).tac(true);
-    let old = MatchedItem::new(item("old"), old_rank, None, &tac_builder);
-    let new = MatchedItem::new(item("new"), new_rank, None, &tac_builder);
+    let old = MatchedItem::new(item("old"), old_rank, &tac_builder);
+    let new = MatchedItem::new(item("new"), new_rank, &tac_builder);
     assert!(new < old);
     assert_eq!(new.rank.index, 1);
     assert_eq!(MatchedItem::sorted_merge(vec![old], vec![new])[0].text(), "new");
 
     let tac_builder = RankBuilder::default().tac(true);
-    let old = MatchedItem::new(item("old"), old_rank, None, &tac_builder);
-    let new = MatchedItem::new(item("new"), new_rank, None, &tac_builder);
+    let old = MatchedItem::new(item("old"), old_rank, &tac_builder);
+    let new = MatchedItem::new(item("new"), new_rank, &tac_builder);
     assert!(new < old);
 }
 
@@ -129,7 +129,6 @@ fn sorted_merge_tac_places_newer_incremental_batch_first() {
                 index,
                 ..Default::default()
             },
-            None,
             &rank_builder,
         )
     };

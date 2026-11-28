@@ -121,7 +121,6 @@ fn no_clear_start_keeps_items_until_reload_results_or_completion() {
         skim.app.item_list.items.push(crate::item::MatchedItem::new(
             Arc::new("old".to_string()),
             crate::Rank::default(),
-            None,
             &crate::item::RankBuilder::default(),
         ));
         skim.app.item_list.select_row(0);
@@ -216,7 +215,6 @@ fn interactive_min_query_length_gates_command_lifecycle() {
     skim.app.item_list.items.push(crate::item::MatchedItem::new(
         Arc::new("old result".to_string()),
         crate::Rank::default(),
-        None,
         &crate::item::RankBuilder::default(),
     ));
 
@@ -296,7 +294,6 @@ fn reload_command_sees_the_state_before_the_list_is_cleared() {
     skim.app.item_list.items.push(crate::item::MatchedItem::new(
         Arc::new("alpha".to_string()),
         crate::Rank::default(),
-        None,
         &crate::item::RankBuilder::default(),
     ));
     skim.app.item_list.current = 0;
@@ -460,7 +457,7 @@ fn multi_selection_flows_into_output_and_serializes() {
     wait_until(|| skim.matcher_stopped());
 
     let rb = RankBuilder::default();
-    let mk = |t: &str| MatchedItem::new(Arc::new(t.to_string()) as Arc<dyn SkimItem>, Rank::default(), None, &rb);
+    let mk = |t: &str| MatchedItem::new(Arc::new(t.to_string()) as Arc<dyn SkimItem>, Rank::default(), &rb);
     skim.app_mut().item_list.append(&mut vec![mk("a"), mk("b"), mk("c")]);
     // Toggle "a" and "c" into the selection, as BTab would.
     skim.app_mut().item_list.toggle_at(0);

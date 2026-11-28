@@ -5,7 +5,7 @@ use regex::Regex;
 use std::sync::Arc;
 
 fn make_item(s: &'static str) -> MatchedItem {
-    MatchedItem::new(Arc::new(s), Rank::default(), None, &RankBuilder::default())
+    MatchedItem::new(Arc::new(s), Rank::default(), &RankBuilder::default())
 }
 
 #[test]

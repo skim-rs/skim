@@ -15,7 +15,7 @@ use clap::ValueEnum;
 use clap::builder::PossibleValue;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
-use crate::{MatchRange, Rank, SkimItem};
+use crate::{Rank, SkimItem};
 use tokio::sync::Notify;
 
 //------------------------------------------------------------------------------
@@ -158,27 +158,31 @@ impl Rank {
 }
 
 //------------------------------------------------------------------------------
-/// An item that has been matched against a query
+/// An item that has been matched against a query.
+///
+/// One exists for every matched item, so keep it small (64 bytes). The
+/// highlights are not here: the item list computes them for the displayed rows.
 #[derive(Clone)]
 pub struct MatchedItem {
     /// The underlying skim item
     pub item: Arc<dyn SkimItem>,
     /// Raw match measurements
     pub rank: Rank,
-    /// Range of characters that matched the pattern
-    pub matched_range: Option<MatchRange>,
     /// Sort key precomputed at construction time from `rank` and the tiebreak
     /// criteria. The sixth slot is the tac-aware implicit index tiebreak.
     /// Caching avoids recomputing it on every comparison during sort.
     sort_key: [i32; 6],
 }
 
+// One `MatchedItem` per matched item: a size increase costs memory on every item.
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(std::mem::size_of::<MatchedItem>() == 64);
+
 impl std::fmt::Debug for MatchedItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MatchedItem")
             .field("item", &self.item.text())
             .field("rank", &self.rank)
-            .field("matched_range", &self.matched_range)
             .finish_non_exhaustive()
     }
 }
@@ -200,16 +204,10 @@ impl Deref for MatchedItem {
 
 impl MatchedItem {
     /// Create a new `MatchedItem`, building the `sort_key` from the Rank and `RankBuilder`
-    pub fn new(
-        item: Arc<dyn SkimItem>,
-        rank: Rank,
-        matched_range: Option<MatchRange>,
-        rank_builder: &RankBuilder,
-    ) -> Self {
+    pub fn new(item: Arc<dyn SkimItem>, rank: Rank, rank_builder: &RankBuilder) -> Self {
         Self {
             item,
             rank,
-            matched_range,
             sort_key: rank_builder.sort_key(&rank),
         }
     }
@@ -555,6 +553,12 @@ impl ItemPool {
         }
         drop(guard); // Explicitly release lock
         items
+    }
+
+    /// Frees the spare capacity of the pool (it grows by doubling while items
+    /// stream in). Call it once all items are read.
+    pub fn shrink_to_fit(&self) {
+        self.pool.lock().shrink_to_fit();
     }
 
     /// Returns a copy of the reserved header items

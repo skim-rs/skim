@@ -164,6 +164,9 @@ pub struct App {
     /// `result` (and `zero`/`one`) events once that run completes, polled from
     /// the heartbeat.
     pub(crate) result_pending: bool,
+    /// Whether freed memory was given back to the OS since the last search
+    /// (done once, when skim becomes idle).
+    memory_released: bool,
     /// The last item that had focus, tracked so the `focus` event fires only
     /// when the focused item actually changes on cursor movement.
     last_focused: Option<Arc<dyn SkimItem>>,
@@ -318,6 +321,7 @@ impl Default for App {
             reader_done: false,
             load_event_fired: false,
             result_pending: false,
+            memory_released: false,
             last_focused: None,
         }
     }
@@ -397,6 +401,7 @@ impl App {
             reader_done: false,
             load_event_fired: false,
             result_pending: false,
+            memory_released: false,
             last_focused: None,
         }
     }
@@ -501,6 +506,17 @@ impl App {
             events.push(Event::Key(SkimEvent::Load.into()));
         }
 
+        // Idle: all items read and matched, and the results are displayed.
+        if !self.memory_released
+            && !self.result_pending
+            && self.reader_done
+            && self.matcher_control.stopped()
+            && self.item_list.processed_items.lock().is_ok_and(|p| p.is_none())
+        {
+            self.memory_released = true;
+            self.release_memory();
+        }
+
         if self.result_pending && self.matcher_control.stopped() {
             self.result_pending = false;
             events.push(Event::Key(SkimEvent::Result.into()));
@@ -514,6 +530,16 @@ impl App {
         }
 
         events
+    }
+
+    /// Gives back memory once skim is idle: the spare capacity of the item list
+    /// and pool (they grow by doubling while items stream in), and the freed
+    /// memory that the allocator still holds.
+    fn release_memory(&mut self) {
+        self.item_list.items.shrink_to_fit();
+        self.item_pool.shrink_to_fit();
+        // The matcher threads are idle now, so the allocator would keep it.
+        crate::release_freed_memory();
     }
 
     /// Call when query changes (e.g., `AddChar`, `BackwardDeleteChar`, etc.)
@@ -973,12 +999,8 @@ impl App {
                     ..Default::default()
                 };
                 self.item_pool.append(vec![item.clone()]);
-                self.item_list.append(&mut vec![MatchedItem::new(
-                    item,
-                    rank,
-                    None,
-                    &self.matcher.rank_builder,
-                )]);
+                self.item_list
+                    .append(&mut vec![MatchedItem::new(item, rank, &self.matcher.rank_builder)]);
                 self.item_list.select_row(self.item_list.items.len() - 1);
                 self.restart_matcher_debounced();
                 return Ok(self.on_selection_changed());
@@ -1537,6 +1559,7 @@ impl App {
             // A new search is in flight; arm the `result`/`zero`/`one` events to
             // fire once it completes and its results are rendered.
             self.result_pending = true;
+            self.memory_released = false;
         }
     }
 

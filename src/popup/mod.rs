@@ -262,7 +262,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
             Some(MatchedItem::new(
                 Arc::new(SkimPopupOutput { line: line.to_string() }),
                 Rank::default(),
-                None,
                 &RankBuilder::default(),
             ))
         }
@@ -282,7 +281,6 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         let item = MatchedItem::new(
             Arc::new(SkimPopupOutput { line: line.to_string() }),
             rank,
-            None,
             &RankBuilder::default(),
         );
         output_lines.push(item);

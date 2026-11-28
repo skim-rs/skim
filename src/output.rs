@@ -177,7 +177,7 @@ mod tests {
             score,
             ..Default::default()
         };
-        MatchedItem::new(item, rank, None, &RankBuilder::default())
+        MatchedItem::new(item, rank, &RankBuilder::default())
     }
 
     fn output_with(items: Vec<MatchedItem>, final_event: Event) -> SkimOutput {
