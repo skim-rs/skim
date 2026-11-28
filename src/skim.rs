@@ -642,26 +642,28 @@ where
                 app.input.value,
                 reader_control.is_none_or(ReaderControl::is_done)
             );
-            while app.matcher_control.get_num_matched() < min_items_before_enter
-                && (!app.matcher_control.stopped() || !reader_control.is_none_or(ReaderControl::is_done))
-            {
+            let mut previous_matches = 0;
+            let matched = loop {
+                let stopped = app.matcher_control.stopped();
+                let matched = previous_matches + app.matcher_control.get_num_matched();
+                if matched >= min_items_before_enter {
+                    break matched;
+                }
+                if stopped {
+                    let reader_done = reader_control.is_none_or(ReaderControl::is_done);
+                    // The reader can finish with items that the last matcher batch did not take.
+                    if !app.query_below_min_length() && app.item_pool.num_not_taken() > 0 {
+                        previous_matches = matched;
+                        app.restart_matcher(false);
+                    } else if reader_done {
+                        break matched;
+                    }
+                }
                 trace!("still waiting");
                 std::thread::sleep(Duration::from_millis(1));
-                app.restart_matcher(false);
-            }
-            trace!(
-                "checked matcher, stopped: {}, processed: {}, pool: {}, query: {}, reader_control_done: {}",
-                app.matcher_control.stopped(),
-                app.matcher_control.get_num_processed(),
-                app.item_pool.num_not_taken(),
-                app.input.value,
-                reader_control.is_none_or(ReaderControl::is_done)
-            );
-            trace!(
-                "checking for matched item count before entering: {}/{min_items_before_enter}",
-                app.matcher_control.get_num_matched()
-            );
-            if app.matcher_control.get_num_matched() == min_items_before_enter - 1 {
+            };
+            trace!("checking for matched item count before entering: {matched}/{min_items_before_enter}");
+            if matched == min_items_before_enter - 1 {
                 app.item_list.items = app
                     .item_list
                     .processed_items

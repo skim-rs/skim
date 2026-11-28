@@ -166,7 +166,7 @@ impl MatcherControl {
     /// Returns true if the matcher has stopped (either completed or killed).
     #[must_use]
     pub fn stopped(&self) -> bool {
-        self.stopped.load(Ordering::Relaxed)
+        self.stopped.load(Ordering::Acquire)
     }
 }
 
@@ -476,7 +476,8 @@ impl Matcher {
                     );
                 },
             );
-            stopped.store(true, Ordering::Relaxed);
+            // A caller that sees a stopped matcher must also see its final counts.
+            stopped.store(true, Ordering::Release);
         });
 
         MatcherControl {

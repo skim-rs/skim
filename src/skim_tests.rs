@@ -371,6 +371,23 @@ fn should_enter_is_false_for_select_1_single_match() {
 }
 
 #[test]
+fn should_enter_is_true_for_select_1_with_matches_in_two_batches() {
+    let mut options = SkimOptions::default();
+    options.select_1 = true;
+    let mut skim = started_skim_with(options.build(), &[]);
+    wait_until(|| skim.reader_control.as_ref().unwrap().is_done() && skim.matcher_stopped());
+
+    skim.app.item_pool.append(vec![Arc::new("first")]);
+    skim.app.restart_matcher(false);
+    wait_until(|| skim.matcher_stopped());
+    assert_eq!(skim.app.matcher_control.get_num_matched(), 1);
+
+    // The reader is done, but the last batch has not yet been matched.
+    skim.app.item_pool.append(vec![Arc::new("last")]);
+    assert!(skim.should_enter());
+}
+
+#[test]
 fn should_enter_is_true_in_sync_mode_with_matches() {
     let mut options = SkimOptions::default();
     options.sync = true;

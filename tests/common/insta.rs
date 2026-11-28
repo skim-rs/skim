@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::io::Cursor;
 
 use clap::Parser;
@@ -23,7 +24,7 @@ use skim::{Skim, SkimItemReceiver};
 /// - Reader completion is checked via `Skim::check_reader()`, identical to
 ///   production
 pub struct TestHarness {
-    /// The Skim instance backed by a TestBackend for snapshot testing.
+    /// The Skim instance backed by a `TestBackend` for snapshot testing.
     pub skim: Skim<TestBackend>,
     /// Tokio runtime for async operations (preview commands, etc.)
     pub runtime: tokio::runtime::Runtime,
@@ -35,7 +36,7 @@ impl TestHarness {
     /// Process all pending events from the event queue.
     ///
     /// This is the core method that processes events just like the real event loop
-    /// in `lib.rs`. It drains the event_rx channel and calls `app.handle_event()`
+    /// in `lib.rs`. It drains the `event_rx` channel and calls `app.handle_event()`
     /// for each event, mimicking the actual application behavior.
     ///
     /// For `Event::Reload`, it delegates to `Skim::handle_reload()` — the same
@@ -150,16 +151,7 @@ impl TestHarness {
             self.skim.app_mut().restart_matcher(true);
         }
 
-        // If the reader is running (not done), wait for it + matcher
-        if !self.skim.reader_done() {
-            self.wait_for_reader_and_matcher()?;
-        } else {
-            // Always wait for the matcher to ensure results are consumed.
-            // Even if stopped() is already true, wait_for_matcher will
-            // render and process heartbeat to consume processed_items.
-            self.wait_for_matcher()?;
-        }
-        Ok(())
+        self.wait_for_reader_and_matcher()
     }
 
     /// Get a string representation of the current buffer for snapshot testing.
@@ -213,7 +205,7 @@ impl TestHarness {
                 if !md.is_empty() {
                     attrs.push(format!("mod={md:?}"));
                 }
-                out.push_str(&format!("({y}, {start}..{x}) {text:?} {}\n", attrs.join(" ")));
+                writeln!(out, "({y}, {start}..{x}) {text:?} {}", attrs.join(" ")).unwrap();
             }
         }
         if out.is_empty() {
@@ -283,32 +275,33 @@ impl TestHarness {
             std::thread::sleep(poll_interval);
         }
 
-        // Final check to restart matcher with remaining items
-        self.skim.check_reader();
-
-        self.wait_for_matcher()?;
-        Ok(())
+        self.wait_for_matcher()
     }
 
-    /// Wait for matcher to complete processing.
+    /// Wait for the matcher to process all available items and render its results.
     pub fn wait_for_matcher(&mut self) -> Result<()> {
         let timeout = std::time::Duration::from_secs(5);
         let start = std::time::Instant::now();
         let poll_interval = std::time::Duration::from_millis(10);
 
-        // Wait for matcher to complete
-        while !self.skim.app().matcher_control.stopped() {
+        loop {
+            let app = self.skim.app_mut();
+            if app.matcher_control.stopped() {
+                if app.item_pool.num_not_taken() == 0 || app.query_below_min_length() {
+                    break;
+                }
+                // The reader can finish while a previous batch is still matching.
+                app.restart_matcher(false);
+            }
             if start.elapsed() > timeout {
-                return Err(eyre::eyre!("Timeout waiting for matcher to stop"));
+                return Err(eyre::eyre!("Timeout waiting for matcher to finish all items"));
             }
             std::thread::sleep(poll_interval);
         }
 
-        // Give the background processing thread time to receive items
-        std::thread::sleep(std::time::Duration::from_millis(50));
-
-        // Process heartbeat to update status counters
-        self.send(Event::Heartbeat)?;
+        // Apply the final batch even if the heartbeat throttles rendering.
+        self.heartbeat()?;
+        self.send(Event::Render)?;
         self.tick()?;
 
         // Manually trigger preview if configured and an item is selected
@@ -371,8 +364,7 @@ impl TestHarness {
                 .preview
                 .thread_handle
                 .as_ref()
-                .map(|h| h.is_finished())
-                .unwrap_or(true);
+                .is_none_or(std::thread::JoinHandle::is_finished);
             if finished {
                 // One final drain to catch any events emitted right at thread exit
                 self.tick()?;
@@ -407,8 +399,7 @@ impl TestHarness {
         let is_abort = self
             .final_event
             .as_ref()
-            .map(|event| !matches!(event, Event::Action(Action::Accept(_))))
-            .unwrap_or(true);
+            .is_none_or(|event| !matches!(event, Event::Action(Action::Accept(_))));
 
         Some(if is_abort { 130 } else { 0 })
     }
@@ -551,7 +542,7 @@ pub fn fmt_opts(opts: &[&str]) -> String {
     opts.join(" ")
 }
 
-/// Parse SkimOptions from CLI-style arguments.
+/// Parse `SkimOptions` from CLI-style arguments.
 pub fn parse_options(args: &[&str]) -> SkimOptions {
     let mut full_args = vec!["sk"];
     full_args.extend(args);

@@ -55,7 +55,7 @@ fn test_cmd_argv_round_trip() {
     const CHILD_ENV: &str = "SKIM_TEST_CMD_ARG";
     const EXE_ENV: &str = "SKIM_TEST_CMD_EXE";
     if let Ok(expected) = std::env::var(CHILD_ENV) {
-        assert_eq!(std::env::args().last().unwrap(), expected);
+        assert_eq!(std::env::args().next_back().unwrap(), expected);
         return;
     }
 

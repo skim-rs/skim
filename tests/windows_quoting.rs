@@ -82,10 +82,10 @@ fn issue_1194_execute_silent_preserves_windows_arguments() -> Result<(), Box<dyn
 
     let deadline = Instant::now() + Duration::from_secs(10);
     let actual: Vec<String> = loop {
-        if let Ok(bytes) = fs::read(&output) {
-            if let Ok(args) = serde_json::from_slice(&bytes) {
-                break args;
-            }
+        if let Ok(bytes) = fs::read(&output)
+            && let Ok(args) = serde_json::from_slice(&bytes)
+        {
+            break args;
         }
         assert!(Instant::now() < deadline, "execute-silent did not record its arguments");
         std::thread::sleep(Duration::from_millis(20));
