@@ -1947,12 +1947,12 @@ fn mouse_scroll_up_and_down_move_selection() {
     let _ = render(&mut app, 40, 6);
     let mut tui = test_tui();
 
-    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollDown, 1, 1)))
-        .unwrap();
-    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollUp, 1, 1)))
-        .unwrap();
-    // A Render event is queued after handling a mouse event.
-    assert!(app.needs_render.load(Ordering::Relaxed));
+    // Each wheel step asks for a render: the wheel does not go through `Event::Action`.
+    for kind in [MouseEventKind::ScrollDown, MouseEventKind::ScrollUp] {
+        app.needs_render.store(false, Ordering::Relaxed);
+        app.handle_event(&mut tui, &Event::Mouse(mouse(kind, 1, 1))).unwrap();
+        assert!(app.needs_render.load(Ordering::Relaxed));
+    }
 }
 
 #[test]

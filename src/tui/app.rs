@@ -1829,6 +1829,7 @@ impl App {
                     return self.handle_action(&Action::PreviewUp(3));
                 }
                 // Otherwise scroll item list up
+                self.needs_render();
                 return self.handle_action(&Action::Up(1));
             }
             MouseEventKind::ScrollDown => {
@@ -1840,6 +1841,7 @@ impl App {
                     return self.handle_action(&Action::PreviewDown(3));
                 }
                 // Otherwise scroll item list down
+                self.needs_render();
                 return self.handle_action(&Action::Down(1));
             }
             MouseEventKind::Down(MouseButton::Left) => {
