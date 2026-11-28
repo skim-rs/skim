@@ -17,7 +17,7 @@ use crate::tui::BorderType;
 use crate::tui::item_renderer::ItemRenderer;
 use crate::tui::options::TuiLayout;
 use crate::tui::widget::{SkimRender, SkimWidget};
-use crate::{Selector, SkimOptions};
+use crate::{MatchEngine, Selector, SkimOptions};
 
 /// How to apply processed items to the display list
 #[derive(Default, Clone, Copy)]
@@ -38,6 +38,8 @@ pub(crate) struct ProcessedItems {
     pub(crate) items: Vec<MatchedItem>,
     pub(crate) merge: MergeStrategy,
     pub(crate) generation: usize,
+    /// Engine that matched `items`, used to compute highlights for the displayed items
+    pub(crate) engine: Option<Arc<dyn MatchEngine>>,
 }
 
 impl Default for ProcessedItems {
@@ -46,6 +48,7 @@ impl Default for ProcessedItems {
             items: Vec::new(),
             merge: MergeStrategy::Replace,
             generation: 0,
+            engine: None,
         }
     }
 }
@@ -57,6 +60,8 @@ pub struct ItemList {
     pub(crate) selection: IndexSet<MatchedItem>,
     pub(crate) processed_items: Arc<Mutex<Option<ProcessedItems>>>,
     pub(crate) matcher_generation: Arc<AtomicUsize>,
+    /// Engine of the displayed items; computes their highlights at render time
+    engine: Option<Arc<dyn MatchEngine>>,
     pub(crate) direction: ListDirection,
     pub(crate) offset: usize,
     /// How many leading sub-lines of items[offset] have been scrolled off the top.
@@ -437,6 +442,7 @@ impl SkimWidget for ItemList {
         Self {
             processed_items,
             matcher_generation,
+            engine: None,
             reserved: 0, // header_lines are now displayed in the Header widget, not ItemList
             direction: match options.layout {
                 TuiLayout::Default => ratatui::widgets::ListDirection::BottomToTop,
@@ -568,6 +574,9 @@ impl SkimWidget for ItemList {
                     }
                 }
                 this.showing_stale_items = false;
+                if processed.engine.is_some() {
+                    this.engine = processed.engine;
+                }
 
                 // Apply pre-selection only when new items arrive and only if we haven't reached target
                 // This runs once per item batch, not on every render
@@ -599,6 +608,21 @@ impl SkimWidget for ItemList {
         } else {
             false
         };
+
+        // The matcher only ranks items: compute the highlights of the visible items here.
+        if let Some(engine) = &this.engine {
+            let mut rows = 0usize;
+            for idx in this.offset..this.items.len() {
+                if rows >= available_rows {
+                    break;
+                }
+                rows += this.item_row_count(idx);
+                let item = &mut this.items[idx];
+                if item.matched_range.is_none() {
+                    item.matched_range = engine.match_item(item.item.as_ref()).map(|result| result.matched_range);
+                }
+            }
+        }
 
         let icon_width = this.selector_icon.chars().count() + this.multi_select_icon.chars().count();
         let container_width = (inner_area.width as usize).saturating_sub(icon_width);

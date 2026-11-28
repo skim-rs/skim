@@ -27,7 +27,7 @@ fn rank_builder_inserts_score_criterion() {
 
 #[test]
 fn build_rank_records_offsets_and_pathname() {
-    let rb = RankBuilder::default();
+    let rb = RankBuilder::new(vec![RankCriteria::NegPathName]);
     let rank = rb.build_rank(50, 4, 7, "src/lib/foo.rs");
     assert_eq!(rank.score, 50);
     assert_eq!(rank.begin, 4);
@@ -35,13 +35,17 @@ fn build_rank_records_offsets_and_pathname() {
     assert_eq!(rank.length, i32::try_from("src/lib/foo.rs".len()).unwrap());
     // path_name_offset points just past the last separator.
     assert_eq!(rank.path_name_offset, i32::try_from("src/lib/".len()).unwrap());
+
+    // Without a PathName tiebreak it is not computed.
+    let rank = RankBuilder::default().build_rank(50, 4, 7, "src/lib/foo.rs");
+    assert_eq!(rank.path_name_offset, 0);
 }
 
 #[test]
 fn path_name_offset_counts_chars_not_bytes() {
     // `path_name_offset` is subtracted from `Rank::begin`, which is a char index,
     // so a multi-byte directory component must not inflate it.
-    let rb = RankBuilder::default();
+    let rb = RankBuilder::new(vec![RankCriteria::PathName]);
     // "ééé/" is 4 chars but 7 bytes; the filename starts at char index 4.
     let rank = rb.build_rank(0, 4, 5, "ééé/a");
     assert_eq!(rank.path_name_offset, 4);

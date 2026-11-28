@@ -244,6 +244,7 @@ fn set_processed(il: &ItemList, items: Vec<MatchedItem>, merge: MergeStrategy) {
         items,
         merge,
         generation: il.matcher_generation.load(std::sync::atomic::Ordering::Acquire),
+        engine: None,
     });
 }
 
@@ -257,6 +258,23 @@ fn render_applies_replace_strategy() {
     assert_eq!(il.items[0].text(), "new");
 }
 
+/// Highlights are computed at render time, only for the visible items.
+#[test]
+fn render_computes_matched_range_for_visible_items_only() {
+    let mut il = ItemList::default();
+    let items: Vec<MatchedItem> = (0..10).map(|i| matched(&format!("foo{i}"), i)).collect();
+    let engine = crate::engine::exact::ExactEngine::builder("foo", Default::default()).build();
+    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+        items,
+        merge: MergeStrategy::Replace,
+        generation: 0,
+        engine: Some(std::sync::Arc::new(engine)),
+    });
+    render_list(&mut il, 20, 3);
+    assert!(il.items[..3].iter().all(|item| item.matched_range.is_some()));
+    assert!(il.items[3..].iter().all(|item| item.matched_range.is_none()));
+}
+
 #[test]
 fn render_discards_results_from_stale_generation() {
     let mut il = list(2);
@@ -264,6 +282,7 @@ fn render_discards_results_from_stale_generation() {
         items: vec![matched("stale", 0)],
         merge: MergeStrategy::Replace,
         generation: 0,
+        engine: None,
     });
     il.matcher_generation.store(1, std::sync::atomic::Ordering::Release);
 

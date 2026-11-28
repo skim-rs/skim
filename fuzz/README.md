@@ -16,6 +16,7 @@ data-controlled strings, which is the most panic-prone code in the project.
 | `fuzzy_match`     | `fuzzy_matcher::{skim, fzy, clangd}` — the fuzzy matching algorithms       |
 | `query_match`     | `Matcher::create_engine_factory` + `DefaultSkimItem` — the full query → engine → match pipeline (exact/regex/AND-OR/fuzzy, with ANSI) |
 | `keymap_parse`    | `binds::KeyMap` — the `--bind` key-map parser                              |
+| `arinae_old_vs_new` | Differential: the fast rank path of Arinae (`fuzzy_match_range`, `fuzzy_match`, `MatchEngine::match_rank`) against the pre-optimization Arinae vendored in `old_arinae/` (skim 2160abb) |
 
 Each target asserts more than "doesn't panic" where a cheap invariant is
 available (e.g. reported match indices must be valid char indices into the

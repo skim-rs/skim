@@ -21,6 +21,10 @@ struct QueryInput<'a> {
     regex: bool,
     ansi: bool,
     case: u8,
+    algo: u8,
+    typos: bool,
+    normalize: bool,
+    split_match: bool,
 }
 
 fuzz_target!(|input: QueryInput| {
@@ -38,6 +42,19 @@ fuzz_target!(|input: QueryInput| {
         1 => skim::CaseMatching::Ignore,
         _ => skim::CaseMatching::Smart,
     };
+    options.algorithm = match input.algo % 4 {
+        0 => skim::FuzzyAlgorithm::Arinae,
+        1 => skim::FuzzyAlgorithm::SkimV2,
+        2 => skim::FuzzyAlgorithm::Clangd,
+        _ => skim::FuzzyAlgorithm::Fzy,
+    };
+    options.typos = if input.typos {
+        skim::Typos::Smart
+    } else {
+        skim::Typos::Disabled
+    };
+    options.normalize = input.normalize;
+    options.split_match = input.split_match.then_some(':');
 
     let factory = Matcher::create_engine_factory(&options);
     let engine = factory.create_engine_with_case(input.query, options.case);
@@ -45,7 +62,15 @@ fuzz_target!(|input: QueryInput| {
     let delimiter = Regex::new(" ").unwrap();
     let item = DefaultSkimItem::new(input.text, input.ansi, &[], &[], &delimiter);
 
-    if let Some(result) = engine.match_item(&item) {
+    // Skim ranks every item with `match_rank` and highlights the displayed ones
+    // with `match_item`: both must agree.
+    let result = engine.match_item(&item);
+    assert_eq!(
+        engine.match_rank(&item),
+        result.as_ref().map(|r| r.rank),
+        "match_rank vs match_item, engine {engine}"
+    );
+    if let Some(result) = result {
         let matched_text = item.text();
         let num_chars = matched_text.chars().count();
         for idx in result.range_char_indices(&matched_text) {

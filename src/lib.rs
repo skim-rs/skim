@@ -379,8 +379,17 @@ impl MatchResult {
 
 /// A matching engine that can match queries against items
 pub trait MatchEngine: Sync + Send + Display {
-    /// Matches an item against the query, returning a result if matched
+    /// Matches an item against the query, returning the rank and the matched range
+    /// (used for highlighting). Skim calls it only for the items it displays.
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult>;
+
+    /// Matches an item against the query, returning only its rank.
+    ///
+    /// Skim calls it for every item. The rank must be the same as the one
+    /// `match_item` returns. Override it when the matched range is costly to compute.
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        self.match_item(item).map(|result| result.rank)
+    }
 }
 
 /// Factory for creating match engines

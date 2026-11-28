@@ -100,16 +100,26 @@ impl RankBuilder {
     ///
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
     /// applied lazily by [`Rank::sort_key`] at comparison time.
-    /// The `index` will be overridden later
+    /// The `index` will be overridden later.
+    /// `path_name_offset` is only computed (else `0`) when a `PathName` tiebreak
+    /// uses it: it costs a scan of the text for every matched item.
     #[must_use]
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str) -> Rank {
+        let uses_path_name = self
+            .criterion
+            .iter()
+            .any(|c| matches!(c, RankCriteria::PathName | RankCriteria::NegPathName));
         Rank {
             score,
             begin: i32::try_from(begin).unwrap_or(i32::MAX),
             end: i32::try_from(end).unwrap_or(i32::MAX),
             length: i32::try_from(item_text.len()).unwrap_or(i32::MAX),
             index: Default::default(),
-            path_name_offset: Self::path_name_offset(item_text),
+            path_name_offset: if uses_path_name {
+                Self::path_name_offset(item_text)
+            } else {
+                0
+            },
         }
     }
 }

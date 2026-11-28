@@ -9,7 +9,7 @@ use crate::engine::normalized::NormalizedEngineFactory;
 use crate::engine::split::SplitMatchEngineFactory;
 use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::prelude::{AndOrEngineFactory, ExactOrFuzzyEngineFactory, RegexEngineFactory};
-use crate::{CaseMatching, MatchEngineFactory, SkimItem, SkimOptions};
+use crate::{CaseMatching, MatchEngine, MatchEngineFactory, SkimItem, SkimOptions};
 
 /// Merges per-worker match results and writes them into `processed_items`.
 ///
@@ -33,8 +33,10 @@ fn input_index(tac: bool, start: usize, batch_len: usize, batch_index: usize) ->
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn merge_worker_results(
     worker_results: Vec<Vec<MatchedItem>>,
+    engine: Arc<dyn MatchEngine>,
     no_sort: bool,
     processed_items: &Mutex<Option<ProcessedItems>>,
     merge_strategy: MergeStrategy,
@@ -73,6 +75,7 @@ fn merge_worker_results(
             items,
             merge: MergeStrategy::Replace,
             generation,
+            engine: Some(engine),
         });
         drop(guard);
         needs_render.store(true, Ordering::Relaxed);
@@ -84,6 +87,7 @@ fn merge_worker_results(
                 items,
                 merge: MergeStrategy::Replace,
                 generation,
+                engine: Some(engine),
             });
         }
         Some(existing) => {
@@ -104,6 +108,7 @@ fn merge_worker_results(
                 items,
                 merge: merge_strategy,
                 generation,
+                engine: Some(engine),
             });
         }
     }
@@ -282,7 +287,6 @@ impl Matcher {
         &self.engine_factory
     }
 
-    /// Runs the matcher on items from the pool in a background thread.
     ///
     /// When matching completes, the coordinator merges results directly into
     /// `processed_items` according to `merge_strategy`, then signals
@@ -346,7 +350,8 @@ impl Matcher {
             let shared_items: Arc<[Arc<dyn SkimItem>]> = items.into();
 
             // Clones for the process_chunk closure.
-            let matcher_engine: Arc<dyn crate::MatchEngine> = Arc::from(matcher_engine);
+            let matcher_engine: Arc<dyn MatchEngine> = Arc::from(matcher_engine);
+            let engine_for_merge = Arc::clone(&matcher_engine);
             let interrupt_for_work = Arc::clone(&interrupt);
             let processed_for_work = Arc::clone(&processed);
             let matched_for_work = Arc::clone(&matched);
@@ -368,25 +373,18 @@ impl Matcher {
                     }
 
                     let mut local_matches = Vec::new();
-                    let mut chunk_matched: usize = 0;
-
                     for (i, item) in chunk.iter().enumerate() {
-                        if let Some(match_result) = matcher_engine.match_item(item.as_ref()) {
-                            chunk_matched += 1;
-                            let mut rank = match_result.rank;
+                        // Only rank here; the UI computes highlights for the displayed items.
+                        if let Some(mut rank) = matcher_engine.match_rank(item.as_ref()) {
                             let batch_index = chunk_start + i;
                             // `take()` reverses each tac batch, so recover the
                             // item's stable ordinal in the original input stream.
                             let index = input_index(tac, start, total, batch_index);
                             rank.index = i32::try_from(index).unwrap_or(i32::MAX);
-                            local_matches.push(MatchedItem::new(
-                                Arc::clone(item),
-                                rank,
-                                Some(match_result.matched_range),
-                                &rank_builder_for_work,
-                            ));
+                            local_matches.push(MatchedItem::new(Arc::clone(item), rank, None, &rank_builder_for_work));
                         }
                     }
+                    let chunk_matched = local_matches.len();
 
                     // Flush counters for this chunk so the UI sees progress.
                     processed_for_work.fetch_add(chunk.len(), Ordering::Relaxed);
@@ -426,6 +424,7 @@ impl Matcher {
 
                     merge_worker_results(
                         worker_results,
+                        engine_for_merge,
                         no_sort,
                         &processed_items,
                         merge_strategy,
@@ -525,6 +524,10 @@ mod tests {
         assert_eq!(output, ["a", "aaa", "aaaa"]);
     }
 
+    fn all_engine() -> Arc<dyn MatchEngine> {
+        Arc::new(crate::engine::all::MatchAllEngine::builder().build())
+    }
+
     fn merge_test_results(
         worker_results: Vec<Vec<MatchedItem>>,
         no_sort: bool,
@@ -535,6 +538,7 @@ mod tests {
         let generation = AtomicUsize::new(0);
         merge_worker_results(
             worker_results,
+            all_engine(),
             no_sort,
             processed_items,
             merge_strategy,
@@ -565,6 +569,7 @@ mod tests {
 
         merge_worker_results(
             vec![vec![matched("stale", 0)]],
+            all_engine(),
             false,
             &processed,
             MergeStrategy::Replace,
@@ -583,12 +588,14 @@ mod tests {
             items: vec![matched("stale", 0)],
             merge: MergeStrategy::SortedMerge,
             generation: 0,
+            engine: None,
         }));
         let needs_render = AtomicBool::new(false);
         let generation = AtomicUsize::new(1);
 
         merge_worker_results(
             vec![vec![matched("current", 1)]],
+            all_engine(),
             false,
             &processed,
             MergeStrategy::SortedMerge,

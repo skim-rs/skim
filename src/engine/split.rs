@@ -4,7 +4,7 @@
 //! the query parts against the corresponding item parts.
 
 use crate::fuzzy_matcher::MatchIndices;
-use crate::{MatchEngine, MatchEngineFactory, MatchRange, MatchResult, SkimItem};
+use crate::{MatchEngine, MatchEngineFactory, MatchRange, MatchResult, Rank, SkimItem};
 use std::fmt::{Display, Error, Formatter};
 
 /// Engine that matches by splitting query and item on a delimiter
@@ -26,20 +26,35 @@ impl SplitMatchEngine {
             delimiter,
         }
     }
-}
 
-impl MatchEngine for SplitMatchEngine {
-    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
-        let text = item.text();
-
+    /// Splits `text` on the first delimiter: returns (delimiter char index, before, after).
+    fn split<'a>(&self, text: &'a str) -> Option<(usize, &'a str, &'a str)> {
         // Find the delimiter in the item text (by char position)
         let delimiter_char_idx = text.chars().position(|c| c == self.delimiter)?;
 
         // Get byte position for slicing
         let delimiter_byte_pos = text.char_indices().nth(delimiter_char_idx).map(|(i, _)| i)?;
 
-        let text_before = &text[..delimiter_byte_pos];
-        let text_after = &text[delimiter_byte_pos + self.delimiter.len_utf8()..];
+        Some((
+            delimiter_char_idx,
+            &text[..delimiter_byte_pos],
+            &text[delimiter_byte_pos + self.delimiter.len_utf8()..],
+        ))
+    }
+}
+
+impl MatchEngine for SplitMatchEngine {
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        let text = item.text();
+        let (_, text_before, text_after) = self.split(&text)?;
+        let rank = self.before_engine.match_rank(&StringItem(text_before.to_string()))?;
+        self.after_engine.match_rank(&StringItem(text_after.to_string()))?;
+        Some(rank)
+    }
+
+    fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
+        let text = item.text();
+        let (delimiter_char_idx, text_before, text_after) = self.split(&text)?;
 
         // Create wrapper items for each part
         let before_item: &dyn SkimItem = &StringItem(text_before.to_string());

@@ -9,7 +9,7 @@ use std::fmt::{Display, Error, Formatter};
 use crate::engine::util::{
     map_byte_range_to_original, map_char_indices_to_original, normalize_with_byte_mapping, normalize_with_char_mapping,
 };
-use crate::{CaseMatching, MatchEngine, MatchEngineFactory, MatchRange, MatchResult, SkimItem};
+use crate::{CaseMatching, MatchEngine, MatchEngineFactory, MatchRange, MatchResult, Rank, SkimItem};
 
 /// Engine that normalizes text before matching
 pub struct NormalizedEngine {
@@ -25,6 +25,11 @@ impl NormalizedEngine {
 }
 
 impl MatchEngine for NormalizedEngine {
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        let (normalized_text, _) = normalize_with_char_mapping(&item.text());
+        self.inner.match_rank(&NormalizedItem(normalized_text))
+    }
+
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         let item_text = item.text();
 

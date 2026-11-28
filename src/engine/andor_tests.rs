@@ -50,6 +50,24 @@ fn and_engine_empty_returns_none() {
     assert!(engine.match_item(&"anything".to_string()).is_none());
 }
 
+/// `match_rank` must give the same rank as `match_item` for both combinators.
+#[test]
+fn match_rank_equals_match_item_rank() {
+    let and = AndEngine::builder().engines(vec![exact("foo"), exact("bar")]).build();
+    let or = OrEngine::builder().engines(vec![exact("foo"), exact("bar")]).build();
+    let engines: [&dyn MatchEngine; 2] = [&and, &or];
+    for engine in engines {
+        for text in ["foo and bar", "bar only", "nothing"] {
+            let item = text.to_string();
+            assert_eq!(
+                engine.match_rank(&item),
+                engine.match_item(&item).map(|r| r.rank),
+                "{engine} {text}"
+            );
+        }
+    }
+}
+
 #[test]
 fn display_formats_combinators() {
     let or = OrEngine::builder().engines(vec![exact("a")]).build();

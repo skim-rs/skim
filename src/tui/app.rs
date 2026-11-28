@@ -90,6 +90,8 @@ pub struct App {
     pub last_matcher_restart: std::time::Instant,
     /// Whether a matcher restart is pending
     pub pending_matcher_restart: bool,
+    /// Query of the results in the item list (of the last full matcher run)
+    matched_query: String,
     /// Whether or not we need a render on the next heartbeat
     pub needs_render: Arc<AtomicBool>,
     /// Time of the last render
@@ -285,6 +287,7 @@ impl Default for App {
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
+            matched_query: String::new(),
             needs_render: Arc::new(AtomicBool::new(true)),
             last_render_timer: std::time::Instant::now()
                 .checked_sub(std::time::Duration::from_secs(1))
@@ -362,6 +365,7 @@ impl App {
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
+            matched_query: String::new(),
             needs_render: Arc::new(AtomicBool::new(true)),
             last_render_timer: std::time::Instant::now()
                 .checked_sub(std::time::Duration::from_secs(1))
@@ -1470,6 +1474,18 @@ impl App {
             return;
         }
 
+        // In interactive mode, use empty query so all items are shown
+        // The input contains the command to execute, not a filter query
+        let query: &str = if self.options.disabled || self.options.interactive {
+            ""
+        } else {
+            &self.input
+        };
+        // An incremental run (new items only) merges into the current results:
+        // if the query changed since they were computed (debounced restart still
+        // pending), the old results are wrong, so match everything again.
+        let force = force || query != self.matched_query;
+
         let matcher_stopped = self.matcher_control.stopped();
         if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
             trace!("restarting matcher, force={force}");
@@ -1479,15 +1495,9 @@ impl App {
             self.matcher_control.kill();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
-            // In interactive mode, use empty query so all items are shown
-            // The input contains the command to execute, not a filter query
-            let query = if self.options.disabled {
-                ""
-            } else if self.options.interactive {
-                &input::Input::default()
-            } else {
-                &self.input
-            };
+            if force {
+                query.clone_into(&mut self.matched_query);
+            }
             let item_pool = self.item_pool.clone();
             let thread_pool = &self.matcher_pool;
             let no_sort = self.options.no_sort;

@@ -1463,6 +1463,33 @@ fn handle_items_appends_to_pool() {
     assert_eq!(app.item_pool.len(), 2);
 }
 
+/// Regression: a query change still in the debounce window, then new items,
+/// must re-match all items. Before, the incremental run matched only the new
+/// items with the new query and merged them into the old query's results.
+#[test]
+fn restart_matcher_after_query_change_rematches_everything() {
+    let mut app = App::default();
+    app.item_pool
+        .append(vec![Arc::new("foo".to_string()), Arc::new("bar".to_string())]);
+    app.restart_matcher(true);
+    while !app.matcher_control.stopped() {
+        std::thread::yield_now();
+    }
+    // The query changes, but the restart is debounced (not run yet).
+    app.input.value = "bar".to_string();
+    app.item_pool.append(vec![Arc::new("baz".to_string())]);
+    let generation = app.item_list.matcher_generation.load(Ordering::Acquire);
+    app.restart_matcher(false);
+    // A full re-match starts a new generation (Replace) over every item.
+    assert_eq!(app.item_list.matcher_generation.load(Ordering::Acquire), generation + 1);
+    while !app.matcher_control.stopped() {
+        std::thread::yield_now();
+    }
+    let processed = app.item_list.processed_items.lock().unwrap().take().unwrap();
+    let texts: Vec<_> = processed.items.iter().map(|i| i.text().into_owned()).collect();
+    assert_eq!(texts, ["bar"]);
+}
+
 #[test]
 fn restart_matcher_no_sort_uses_append_strategy() {
     // A non-force restart with no_sort takes the Append merge-strategy branch.
