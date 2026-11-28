@@ -2,14 +2,15 @@
 
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Cursor, Stderr};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use clap::Parser as _;
-use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{BatchSize, Criterion, SamplingMode, Throughput, criterion_group, criterion_main};
 
 use ratatui::backend::TestBackend;
 use ratatui::prelude::CrosstermBackend;
 use skim::prelude::*;
+use skim::tui::{Size, Tui};
 
 /// Small inline fixture — fast to load, good for latency benchmarks.
 const SMALL_ITEMS: &[&str] = &[
@@ -283,9 +284,49 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 }
 
+fn render_pending_batch(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ui_render_pending_batch");
+    group
+        .sample_size(10)
+        .sampling_mode(SamplingMode::Flat)
+        .measurement_time(Duration::from_secs(1));
+    let item: Arc<dyn SkimItem> = Arc::new(String::from("a"));
+    for (id, n) in [("100K", 100_000), ("1M", 1_000_000)] {
+        group.bench_function(id, |b| {
+            b.iter_custom(|iters| {
+                let mut elapsed = Duration::ZERO;
+                for _ in 0..iters {
+                    // Rebuild outside the timer so each batch merges into the same number of matches.
+                    let opts = SkimOptions::parse_from(["sk", "--query", "a"]).build();
+                    let (tx, rx) = bounded(1);
+                    drop(tx);
+                    let mut skim = Skim::<TestBackend>::init(opts, Some(rx)).unwrap();
+                    let tui = Tui::new_with_height_and_backend(TestBackend::new(80, 24), Size::Percent(100)).unwrap();
+                    skim.init_tui_with(tui);
+                    skim.app().item_pool.append(vec![Arc::clone(&item); n]);
+                    skim.start();
+                    wait_until_done(&mut skim, Duration::from_secs(10));
+                    let (app, tui) = skim.app_and_tui();
+                    app.handle_event(tui, &Event::Render).unwrap();
+                    assert_eq!(app.item_list.len(), n);
+                    app.item_pool.append(vec![Arc::clone(&item); 10_000]);
+                    app.restart_matcher(false);
+                    wait_until_done(&mut skim, Duration::from_secs(10));
+                    let (app, tui) = skim.app_and_tui();
+                    let start = Instant::now();
+                    app.handle_event(tui, &Event::Render).unwrap();
+                    elapsed += start.elapsed();
+                    assert_eq!(app.item_list.len(), n + 10_000);
+                }
+                elapsed
+            })
+        });
+    }
+}
+
 criterion_group!(
     name = benches;
     config = Criterion::default().sample_size(100);
-    targets = criterion_benchmark
+    targets = criterion_benchmark, render_pending_batch
 );
 criterion_main!(benches);

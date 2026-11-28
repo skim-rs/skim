@@ -5,7 +5,9 @@ use ratatui::layout::Size;
 #[cfg(feature = "image")]
 use ratatui_image::picker::Picker;
 
-use super::{PREVIEW_MAX_BYTES, Preview, PreviewContent, read_bounded, update_plain_content};
+#[cfg(unix)]
+use super::update_plain_content;
+use super::{PREVIEW_MAX_BYTES, Preview, PreviewContent, read_bounded};
 
 #[cfg(feature = "image")]
 fn image(width: u32, height: u32) -> DynamicImage {
@@ -86,6 +88,7 @@ fn bounded_reader_discards_output_after_limit() {
     assert_eq!(output.len(), PREVIEW_MAX_BYTES);
 }
 
+#[cfg(unix)]
 fn preview_contains(preview: &Preview, expected: &str) -> bool {
     preview.content.read().is_ok_and(|content| match &*content {
         PreviewContent::Text(text) => text

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::helper::item::strip_ansi;
-use crate::item::{ItemPool, MatchedItem};
-use crate::matcher::{Matcher, MatcherControl};
+use crate::item::{ItemPool, MatchEntry, MatchedItem};
+use crate::matcher::{Matcher, MatcherControl, MergeStrategy};
 use crate::prelude::ExactOrFuzzyEngineFactory;
 use crate::tui::input::StatusInfo;
 use crate::tui::layout::{AppLayout, LayoutTemplate};
@@ -90,6 +90,8 @@ pub struct App {
     pub last_matcher_restart: std::time::Instant,
     /// Whether a matcher restart is pending
     pub pending_matcher_restart: bool,
+    /// Query of the results in the item list (of the last full matcher run)
+    matched_query: String,
     /// Whether or not we need a render on the next heartbeat
     pub needs_render: Arc<AtomicBool>,
     /// Time of the last render
@@ -162,6 +164,9 @@ pub struct App {
     /// `result` (and `zero`/`one`) events once that run completes, polled from
     /// the heartbeat.
     pub(crate) result_pending: bool,
+    /// Whether freed memory was given back to the OS since the last search
+    /// (done once, when skim becomes idle).
+    memory_released: bool,
     /// The last item that had focus, tracked so the `focus` event fires only
     /// when the focused item actually changes on cursor movement.
     last_focused: Option<Arc<dyn SkimItem>>,
@@ -285,6 +290,7 @@ impl Default for App {
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
+            matched_query: String::new(),
             needs_render: Arc::new(AtomicBool::new(true)),
             last_render_timer: std::time::Instant::now()
                 .checked_sub(std::time::Duration::from_secs(1))
@@ -315,6 +321,7 @@ impl Default for App {
             reader_done: false,
             load_event_fired: false,
             result_pending: false,
+            memory_released: false,
             last_focused: None,
         }
     }
@@ -362,6 +369,7 @@ impl App {
             matcher_timer: std::time::Instant::now(),
             last_matcher_restart: std::time::Instant::now(),
             pending_matcher_restart: false,
+            matched_query: String::new(),
             needs_render: Arc::new(AtomicBool::new(true)),
             last_render_timer: std::time::Instant::now()
                 .checked_sub(std::time::Duration::from_secs(1))
@@ -393,6 +401,7 @@ impl App {
             reader_done: false,
             load_event_fired: false,
             result_pending: false,
+            memory_released: false,
             last_focused: None,
         }
     }
@@ -497,6 +506,17 @@ impl App {
             events.push(Event::Key(SkimEvent::Load.into()));
         }
 
+        // Idle: all items read and matched, and the results are displayed.
+        if !self.memory_released
+            && !self.result_pending
+            && self.reader_done
+            && self.matcher_control.stopped()
+            && self.item_list.processed_items.lock().is_ok_and(|p| p.is_none())
+        {
+            self.memory_released = true;
+            self.release_memory();
+        }
+
         if self.result_pending && self.matcher_control.stopped() {
             self.result_pending = false;
             events.push(Event::Key(SkimEvent::Result.into()));
@@ -510,6 +530,14 @@ impl App {
         }
 
         events
+    }
+
+    /// Gives back the spare capacity of the item pool and any memory that the
+    /// allocator still holds once skim is idle.
+    fn release_memory(&mut self) {
+        self.item_pool.shrink_to_fit();
+        // The matcher threads are idle now, so the allocator would keep it.
+        crate::release_freed_memory();
     }
 
     /// Call when query changes (e.g., `AddChar`, `BackwardDeleteChar`, etc.)
@@ -585,17 +613,9 @@ impl App {
                 },
                 width: self.preview.cols as usize,
                 height: self.preview.rows as usize,
-                current_index: selected
-                    .as_ref()
-                    .map(|i| i.rank.index.unsigned_abs() as usize)
-                    .unwrap_or_default(),
+                current_index: selected.as_ref().map(|i| i.index).unwrap_or_default(),
                 current_selection: &selected.map(|i| i.text().into_owned()).unwrap_or_default(),
-                selected_indices: &self
-                    .item_list
-                    .selection
-                    .iter()
-                    .map(|v| v.rank.index.unsigned_abs() as usize)
-                    .collect::<Vec<_>>(),
+                selected_indices: &self.item_list.selection.iter().map(|v| v.index).collect::<Vec<_>>(),
                 selections: &selection_str,
             };
             let preview = item.preview(ctx);
@@ -699,11 +719,13 @@ impl App {
             Event::Render => {
                 // Always render to avoid freezing, but the render function itself can optimize
                 tui.get_frame();
+                let started = std::time::Instant::now();
                 tui.draw(|f| {
                     f.render_widget(&mut *self, f.area());
                     f.set_cursor_position(self.cursor_pos);
                 })?;
-                // Matcher output is merged into the item list during rendering,
+                trace!("render done in {:?}", started.elapsed());
+                // Matcher output is applied to the item list during rendering,
                 // so this is where result-driven focus changes become observable.
                 if let Some(event) = self.take_focus_event() {
                     tui.event_tx.try_send(event)?;
@@ -841,7 +863,9 @@ impl App {
                 warn!("Received invalid input");
             }
             Event::ClearItems => {
-                self.item_pool.clear();
+                // The old items stay displayed until the new results arrive.
+                let old = self.item_pool.clear();
+                self.item_list.detach_from_pool(&self.item_pool, old);
                 self.restart_matcher(true);
             }
             Event::AppendItems(items) => {
@@ -964,18 +988,18 @@ impl App {
             AppendAndSelect => {
                 let value = self.input.value.clone();
                 let item: Arc<dyn SkimItem> = Arc::new(value);
-                let rank = Rank {
-                    index: i32::try_from(self.item_pool.len()).unwrap_or(i32::MAX),
-                    ..Default::default()
-                };
-                self.item_pool.append(vec![item.clone()]);
-                self.item_list.append(&mut vec![MatchedItem::new(
-                    item,
-                    rank,
-                    None,
-                    &self.matcher.rank_builder,
-                )]);
-                self.item_list.select_row(self.item_list.items.len() - 1);
+                let len = self.item_pool.append(vec![item.clone()]);
+                let index = len.saturating_sub(1);
+                // A line reserved for the header has no index in the matchable pool.
+                if len != 0 {
+                    let rank = Rank {
+                        index: i32::try_from(index)?,
+                        ..Rank::default()
+                    };
+                    let entry = MatchEntry::new(&rank, &self.matcher.rank_builder);
+                    self.item_list.append(&self.item_pool, &mut vec![entry]);
+                }
+                self.item_list.selection.insert(MatchedItem::new(item, index, 0));
                 self.restart_matcher_debounced();
                 return Ok(self.on_selection_changed());
             }
@@ -1090,7 +1114,7 @@ impl App {
                 return self.dispatch_conditional(!self.input.is_empty(), then, otherwise.as_deref());
             }
             IfNonMatched(then, otherwise) => {
-                return self.dispatch_conditional(self.item_list.items.is_empty(), then, otherwise.as_deref());
+                return self.dispatch_conditional(self.item_list.is_empty(), then, otherwise.as_deref());
             }
             // `ignore` is a no-op. `suppress` is also a no-op on its own; its
             // suppression effect is applied in `handle_action` when it appears in
@@ -1424,8 +1448,10 @@ impl App {
     /// Returns the selected items as results
     pub fn results(&mut self) -> Vec<MatchedItem> {
         if self.options.filter.is_some() {
-            // In filter mode, drain items to avoid cloning
-            std::mem::take(&mut self.item_list.items)
+            let mut items = self.item_list.resolve_all();
+            self.item_list.clear_items();
+            items.retain(|item| !item.disabled());
+            items
         } else if self.options.multi && !self.item_list.selection.is_empty() {
             self.item_list.selection.clone().into_iter().collect()
         } else if let Some(sel) = self.item_list.selected() {
@@ -1453,7 +1479,6 @@ impl App {
     /// If `force` is false, the matcher will only be restarted if there are new items
     /// to process or if the previous matcher has completed.
     pub fn restart_matcher(&mut self, force: bool) {
-        use crate::tui::item_list::MergeStrategy;
         // Check if query meets minimum length requirement
         if self.query_below_min_length() {
             // Query is too short, clear items and don't run matcher
@@ -1464,11 +1489,22 @@ impl App {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
-            self.item_list.items.clear();
-            self.item_list.current = 0;
-            self.item_list.offset = 0;
+            self.matcher.clear_results();
+            self.item_list.clear_items();
             return;
         }
+
+        // In interactive mode, use empty query so all items are shown
+        // The input contains the command to execute, not a filter query
+        let query: &str = if self.options.disabled || self.options.interactive {
+            ""
+        } else {
+            &self.input
+        };
+        // An incremental run (new items only) merges into the current results:
+        // if the query changed since they were computed (debounced restart still
+        // pending), the old results are wrong, so match everything again.
+        let force = force || query != self.matched_query;
 
         let matcher_stopped = self.matcher_control.stopped();
         if force || (matcher_stopped && self.item_pool.num_not_taken() > 0) {
@@ -1479,15 +1515,9 @@ impl App {
             self.matcher_control.kill();
             // record matcher start time for statusline spinner/progress
             self.matcher_timer = std::time::Instant::now();
-            // In interactive mode, use empty query so all items are shown
-            // The input contains the command to execute, not a filter query
-            let query = if self.options.disabled {
-                ""
-            } else if self.options.interactive {
-                &input::Input::default()
-            } else {
-                &self.input
-            };
+            if force {
+                query.clone_into(&mut self.matched_query);
+            }
             let item_pool = self.item_pool.clone();
             let thread_pool = &self.matcher_pool;
             let no_sort = self.options.no_sort;
@@ -1527,6 +1557,7 @@ impl App {
             // A new search is in flight; arm the `result`/`zero`/`one` events to
             // fire once it completes and its results are rendered.
             self.result_pending = true;
+            self.memory_released = false;
         }
     }
 
@@ -1583,7 +1614,7 @@ impl App {
     #[must_use]
     pub fn child_env(&self) -> Vec<(String, String)> {
         // The list length, used to clamp `POS` the way fzf does.
-        let item_count = self.item_list.items.len();
+        let item_count = self.item_list.len();
         let mut vars: Vec<(&str, String)> = vec![
             ("QUERY", self.input.value.clone()),
             ("POS", (self.item_list.current + 1).min(item_count).to_string()),
@@ -1757,8 +1788,7 @@ impl App {
     fn scrollbar_column(&self) -> Option<(ratatui::layout::Rect, u16)> {
         let inner = self.list_inner_area();
         let available_rows = inner.height as usize;
-        if inner.width == 0 || self.item_list.scrollbar_thumb.is_empty() || self.item_list.items.len() <= available_rows
-        {
+        if inner.width == 0 || self.item_list.scrollbar_thumb.is_empty() || self.item_list.len() <= available_rows {
             return None;
         }
         Some((inner, inner.x + inner.width - 1))
@@ -1768,7 +1798,7 @@ impl App {
     fn scroll(&mut self, mouse_pos: ratatui::layout::Position) {
         let inner = self.list_inner_area();
         let track_height = inner.height as usize;
-        let total = self.item_list.items.len();
+        let total = self.item_list.len();
         let click_row = usize::from(mouse_pos.y).saturating_sub(inner.y.into());
         self.item_list.current = click_row * total / track_height;
     }
@@ -1794,6 +1824,7 @@ impl App {
                     return self.handle_action(&Action::PreviewUp(3));
                 }
                 // Otherwise scroll item list up
+                self.needs_render();
                 return self.handle_action(&Action::Up(1));
             }
             MouseEventKind::ScrollDown => {
@@ -1805,6 +1836,7 @@ impl App {
                     return self.handle_action(&Action::PreviewDown(3));
                 }
                 // Otherwise scroll item list down
+                self.needs_render();
                 return self.handle_action(&Action::Down(1));
             }
             MouseEventKind::Down(MouseButton::Left) => {

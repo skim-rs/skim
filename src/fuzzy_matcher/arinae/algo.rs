@@ -10,6 +10,7 @@ use super::banding::{BandingInfo, typo_vband_row};
 use super::constants::{
     CONSECUTIVE_BONUS, GAP_EXTEND, GAP_OPEN, MATCH_BONUS, MAX_PAT_LEN, MISMATCH_PENALTY, TYPO_PENALTY,
 };
+use super::matrix::RankRows;
 use super::{Atom, CELL_ZERO, Cell, Dir, SWMatrix, Score};
 
 /// Core cell scoring kernel shared by both score-only and full DP.
@@ -363,20 +364,29 @@ pub(super) fn full_dp<const ALLOW_TYPOS: bool, const COMPUTE_INDICES: bool, C: A
 }
 
 // ---------------------------------------------------------------------------
-// Range DP — full matrix, minimal traceback (begin + end only)
+// Range DP — two rolling score rows + a direction matrix
 // ---------------------------------------------------------------------------
 
-/// Full matrix DP followed by a traceback that only records the first and
-/// last matched positions (not every index). Used by `fuzzy_match_range` to
-/// avoid allocating and populating the full index vec when only the span is
-/// needed.
+/// Same DP and same result as `full_dp` + traceback, but faster: it keeps
+/// only two rows of scores (the left neighbour stays in a register), and only
+/// the 1-byte directions in a matrix for the traceback. Used by
+/// `fuzzy_match_range` and `fuzzy_match`, i.e. for every item.
+///
+/// It computes the band of `full_dp` (V-band), made tighter only where the
+/// skipped cells are provably zero or never read (exact mode only):
+/// - left: in exact mode no cell is negative, and a cell is zero until the
+///   first occurrence of its pattern char in the band;
+/// - right: row `i` is only read by row `i + 1` up to its own right bound - 1,
+///   and the last row is only scanned up to `row_hi[n - 1]`.
+///
+/// Cells outside a row's band are zero (`Dir::None`), as in `full_dp`.
 #[allow(clippy::too_many_lines)]
 pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     cho: &[C],
     pat: &[C],
     bonuses: &[Score],
     respect_case: bool,
-    full_buf: &ThreadLocal<RefCell<SWMatrix>>,
+    rows_buf: &ThreadLocal<RefCell<RankRows>>,
     use_last_match: bool,
     banding: &BandingInfo,
 ) -> Option<(Score, usize, usize)> {
@@ -387,165 +397,158 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
     let col_off = j_start - 1;
     let mcols = m - col_off + 1;
 
-    let mut buf = full_buf
-        .get_or(|| RefCell::new(SWMatrix::zero(n + 1, mcols)))
-        .borrow_mut();
-    buf.resize(n + 1, mcols);
-
-    let base_ptr = buf.data.as_mut_ptr();
-    let cols = buf.cols;
-
-    // Initialize row 0 to CELL_ZERO (all-zero bytes: score=0, dir=None=0).
-    // Column 0 of each subsequent row is also CELL_ZERO.
-    // SAFETY: base_ptr points to a valid allocation of (n+1)*cols Cells.
-    unsafe {
-        std::ptr::write_bytes(base_ptr, 0, mcols);
-        for i in 1..=n {
-            *base_ptr.add(i * cols) = CELL_ZERO;
+    let mut buf = rows_buf.get_or(|| RefCell::new(RankRows::default())).borrow_mut();
+    let RankRows {
+        rows: [row_a, row_b],
+        dirs,
+        bands,
+    } = &mut *buf;
+    // The score rows are all zero between calls (we zero what we wrote at the
+    // end): this is row 0 and the left wall (column 0). Per-call setup cost
+    // matters, most choices are short.
+    for row in [&mut *row_a, &mut *row_b] {
+        if row.len() < mcols {
+            row.resize(mcols, CELL_ZERO);
         }
     }
+    // Directions are only read inside the bands, no need to clear them.
+    if dirs.len() < n * mcols {
+        dirs.resize(n * mcols, 0);
+    }
+    bands.clear();
 
-    let (row_lo_arr, row_hi_arr) = if ALLOW_TYPOS {
-        ([0usize; MAX_PAT_LEN], [0usize; MAX_PAT_LEN])
+    let mut prev: &mut [Cell] = &mut row_a[..mcols];
+    let mut cur: &mut [Cell] = &mut row_b[..mcols];
+    // Matrix column range written in each buffer, to zero it before reuse.
+    let mut prev_written = (1usize, 0usize);
+    let mut cur_written = (1usize, 0usize);
+
+    // Bounds of the last-row scan (same as `full_dp`).
+    let (last_j_lo, last_j_hi) = if ALLOW_TYPOS {
+        typo_vband_row(n, m, banding.bandwidth, banding.j_first)
     } else {
         let (lo, hi) = banding.row_bounds.as_ref().unwrap();
-        (*lo, *hi)
+        (lo[n - 1], hi[n - 1])
     };
-
-    let cho_ptr = cho.as_ptr();
-    let bonuses_ptr = bonuses.as_ptr();
-    let mut dead_rows = 0u32;
 
     for i in 1..=n {
         let pi = pat[i - 1];
         let is_first = i == 1;
 
-        let (j_lo, j_hi) = if ALLOW_TYPOS {
-            typo_vband_row(i, m, banding.bandwidth, banding.j_first)
+        let (j_lo, _) = typo_vband_row(i, m, banding.bandwidth, banding.j_first);
+        // Right bound, see the doc comment.
+        let j_hi = if ALLOW_TYPOS {
+            m
         } else {
-            (row_lo_arr[i - 1], row_hi_arr[i - 1])
+            last_j_hi.min(m).saturating_sub(n - i)
         };
-        let j_lo = j_lo.max(j_start);
+        let j_lo = if ALLOW_TYPOS || j_lo > m {
+            j_lo
+        } else {
+            // No occurrence: the whole row is zero.
+            pi.find_first_in(&cho[j_lo - 1..], respect_case)
+                .map_or(m + 1, |k| j_lo + k)
+        };
+        let computed = j_lo <= j_hi && j_lo <= m;
 
-        if j_lo > j_hi || j_lo > m {
-            if i < n {
-                let (nj_lo, nj_hi) = if ALLOW_TYPOS {
-                    typo_vband_row(i + 1, m, banding.bandwidth, banding.j_first)
+        // Row i-2 used this buffer: zero what it wrote outside this row's band,
+        // so every cell outside the band reads as zero.
+        let (new_lo, new_hi) = if computed {
+            (j_lo - col_off, j_hi - col_off)
+        } else {
+            (1, 0)
+        };
+        let (old_lo, old_hi) = cur_written;
+        if new_lo > new_hi {
+            if old_lo <= old_hi {
+                cur[old_lo..=old_hi].fill(CELL_ZERO);
+            }
+        } else {
+            let below_hi = old_hi.min(new_lo - 1);
+            if old_lo <= below_hi {
+                cur[old_lo..=below_hi].fill(CELL_ZERO);
+            }
+            let above_lo = old_lo.max(new_hi + 1);
+            if above_lo <= old_hi {
+                cur[above_lo..=old_hi].fill(CELL_ZERO);
+            }
+        }
+        cur_written = (new_lo, new_hi);
+        bands.push((new_lo, new_hi));
+
+        if computed {
+            let dir_row = &mut dirs[(i - 1) * mcols..i * mcols];
+            assert!(j_hi <= m && j_lo > col_off && bonuses.len() >= m);
+            let prev_ptr = prev.as_ptr();
+            let cur_ptr = cur.as_mut_ptr();
+            let dir_ptr = dir_row.as_mut_ptr();
+            let cho_ptr = cho.as_ptr();
+            let bonuses_ptr = bonuses.as_ptr();
+            // SAFETY (all raw accesses in this loop): col_off < j_lo <= j <= j_hi <= m,
+            // so 1 <= jm <= m - col_off = mcols - 1 (rows and dir_row have mcols
+            // cells), and j - 1 < m = cho.len() <= bonuses.len().
+            // The left neighbour stays in registers (no store-to-load latency).
+            let left = unsafe { *cur_ptr.add(j_lo - col_off - 1) };
+            let mut left_score = left.score();
+            let mut left_is_diag = left.is_diag();
+            for j in j_lo..=j_hi {
+                let jm = j - col_off;
+                let is_match = pi.eq(unsafe { *cho_ptr.add(j - 1) }, respect_case);
+                let diag = unsafe { *prev_ptr.add(jm - 1) };
+                let up_score = if ALLOW_TYPOS {
+                    unsafe { (*prev_ptr.add(jm)).score() }
                 } else {
-                    (row_lo_arr[i], row_hi_arr[i])
+                    0
                 };
-                let nj_lo = nj_lo.max(j_start);
-                if nj_lo <= nj_hi && nj_lo <= m {
-                    let next_mat_lo = nj_lo - col_off;
-                    let next_mat_hi = (nj_hi - col_off).min(mcols - 1);
-                    let zero_lo = next_mat_lo.saturating_sub(1);
-                    let zero_hi = next_mat_hi.min(mcols - 1);
-                    unsafe {
-                        let row_ptr = base_ptr.add(i * cols);
-                        for k in zero_lo..=zero_hi {
-                            *row_ptr.add(k) = CELL_ZERO;
-                        }
-                    }
+
+                let (best, dir) = compute_cell::<ALLOW_TYPOS>(
+                    is_match,
+                    is_first,
+                    unsafe { *bonuses_ptr.add(j - 1) },
+                    diag.score(),
+                    diag.is_diag(),
+                    up_score,
+                    left_score,
+                    left_is_diag,
+                );
+
+                unsafe {
+                    *cur_ptr.add(jm) = Cell::new(best, dir);
+                    *dir_ptr.add(jm) = dir as u8;
                 }
-            }
-            dead_rows += 1;
-            if dead_rows >= 2 {
-                return None;
-            }
-            continue;
-        }
-
-        let mat_col_lo = j_lo - col_off;
-        let mat_col_hi = j_hi - col_off;
-        let jm_max = mcols - 1;
-
-        unsafe {
-            let row_ptr = base_ptr.add(i * cols);
-            if mat_col_lo > 1 {
-                *row_ptr.add(mat_col_lo - 1) = CELL_ZERO;
-            }
-            if mat_col_hi < jm_max {
-                *row_ptr.add(mat_col_hi + 1) = CELL_ZERO;
+                left_score = best;
+                left_is_diag = dir == Dir::Diag;
             }
         }
 
-        let (prev_row, cur_row) = unsafe {
-            let pr = std::slice::from_raw_parts(base_ptr.add((i - 1) * cols), cols);
-            let cr = std::slice::from_raw_parts_mut(base_ptr.add(i * cols), cols);
-            (pr, cr)
-        };
+        std::mem::swap(&mut prev, &mut cur);
+        std::mem::swap(&mut prev_written, &mut cur_written);
+    }
 
-        let prev_ptr = prev_row.as_ptr();
-        let cur_ptr = cur_row.as_mut_ptr();
-
-        let mut row_positive = false;
-        for j in j_lo..=j_hi {
-            let jm = j - col_off;
-            let cj = unsafe { *cho_ptr.add(j - 1) };
-            let is_match = pi.eq(cj, respect_case);
-
-            let diag_cell = unsafe { *prev_ptr.add(jm - 1) };
-            let up_score = if ALLOW_TYPOS {
-                let up_cell = unsafe { *prev_ptr.add(jm) };
-                up_cell.score()
+    // Find best score in the last row (now in `prev`), same scan as `full_dp`.
+    let mut best_score: Score = 0;
+    let mut best_j = 0usize;
+    let last_j_lo = last_j_lo.max(j_start);
+    if last_j_lo <= last_j_hi && last_j_lo <= m {
+        for j in last_j_lo..=last_j_hi {
+            let s = prev[j - col_off].score();
+            // When use_last_match: `>=` keeps overwriting best_j so the
+            // rightmost tied column wins. Otherwise strict `>` means the
+            // leftmost (first) column with the best score wins.
+            let better = if use_last_match {
+                s >= best_score && s > 0
             } else {
-                0
+                s > best_score
             };
-            let left_cell = unsafe { *cur_ptr.add(jm - 1) };
-
-            let (best, dir) = compute_cell::<ALLOW_TYPOS>(
-                is_match,
-                is_first,
-                unsafe { *bonuses_ptr.add(j - 1) },
-                diag_cell.score(),
-                diag_cell.is_diag(),
-                up_score,
-                left_cell.score(),
-                left_cell.is_diag(),
-            );
-
-            row_positive |= best > 0;
-            unsafe {
-                *cur_ptr.add(jm) = Cell::new(best, dir);
-            }
-        }
-
-        if row_positive {
-            dead_rows = 0;
-        } else {
-            dead_rows += 1;
-            if dead_rows >= 2 {
-                return None;
-            }
+            best_score = if better { s } else { best_score };
+            best_j = if better { j } else { best_j };
         }
     }
 
-    // Find best score in the last row.
-    let mut best_score: Score = 0;
-    let mut best_j = 0usize;
-    {
-        let (last_j_lo, last_j_hi) = if ALLOW_TYPOS {
-            typo_vband_row(n, m, banding.bandwidth, banding.j_first)
-        } else {
-            (row_lo_arr[n - 1], row_hi_arr[n - 1])
-        };
-        let last_j_lo = last_j_lo.max(j_start);
-        if last_j_lo <= last_j_hi && last_j_lo <= m {
-            let last_row_ptr = unsafe { base_ptr.add(n * cols) };
-            for j in last_j_lo..=last_j_hi {
-                let jm = j - col_off;
-                let s = unsafe { (*last_row_ptr.add(jm)).score() };
-                // When use_last_match: `>=` keeps overwriting best_j so the
-                // rightmost tied column wins. Otherwise strict `>` means the
-                // leftmost (first) column with the best score wins.
-                let better = if use_last_match {
-                    s >= best_score && s > 0
-                } else {
-                    s > best_score
-                };
-                best_score = if better { s } else { best_score };
-                best_j = if better { j } else { best_j };
-            }
+    // Restore the all-zero rows for the next call.
+    for (row, (lo, hi)) in [(prev, prev_written), (cur, cur_written)] {
+        if lo <= hi {
+            row[lo..=hi].fill(CELL_ZERO);
         }
     }
 
@@ -553,46 +556,58 @@ pub(super) fn range_dp<const ALLOW_TYPOS: bool, C: Atom>(
         return None;
     }
 
-    // Minimal traceback: walk back until we can go no further, recording
-    // only the final j (which becomes `begin`). `end` is best_j - 1.
-    let end_0 = best_j - 1; // 0-indexed end
+    // Traceback of `full_dp`, on the directions only. A cell outside its
+    // row's band has no direction.
     let mut i = n;
     let mut j = best_j;
-    let mut true_matches = 0usize;
-
+    let mut matched = TracebackMatches::default();
     while i > 0 && j >= j_start {
         let jm = j - col_off;
-        let cell_val = unsafe { *base_ptr.add(i * cols).add(jm) };
-        match cell_val.dir() {
-            Dir::Diag => {
+        let (lo, hi) = bands[i - 1];
+        if jm < lo || jm > hi {
+            break;
+        }
+        match dirs[(i - 1) * mcols + jm] {
+            1 => {
+                // Dir::Diag
                 if pat[i - 1].eq(cho[j - 1], respect_case) {
-                    true_matches += 1;
+                    matched.push(j - 1);
                 }
                 i -= 1;
                 j -= 1;
             }
-            Dir::Up => {
-                i -= 1;
-            }
-            Dir::Left => {
-                j -= 1;
-            }
-            Dir::None => break,
+            2 => i -= 1, // Dir::Up
+            3 => j -= 1, // Dir::Left
+            _ => break,  // Dir::None
         }
     }
+    matched.finish(best_score, banding.min_true_matches)
+}
 
-    if true_matches < banding.min_true_matches {
-        return None;
+/// What `full_dp`'s traceback records, without the index list: the number of
+/// true matches and the first / last matched char index.
+#[derive(Default)]
+pub(super) struct TracebackMatches {
+    count: usize,
+    first: usize,
+    last: usize,
+}
+
+impl TracebackMatches {
+    /// Records a true match at 0-indexed column `col` (the traceback walks
+    /// right to left).
+    #[inline]
+    pub(super) fn push(&mut self, col: usize) {
+        if self.count == 0 {
+            self.last = col;
+        }
+        self.first = col;
+        self.count += 1;
     }
 
-    // `j` after traceback is one step before the first matched column;
-    // the first match is at `j` (0-indexed: `j` since j is 1-indexed here
-    // but we stepped past it). We need the earliest index that was recorded.
-    // After the loop, j points to the column just before the alignment start,
-    // so begin = j (0-indexed) because the first Diag step decremented j before
-    // breaking. Re-scan the last row of the traceback to find begin precisely:
-    // We track the last diagonal j we visited.
-    let begin_0 = j; // j is 1-indexed after the last decrement; 0-indexed = j
-
-    Some((best_score, begin_0, end_0))
+    /// `(score, begin, end)` as `fuzzy_indices` + first/last index would give
+    /// (0 for an empty index list), or `None` with too few true matches.
+    pub(super) fn finish(self, score: Score, min_true_matches: usize) -> Option<(Score, usize, usize)> {
+        (self.count >= min_true_matches).then_some((score, self.first, self.last))
+    }
 }

@@ -175,7 +175,7 @@ jobs:
       - *toolchain
       - *cache
       - name: Clippy
-        run: cargo clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
   rustfmt:
     runs-on: ${{matrix.runner}}

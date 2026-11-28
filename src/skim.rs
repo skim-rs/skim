@@ -269,6 +269,7 @@ where
     ///
     /// Panics if the margin is invalid.
     pub fn init(options: SkimOptions, source: Option<SkimItemReceiver>) -> Result<Self> {
+        crate::set_allocator_purge_delay();
         let height = Size::try_from(options.height.as_str())?;
 
         // application state
@@ -361,11 +362,13 @@ where
         if let Some(rc) = self.reader_control.as_mut() {
             rc.kill();
         }
-        // Clear items
-        self.app.item_pool.clear();
+        let old = self.app.item_pool.clear();
         // Keep the old display until replacement results arrive when requested.
-        if !self.app.options.no_clear_if_empty && !self.app.options.no_clear_start {
+        if self.app.options.no_clear_if_empty || self.app.options.no_clear_start {
+            self.app.item_list.detach_from_pool(&self.app.item_pool, old);
+        } else {
             self.app.item_list.clear();
+            drop(old);
         }
         self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
@@ -589,7 +592,7 @@ where
                 if app.query_below_min_length() {
                     if reader_control.is_none_or(ReaderControl::is_done) {
                         debug!("filter mode: query shorter than --min-query-length, no results");
-                        app.item_list.items.clear();
+                        app.item_list.clear_items();
                         return false;
                     }
                     std::thread::sleep(Duration::from_millis(1));
@@ -603,18 +606,10 @@ where
                 std::thread::sleep(Duration::from_millis(1));
                 app.restart_matcher(false);
             }
-            app.item_list.items = app
-                .item_list
-                .processed_items
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .take()
-                .unwrap_or_default()
-                .items
-                .into_iter()
-                .filter(|i| !i.item.disabled())
-                .collect();
-            debug!("filter mode: matched {} items", app.item_list.items.len());
+            if let Some(processed) = app.item_list.take_processed() {
+                app.item_list.apply_processed(processed);
+            }
+            debug!("filter mode: matched {} items", app.item_list.len());
             return false;
         }
 
@@ -639,34 +634,31 @@ where
                 app.input.value,
                 reader_control.is_none_or(ReaderControl::is_done)
             );
-            while app.matcher_control.get_num_matched() < min_items_before_enter
-                && (!app.matcher_control.stopped() || !reader_control.is_none_or(ReaderControl::is_done))
-            {
+            let mut previous_matches = 0;
+            let matched = loop {
+                let stopped = app.matcher_control.stopped();
+                let matched = previous_matches + app.matcher_control.get_num_matched();
+                if matched >= min_items_before_enter {
+                    break matched;
+                }
+                if stopped {
+                    let reader_done = reader_control.is_none_or(ReaderControl::is_done);
+                    // The reader can finish with items that the last matcher batch did not take.
+                    if !app.query_below_min_length() && app.item_pool.num_not_taken() > 0 {
+                        previous_matches = matched;
+                        app.restart_matcher(false);
+                    } else if reader_done {
+                        break matched;
+                    }
+                }
                 trace!("still waiting");
                 std::thread::sleep(Duration::from_millis(1));
-                app.restart_matcher(false);
-            }
-            trace!(
-                "checked matcher, stopped: {}, processed: {}, pool: {}, query: {}, reader_control_done: {}",
-                app.matcher_control.stopped(),
-                app.matcher_control.get_num_processed(),
-                app.item_pool.num_not_taken(),
-                app.input.value,
-                reader_control.is_none_or(ReaderControl::is_done)
-            );
-            trace!(
-                "checking for matched item count before entering: {}/{min_items_before_enter}",
-                app.matcher_control.get_num_matched()
-            );
-            if app.matcher_control.get_num_matched() == min_items_before_enter - 1 {
-                app.item_list.items = app
-                    .item_list
-                    .processed_items
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .take()
-                    .unwrap_or_default()
-                    .items;
+            };
+            trace!("checking for matched item count before entering: {matched}/{min_items_before_enter}");
+            if matched == min_items_before_enter - 1 {
+                if let Some(processed) = app.item_list.take_processed() {
+                    app.item_list.apply_processed(processed);
+                }
                 debug!("early exit, result: {:?}", app.results());
                 return false;
             }

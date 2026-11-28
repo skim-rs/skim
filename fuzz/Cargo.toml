@@ -11,6 +11,9 @@ cargo-fuzz = true
 arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
 regex = "1"
+# For the pre-optimization Arinae vendored in `old_arinae/`
+memchr = "2.8.1"
+thread_local = "1.1.9"
 
 [dependencies.skim]
 path = ".."
@@ -47,6 +50,13 @@ bench = false
 [[bin]]
 name = "keymap_parse"
 path = "fuzz_targets/keymap_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "arinae_old_vs_new"
+path = "fuzz_targets/arinae_old_vs_new.rs"
 test = false
 doc = false
 bench = false

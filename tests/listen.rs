@@ -1,458 +1,82 @@
-// TODO: automate listen tests on windows
-// Maybe using smaller tests ? actions processing is already tested, only the IPC part needs testing
-#![allow(missing_docs, clippy::pedantic)]
-// The Zellij harness is cross-platform, but this file stays unix-only for
-// reasons unrelated to the multiplexer: skim's `--listen`/`--remote` IPC binds a
-// unix domain socket here. (`#![cfg(unix)]` already covers both Linux and macOS.)
-#![cfg(all(unix, feature = "listen"))]
-#[allow(dead_code)]
+//! End-to-end coverage for `--listen` and `--remote`. Individual action behavior
+//! is covered in `src/tui/app_tests.rs` without a terminal session.
+#![cfg(all(unix, feature = "cli", feature = "listen"))]
+
+#[allow(dead_code, missing_docs)]
 #[macro_use]
 mod common;
 
-use common::zellij::Keys::*;
+use common::SKIM_ENV_REMOVES;
+use common::zellij::{Keys, ZellijController};
 use rand::RngExt as _;
-use rand::distr::Alphabetic;
-use std::io::{Result, Write as _};
-use std::process::{Child, Command, Stdio};
+use std::io::{self, Write as _};
+use std::process::{Command, Stdio};
 
-use common::zellij::ZellijController;
-
-use crate::common::{SK, SKIM_ENV_REMOVES};
-
-fn connect(name: &str) -> Result<Child> {
-    let mut cmd = Command::new(SK);
+fn send(name: &str, actions: &str) -> io::Result<()> {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_sk"));
     for var in SKIM_ENV_REMOVES {
         cmd.env_remove(var);
     }
-    cmd.args(["--remote", name]).stdin(Stdio::piped()).spawn()
-}
-fn send(child: &mut Child, msg: &str) -> Result<()> {
-    let mut b = msg.bytes().collect::<Vec<_>>();
-    b.push(b'\n');
-    child.stdin.as_mut().map(|s| s.write_all(&b));
-    Ok(())
+    let mut child = cmd
+        .args(["--remote", name])
+        .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    // Close stdin to finish the remote client, and reap it even if the write fails.
+    let written = writeln!(child.stdin.take().expect("piped stdin"), "{actions}");
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "sk --remote {name} failed ({}): {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    written
 }
 
-fn setup(name: &str, extra_args: &[&str]) -> Result<(ZellijController, Child)> {
-    let mut tmux = ZellijController::new_named(name)?;
-    let socket_name = format!(
-        "sk-test-{name}{}",
-        rand::rng()
-            .sample_iter(&Alphabetic)
-            .take(4)
-            .map(char::from)
-            .collect::<String>()
-    );
-    tmux.start_sk(
-        Some(&format!("echo -n -e '{}'", "a\\nb\\nc\\nd")),
-        &[&["--listen", &socket_name], extra_args].concat(),
+fn setup(test: &str) -> io::Result<(ZellijController, String)> {
+    let mut zellij = ZellijController::new_named(test)?;
+    let name = format!("sk-listen-{:016x}", rand::rng().random::<u64>());
+    zellij.start_sk(
+        Some("printf 'a\\nb\\nc\\nd\\n'"),
+        &["--listen", &name, "--sync", "--multi"],
     )?;
-    tmux.until(|l| !l.is_empty() && l[0].starts_with(">"))?;
-    let stream = connect(&socket_name)?;
-    Ok((tmux, stream))
-}
-
-#[test]
-fn listen_up() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("up", &[])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        send(&mut stream,"up(2)")? ;
-        @capture[2]trim().starts_with("a");
-        @capture[4]starts_with("> c");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_down() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("down", &[])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        @keys Up, Up;
-        @capture[2]trim().starts_with("a");
-        @capture[4]starts_with("> c");
-        send(&mut stream, "down(2)")?;
+    // Wait for the initial selection, not just the prompt, before sending actions.
+    sk_test!(@expand zellij;
         @capture[2]starts_with("> a");
     );
-    Ok(())
+    Ok((zellij, name))
 }
 
 #[test]
-fn listen_abort() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("abort", &[])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "abort")?;
-        @capture[0]trim().contains("$");
+fn listen_remote_actions() -> io::Result<()> {
+    let (zellij, name) = setup("listen-actions")?;
+    sk_test!(@expand zellij;
+        send(&name, "reload(printf 'x\\ny\\nz\\n')")?;
+        @capture[4]trim().eq("z");
     );
-    Ok(())
-}
 
-// Test Accept action - adapted to use "a" instead of "apple"
-#[test]
-fn listen_accept() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("accept", &[])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        send(&mut stream, "accept")?;
-        @output[0]eq("a");
-    );
-    Ok(())
-}
-
-// Test Accept with key - adapted to use "a" instead of "apple"
-#[test]
-fn listen_accept_key() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("accept_key", &[])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "accept(ctrl-a)")?;
-        @output[0]eq("ctrl-a");
-        @output[1]eq("a");
-    );
+    // Select y, move back to x, then accept. The output must use the selection.
+    send(&name, "up+select\ndown+accept(ctrl-a)")?;
+    assert_eq!(zellij.output()?, ["ctrl-a", "y"]);
     Ok(())
 }
 
 #[test]
-fn listen_add_char() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("add_char", &[])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "add-char(a)")?;
-        @capture[0]trim().eq("> a");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_backward_char() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("backward_char", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello");
-        @capture[0]starts_with("> hello");
-        send(&mut stream, "backward-char")?;
-        @keys Key('|');
-        @capture[0]trim().eq("> hell|o");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_backward_delete_char() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("backward_delete_char", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("test");
-        @capture[0]trim().eq("> test");
-        send(&mut stream, "backward-delete-char")?;
-        @capture[0]trim().eq("> tes");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_backward_delete_char_eof() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("backward_delete_char_eof", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("x");
-        @capture[0]trim().eq("> x");
-        send(&mut stream, "backward-delete-char/eof")?;
-        @capture[0]trim().eq(">");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_backward_kill_word() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("backward_kill_word", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]trim().eq("> hello world");
-        send(&mut stream, "backward-kill-word")?;
-        @capture[0]trim().eq("> hello");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_backward_word() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("backward_word", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]starts_with("> hello world");
-        send(&mut stream, "backward-word")?;
-        @keys Key('|');
-        @capture[0]trim().eq("> hello |world");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_end_of_line() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("end_of_line", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello");
-        @capture[0]trim().eq("> hello");
-        send(&mut stream, "beginning-of-line")?;
-        send(&mut stream, "end-of-line")?;
-        @keys Key('X');
-        @capture[0]trim().eq("> helloX");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_first() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("first", &[])?;
-    sk_test!(@expand tmux;
-        @keys Up, Up;
-        @capture[4]starts_with("> c");
-        send(&mut stream, "first")?;
-        @capture[2]starts_with("> a");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_forward_char() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("forward_char", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello");
-        @capture[0]trim().eq("> hello");
-        send(&mut stream, "beginning-of-line")?;
-        send(&mut stream, "forward-char")?;
-        @keys Key('X');
-        @capture[0]trim().eq("> hXello");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_forward_word() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("forward_word", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]trim().eq("> hello world");
-        send(&mut stream, "beginning-of-line")?;
-        send(&mut stream, "forward-word")?;
-        @keys Key('X');
-        @capture[0]trim().eq("> helloX world");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_kill_line() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("kill_line", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]trim().eq("> hello world");
-        send(&mut stream, "backward-word")?;
-        send(&mut stream, "kill-line")?;
-        @capture[0]trim().eq("> hello");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_kill_word() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("kill_word", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]trim().eq("> hello world");
-        send(&mut stream, "beginning-of-line")?;
-        send(&mut stream, "kill-word")?;
-        @capture[0]trim().eq(">  world");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_last() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("last", &[])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        @capture[5]trim().eq("d");
-        send(&mut stream, "last")?;
-        @capture[5]starts_with("> d");
-    );
-    Ok(())
-}
-
-// Test Reload action with command
-#[test]
-fn listen_reload_cmd() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("reload_cmd", &[])?;
-    sk_test!(@expand tmux;
-        @capture[1]trim().contains("4/4");
-        send(&mut stream, "reload(printf 'x\\ny\\nz'))")?;
-        @capture[2]starts_with("> x");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_select_all() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("select_all", &["-m"])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "select-all")?;
-        @capture[2]trim().eq(">>a");
-        @capture[3]trim().eq(">b");
-        @capture[4]trim().eq(">c");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_select_row() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("select_row", &["-m"])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        send(&mut stream, "select-row(2)")?;
-        @capture[2]trim().eq("> a");
-        @capture[4]trim().eq(">c");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_select() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("select", &["-m"])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "select")?;
-        @capture[2]starts_with(">>");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_toggle() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("toggle", &["-m"])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "toggle")?;
-        @capture[2]starts_with(">>a");
-        send(&mut stream, "toggle")?;
-        @capture[2]starts_with("> a");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_toggle_all() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("toggle_all", &["-m"])?;
-    sk_test!(@expand tmux;
-        send(&mut stream, "toggle-all")?;
-        @capture[2]starts_with(">>a");
-        @capture[3]trim().eq(">b");
-        @capture[4]trim().eq(">c");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_toggle_in() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("toggle_in", &["-m"])?;
-    sk_test!(@expand tmux;
-        @keys Up;
-        @capture[2]trim().starts_with("a");
-        @capture[3]starts_with("> b");
-        send(&mut stream, "toggle-in")?;
-        @capture[2]starts_with("> a");
-        @capture[3]trim().starts_with(">b");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_toggle_out() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("toggle_out", &["-m"])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        @capture[3]trim().starts_with("b");
-        send(&mut stream, "toggle-out")?;
-        @capture[2]trim().starts_with(">a");
-        @capture[3]starts_with("> b");
-    );
-    Ok(())
-}
-
-// Test Top action (alias for First)
-#[test]
-fn listen_top() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("top", &[])?;
-    sk_test!(@expand tmux;
-        @keys Up, Up;
-        @capture[4]starts_with("> c");
-        send(&mut stream, "top")?;
-        @capture[2]starts_with("> a");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_unix_line_discard() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("unix_line_discard", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]trim().eq("> hello world");
-        send(&mut stream, "unix-line-discard")?;
-        @capture[0]trim().eq(">");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_unix_word_rubout() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("unix_word_rubout", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello world");
-        @capture[0]trim().eq("> hello world");
-        send(&mut stream, "unix-word-rubout")?;
-        @capture[0]trim().eq("> hello");
-    );
-    Ok(())
-}
-
-#[test]
-fn listen_yank() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("yank", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello");
-        @capture[0]trim().eq("> hello");
-        send(&mut stream, "backward-kill-word")?;
-        @capture[0]trim().eq(">");
-        send(&mut stream, "yank")?;
-        @capture[0]trim().eq("> hello");
-    );
-    Ok(())
-}
-
-// Bind a previously-unbound key over IPC, then trigger it from the keyboard.
-#[test]
-fn listen_bind() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("bind", &[])?;
-    sk_test!(@expand tmux;
-        @capture[2]starts_with("> a");
-        // The header acknowledges that the preceding bind has been processed
-        // before terminal key events are sent through a separate channel.
-        send(&mut stream, "bind(ctrl-x:up)+set-header(ready)")?;
+fn listen_remote_bindings() -> io::Result<()> {
+    let (zellij, name) = setup("listen-bindings")?;
+    sk_test!(@expand zellij;
+        // The header confirms that both changes ran before we send terminal keys.
+        send(&name, "bind(ctrl-x:up)+unbind(ctrl-u)+set-header(ready)")?;
         @capture[*]trim().eq("ready");
-        @keys Ctrl(&Key('x')), Ctrl(&Key('x'));
+        @keys Keys::Ctrl(&Keys::Key('x')), Keys::Ctrl(&Keys::Key('x'));
         @capture[*]starts_with("> c");
-    );
-    Ok(())
-}
-
-// Unbind a key over IPC so its keypress becomes a no-op. The trailing `x`
-// distinguishes the two cases: if ctrl-u were still bound to unix-line-discard
-// the query would read `> x`, but with it unbound the query is preserved.
-#[test]
-fn listen_unbind() -> std::io::Result<()> {
-    let (tmux, mut stream) = setup("unbind", &[])?;
-    sk_test!(@expand tmux;
-        @keys Str("hello");
-        @capture[0]trim().eq("> hello");
-        send(&mut stream, "unbind(ctrl-u)+set-header(ready)")?;
-        @capture[*]trim().eq("ready");
-        @keys Ctrl(&Key('u')), Key('x');
+        @keys Keys::Str("hello"), Keys::Ctrl(&Keys::Key('u')), Keys::Key('x');
         @capture[0]trim().eq("> hellox");
     );
+
+    send(&name, "abort")?;
+    assert_eq!(zellij.output()?, Vec::<String>::new());
     Ok(())
 }

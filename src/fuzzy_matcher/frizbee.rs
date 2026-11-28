@@ -7,8 +7,8 @@ use crate::CaseMatching;
 use crate::fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType};
 
 thread_local! {
-    /// One reusable frizbee Matcher per thread
-    static LOCAL_MATCHER: RefCell<Option<Matcher>> = const { RefCell::new(None) };
+    /// One reusable frizbee Matcher per thread, with the pattern it was built for
+    static LOCAL_MATCHER: RefCell<Option<(Matcher, String)>> = const { RefCell::new(None) };
 }
 
 /// Matcher using frizbee,
@@ -49,9 +49,16 @@ impl FrizbeeMatcher {
         LOCAL_MATCHER.with(|cell| {
             let mut slot = cell.borrow_mut();
 
-            let matcher = slot.get_or_insert_with(|| Matcher::new("", &self.config));
-            matcher.set_config(self.config.clone());
-            matcher.set_pattern(pattern);
+            let (matcher, last_pattern) = slot.get_or_insert_with(|| (Matcher::new("", &self.config), String::new()));
+            // `set_config` clones and `set_pattern` allocates on every call: skip
+            // them when nothing changed (the same query is matched on every item).
+            if matcher.config() != &self.config {
+                matcher.set_config(self.config.clone());
+            }
+            if last_pattern != pattern {
+                matcher.set_pattern(pattern);
+                pattern.clone_into(last_pattern);
+            }
             f(matcher)
         })
     }
@@ -72,6 +79,21 @@ impl FuzzyMatcher for FrizbeeMatcher {
 
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<i64> {
         self.with_matcher(pattern, |m| m.match_one(choice, 0).map(|hit| hit.score.into()))
+    }
+
+    /// Same as the first / last index of `fuzzy_indices`, without building the
+    /// index list. Not `match_one` + a computed begin: for a single item,
+    /// frizbee's SIMD scorer is not faster than its indices path, and frizbee
+    /// gives no begin column.
+    fn fuzzy_match_range(&self, choice: &str, pattern: &str) -> Option<(i64, usize, usize)> {
+        self.with_matcher(pattern, |m| {
+            m.match_one_indices(choice, 0).map(|hit| {
+                // frizbee gives the indices in reverse order.
+                let first = hit.indices.last().map_or(0, |&i| i as usize);
+                let last = hit.indices.first().map_or(0, |&i| i as usize);
+                (hit.score.into(), first, last)
+            })
+        })
     }
 }
 
@@ -148,5 +170,37 @@ mod tests {
         let smart = FrizbeeMatcher::default().case(CaseMatching::Smart);
         assert!(smart.fuzzy_match("FooBar", "Foo").is_some());
         assert!(smart.fuzzy_match("foobar", "foo").is_some());
+    }
+
+    #[test]
+    fn match_range_is_first_and_last_index() {
+        for typos in [0, 1] {
+            let m = FrizbeeMatcher::default()
+                .case(CaseMatching::Smart)
+                .max_typos(Some(typos));
+            for (choice, pattern) in [
+                ("src/foo/bar.rs", "fbr"),
+                ("foobar", "fxo"),
+                ("abc", "zzz"),
+                ("héllo", "lo"),
+            ] {
+                let expected = m
+                    .fuzzy_indices(choice, pattern)
+                    .map(|(s, idx)| (s, idx.first().copied().unwrap_or(0), idx.last().copied().unwrap_or(0)));
+                assert_eq!(m.fuzzy_match_range(choice, pattern), expected, "{choice} {pattern}");
+            }
+        }
+    }
+
+    /// The thread-local matcher is reused: a new pattern or config must apply.
+    #[test]
+    fn cached_matcher_follows_pattern_and_config_changes() {
+        let respect = FrizbeeMatcher::default().case(CaseMatching::Respect);
+        assert!(respect.fuzzy_match("foobar", "foo").is_some());
+        assert!(respect.fuzzy_match("foobar", "zzz").is_none());
+        assert!(respect.fuzzy_match("foobar", "FOO").is_none());
+        let ignore = FrizbeeMatcher::default().case(CaseMatching::Ignore);
+        assert!(ignore.fuzzy_match("foobar", "FOO").is_some());
+        assert!(respect.fuzzy_match("foobar", "FOO").is_none());
     }
 }

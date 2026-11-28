@@ -13,12 +13,10 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::item::{MatchedItem, RankBuilder};
 use crate::tui::actions::Action;
 use crate::tui::event::Event;
 use crate::tui::layout::LayoutTemplate;
 use crate::tui::statusline::InfoDisplay;
-use crate::{Rank, SkimItem};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 fn past_instant(dur: std::time::Duration) -> std::time::Instant {
@@ -27,28 +25,10 @@ fn past_instant(dur: std::time::Duration) -> std::time::Instant {
         .unwrap_or_else(std::time::Instant::now)
 }
 
-fn matched(text: &str, index: i32) -> MatchedItem {
-    let item: Arc<dyn SkimItem> = Arc::new(text.to_string());
-    MatchedItem::new(
-        item,
-        Rank {
-            index,
-            ..Default::default()
-        },
-        None,
-        &RankBuilder::default(),
-    )
-}
-
-/// Build a default `App` populated with the given items in the item list.
+/// Builds an app with items in its pool and display list.
 fn app_with_items(items: &[&str]) -> App {
     let mut app = App::default();
-    let mut matched_items: Vec<MatchedItem> = items
-        .iter()
-        .enumerate()
-        .map(|(i, t)| matched(t, i32::try_from(i).unwrap()))
-        .collect();
-    app.item_list.append(&mut matched_items);
+    app.item_list.set_test_items(&app.item_pool, items);
     app.item_list.height = 10;
     app
 }
@@ -284,9 +264,9 @@ fn selection_actions() {
 fn append_and_select_grows_list() {
     let mut app = app_with_items(&["a"]);
     app.input.value = "new-item".to_string();
-    let before = app.item_list.items.len();
+    let before = app.item_list.len();
     act(&mut app, Action::AppendAndSelect);
-    assert_eq!(app.item_list.items.len(), before + 1);
+    assert_eq!(app.item_list.len(), before + 1);
     assert!(!app.item_list.selection.is_empty());
 }
 
@@ -533,7 +513,7 @@ fn navigation_in_bottom_to_top_layout() {
     act(&mut app, Action::Down(2));
     act(&mut app, Action::Up(1));
     // Selection stays within bounds after inverted navigation.
-    assert!(app.item_list.current < app.item_list.items.len());
+    assert!(app.item_list.current < app.item_list.len());
 }
 
 #[test]
@@ -777,7 +757,7 @@ fn paging_actions_scroll_in_default_layout() {
     act(&mut app, Action::HalfPageDown(1));
     act(&mut app, Action::HalfPageUp(1));
     // Selection stays within bounds after paging.
-    assert!(app.item_list.current < app.item_list.items.len());
+    assert!(app.item_list.current < app.item_list.len());
 }
 
 #[test]
@@ -791,7 +771,7 @@ fn paging_actions_scroll_in_reverse_layout() {
     act(&mut app, Action::HalfPageDown(1));
     act(&mut app, Action::PageUp(1));
     act(&mut app, Action::HalfPageUp(1));
-    assert!(app.item_list.current < app.item_list.items.len());
+    assert!(app.item_list.current < app.item_list.len());
 }
 
 #[test]
@@ -1252,12 +1232,9 @@ fn child_env_unset_lists_omitted_names() {
 #[test]
 fn child_env_omits_oversized_selected_items() {
     let mut app = app_with_items(&["a", "b"]);
-    app.item_list.selection.insert(crate::item::MatchedItem::new(
-        Arc::new("x".repeat(70 * 1024)),
-        crate::Rank::default(),
-        None,
-        &crate::item::RankBuilder::default(),
-    ));
+    app.item_list
+        .selection
+        .insert(MatchedItem::new(Arc::new("x".repeat(70 * 1024)), 0, 0));
     let env = app.child_env();
     assert!(!env.iter().any(|(name, _)| name == "SKIM_SELECTED_ITEMS"));
     assert!(app.child_env_unset().iter().any(|n| n == "FZF_SELECTED_ITEMS"));
@@ -1429,7 +1406,7 @@ fn results_filter_mode_drains_items() {
     app.options.filter = Some("x".to_string());
     let results = app.results();
     assert_eq!(results.len(), 2);
-    assert_eq!(app.item_list.items, [] as [crate::item::MatchedItem; 0]);
+    assert!(app.item_list.is_empty());
 }
 
 #[test]
@@ -1452,7 +1429,7 @@ fn restart_matcher_short_query_clears_items() {
     app.options.min_query_length = Some(3);
     app.input.value = "ab".to_string();
     app.restart_matcher(true);
-    assert_eq!(app.item_list.items, [] as [crate::item::MatchedItem; 0]);
+    assert!(app.item_list.is_empty());
 }
 
 #[test]
@@ -1461,6 +1438,59 @@ fn handle_items_appends_to_pool() {
     let items: Vec<Arc<dyn SkimItem>> = vec![Arc::new("x".to_string()), Arc::new("y".to_string())];
     app.handle_items(items);
     assert_eq!(app.item_pool.len(), 2);
+}
+
+/// Regression: a query change still in the debounce window, then new items,
+/// must re-match all items. Before, the incremental run matched only the new
+/// items with the new query and merged them into the old query's results.
+#[test]
+fn restart_matcher_after_query_change_rematches_everything() {
+    let mut app = App::default();
+    app.item_pool
+        .append(vec![Arc::new("foo".to_string()), Arc::new("bar".to_string())]);
+    app.restart_matcher(true);
+    while !app.matcher_control.stopped() {
+        std::thread::yield_now();
+    }
+    // The query changes, but the restart is debounced (not run yet).
+    app.input.value = "bar".to_string();
+    app.item_pool.append(vec![Arc::new("baz".to_string())]);
+    let generation = app.item_list.matcher_generation.load(Ordering::Acquire);
+    app.restart_matcher(false);
+    // A full re-match starts a new generation (Replace) over every item.
+    assert_eq!(app.item_list.matcher_generation.load(Ordering::Acquire), generation + 1);
+    while !app.matcher_control.stopped() {
+        std::thread::yield_now();
+    }
+    let processed = app.item_list.take_processed().unwrap();
+    app.item_list.apply_processed(processed);
+    assert_eq!(app.item_list.len(), 1);
+    assert_eq!(app.item_list.get(0).unwrap().text(), "bar");
+}
+
+/// The empty query publishes a view of the pool, not one `MatchedItem` per item.
+#[test]
+fn empty_query_matcher_publishes_pool_view() {
+    let mut app = App::default();
+    app.matcher = crate::matcher::Matcher::from_options(&app.options);
+    app.item_pool
+        .append(vec![Arc::new("foo".to_string()), Arc::new("bar".to_string())]);
+    let run = |app: &mut App, query: &str| {
+        app.input.value = query.to_string();
+        app.restart_matcher(true);
+        while !app.matcher_control.stopped() {
+            std::thread::yield_now();
+        }
+        app.item_list.processed_items.lock().unwrap().take().unwrap()
+    };
+    let processed = run(&mut app, "");
+    assert_eq!(processed.items.len(), 0);
+    assert_eq!(processed.all.as_ref().map(|all| all.len), Some(2));
+    assert_eq!(app.matcher_control.get_num_matched(), 2);
+
+    let processed = run(&mut app, "bar");
+    assert!(processed.all.is_none());
+    assert_eq!(processed.items.len(), 1);
 }
 
 #[test]
@@ -1623,7 +1653,7 @@ fn streaming_preview_receives_cursor_item_independent_of_selection() {
         app.options.preview = None;
         app.options.multi = multi;
         if !items.is_empty() {
-            app.item_list.selection.insert(app.item_list.items[0].clone());
+            app.item_list.select_row(0);
             app.item_list.current = 1;
         }
         let (tx, rx) = mpsc::channel();
@@ -1683,7 +1713,7 @@ fn scroll_moves_current_based_on_position() {
     };
     app.scroll(bottom);
     assert!(app.item_list.current > 0);
-    assert!(app.item_list.current < app.item_list.items.len());
+    assert!(app.item_list.current < app.item_list.len());
 }
 
 #[test]
@@ -1897,12 +1927,12 @@ fn mouse_scroll_up_and_down_move_selection() {
     let _ = render(&mut app, 40, 6);
     let mut tui = test_tui();
 
-    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollDown, 1, 1)))
-        .unwrap();
-    app.handle_event(&mut tui, &Event::Mouse(mouse(MouseEventKind::ScrollUp, 1, 1)))
-        .unwrap();
-    // A Render event is queued after handling a mouse event.
-    assert!(app.needs_render.load(Ordering::Relaxed));
+    // Each wheel step asks for a render: the wheel does not go through `Event::Action`.
+    for kind in [MouseEventKind::ScrollDown, MouseEventKind::ScrollUp] {
+        app.needs_render.store(false, Ordering::Relaxed);
+        app.handle_event(&mut tui, &Event::Mouse(mouse(kind, 1, 1))).unwrap();
+        assert!(app.needs_render.load(Ordering::Relaxed));
+    }
 }
 
 #[test]
@@ -2176,8 +2206,8 @@ impl SkimItem for TextPreviewItem {
 
 fn app_with_one(item: Arc<dyn SkimItem>) -> App {
     let mut app = App::default();
-    let mut matched_items = vec![MatchedItem::new(item, Rank::default(), None, &RankBuilder::default())];
-    app.item_list.append(&mut matched_items);
+    app.item_pool.append(vec![item]);
+    app.item_list.append(&app.item_pool, &mut vec![MatchEntry::default()]);
     app.item_list.height = 10;
     app
 }

@@ -76,6 +76,7 @@ impl<'a> ItemRenderer<'a> {
     /// Render a single `MatchedItem` into one or more flat `ListItem`s (one per
     /// visible sub-line), appending them to `out`.
     ///
+    /// `matched_range` is the highlight of the item (`None`: no highlight).
     /// `is_current` / `is_selected` control cursor/selection styling.
     /// `skip_subs` leading sub-lines are omitted (for partial top-of-screen scroll).
     /// `available_rows` is how many rows remain; rendering stops when exhausted.
@@ -84,6 +85,7 @@ impl<'a> ItemRenderer<'a> {
     pub fn render_item(
         &self,
         item: &MatchedItem,
+        matched_range: Option<&MatchRange>,
         is_current: bool,
         is_selected: bool,
         skip_subs: usize,
@@ -101,7 +103,7 @@ impl<'a> ItemRenderer<'a> {
             match item.item.hidden_ranges() {
                 Some(hidden) if !hidden.is_empty() => {
                     let (visible, map) = crate::helper::item::project_visible_text(item_text.as_ref(), hidden);
-                    let matches = Self::display_matches(item.matched_range.as_ref());
+                    let matches = Self::display_matches(matched_range);
                     let indices = crate::helper::item::project_match_indices(item_text.as_ref(), &matches, &map);
                     let (start, end) = match (indices.first(), indices.last()) {
                         (Some(first), Some(last)) => (*first, *last + 1),
@@ -110,7 +112,7 @@ impl<'a> ItemRenderer<'a> {
                     (std::borrow::Cow::Owned(visible), start, end)
                 }
                 _ => {
-                    let (start, end) = Self::matched_range(item_text.as_ref(), item.matched_range.as_ref());
+                    let (start, end) = Self::matched_range(item_text.as_ref(), matched_range);
                     (item_text, start, end)
                 }
             };
@@ -131,6 +133,7 @@ impl<'a> ItemRenderer<'a> {
             let is_bottom_cutoff = rows_used + added + 1 >= available_rows && sub_idx + 1 < sub_lines.len();
             let list_item = self.render_sub_line(
                 item,
+                matched_range,
                 sub_text,
                 &SubLineState {
                     is_current,
@@ -185,13 +188,14 @@ impl<'a> ItemRenderer<'a> {
     fn render_sub_line(
         &self,
         item: &MatchedItem,
+        matched_range: Option<&MatchRange>,
         sub_text: &str,
         state: &SubLineState,
         match_start_char: usize,
         match_end_char: usize,
     ) -> ListItem<'static> {
         let mut all_spans = self.prefix_spans(item, state);
-        let content_line = self.content_line(item, sub_text, state, match_start_char, match_end_char);
+        let content_line = self.content_line(item, matched_range, sub_text, state, match_start_char, match_end_char);
 
         if state.needs_ellipsis {
             all_spans.extend(self.trim_with_ellipsis(content_line, state.is_current));
@@ -241,10 +245,10 @@ impl<'a> ItemRenderer<'a> {
             prefix_selected_style,
         ));
         if self.show_score {
-            self.push_first_line_field(&mut prefix, state, item.rank.score);
+            self.push_first_line_field(&mut prefix, state, item.score);
         }
         if self.show_index {
-            self.push_first_line_field(&mut prefix, state, item.rank.index);
+            self.push_first_line_field(&mut prefix, state, item.index);
         }
 
         prefix
@@ -270,13 +274,21 @@ impl<'a> ItemRenderer<'a> {
     fn content_line(
         &self,
         item: &MatchedItem,
+        matched_range: Option<&MatchRange>,
         sub_text: &str,
         state: &SubLineState,
         match_start_char: usize,
         match_end_char: usize,
     ) -> Line<'static> {
         let mut line = if state.is_first && state.is_first_sub_line {
-            self.first_sub_line_content(item, sub_text, state.is_current, match_start_char, match_end_char)
+            self.first_sub_line_content(
+                item,
+                matched_range,
+                sub_text,
+                state.is_current,
+                match_start_char,
+                match_end_char,
+            )
         } else {
             self.continuation_sub_line_content(sub_text, state.is_current)
         };
@@ -293,6 +305,7 @@ impl<'a> ItemRenderer<'a> {
     fn first_sub_line_content(
         &self,
         item: &MatchedItem,
+        matched_range: Option<&MatchRange>,
         first_sub_line: &str,
         is_current: bool,
         match_start_char: usize,
@@ -300,8 +313,8 @@ impl<'a> ItemRenderer<'a> {
     ) -> Line<'static> {
         let first_sub_char_len = first_sub_line.chars().count();
         let dl = item.item.display(DisplayContext {
-            score: item.rank.score,
-            matches: Self::display_matches(item.matched_range.as_ref()),
+            score: item.score,
+            matches: Self::display_matches(matched_range),
             container_width: self.container_width,
             base_style: self.base_style(is_current),
             matched_style: if is_current {

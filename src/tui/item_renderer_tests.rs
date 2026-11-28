@@ -7,8 +7,7 @@ use ratatui::style::Style;
 use ratatui::widgets::{List, Widget};
 
 use super::*;
-use crate::item::RankBuilder;
-use crate::{Rank, SkimItem};
+use crate::SkimItem;
 
 fn renderer(theme: &ColorTheme) -> ItemRenderer<'_> {
     ItemRenderer {
@@ -32,13 +31,8 @@ fn renderer(theme: &ColorTheme) -> ItemRenderer<'_> {
     }
 }
 
-fn matched_item(text: &str, matched_range: Option<MatchRange>) -> MatchedItem {
-    MatchedItem::new(
-        Arc::new(text.to_owned()) as Arc<dyn SkimItem>,
-        Rank::default(),
-        matched_range,
-        &RankBuilder::default(),
-    )
+fn matched_item(text: &str) -> MatchedItem {
+    MatchedItem::new(Arc::new(text.to_owned()), 0, 0)
 }
 
 fn line_text(line: &Line<'_>) -> String {
@@ -129,9 +123,9 @@ fn prefix_spans_uses_state_for_icons_and_first_line_fields() {
     renderer.show_score = true;
     renderer.show_index = true;
 
-    let mut item = matched_item("alpha", None);
-    item.rank.score = 42;
-    item.rank.index = 7;
+    let mut item = matched_item("alpha");
+    item.score = 42;
+    item.index = 7;
 
     let current_selected = SubLineState {
         is_current: true,
@@ -165,7 +159,7 @@ fn prefix_spans_with_highlight_line_resets_prefix_background() {
     renderer.highlight_line = true;
     renderer.multi_select = true;
 
-    let item = matched_item("alpha", None);
+    let item = matched_item("alpha");
     let current = SubLineState {
         is_current: true,
         is_selected: true,
@@ -210,14 +204,9 @@ fn continuation_sub_line_content_applies_hscroll() {
 fn first_sub_line_content_keeps_display_longer_than_text() {
     let theme = ColorTheme::default();
     let renderer = renderer(&theme);
-    let item = MatchedItem::new(
-        Arc::new(DisplayLongerThanText) as Arc<dyn SkimItem>,
-        Rank::default(),
-        None,
-        &RankBuilder::default(),
-    );
+    let item = MatchedItem::new(Arc::new(DisplayLongerThanText), 0, 0);
 
-    let line = renderer.first_sub_line_content(&item, "ab", false, 0, 0);
+    let line = renderer.first_sub_line_content(&item, None, "ab", false, 0, 0);
 
     assert_eq!(line_text(&line), "abcd..");
 }
@@ -231,7 +220,8 @@ fn wrapped_content_expands_tabs_across_spans_and_multiline_sub_lines() {
     renderer.manual_hscroll = 3;
     renderer.keep_right = true;
     let text = "界\tb\tend";
-    let item = matched_item(text, Some(MatchRange::Chars(vec![0, 2])));
+    let item = matched_item(text);
+    let range = MatchRange::Chars(vec![0, 2]);
 
     for (tabstop, expected) in [(1, "界 b end"), (2, "界  b end"), (4, "界  b   end")] {
         renderer.tabstop = tabstop;
@@ -243,7 +233,7 @@ fn wrapped_content_expands_tabs_across_spans_and_multiline_sub_lines() {
                 is_first_sub_line: is_first,
                 needs_ellipsis: false,
             };
-            let line = renderer.content_line(&item, text, &state, 0, 3);
+            let line = renderer.content_line(&item, Some(&range), text, &state, 0, 3);
             assert_eq!(line_text(&line), expected);
             if is_first {
                 assert_eq!(line.spans[0].style, theme.current_match);
@@ -257,9 +247,10 @@ fn wrapped_item_renders_expanded_tabs_without_clipping() {
     let theme = ColorTheme::default();
     let mut renderer = renderer(&theme);
     renderer.wrap = true;
-    let item = matched_item("a\tbcdefgh", Some(MatchRange::CharRange(8, 9)));
+    let item = matched_item("a\tbcdefgh");
+    let range = MatchRange::CharRange(8, 9);
     let mut out = Vec::new();
-    renderer.render_item(&item, false, false, 0, 2, 0, &mut out);
+    renderer.render_item(&item, Some(&range), false, false, 0, 2, 0, &mut out);
 
     let mut buf = Buffer::empty(Rect::new(0, 0, 8, 2));
     List::new(out).render(buf.area, &mut buf);
@@ -343,10 +334,10 @@ fn render_item_with_multiline_skip_starts_at_skipped_sub_line() {
     renderer.multiline = Some("|");
     renderer.container_width = 20;
 
-    let item = matched_item("first|second|third", None);
+    let item = matched_item("first|second|third");
     let mut out = Vec::new();
 
-    let added = renderer.render_item(&item, false, false, 1, 10, 0, &mut out);
+    let added = renderer.render_item(&item, None, false, false, 1, 10, 0, &mut out);
 
     assert_eq!(added, 2);
     assert_eq!(rendered_row_text(out.remove(0), 8), "  second");

@@ -32,7 +32,7 @@ image = ["dep:image", "dep:ratatui-image"]
 # Enable the IPC socket (--listen / --remote), driving skim from other processes
 listen = ["dep:interprocess", "dep:ron", "dep:serde", "nix/user", "dep:windows-sys"]
 # Enable gungraun (Valgrind-based) benchmarks
-gungraun = ["dep:gungraun"]
+gungraun = ["frizbee"]
 
 [profile.release]
 lto = true
@@ -80,7 +80,6 @@ derive_more = { version = "2.1.1", features = ["debug", "eq"] }
 env_logger = { version = "0.11.10", optional = true, features = ["humantime"] }
 frizbee = { version = "=0.13.0", optional = true }
 futures = "0.3.32"
-gungraun = { version = "0.20.0", optional = true }
 image = { version = "0.25.10", optional = true, default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 indexmap = "2.13.1"
 interprocess = { version = "2.4.2", features = ["tokio"], optional = true }
@@ -88,7 +87,6 @@ kanal = "0.1.1"
 log = "0.4.31"
 memchr = "2.8.1"
 mimalloc = { version = "0.1.48", features = ["v3"] }
-nix = { version = "0.31.3", features = ["fs", "poll", "signal"] }
 portable-pty = "0.9.0"
 ratatui = "0.30.2"
 ratatui-image = { version = "11.0.4", features = ["crossterm"], default-features = false, optional = true }
@@ -96,24 +94,33 @@ regex = "1.12.3"
 roff = { version = "1.1.1", optional = true }
 ron = { version = "0.12.1", optional = true }
 serde = { version = "1.0.228", features = ["derive"], optional = true }
-shell-quote = "0.8.0"
 shlex = { version = "2.0.1", optional = true }
-tempfile = "3.27.0"
 thiserror = "2.0.18"
 thread_local = "1.1.9"
 tokio = { version = "1.52.3", features = ["macros", "net", "rt-multi-thread", "sync", "time", "tokio-macros"] }
 tokio-util = "0.7.18"
 unicode-display-width = "0.3.0"
 unicode-normalization = "0.1.25"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", features = ["fs", "poll", "signal"] }
+shell-quote = "0.8.0"
+tempfile = "3.27.0"
 which = "8.0.2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Threading"], optional = true }
 
+[target.'cfg(windows)'.dev-dependencies]
+shell-quote = "0.8.0"
+tempfile = "3.27.0"
+which = "8.0.2"
+
 [dev-dependencies]
 assert_enum_variants = "0.1.2"
 criterion = { version = "0.8.2", features = ["async_tokio"] }
 gnuplot = "0.0.46"
+gungraun = "0.20.0"
 insta = "1.47"
 rand = "0.10.0"
 serde_json = { version = "=1.0.154" }
@@ -126,6 +133,10 @@ harness = false
 
 [[bench]]
 name = "filter"
+harness = false
+
+[[bench]]
+name = "merge"
 harness = false
 
 [[bench]]

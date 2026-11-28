@@ -11,7 +11,7 @@ use crate::fuzzy_matcher::fzy::FzyMatcher;
 use crate::fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::item::RankBuilder;
-use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, SkimItem, Typos};
+use crate::{CaseMatching, MatchEngine, MatchRange, MatchResult, Rank, SkimItem, Typos};
 
 //------------------------------------------------------------------------------
 /// Fuzzy matching algorithm to use
@@ -169,43 +169,43 @@ impl FuzzyEngine {
     pub fn builder() -> FuzzyEngineBuilder {
         FuzzyEngineBuilder::default()
     }
+
+    /// Runs `matcher` on the first matching range of `item` that gives a result.
+    /// Also returns the char offset of that range in `text`.
+    fn first_match<T>(item: &dyn SkimItem, text: &str, matcher: impl Fn(&str) -> Option<T>) -> Option<(T, usize)> {
+        let default_range = [(0, text.len())];
+        item.get_matching_ranges()
+            .unwrap_or(&default_range)
+            .iter()
+            .find_map(|&(start, end)| {
+                let start = min(start, text.len());
+                let end = min(end, text.len());
+                if start >= end {
+                    return None;
+                }
+                matcher(&text[start..end]).map(|result| (result, text[..start].chars().count()))
+            })
+    }
+
+    fn rank(&self, score: i64, begin: usize, end: usize, text: &str) -> Rank {
+        self.rank_builder
+            .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end, text)
+    }
 }
 
 impl MatchEngine for FuzzyEngine {
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult> {
         let item_text = item.text();
-        let default_range = [(0, item_text.len())];
-
-        let mut best: Option<(i64, Vec<usize>)> = None;
-        for &(start, end) in item.get_matching_ranges().unwrap_or(&default_range) {
-            let start = min(start, item_text.len());
-            let end = min(end, item_text.len());
-
-            let result = if self.query.is_empty() {
-                Some((0i64, vec![]))
-            } else if item_text[start..end].is_empty() {
-                None
-            } else {
-                self.matcher
-                    .fuzzy_indices(&item_text[start..end], &self.query)
-                    .map(|(s, indices)| {
-                        let offset = if start != 0 {
-                            item_text[..start].chars().count()
-                        } else {
-                            0
-                        };
-                        let indices = indices.into_iter().map(|i| i + offset).collect();
-                        (s, indices)
-                    })
-            };
-
-            if result.is_some() {
-                best = result;
-                break;
-            }
+        if self.query.is_empty() {
+            return Some(MatchResult {
+                rank: self.rank(0, 0, 0, &item_text),
+                matched_range: MatchRange::CharRange(0, 0),
+            });
         }
 
-        let (score, indices) = best?;
+        let ((score, indices), offset) =
+            Self::first_match(item, &item_text, |sub| self.matcher.fuzzy_indices(sub, &self.query))?;
+        let indices: Vec<usize> = indices.into_iter().map(|i| i + offset).collect();
         let begin = indices.first().copied().unwrap_or(0);
         let end_excl = indices.last().map_or(0, |&i| i + 1);
 
@@ -216,11 +216,20 @@ impl MatchEngine for FuzzyEngine {
         };
 
         Some(MatchResult {
-            rank: self
-                .rank_builder
-                .build_rank(i32::try_from(score).unwrap_or(i32::MAX), begin, end_excl, &item_text),
+            rank: self.rank(score, begin, end_excl, &item_text),
             matched_range,
         })
+    }
+
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        let item_text = item.text();
+        if self.query.is_empty() {
+            return Some(self.rank(0, 0, 0, &item_text));
+        }
+
+        let ((score, begin, end), offset) =
+            Self::first_match(item, &item_text, |sub| self.matcher.fuzzy_match_range(sub, &self.query))?;
+        Some(self.rank(score, begin + offset, end + offset + 1, &item_text))
     }
 }
 
@@ -282,6 +291,39 @@ mod tests {
                     engine.match_item(&"foobar".to_string()).is_some(),
                     "algo {algo:?} case {case:?} should match"
                 );
+            }
+        }
+    }
+
+    /// `match_rank` must give the same rank as `match_item`, the UI relies on it.
+    #[test]
+    fn match_rank_equals_match_item_rank() {
+        let items: Vec<Box<dyn SkimItem>> = vec![
+            Box::new("src/reader.rs".to_string()),
+            Box::new("axbycz".to_string()),
+            Box::new("héllo wörld".to_string()),
+            Box::new(RangedItem {
+                text: "xxfoobar".to_string(),
+                ranges: vec![(0, 0), (2, 8)],
+            }),
+        ];
+        let algorithms = [
+            FuzzyAlgorithm::SkimV2,
+            FuzzyAlgorithm::Clangd,
+            FuzzyAlgorithm::Fzy,
+            FuzzyAlgorithm::Arinae,
+        ];
+        for algo in algorithms {
+            for query in ["", "fb", "rs", "hw", "abc", "zzz"] {
+                let engine = FuzzyEngine::builder().query(query).algorithm(algo).build();
+                for item in &items {
+                    assert_eq!(
+                        engine.match_rank(item.as_ref()),
+                        engine.match_item(item.as_ref()).map(|r| r.rank),
+                        "algo {algo:?} query {query:?} item {:?}",
+                        item.text()
+                    );
+                }
             }
         }
     }

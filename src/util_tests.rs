@@ -1,11 +1,10 @@
 use super::*;
-use crate::Rank;
-use crate::item::{MatchedItem, RankBuilder};
+use crate::item::MatchedItem;
 use regex::Regex;
 use std::sync::Arc;
 
 fn make_item(s: &'static str) -> MatchedItem {
-    MatchedItem::new(Arc::new(s), Rank::default(), None, &RankBuilder::default())
+    MatchedItem::new(Arc::new(s), 0, 0)
 }
 
 #[test]
@@ -55,7 +54,7 @@ fn test_cmd_argv_round_trip() {
     const CHILD_ENV: &str = "SKIM_TEST_CMD_ARG";
     const EXE_ENV: &str = "SKIM_TEST_CMD_EXE";
     if let Ok(expected) = std::env::var(CHILD_ENV) {
-        assert_eq!(std::env::args().last().unwrap(), expected);
+        assert_eq!(std::env::args().next_back().unwrap(), expected);
         return;
     }
 
@@ -236,7 +235,7 @@ fn test_printf_replstr() {
     );
 }
 
-/// `{n}` expands to the current item's rank index.
+/// `{n}` expands to the current item's input index.
 #[test]
 fn test_printf_index() {
     assert_eq!(

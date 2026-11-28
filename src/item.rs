@@ -15,7 +15,7 @@ use clap::ValueEnum;
 use clap::builder::PossibleValue;
 
 use crate::spinlock::{SpinLock, SpinLockGuard};
-use crate::{MatchRange, Rank, SkimItem};
+use crate::{MatchEngine, MatchResult, Rank, SkimItem};
 use tokio::sync::Notify;
 
 //------------------------------------------------------------------------------
@@ -96,20 +96,50 @@ impl RankBuilder {
         })
     }
 
+    /// Order of the empty query results, where all ranks are equal but the
+    /// index: `Some(true)` for highest index first, `Some(false)` for input
+    /// order, `None` when the order also depends on the item text.
+    #[must_use]
+    pub(crate) fn empty_query_order(&self) -> Option<bool> {
+        let uses_text = self.criterion.iter().any(|c| {
+            matches!(
+                c,
+                RankCriteria::Length | RankCriteria::NegLength | RankCriteria::PathName | RankCriteria::NegPathName
+            )
+        });
+        let key = |index| {
+            self.sort_key(&Rank {
+                index,
+                ..Default::default()
+            })
+        };
+        (!uses_text).then(|| key(1) < key(0))
+    }
+
     /// Builds a `Rank` from raw match measurements.
     ///
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
     /// applied lazily by [`Rank::sort_key`] at comparison time.
-    /// The `index` will be overridden later
+    /// The `index` will be overridden later.
+    /// `path_name_offset` is only computed (else `0`) when a `PathName` tiebreak
+    /// uses it: it costs a scan of the text for every matched item.
     #[must_use]
     pub fn build_rank(&self, score: i32, begin: usize, end: usize, item_text: &str) -> Rank {
+        let uses_path_name = self
+            .criterion
+            .iter()
+            .any(|c| matches!(c, RankCriteria::PathName | RankCriteria::NegPathName));
         Rank {
             score,
             begin: i32::try_from(begin).unwrap_or(i32::MAX),
             end: i32::try_from(end).unwrap_or(i32::MAX),
             length: i32::try_from(item_text.len()).unwrap_or(i32::MAX),
             index: Default::default(),
-            path_name_offset: Self::path_name_offset(item_text),
+            path_name_offset: if uses_path_name {
+                Self::path_name_offset(item_text)
+            } else {
+                0
+            },
         }
     }
 }
@@ -148,34 +178,93 @@ impl Rank {
 }
 
 //------------------------------------------------------------------------------
-/// An item that has been matched against a query
+/// A match in the result list, without a reference to the input item.
+///
+/// The last slot in the sort key is the tac-aware input index. It breaks ties
+/// between distinct items ranked in the same run. Index and score also take
+/// part in comparisons so that entries with equal keys from different runs
+/// or criteria still have consistent equality and ordering.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MatchEntry {
+    sort_key: [i32; 6],
+    /// The zero-based index in the item pool.
+    pub index: u32,
+    /// The match score.
+    pub score: i32,
+}
+
+const _: () = assert!(std::mem::size_of::<MatchEntry>() == 32);
+
+impl MatchEntry {
+    /// Builds an entry from a rank and the configured tiebreak criteria.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the rank has a negative input index.
+    #[must_use]
+    pub fn new(rank: &Rank, rank_builder: &RankBuilder) -> Self {
+        Self {
+            sort_key: rank_builder.sort_key(rank),
+            index: u32::try_from(rank.index).expect("input index must be nonnegative"),
+            score: rank.score,
+        }
+    }
+
+    /// Merges two lists already sorted by the same criteria in O(n + m) time.
+    #[must_use]
+    pub fn merge_sorted(mut existing: &[Self], mut incoming: &[Self]) -> Vec<Self> {
+        let mut merged = Vec::with_capacity(existing.len() + incoming.len());
+        if existing.last().zip(incoming.first()).is_none_or(|(a, b)| a <= b) {
+            merged.extend_from_slice(existing);
+            merged.extend_from_slice(incoming);
+            return merged;
+        }
+        if incoming.last().zip(existing.first()).is_some_and(|(b, a)| b < a) {
+            merged.extend_from_slice(incoming);
+            merged.extend_from_slice(existing);
+            return merged;
+        }
+
+        while let ([a, rest_a @ ..], [b, rest_b @ ..]) = (existing, incoming) {
+            if a <= b {
+                merged.push(*a);
+                existing = rest_a;
+            } else {
+                merged.push(*b);
+                incoming = rest_b;
+            }
+        }
+        merged.extend_from_slice(existing);
+        merged.extend_from_slice(incoming);
+        merged
+    }
+}
+
+/// An input item resolved from a match, for display, selection, or output.
 #[derive(Clone)]
 pub struct MatchedItem {
-    /// The underlying skim item
+    /// The underlying skim item.
     pub item: Arc<dyn SkimItem>,
-    /// Raw match measurements
-    pub rank: Rank,
-    /// Range of characters that matched the pattern
-    pub matched_range: Option<MatchRange>,
-    /// Sort key precomputed at construction time from `rank` and the tiebreak
-    /// criteria. The sixth slot is the tac-aware implicit index tiebreak.
-    /// Caching avoids recomputing it on every comparison during sort.
-    sort_key: [i32; 6],
+    /// The zero-based input index, not the position in the sorted list.
+    pub index: usize,
+    /// The match score.
+    pub score: i32,
+    engine: Option<Arc<dyn MatchEngine>>,
 }
 
 impl std::fmt::Debug for MatchedItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MatchedItem")
             .field("item", &self.item.text())
-            .field("rank", &self.rank)
-            .field("matched_range", &self.matched_range)
+            .field("index", &self.index)
+            .field("score", &self.score)
             .finish_non_exhaustive()
     }
 }
 
 impl Hash for MatchedItem {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_i32(self.rank.index);
+        self.index.hash(state);
         self.text().hash(state);
     }
 }
@@ -189,217 +278,67 @@ impl Deref for MatchedItem {
 }
 
 impl MatchedItem {
-    /// Create a new `MatchedItem`, building the `sort_key` from the Rank and `RankBuilder`
-    pub fn new(
+    /// Creates a matched item from its input index and match score, without a match engine.
+    pub fn new(item: Arc<dyn SkimItem>, index: usize, score: i32) -> Self {
+        Self::with_engine(item, index, score, None)
+    }
+
+    pub(crate) fn with_engine(
         item: Arc<dyn SkimItem>,
-        rank: Rank,
-        matched_range: Option<MatchRange>,
-        rank_builder: &RankBuilder,
+        index: usize,
+        score: i32,
+        engine: Option<Arc<dyn MatchEngine>>,
     ) -> Self {
         Self {
             item,
-            rank,
-            matched_range,
-            sort_key: rank_builder.sort_key(&rank),
+            index,
+            score,
+            engine,
         }
     }
-    /// Merge two sorted `Vec<MatchedItem>` lists into one, preserving sort order by rank.
+
+    /// Recomputes the full rank with the match engine for this item.
+    /// The rank uses this item's stored index and score. Use [`Self::match_result`]
+    /// if you also need the matched range.
     ///
-    /// Both input lists must already be sorted by the same tiebreak criteria (ascending).
-    /// The merge is O(n+m).
+    /// Returns `None` if there is no match engine (for example, for items made with
+    /// [`Self::new`]), the item no longer matches, or its index does not fit in a rank.
     #[must_use]
-    pub fn sorted_merge(existing: Vec<MatchedItem>, incoming: Vec<MatchedItem>) -> Vec<MatchedItem> {
-        if existing.is_empty() {
-            return incoming;
-        }
-        if incoming.is_empty() {
-            return existing;
-        }
-
-        // Fast path: if all existing <= all incoming, we can append without merging.
-        #[allow(clippy::missing_panics_doc)]
-        if existing.last().unwrap() <= incoming.first().unwrap() {
-            let mut out = existing;
-            out.extend(incoming);
-            return out;
-        }
-
-        // Fast path: if all incoming <= all existing, prepend without complex merge.
-        #[allow(clippy::missing_panics_doc)]
-        if incoming.last().unwrap() <= existing.first().unwrap() {
-            let mut out = incoming;
-            out.extend(existing);
-            return out;
-        }
-
-        let mut merged = Vec::with_capacity(existing.len() + incoming.len());
-        let mut a = existing.into_iter().peekable();
-        let mut b = incoming.into_iter().peekable();
-
-        loop {
-            match (a.peek(), b.peek()) {
-                (Some(av), Some(bv)) => {
-                    if av <= bv {
-                        #[allow(clippy::missing_panics_doc)]
-                        merged.push(a.next().unwrap());
-                    } else {
-                        #[allow(clippy::missing_panics_doc)]
-                        merged.push(b.next().unwrap());
-                    }
-                }
-                (Some(_), None) => {
-                    merged.extend(a);
-                    break;
-                }
-                (None, _) => {
-                    merged.extend(b);
-                    break;
-                }
-            }
-        }
-
-        merged
+    pub fn rank(&self) -> Option<Rank> {
+        Some(Rank {
+            index: i32::try_from(self.index).ok()?,
+            score: self.score,
+            ..self.engine.as_ref()?.match_rank(self.item.as_ref())?
+        })
     }
 
-    /// Merge `incoming` into an already-sorted `existing` vector in-place.
+    /// Recomputes the full rank and matched range with the match engine for this item.
+    /// The rank uses this item's stored index and score.
     ///
-    /// This function chooses between two strategies:
-    /// - If `incoming` is small (≤ 256 items), insert them one-by-one using
-    ///   binary search to find the insertion point.  Each insert is O(n) due
-    ///   to element shifting, giving O(m·n) overall, but the constant factor
-    ///   is small for tiny m and avoids any extra allocation.
-    /// - Otherwise, perform a backwards in-place merge that writes the result
-    ///   directly into `existing`'s buffer (after a single `reserve`).  This
-    ///   is O(n+m) time with **zero additional heap allocation** beyond the
-    ///   amortised `Vec::reserve`.
-    ///
-    /// `existing` must be sorted according to the same ordering used by
-    /// `MatchedItem::cmp`.
-    pub fn merge_into_sorted(existing: &mut Vec<MatchedItem>, incoming: Vec<MatchedItem>) {
-        const SMALL_INSERT_THRESHOLD: usize = 256;
-
-        if incoming.is_empty() {
-            return;
-        }
-
-        // When existing is empty, extend preserves any pre-allocated capacity
-        // (e.g. a caller that did `Vec::with_capacity(total)` before a fold).
-        if existing.is_empty() {
-            existing.extend(incoming);
-            return;
-        }
-
-        // Fast path: all existing ≤ first incoming — just append.
-        #[allow(clippy::missing_panics_doc)]
-        if existing.last().unwrap() <= incoming.first().unwrap() {
-            existing.extend(incoming);
-            return;
-        }
-
-        if incoming.len() <= SMALL_INSERT_THRESHOLD {
-            for item in incoming {
-                let pos = existing.binary_search_by(|e| e.cmp(&item)).unwrap_or_else(|p| p);
-                existing.insert(pos, item);
-            }
-        } else {
-            Self::merge_backwards(existing, incoming);
-        }
+    /// Returns `None` under the same conditions as [`Self::rank`].
+    #[must_use]
+    pub fn match_result(&self) -> Option<MatchResult> {
+        let index = i32::try_from(self.index).ok()?;
+        let mut result = self.engine.as_ref()?.match_item(self.item.as_ref())?;
+        result.rank.index = index;
+        result.rank.score = self.score;
+        Some(result)
     }
 
-    /// Merges `incoming` into `existing` in-place using a right-to-left merge.
-    ///
-    /// Both inputs must already be sorted.  After `existing.reserve(b_len)`,
-    /// the buffer has room for all elements.  We then merge from the rightmost
-    /// end of each run, writing the larger element at the write cursor which
-    /// starts at `new_len - 1` and moves left.
-    ///
-    /// **Key invariant**: the write position is always strictly greater than
-    /// the read position in `existing` while both runs have remaining elements
-    /// (because `write - ai == remaining B elements > 0`), so
-    /// `copy_nonoverlapping` never aliases.  Each element is moved exactly
-    /// once.
-    ///
-    /// # Safety (internal)
-    ///
-    /// Uses `unsafe` for raw-pointer moves.  `MatchedItem::cmp` compares plain
-    /// integer fields and cannot panic, so no element is leaked or
-    /// double-dropped.  `incoming`'s backing allocation is freed with length 0
-    /// after all its elements have been moved out.
-    fn merge_backwards(existing: &mut Vec<MatchedItem>, incoming: Vec<MatchedItem>) {
-        let a_len = existing.len();
-        let b_len = incoming.len();
-        let new_len = a_len + b_len;
-
-        existing.reserve(b_len);
-
-        // Decompose `incoming` so we can move elements out via raw pointers
-        // and free the allocation separately.
-        let (b_ptr, b_cap) = {
-            let mut v = std::mem::ManuallyDrop::new(incoming);
-            (v.as_mut_ptr(), v.capacity())
-        };
-
-        // SAFETY: see doc-comment above for the aliasing / move proof.
-        unsafe {
-            let a_ptr = existing.as_mut_ptr();
-            let mut write = new_len;
-            let mut ai = a_len;
-            let mut bi = b_len;
-
-            while ai > 0 && bi > 0 {
-                write -= 1;
-                if *a_ptr.add(ai - 1) >= *b_ptr.add(bi - 1) {
-                    ai -= 1;
-                    std::ptr::copy_nonoverlapping(a_ptr.add(ai), a_ptr.add(write), 1);
-                } else {
-                    bi -= 1;
-                    std::ptr::copy_nonoverlapping(b_ptr.add(bi), a_ptr.add(write), 1);
-                }
-            }
-
-            // Remaining B elements go to the front of existing.
-            // (Remaining A elements at 0..ai are already in their final positions.)
-            if bi > 0 {
-                std::ptr::copy_nonoverlapping(b_ptr, a_ptr, bi);
-            }
-
-            existing.set_len(new_len);
-
-            // Free incoming's backing allocation; all elements were moved out.
-            drop(Vec::from_raw_parts(b_ptr, 0, b_cap));
-        }
-    }
-}
-
-impl MatchedItem {
-    /// Downcast the `MatchedItem` to the corresponding `SkimItem` struct
+    /// Downcast the matched item to its concrete input type.
     #[must_use]
     pub fn downcast_item<T: SkimItem>(&self) -> Option<&T> {
         (*self.item).as_any().downcast_ref::<T>()
     }
 }
 
-use std::cmp::Ordering as CmpOrd;
-
 impl PartialEq for MatchedItem {
     fn eq(&self, other: &Self) -> bool {
-        self.text().eq(&other.text()) && self.rank.index.eq(&other.rank.index)
+        self.index == other.index && self.text() == other.text()
     }
 }
 
-impl std::cmp::Eq for MatchedItem {}
-
-impl PartialOrd for MatchedItem {
-    fn partial_cmp(&self, other: &Self) -> Option<CmpOrd> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for MatchedItem {
-    fn cmp(&self, other: &Self) -> CmpOrd {
-        self.sort_key.cmp(&other.sort_key)
-    }
-}
+impl Eq for MatchedItem {}
 
 //------------------------------------------------------------------------------
 const ITEM_POOL_CAPACITY: usize = 16384;
@@ -483,14 +422,18 @@ impl ItemPool {
         self.taken.load(Ordering::SeqCst)
     }
 
-    /// Clears all items from the pool and resets counters
-    pub fn clear(&self) {
+    /// Clears the pool and resets its counters. Returns the old non-header items in input order.
+    pub fn clear(&self) -> Vec<Arc<dyn SkimItem>> {
         let mut items = self.pool.lock();
-        items.clear();
+        let old = std::mem::take(&mut *items);
         let mut header_items = self.reserved_items.lock();
-        header_items.clear();
+        let old_headers = std::mem::take(&mut *header_items);
         self.taken.store(0, Ordering::SeqCst);
         self.length.store(0, Ordering::SeqCst);
+        drop(header_items);
+        drop(items);
+        drop(old_headers);
+        old
     }
 
     /// Resets the taken counter without clearing items
@@ -501,16 +444,23 @@ impl ItemPool {
         self.taken.store(0, Ordering::SeqCst);
     }
 
-    /// append the items and return the `new_size` of the pool
+    /// Appends items and returns the new size of the pool.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the pool would contain more than `i32::MAX` non-header items.
     pub fn append(&self, mut items: Vec<Arc<dyn SkimItem>>) -> usize {
         let len = items.len();
         trace!("item pool, append {len} items");
         let mut pool = self.pool.lock();
         let mut header_items = self.reserved_items.lock();
 
-        let to_reserve = self.lines_to_reserve - header_items.len();
+        let to_reserve = min(self.lines_to_reserve - header_items.len(), len);
+        assert!(
+            len - to_reserve <= i32::MAX as usize - pool.len(),
+            "item pool exceeds i32::MAX items"
+        );
         if to_reserve > 0 {
-            let to_reserve = min(to_reserve, items.len());
             // Split items: first part goes to header, rest to main pool
             let remaining = items.split_off(to_reserve);
 
@@ -545,6 +495,22 @@ impl ItemPool {
         }
         drop(guard); // Explicitly release lock
         items
+    }
+
+    /// Returns the item at `index` (its position in the input)
+    pub fn get(&self, index: usize) -> Option<Arc<dyn SkimItem>> {
+        self.pool.lock().get(index).cloned()
+    }
+
+    /// Borrows all items with the pool locked. The callback must not access the pool again.
+    pub fn with_items<R>(&self, f: impl FnOnce(&[Arc<dyn SkimItem>]) -> R) -> R {
+        f(&self.pool.lock())
+    }
+
+    /// Frees the spare capacity of the pool (it grows by doubling while items
+    /// stream in). Call it once all items are read.
+    pub fn shrink_to_fit(&self) {
+        self.pool.lock().shrink_to_fit();
     }
 
     /// Returns a copy of the reserved header items

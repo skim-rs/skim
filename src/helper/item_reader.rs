@@ -224,6 +224,8 @@ impl SkimItemReader {
     /// Creates a new item reader with the given options
     #[must_use]
     pub fn new(option: SkimItemReaderOption) -> Self {
+        // The reader can start before `Skim::init`, and it allocates the most.
+        crate::set_allocator_purge_delay();
         Self {
             option: Arc::new(option),
             thread_pool: default_thread_pool(),

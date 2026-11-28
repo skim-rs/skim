@@ -1,7 +1,7 @@
 use std::fmt::{Display, Error, Formatter};
 
 use crate::fuzzy_matcher::MatchIndices;
-use crate::{MatchEngine, MatchRange, MatchResult, SkimItem};
+use crate::{MatchEngine, MatchRange, MatchResult, Rank, SkimItem};
 
 //------------------------------------------------------------------------------
 // OrEngine, a combinator
@@ -33,6 +33,13 @@ impl MatchEngine for OrEngine {
             .max_by_key(|res| res.as_ref().map(|matched| matched.rank.score));
 
         result?
+    }
+
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        self.engines
+            .iter()
+            .filter_map(|e| e.match_rank(item))
+            .max_by_key(|rank| rank.score)
     }
 }
 
@@ -122,6 +129,21 @@ impl MatchEngine for AndEngine {
         } else {
             Some(Self::merge_matched_items(results, &item.text()))
         }
+    }
+
+    /// Same rank as `merge_matched_items`, without the matched ranges.
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        let mut ranks = self.engines.iter().map(|e| e.match_rank(item));
+        let first = ranks.next()??;
+        ranks.try_fold(first, |acc, rank| {
+            let rank = rank?;
+            Some(Rank {
+                score: acc.score.saturating_add(rank.score),
+                begin: acc.begin.min(rank.begin),
+                end: acc.end.max(rank.end),
+                ..acc
+            })
+        })
     }
 }
 

@@ -38,3 +38,4 @@ __pycache__/
 
 .codex
 /coverage.xml
+/mutants.out*/

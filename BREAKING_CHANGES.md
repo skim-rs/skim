@@ -1,0 +1,86 @@
+# Breaking changes: pool-indexed match results
+
+- `MatchedItem` exposes `item`, `index: usize` and `score: i32`. This applies to
+  `SkimOutput::selected_items` and `SkimOutput::current`. Use `item.index` and
+  `item.score` instead of `item.rank.index` and `item.rank.score`.
+- Construct results with `MatchedItem::new(item, index, score)`. For items
+  returned by `Skim`, use `item.rank()` to recompute the full rank, including
+  the input index. If you also need the matched range, use `item.match_result()`
+  instead. These methods use the engine that matched the item, even if the
+  query changed after selection. Neither method needs the original options.
+  Items without an engine, such as items made with `MatchedItem::new` or
+  received from a popup subprocess, return `None`.
+- `MatchedItem` no longer implements `Ord` or `PartialOrd`. Use
+  `skim::item::MatchEntry::new(&rank, &rank_builder)` for rank-based sorting and
+  `MatchEntry::merge_sorted` to merge sorted entries. `ItemList::append` now takes
+  the pool and entries that refer to it.
+- `ItemPool::clear()` returns the old non-header items in input order. Callers
+  can keep them or drop the returned vector. The pool supports at most
+  `i32::MAX` non-header items.
+
+# Earlier breaking changes: two-pass matching
+
+Skim now matches in two passes:
+
+1. The matcher ranks **every** item with the new `MatchEngine::match_rank`.
+   This gives only the rank (score, begin, end, ...) and does not compute
+   the matched ranges.
+2. The item list calls `MatchEngine::match_item` only for the items it
+   **displays**, to get the highlights.
+
+The `Skim::*` entry points and `SkimOptions` do not change. The ranking,
+the sort order and the `--filter` output do not change either.
+
+## `MatchedItem` has no `matched_range` field, and `MatchedItem::new` lost its argument
+
+Skim creates one `MatchedItem` per matched item, so its size matters (it went
+from 88 to 64 bytes). The highlights are display state: the item list now
+computes them for the visible rows only, and keeps them itself.
+
+- The `MatchedItem::matched_range` field is removed. This includes the items in
+  `SkimOutput::selected_items` and `SkimOutput::current`.
+- `MatchedItem::new(item, rank, matched_range, rank_builder)` is now
+  `MatchedItem::new(item, rank, rank_builder)`.
+
+Migration: use the retained engine through the item returned by `Skim`:
+
+```rust
+let range = item.match_result().map(|result| result.matched_range);
+```
+
+## `MatchEngine` has a new method, `match_rank`
+
+```rust
+fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank>;
+```
+
+It has a default implementation (`match_item(item).map(|r| r.rank)`), so
+existing engines still compile and work. For a custom engine:
+
+- Skim now calls `match_rank` for every item. It calls `match_item` only for
+  the displayed items, and it calls it from the UI thread.
+- `match_rank` must return the same rank as `match_item`, and `match_item`
+  must give the same result when it is called again.
+- Override `match_rank` if your matched ranges are expensive to compute.
+  Otherwise you get no speedup.
+
+## `Rank::path_name_offset` is `0` without a `pathname` tiebreak
+
+It costs a scan of the text for every matched item. `RankBuilder::build_rank`
+now computes it only when the tiebreak includes `pathname` or `-pathname`,
+because only these criteria read it. The sort order does not change.
+
+## Arinae: `fuzzy_match` and `fuzzy_match_range` now agree with `fuzzy_indices`
+
+`ArinaeMatcher::fuzzy_match_range` and `ArinaeMatcher::fuzzy_match` now use a
+new, faster DP. Its results are equal to `fuzzy_indices`: the same items match,
+with the same score. `begin` and `end` are the first and last index of
+`fuzzy_indices`. Before:
+
+- `fuzzy_match_range` could give a lower score in exact mode, and a `begin` or
+  `end` that was not a matched index.
+- `fuzzy_match` in typo mode did not apply the "at least half of the pattern
+  matches" rule of `fuzzy_indices`, so it could match more items.
+
+Skim used `fuzzy_indices` to rank before, so skim's ranking does not change.
+Only direct callers of these two methods can see a difference.

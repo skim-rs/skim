@@ -17,6 +17,14 @@ fn run_items_filters_supplied_items() {
         .collect();
     assert!(!output.is_abort);
     assert_eq!(matches, ["apple", "pineapple"]);
+
+    let item = &output.selected_items[1];
+    let rank = item.rank().unwrap();
+    assert_eq!((rank.index, rank.score), (2, item.score));
+    assert_eq!((rank.begin, rank.end, rank.length), (4, 9, 9));
+    let details = item.match_result().unwrap();
+    assert_eq!(details.rank, rank);
+    assert_eq!(details.range_char_indices(&item.text()), [4, 5, 6, 7, 8]);
 }
 
 #[test]

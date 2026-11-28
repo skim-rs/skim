@@ -32,6 +32,7 @@ mod matrix;
 mod prefilter;
 #[cfg(test)]
 mod tests;
+mod wavefront;
 
 use std::cell::RefCell;
 
@@ -42,8 +43,10 @@ use self::atom::Atom;
 use self::banding::{BandingInfo, compute_banding};
 use self::constants::{CAMEL_CASE_BONUS, START_OF_STRING_BONUS};
 use self::prefilter::cheap_typo_prefilter;
+#[cfg(target_arch = "x86_64")]
+use self::wavefront::{WaveBufs, wavefront_range_dp};
 
-use self::matrix::{CELL_ZERO, Cell, Dir, SWMatrix};
+use self::matrix::{CELL_ZERO, Cell, Dir, RankRows, SWMatrix};
 use crate::CaseMatching;
 use crate::fuzzy_matcher::{FuzzyMatcher, MatchIndices, ScoreType};
 
@@ -75,6 +78,9 @@ pub struct ArinaeMatcher {
     pub(crate) use_last_match: bool,
 
     full_buf: ThreadLocal<RefCell<SWMatrix>>,
+    rank_buf: ThreadLocal<RefCell<RankRows>>,
+    #[cfg(target_arch = "x86_64")]
+    wave_buf: ThreadLocal<RefCell<WaveBufs>>,
     indices_buf: ThreadLocal<RefCell<MatchIndices>>,
     #[allow(clippy::type_complexity)]
     char_buf: ThreadLocal<RefCell<(Vec<char>, Vec<char>)>>,
@@ -202,9 +208,9 @@ impl ArinaeMatcher {
 
     /// Run the DP and return `(score, begin, end)` without collecting all indices.
     ///
-    /// Uses the full matrix (for traceback) but only records the first and last
-    /// matched columns instead of the full index list. Avoids the allocation and
-    /// work of `fuzzy_indices` when only the range is needed.
+    /// Same result as `fuzzy_indices` + first/last index, but faster: the SIMD
+    /// `wavefront_range_dp` (`x86_64`, patterns of up to 8 ASCII chars) or the
+    /// rolling `range_dp`. No full score matrix, no index list.
     fn run_range(&self, choice: &str, pattern: &str) -> Option<(ScoreType, usize, usize)> {
         if pattern.is_empty() {
             return Some((0, 0, 0));
@@ -228,13 +234,26 @@ impl ArinaeMatcher {
             };
             let mut bonus_buf = self.bonus_buf.get_or(|| RefCell::new(Vec::new())).borrow_mut();
             precompute_bonuses(cho, &mut bonus_buf);
+            // Short patterns (the common case): one SIMD lane per pattern char.
+            #[cfg(target_arch = "x86_64")]
+            if pat.len() <= wavefront::LANES {
+                let (bonuses, last, wave) = (&bonus_buf[..], self.use_last_match, &self.wave_buf);
+                let result = if self.allow_typos {
+                    wavefront_range_dp::<true>(cho, pat, bonuses, respect_case, wave, last, &banding)
+                } else {
+                    wavefront_range_dp::<false>(cho, pat, bonuses, respect_case, wave, last, &banding)
+                };
+                if let Ok(range) = result {
+                    return range.map(|(s, b, e)| (ScoreType::from(s), b, e));
+                }
+            }
             if self.allow_typos {
                 range_dp::<true, _>(
                     cho,
                     pat,
                     &bonus_buf,
                     respect_case,
-                    &self.full_buf,
+                    &self.rank_buf,
                     self.use_last_match,
                     &banding,
                 )
@@ -244,7 +263,7 @@ impl ArinaeMatcher {
                     pat,
                     &bonus_buf,
                     respect_case,
-                    &self.full_buf,
+                    &self.rank_buf,
                     self.use_last_match,
                     &banding,
                 )
@@ -277,7 +296,7 @@ impl ArinaeMatcher {
                     pat_buf,
                     &bonus_buf,
                     respect_case,
-                    &self.full_buf,
+                    &self.rank_buf,
                     self.use_last_match,
                     &banding,
                 )
@@ -287,7 +306,7 @@ impl ArinaeMatcher {
                     pat_buf,
                     &bonus_buf,
                     respect_case,
-                    &self.full_buf,
+                    &self.rank_buf,
                     self.use_last_match,
                     &banding,
                 )
@@ -303,8 +322,7 @@ impl ArinaeMatcher {
 
 impl FuzzyMatcher for ArinaeMatcher {
     fn fuzzy_match(&self, choice: &str, pattern: &str) -> Option<ScoreType> {
-        let result = self.run(choice, pattern, false);
-        result.map(|x| x.0)
+        self.run_range(choice, pattern).map(|x| x.0)
     }
 
     fn fuzzy_match_range(&self, choice: &str, pattern: &str) -> Option<(ScoreType, usize, usize)> {

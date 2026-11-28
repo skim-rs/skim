@@ -7,7 +7,7 @@
 //!
 //! Unlike tmux, Zellij has no detached-server model, so the harness spawns a
 //! Zellij client attached to an in-process pseudo-terminal (via `portable-pty`,
-//! which uses `openpty` on Unix and ConPTY on Windows). The harness is
+//! which uses `openpty` on Unix and `ConPTY` on Windows). The harness is
 //! cross-platform (Linux, macOS and Windows). A few details are load-bearing for
 //! the non-Linux runners:
 //! - the pane's shell is resolved to an absolute `bash` path (the Zellij
@@ -16,7 +16,7 @@
 //!   path stays under the OS cap (macOS's default `$TMPDIR` is too long — see
 //!   [`zellij_socket_dir`]);
 //! - the drain thread answers the client's cursor-position report (`ESC[6n`),
-//!   which the Windows ConPTY client blocks on to learn the terminal size;
+//!   which the Windows `ConPTY` client blocks on to learn the terminal size;
 //! - [`ZellijController::wait_ready`] nudges the client's terminal size until the
 //!   server hands the pane a non-zero geometry to render into.
 //!
@@ -30,8 +30,7 @@
 //! harness so existing tests port over unchanged.
 
 use std::fmt::{Display, Formatter};
-use std::fs::File;
-use std::io::{BufReader, ErrorKind, Read, Result, Write};
+use std::io::{ErrorKind, Read, Result, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -154,7 +153,7 @@ const FIRST_RENDER_BUDGET: Duration = Duration::from_secs(60);
 const CLIENT_OUTPUT_CAP: usize = 64 * 1024;
 
 /// Device Status Report requesting the cursor position (`ESC [ 6 n`). The Zellij
-/// client emits this to probe the terminal; on the Windows ConPTY it *blocks*
+/// client emits this to probe the terminal; on the Windows `ConPTY` it *blocks*
 /// until it receives the reply below (on Unix the size comes from the PTY ioctl,
 /// so it never waits). We are the terminal, so the drain thread answers it.
 const DSR_CPR_REQUEST: &[u8] = b"\x1b[6n";
@@ -271,10 +270,10 @@ impl Display for Keys<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         use Keys::*;
         match self {
-            Str(s) => write!(f, "{}", s),
-            Key(c) => write!(f, "{}", c),
-            Ctrl(k) => write!(f, "C-{}", k),
-            Alt(k) => write!(f, "M-{}", k),
+            Str(s) => write!(f, "{s}"),
+            Key(c) => write!(f, "{c}"),
+            Ctrl(k) => write!(f, "C-{k}"),
+            Alt(k) => write!(f, "M-{k}"),
             Enter => write!(f, "Enter"),
             Tab => write!(f, "Tab"),
             BTab => write!(f, "BTab"),
@@ -387,7 +386,7 @@ impl ZellijController {
     /// Inject raw terminal input bytes into the focused pane.
     fn write_bytes(&self, bytes: &[u8]) -> Result<()> {
         let mut args: Vec<String> = vec!["write".to_string()];
-        args.extend(bytes.iter().map(|b| b.to_string()));
+        args.extend(bytes.iter().map(u8::to_string));
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
         self.action(&refs)?;
         Ok(())
@@ -547,7 +546,7 @@ impl ZellijController {
     const COLS: u16 = 80;
 
     /// Ask the client PTY to report `cols`×[`ROWS`]. Resizing (even to the same
-    /// size) makes `portable-pty` deliver a `SIGWINCH`/ConPTY resize to the
+    /// size) makes `portable-pty` deliver a `SIGWINCH`/`ConPTY` resize to the
     /// attached Zellij client, which then (re-)reports its geometry to the
     /// server. On the macOS and Windows runners the client's *initial* size can
     /// be lost, leaving the pane at zero size with nothing to render; nudging it
@@ -657,7 +656,7 @@ impl ZellijController {
             let mut bytes = Vec::new();
             key.encode(&mut bytes);
             self.write_bytes(&bytes)?;
-            print!("{}", key);
+            print!("{key}");
         }
         println!("`");
         Ok(())
@@ -689,11 +688,7 @@ impl ZellijController {
     }
 
     fn to_lines(dump: &str) -> Vec<String> {
-        dump.trim()
-            .split('\n')
-            .map(str::to_string)
-            .rev()
-            .collect::<Vec<String>>()
+        dump.trim().lines().rev().map(str::to_owned).collect()
     }
 
     /// Poll [`capture`](Self::capture) until `pred` accepts the screen contents,
@@ -720,35 +715,19 @@ impl ZellijController {
 
     /// Capture skim output without ANSI sequences
     pub fn output(&self) -> Result<Vec<String>> {
-        if let Some(ref outfile) = self.outfile {
-            self.output_from(outfile)
-        } else {
-            Err(std::io::Error::new(
-                ErrorKind::NotFound,
-                "You need to use start_sk to get an outfile",
-            ))
-        }
-    }
-
-    /// Capture skim output from explicit outfile path
-    pub fn output_from(&self, outfile: &str) -> Result<Vec<String>> {
+        let outfile = self
+            .outfile
+            .as_deref()
+            .ok_or_else(|| std::io::Error::new(ErrorKind::NotFound, "You need to use start_sk to get an outfile"))?;
         wait(|| {
-            if Path::new(&outfile).exists() {
+            if Path::new(outfile).exists() {
                 Ok(())
             } else {
                 Err(std::io::Error::new(ErrorKind::NotFound, "outfile does not exist yet"))
             }
         })?;
-        let mut string_lines = String::new();
-        BufReader::new(File::open(outfile)?).read_to_string(&mut string_lines)?;
-
-        let str_lines = string_lines.trim();
-        Ok(str_lines
-            .split("\n")
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>()
-            .into_iter()
-            .collect())
+        let output = std::fs::read_to_string(outfile)?;
+        Ok(output.trim().lines().map(str::to_owned).collect())
     }
 
     /// Launch `sk` in the pane with `opts`, optionally piping `stdin_cmd` into
@@ -758,7 +737,7 @@ impl ZellijController {
         let outfile = self.tempfile()?;
         let sk_cmd = sk(&outfile, opts);
         let cmd = match stdin_cmd {
-            Some(s) => format!("{} | {}", s, sk_cmd),
+            Some(s) => format!("{s} | {sk_cmd}"),
             None => sk_cmd,
         };
         println!("--- starting up sk ---");

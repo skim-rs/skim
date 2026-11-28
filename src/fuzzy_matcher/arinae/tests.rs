@@ -776,37 +776,30 @@ mod kernel {
         assert_eq!(res, None);
     }
 
-    // ----- range_dp: middle row outside band, then a feasible row -----
+    // ----- range_dp: only the last row's bounds are used -----
 
     #[test]
-    fn range_dp_band_skip_middle_row() {
-        // Row 2's bounds are inverted (lo > hi) → that row is skipped, but rows
-        // 1 and 3 are feasible, exercising the single-skip path with a feasible
-        // next-row peek.
-        let full_buf = ThreadLocal::new();
-        let cho = b"abcde";
-        let pat = b"abc";
-        let bonuses = [0i16; 5];
-        let banding = exact_banding(1, &[(1, 5), (5, 2), (1, 5)]);
-        let res = range_dp::<false, u8>(cho, pat, &bonuses, true, &full_buf, false, &banding);
-        // Pattern char 2's row is skipped, so its cells stay zeroed. Row 3 then
-        // matches 'c' (col index 2) afresh, and the traceback terminates cleanly
-        // at the zeroed row (Dir::None) — yielding the single-char span (2, 2)
-        // with score == MATCH_BONUS rather than reading stale cells.
-        assert_eq!(res, Some((MATCH_BONUS, 2, 2)));
-    }
-
-    #[test]
-    fn range_dp_band_skip_two_consecutive_rows() {
-        // Rows 2 and 3 are both skipped → two consecutive band-skipped rows trip
-        // the dead-row early-out inside the skip handler.
+    fn range_dp_ignores_middle_row_bounds() {
+        // Inverted bounds on the middle rows must not prune them: range_dp uses
+        // the V-band of full_dp, so the whole pattern still matches at 0..=3.
         let full_buf = ThreadLocal::new();
         let cho = b"abcde";
         let pat = b"abcd";
         let bonuses = [0i16; 5];
         let banding = exact_banding(1, &[(1, 5), (5, 2), (5, 2), (1, 5)]);
         let res = range_dp::<false, u8>(cho, pat, &bonuses, true, &full_buf, false, &banding);
-        assert_eq!(res, None);
+        let full = full_dp::<false, false, u8>(
+            cho,
+            pat,
+            &bonuses,
+            true,
+            &ThreadLocal::new(),
+            &ThreadLocal::new(),
+            false,
+            &banding,
+        );
+        assert_eq!(res.map(|(s, _, _)| s), full.map(|(s, _)| s));
+        assert!(matches!(res, Some((s, 0, 3)) if s > MATCH_BONUS));
     }
 
     #[test]
@@ -915,5 +908,121 @@ mod kernel_past_end {
         let banding = typo_banding(3, 0);
         let res = range_dp::<true, u8>(cho, pat, &bonuses, true, &full_buf, false, &banding);
         assert_eq!(res, None);
+    }
+}
+
+/// Differential check: the rolling `range_dp` must agree with the traceback of
+/// `full_dp` on (score, begin, end) for many pseudo-random inputs.
+#[test]
+#[allow(clippy::cast_possible_truncation)]
+fn range_dp_agrees_with_indices_on_random_inputs() {
+    const ALPHABET: &[u8] = b"abcAB_/- e";
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    let mut next = |len: usize| -> String {
+        (0..len)
+            .map(|_| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                ALPHABET[(seed % ALPHABET.len() as u64) as usize] as char
+            })
+            .collect()
+    };
+    let matchers = [
+        ArinaeMatcher::new(CaseMatching::Smart, false, false),
+        ArinaeMatcher::new(CaseMatching::Smart, true, false),
+        ArinaeMatcher::new(CaseMatching::Ignore, false, true),
+        ArinaeMatcher::new(CaseMatching::Respect, true, true),
+    ];
+    for round in 0..4000 {
+        let choice = next(1 + round % 40);
+        let pattern = next(1 + round % 12);
+        for m in &matchers {
+            let range = m.fuzzy_match_range(&choice, &pattern);
+            let full = m
+                .fuzzy_indices(&choice, &pattern)
+                .map(|(s, idx)| (s, idx.first().copied().unwrap_or(0), idx.last().copied().unwrap_or(0)));
+            assert_eq!(
+                range, full,
+                "choice {choice:?} pattern {pattern:?} typos {} last {}",
+                m.allow_typos, m.use_last_match
+            );
+        }
+    }
+}
+
+/// Regression (fuzz `arinae_old_vs_new`): the traceback can start with a Left
+/// move, so the end is the last *matched* index, not the best column.
+#[test]
+fn range_end_is_last_matched_index() {
+    let choice =
+        "\0\u{1}/\0\u{4}/\u{18}ى o/\u{7f}\0o]\0\0\u{1}\0\u{0}4/]ى\0ooo/]\0\0\u{1}/\0\u{4}/]ى\0ooo/]\0\0\0\u{1}/F\0\0\0";
+    let pattern = "ىoo/o\0]\0";
+    let m = ArinaeMatcher::new(CaseMatching::Respect, false, true);
+    let (score, indices) = m.fuzzy_indices(choice, pattern).unwrap();
+    assert_eq!(
+        m.fuzzy_match_range(choice, pattern),
+        Some((score, indices[0], *indices.last().unwrap()))
+    );
+}
+
+/// The scalar `range_dp` is the only kernel on non-`x86_64` targets; on `x86_64`
+/// short ASCII patterns use the wavefront one. Check the scalar kernel directly
+/// against `full_dp` + traceback, for short and long patterns.
+#[test]
+#[allow(clippy::cast_possible_truncation)]
+fn scalar_range_dp_agrees_with_full_dp() {
+    use thread_local::ThreadLocal;
+
+    use super::algo::{full_dp, range_dp};
+    use super::banding::compute_banding;
+
+    const ALPHABET: &[u8] = b"abcAB_/- e";
+    let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = |len: usize| -> Vec<u8> {
+        (0..len)
+            .map(|_| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                ALPHABET[(seed % ALPHABET.len() as u64) as usize]
+            })
+            .collect()
+    };
+    let (rows, full, indices) = (ThreadLocal::new(), ThreadLocal::new(), ThreadLocal::new());
+    let mut bonuses = Vec::new();
+    for round in 0..4000 {
+        let cho = next(1 + round % 40);
+        let pat = next(1 + round % 12);
+        super::precompute_bonuses(&cho, &mut bonuses);
+        for (respect_case, last) in [(false, false), (true, true)] {
+            let check = |typos: bool| {
+                let banding = if typos {
+                    compute_banding::<true, u8>(&pat, &cho, respect_case)
+                } else {
+                    compute_banding::<false, u8>(&pat, &cho, respect_case)
+                };
+                let Some(banding) = banding else { return };
+                let (got, want) = if typos {
+                    (
+                        range_dp::<true, u8>(&cho, &pat, &bonuses, respect_case, &rows, last, &banding),
+                        full_dp::<true, true, u8>(&cho, &pat, &bonuses, respect_case, &full, &indices, last, &banding),
+                    )
+                } else {
+                    (
+                        range_dp::<false, u8>(&cho, &pat, &bonuses, respect_case, &rows, last, &banding),
+                        full_dp::<false, true, u8>(&cho, &pat, &bonuses, respect_case, &full, &indices, last, &banding),
+                    )
+                };
+                let want =
+                    want.map(|(s, idx)| (s, idx.first().copied().unwrap_or(0), idx.last().copied().unwrap_or(0)));
+                assert_eq!(
+                    got, want,
+                    "cho {cho:?} pat {pat:?} typos {typos} case {respect_case} last {last}"
+                );
+            };
+            check(false);
+            check(true);
+        }
     }
 }

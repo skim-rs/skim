@@ -66,6 +66,15 @@ impl Cell {
     }
 }
 
+/// Scratch buffers of the range DP: two rolling score rows, the directions of
+/// every cell (row-major, `mcols` per row) and the band of each row.
+#[derive(Default, Debug)]
+pub(super) struct RankRows {
+    pub(super) rows: [Vec<Cell>; 2],
+    pub(super) dirs: Vec<u8>,
+    pub(super) bands: Vec<(usize, usize)>,
+}
+
 #[derive(Default, Debug)]
 pub(super) struct SWMatrix {
     pub(super) data: Vec<Cell>,

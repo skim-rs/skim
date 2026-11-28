@@ -6,6 +6,19 @@ mod common;
 
 insta_test!(vanilla_basic, ["1", "2", "3"], &[]);
 
+#[test]
+fn matcher_wait_drains_remaining_items() -> eyre::Result<()> {
+    let mut h = common::insta::enter_items(["first"], common::insta::parse_options(&[]))?;
+    // Reproduce the state after the reader finishes while an earlier batch is matching.
+    h.skim
+        .app()
+        .item_pool
+        .append(vec![std::sync::Arc::new("last".to_owned())]);
+    h.wait_for_matcher()?;
+    assert_eq!(h.skim.app().item_list.get(1).unwrap().text(), "last");
+    Ok(())
+}
+
 // Using 100 items to represent a larger dataset
 insta_test!(
     vanilla,

@@ -4,13 +4,13 @@ fn item(text: &str) -> Arc<dyn SkimItem> {
     Arc::new(text.to_string())
 }
 
-fn matched(text: &str, index: i32, score: i32) -> MatchedItem {
+fn entry(index: i32, score: i32) -> MatchEntry {
     let rank = Rank {
         score,
         index,
         ..Default::default()
     };
-    MatchedItem::new(item(text), rank, None, &RankBuilder::default())
+    MatchEntry::new(&rank, &RankBuilder::default())
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn rank_builder_inserts_score_criterion() {
 
 #[test]
 fn build_rank_records_offsets_and_pathname() {
-    let rb = RankBuilder::default();
+    let rb = RankBuilder::new(vec![RankCriteria::NegPathName]);
     let rank = rb.build_rank(50, 4, 7, "src/lib/foo.rs");
     assert_eq!(rank.score, 50);
     assert_eq!(rank.begin, 4);
@@ -35,13 +35,17 @@ fn build_rank_records_offsets_and_pathname() {
     assert_eq!(rank.length, i32::try_from("src/lib/foo.rs".len()).unwrap());
     // path_name_offset points just past the last separator.
     assert_eq!(rank.path_name_offset, i32::try_from("src/lib/".len()).unwrap());
+
+    // Without a PathName tiebreak it is not computed.
+    let rank = RankBuilder::default().build_rank(50, 4, 7, "src/lib/foo.rs");
+    assert_eq!(rank.path_name_offset, 0);
 }
 
 #[test]
 fn path_name_offset_counts_chars_not_bytes() {
     // `path_name_offset` is subtracted from `Rank::begin`, which is a char index,
     // so a multi-byte directory component must not inflate it.
-    let rb = RankBuilder::default();
+    let rb = RankBuilder::new(vec![RankCriteria::PathName]);
     // "ééé/" is 4 chars but 7 bytes; the filename starts at char index 4.
     let rank = rb.build_rank(0, 4, 5, "ééé/a");
     assert_eq!(rank.path_name_offset, 4);
@@ -55,8 +59,8 @@ fn path_name_offset_counts_chars_not_bytes() {
 fn pathname_tiebreak_prefers_filename_match_with_non_ascii_dir() {
     // "ééééé/a" matches in the filename (best), "a/xxxxx" matches in the dir part.
     let rb = RankBuilder::new(vec![RankCriteria::PathName, RankCriteria::Index]);
-    let in_filename = MatchedItem::new(item("ééééé/a"), rb.build_rank(0, 6, 7, "ééééé/a"), None, &rb);
-    let in_dir = MatchedItem::new(item("a/xxxxx"), rb.build_rank(0, 0, 1, "a/xxxxx"), None, &rb);
+    let in_filename = MatchEntry::new(&rb.build_rank(0, 6, 7, "ééééé/a"), &rb);
+    let in_dir = MatchEntry::new(&rb.build_rank(0, 0, 1, "a/xxxxx"), &rb);
 
     assert!(
         in_filename < in_dir,
@@ -79,158 +83,85 @@ fn sort_key_flips_score_sign() {
 }
 
 #[test]
-fn matched_item_ordering_prefers_higher_score() {
-    let high = matched("a", 0, 100);
-    let low = matched("b", 1, 10);
-    // Higher score sorts first (smaller sort key).
-    assert!(high < low);
+fn match_entry_ordering_prefers_higher_score() {
+    assert!(entry(0, 100) < entry(1, 10));
 }
 
 #[test]
-fn matched_item_ordering_reverses_stable_input_index_for_tac() {
-    let old_rank = Rank {
-        index: 0,
-        ..Default::default()
-    };
-    let new_rank = Rank {
+fn match_entry_ordering_reverses_stable_input_index_for_tac() {
+    let old = Rank::default();
+    let new = Rank {
         index: 1,
-        ..Default::default()
+        ..Rank::default()
     };
-
-    let normal_builder = RankBuilder::new(vec![RankCriteria::Index]);
-    let old = MatchedItem::new(item("old"), old_rank, None, &normal_builder);
-    let new = MatchedItem::new(item("new"), new_rank, None, &normal_builder);
-    assert!(old < new);
-
-    let tac_builder = RankBuilder::new(vec![RankCriteria::Index]).tac(true);
-    let old = MatchedItem::new(item("old"), old_rank, None, &tac_builder);
-    let new = MatchedItem::new(item("new"), new_rank, None, &tac_builder);
-    assert!(new < old);
-    assert_eq!(new.rank.index, 1);
-    assert_eq!(MatchedItem::sorted_merge(vec![old], vec![new])[0].text(), "new");
-
-    let tac_builder = RankBuilder::default().tac(true);
-    let old = MatchedItem::new(item("old"), old_rank, None, &tac_builder);
-    let new = MatchedItem::new(item("new"), new_rank, None, &tac_builder);
-    assert!(new < old);
+    let by_index = RankBuilder::new(vec![RankCriteria::Index]);
+    assert!(MatchEntry::new(&old, &by_index) < MatchEntry::new(&new, &by_index));
+    for builder in [by_index.tac(true), RankBuilder::default().tac(true)] {
+        let (a, b) = (MatchEntry::new(&old, &builder), MatchEntry::new(&new, &builder));
+        assert!(b < a);
+        assert_eq!(b.index, 1);
+        assert_eq!(MatchEntry::merge_sorted(&[a], &[b]), [b, a]);
+    }
 }
 
 #[test]
-fn sorted_merge_tac_places_newer_incremental_batch_first() {
-    let rank_builder = RankBuilder::default().tac(true);
-    let make = |text: &str, index| {
-        MatchedItem::new(
-            item(text),
-            Rank {
-                index,
-                ..Default::default()
-            },
-            None,
-            &rank_builder,
-        )
-    };
-    let existing = vec![make("c", 2), make("b", 1), make("a", 0)];
-    let incoming = vec![make("e", 4), make("d", 3)];
+fn match_entry_comparison_agrees_with_equality_for_equal_sort_keys() {
+    use RankCriteria::{Begin, End, Index, Length, PathName, Score};
 
-    let merged = MatchedItem::sorted_merge(existing, incoming);
-    let indexes: Vec<_> = merged.iter().map(|item| item.rank.index).collect();
-    assert_eq!(indexes, [4, 3, 2, 1, 0]);
+    let builder = RankBuilder::new(vec![Begin, End, Index, Length, PathName, Score]);
+    let a = MatchEntry::new(&Rank::default(), &builder);
+    let b = MatchEntry::new(
+        &Rank {
+            score: 1,
+            ..Rank::default()
+        },
+        &builder,
+    );
+    assert_eq!(a.sort_key, b.sort_key);
+    assert_ne!(a, b);
+    assert_ne!(a.cmp(&b), std::cmp::Ordering::Equal);
 }
 
 #[test]
-fn sorted_merge_handles_empty_inputs() {
-    let a = vec![matched("a", 0, 10)];
-    assert_eq!(MatchedItem::sorted_merge(a.clone(), vec![]).len(), 1);
-    assert_eq!(MatchedItem::sorted_merge(vec![], a.clone()).len(), 1);
+fn merge_sorted_equals_concat_sort() {
+    use rand::rngs::StdRng;
+    use rand::{RngExt as _, SeedableRng as _};
+
+    let mut rng = StdRng::seed_from_u64(42);
+    let sizes = [0, 1, 255, 256, 257, 4096];
+    for a_len in sizes {
+        for b_len in sizes {
+            // Interleave scores, then exercise each fast path with disjoint scores.
+            for shift in [0, -100, 100] {
+                let mut a: Vec<_> = (0..a_len).map(|i| entry(i, rng.random_range(0..100))).collect();
+                let mut b: Vec<_> = (a_len..a_len + b_len)
+                    .map(|i| entry(i, rng.random_range(0..100) + shift))
+                    .collect();
+                a.sort_unstable();
+                b.sort_unstable();
+                let mut expected = [&a[..], &b[..]].concat();
+                expected.sort_unstable();
+                assert_eq!(MatchEntry::merge_sorted(&a, &b), expected);
+            }
+        }
+    }
 }
 
 #[test]
-fn sorted_merge_interleaves_in_order() {
-    let existing = vec![matched("a", 0, 100), matched("c", 2, 10)];
-    let incoming = vec![matched("b", 1, 50)];
-    let merged = MatchedItem::sorted_merge(existing, incoming);
-    let scores: Vec<i32> = merged.iter().map(|m| m.rank.score).collect();
-    assert_eq!(scores, vec![100, 50, 10]);
+fn matched_item_identity_uses_text_and_index_not_score() {
+    let m = MatchedItem::new(item("hello"), 3, 42);
+    assert_eq!(m, MatchedItem::new(item("hello"), 3, 0));
+    assert_ne!(m, MatchedItem::new(item("other"), 3, 42));
+    assert_ne!(m, MatchedItem::new(item("hello"), 4, 42));
+    assert!(format!("{m:?}").contains("hello"));
+    assert_eq!(m.downcast_item::<String>().map(String::as_str), Some("hello"));
 }
 
 #[test]
-fn sorted_merge_prepends_when_incoming_all_better() {
-    // Incoming all rank ahead of existing → fast prepend path.
-    let existing = vec![matched("c", 2, 10)];
-    let incoming = vec![matched("a", 0, 100), matched("b", 1, 50)];
-    let merged = MatchedItem::sorted_merge(existing, incoming);
-    let scores: Vec<i32> = merged.iter().map(|m| m.rank.score).collect();
-    assert_eq!(scores, vec![100, 50, 10]);
-}
-
-#[test]
-fn sorted_merge_appends_when_existing_all_better() {
-    // Existing all rank ahead of incoming → fast append path (existing.last() <= incoming.first()).
-    let existing = vec![matched("a", 0, 100), matched("b", 1, 50)];
-    let incoming = vec![matched("c", 2, 10)];
-    let merged = MatchedItem::sorted_merge(existing, incoming);
-    let scores: Vec<i32> = merged.iter().map(|m| m.rank.score).collect();
-    assert_eq!(scores, vec![100, 50, 10]);
-}
-
-#[test]
-fn sorted_merge_drains_incoming_tail() {
-    // Interleave so the merge loop runs and `existing` exhausts first,
-    // leaving an incoming tail to drain via the (None, _) arm.
-    let existing = vec![matched("a", 0, 100), matched("c", 2, 40)];
-    let incoming = vec![matched("b", 1, 50), matched("d", 3, 10)];
-    let merged = MatchedItem::sorted_merge(existing, incoming);
-    let scores: Vec<i32> = merged.iter().map(|m| m.rank.score).collect();
-    assert_eq!(scores, vec![100, 50, 40, 10]);
-}
-
-#[test]
-fn matched_item_debug_includes_text_and_rank() {
-    let s = format!("{:?}", matched("hello", 3, 42));
-    assert!(s.contains("MatchedItem"));
-    assert!(s.contains("hello"));
-}
-
-#[test]
-fn merge_into_sorted_small_insert() {
-    let mut existing = vec![matched("a", 0, 100), matched("c", 2, 10)];
-    MatchedItem::merge_into_sorted(&mut existing, vec![matched("b", 1, 50)]);
-    let scores: Vec<i32> = existing.iter().map(|m| m.rank.score).collect();
-    assert_eq!(scores, vec![100, 50, 10]);
-}
-
-#[test]
-fn merge_into_sorted_large_uses_backwards_merge() {
-    // Force the > SMALL_INSERT_THRESHOLD branch with interleaving order.
-    let mut existing: Vec<MatchedItem> = (0i32..300).map(|i| matched("x", i, 1000 - i * 2)).collect();
-    let incoming: Vec<MatchedItem> = (0i32..300).map(|i| matched("y", 1000 + i, 1000 - i * 2 - 1)).collect();
-    let total = existing.len() + incoming.len();
-    MatchedItem::merge_into_sorted(&mut existing, incoming);
-    assert_eq!(existing.len(), total);
-    // Result must be sorted ascending by sort key.
-    assert!(existing.windows(2).all(|w| w[0] <= w[1]));
-}
-
-#[test]
-fn merge_into_sorted_large_with_incoming_holding_best() {
-    // >256 incoming forces the backwards in-place merge. Give incoming the
-    // highest scores so `existing` exhausts first, leaving an incoming run
-    // that is block-copied to the front (the `bi > 0` branch).
-    let mut existing: Vec<MatchedItem> = (0i32..300).map(|i| matched("x", i, 500 - i * 2)).collect();
-    let incoming: Vec<MatchedItem> = (0i32..300).map(|i| matched("y", 1000 + i, 2000 - i * 2)).collect();
-    let total = existing.len() + incoming.len();
-    MatchedItem::merge_into_sorted(&mut existing, incoming);
-    assert_eq!(existing.len(), total);
-    assert!(existing.windows(2).all(|w| w[0] <= w[1]));
-    // The top-scoring item came from the incoming batch.
-    assert_eq!(existing[0].rank.score, 2000);
-}
-
-#[test]
-fn downcast_item_recovers_concrete_type() {
-    let m = matched("hello", 0, 1);
-    let s: Option<&String> = m.downcast_item::<String>();
-    assert_eq!(s.map(String::as_str), Some("hello"));
+fn manually_constructed_item_has_no_match_details() {
+    let item = MatchedItem::new(item("hello"), 3, 42);
+    assert!(item.rank().is_none());
+    assert!(item.match_result().is_none());
 }
 
 #[test]
@@ -267,7 +198,9 @@ fn item_pool_reset_replays_items() {
 fn item_pool_clear_empties_everything() {
     let pool = ItemPool::new();
     pool.append(vec![item("a"), item("b")]);
-    pool.clear();
+    let _ = pool.take();
+    let old = pool.clear();
+    assert_eq!(old.iter().map(|item| item.text()).collect::<Vec<_>>(), ["a", "b"]);
     assert!(pool.is_empty());
     assert_eq!(pool.num_taken(), 0);
 }
@@ -293,4 +226,26 @@ fn item_pool_tac_reverses_take_order() {
     pool.append(vec![item("a"), item("b"), item("c")]);
     let taken: Vec<String> = pool.take().iter().map(|i| i.text().into_owned()).collect();
     assert_eq!(taken, vec!["c", "b", "a"]);
+}
+
+#[test]
+fn empty_query_order_follows_index_criteria() {
+    assert_eq!(RankBuilder::default().empty_query_order(), Some(false));
+    assert_eq!(RankBuilder::default().tac(true).empty_query_order(), Some(true));
+    assert_eq!(
+        RankBuilder::new(vec![RankCriteria::NegIndex]).empty_query_order(),
+        Some(true)
+    );
+    assert_eq!(
+        RankBuilder::new(vec![RankCriteria::NegIndex])
+            .tac(true)
+            .empty_query_order(),
+        Some(false)
+    );
+    // The order also depends on the item text: no shortcut.
+    assert_eq!(RankBuilder::new(vec![RankCriteria::Length]).empty_query_order(), None);
+    assert_eq!(
+        RankBuilder::new(vec![RankCriteria::NegPathName]).empty_query_order(),
+        None
+    );
 }

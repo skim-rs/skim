@@ -1639,8 +1639,10 @@ version = "0.0.0"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",
+ "memchr",
  "regex",
  "skim",
+ "thread_local",
 ]
 
 [[package]]

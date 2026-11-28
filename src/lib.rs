@@ -27,6 +27,41 @@ extern crate log;
 #[global_allocator]
 static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+// Parts of mimalloc's C API (always linked with the `mimalloc` crate; its
+// Rust bindings only expose them with an extra feature and dependency).
+unsafe extern "C" {
+    fn mi_option_set(option: std::ffi::c_int, value: std::ffi::c_long);
+    #[cfg(test)]
+    fn mi_option_get(option: std::ffi::c_int) -> std::ffi::c_long;
+    fn mi_collect(force: bool);
+}
+
+/// `mi_option_purge_delay`: same value in mimalloc v2 (named `reset_delay`) and v3.
+const MI_OPTION_PURGE_DELAY: std::ffi::c_int = 15;
+
+/// Makes mimalloc return freed memory to the OS after 10 ms instead of 1 s.
+/// Skim frees large result lists on each query; with the default delay the
+/// peak RSS stays much higher. `MIMALLOC_PURGE_DELAY` still overrides it.
+/// Called before reading and matching starts; calling it again is harmless.
+pub(crate) fn set_allocator_purge_delay() {
+    if std::env::var_os("MIMALLOC_PURGE_DELAY").is_none() {
+        // SAFETY: plain FFI calls; mimalloc is the global allocator.
+        unsafe {
+            mi_option_set(MI_OPTION_PURGE_DELAY, 10);
+            // Purges already scheduled keep the old delay, and later frees only
+            // extend it: run them now so that the new delay applies.
+            mi_collect(true);
+        }
+    }
+}
+
+/// Returns the memory freed so far to the OS. mimalloc does it lazily, from
+/// threads that allocate, so an idle process otherwise keeps it.
+pub(crate) fn release_freed_memory() {
+    // SAFETY: plain FFI call; mimalloc is the global allocator.
+    unsafe { mi_collect(true) };
+}
+
 use std::any::Any;
 use std::borrow::Cow;
 use std::fmt::Display;
@@ -379,8 +414,17 @@ impl MatchResult {
 
 /// A matching engine that can match queries against items
 pub trait MatchEngine: Sync + Send + Display {
-    /// Matches an item against the query, returning a result if matched
+    /// Matches an item against the query, returning the rank and the matched range
+    /// (used for highlighting). Skim calls it only for the items it displays.
     fn match_item(&self, item: &dyn SkimItem) -> Option<MatchResult>;
+
+    /// Matches an item against the query, returning only its rank.
+    ///
+    /// Skim calls it for every item. The rank must be the same as the one
+    /// `match_item` returns. Override it when the matched range is costly to compute.
+    fn match_rank(&self, item: &dyn SkimItem) -> Option<Rank> {
+        self.match_item(item).map(|result| result.rank)
+    }
 }
 
 /// Factory for creating match engines

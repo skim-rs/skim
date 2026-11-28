@@ -18,10 +18,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nix::sys::stat::Mode;
 use nix::unistd::mkfifo;
 
-use crate::item::{MatchedItem, RankBuilder};
+use crate::item::MatchedItem;
 use crate::tui::Event;
 use crate::tui::actions::Action;
-use crate::{Rank, SkimItem, SkimOptions, SkimOutput};
+use crate::{SkimItem, SkimOptions, SkimOutput};
 
 use tmux::TmuxPopup;
 use zellij::ZellijPopup;
@@ -261,9 +261,8 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         } else {
             Some(MatchedItem::new(
                 Arc::new(SkimPopupOutput { line: line.to_string() }),
-                Rank::default(),
-                None,
-                &RankBuilder::default(),
+                0,
+                0,
             ))
         }
     } else {
@@ -275,16 +274,7 @@ pub fn run_with(opts: &SkimOptions) -> Option<SkimOutput> {
         debug!("Adding output line: {line}");
         // --print-score is always enabled in the child, so every item is followed by its score.
         let score: i32 = stdout.next().unwrap_or_default().parse().unwrap_or_default();
-        let rank = Rank {
-            score,
-            ..Default::default()
-        };
-        let item = MatchedItem::new(
-            Arc::new(SkimPopupOutput { line: line.to_string() }),
-            rank,
-            None,
-            &RankBuilder::default(),
-        );
+        let item = MatchedItem::new(Arc::new(SkimPopupOutput { line: line.to_string() }), 0, score);
         output_lines.push(item);
     }
 
