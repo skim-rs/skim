@@ -1,6 +1,6 @@
 //! This module contains the matching coordinator
 use crate::thread_pool::{self, ThreadPool};
-use crate::tui::item_list::{MergeStrategy, ProcessedItems};
+use crate::tui::item_list::{AllItems, MergeStrategy, ProcessedItems};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -36,6 +36,7 @@ fn input_index(tac: bool, start: usize, batch_len: usize, batch_index: usize) ->
 #[allow(clippy::too_many_arguments)]
 fn merge_worker_results(
     worker_results: Vec<Vec<MatchedItem>>,
+    all: Option<AllItems>,
     engine: Arc<dyn MatchEngine>,
     no_sort: bool,
     processed_items: &Mutex<Option<ProcessedItems>>,
@@ -76,6 +77,7 @@ fn merge_worker_results(
             merge: MergeStrategy::Replace,
             generation,
             engine: Some(engine),
+            all,
         });
         drop(guard);
         needs_render.store(true, Ordering::Relaxed);
@@ -88,9 +90,12 @@ fn merge_worker_results(
                 merge: MergeStrategy::Replace,
                 generation,
                 engine: Some(engine),
+                all,
             });
         }
         Some(existing) => {
+            // Same generation, so same query: `all` is the newer count, or None.
+            existing.all = all;
             if no_sort {
                 if matches!(merge_strategy, MergeStrategy::Prepend) {
                     items.append(&mut existing.items);
@@ -109,6 +114,7 @@ fn merge_worker_results(
                 merge: merge_strategy,
                 generation,
                 engine: Some(engine),
+                all,
             });
         }
     }
@@ -177,6 +183,9 @@ pub struct Matcher {
     case_matching: CaseMatching,
     /// The rank builder shared with all engines; used to attach criteria to `MatchedItem`s.
     pub rank_builder: Arc<RankBuilder>,
+    /// The engine factory matches every item for the empty query, with ranks
+    /// that only differ by index: the list can show the pool as is.
+    empty_query_matches_all: bool,
 }
 
 impl Matcher {
@@ -186,6 +195,7 @@ impl Matcher {
             engine_factory,
             case_matching: CaseMatching::default(),
             rank_builder: Arc::new(RankBuilder::default()),
+            empty_query_matches_all: false,
         }
     }
 
@@ -269,10 +279,14 @@ impl Matcher {
     #[must_use]
     pub fn from_options(options: &SkimOptions) -> Self {
         let (engine_factory, rank_builder) = Self::create_engine_factory_with_builder(options);
-        Matcher::builder(engine_factory)
-            .case(options.case)
-            .rank_builder(rank_builder)
-            .build()
+        Matcher {
+            // Skim's factories use `MatchAllEngine` for it; the regex one does not.
+            empty_query_matches_all: !options.regex,
+            ..Matcher::builder(engine_factory)
+                .case(options.case)
+                .rank_builder(rank_builder)
+                .build()
+        }
     }
 
     /// Returns the case matching setting for this matcher.
@@ -287,6 +301,20 @@ impl Matcher {
         &self.engine_factory
     }
 
+    /// Whether the results of `query` are all the pool items in index order:
+    /// `Some(descending)`, or `None` if they must be matched and sorted. Then
+    /// the matcher only counts the items and the list shows the pool as is.
+    fn lists_pool(&self, query: &str, no_sort: bool, tac: bool) -> Option<bool> {
+        if !self.empty_query_matches_all || !query.is_empty() {
+            None
+        } else if no_sort {
+            Some(tac)
+        } else {
+            self.rank_builder.empty_query_order()
+        }
+    }
+
+    /// Runs the matcher on items from the pool in a background thread.
     ///
     /// When matching completes, the coordinator merges results directly into
     /// `processed_items` according to `merge_strategy`, then signals
@@ -328,6 +356,14 @@ impl Matcher {
         let items = item_pool.take();
         let total = items.len();
         trace!("matcher start, total: {total}");
+
+        let all_descending = self.lists_pool(query, no_sort, tac);
+        let all = all_descending.map(|descending| AllItems {
+            pool: Arc::clone(item_pool),
+            len: start + total,
+            descending,
+            rank_builder: Arc::clone(&rank_builder),
+        });
 
         // The coordinator runs on a dedicated OS thread so it does not occupy
         // a pool slot while waiting for workers.  All pool threads are
@@ -374,18 +410,22 @@ impl Matcher {
                     }
 
                     let mut local_matches = Vec::new();
-                    for (i, item) in chunk.iter().enumerate() {
-                        // Only rank here; the UI computes highlights for the displayed items.
-                        if let Some(mut rank) = matcher_engine.match_rank(item.as_ref()) {
-                            let batch_index = chunk_start + i;
-                            // `take()` reverses each tac batch, so recover the
-                            // item's stable ordinal in the original input stream.
-                            let index = input_index(tac, start, total, batch_index);
-                            rank.index = i32::try_from(index).unwrap_or(i32::MAX);
-                            local_matches.push(MatchedItem::new(Arc::clone(item), rank, &rank_builder_for_work));
+                    let chunk_matched = if all_descending.is_some() {
+                        chunk.len() // empty query: every item matches, only count them
+                    } else {
+                        for (i, item) in chunk.iter().enumerate() {
+                            // Only rank here; the UI computes highlights for the displayed items.
+                            if let Some(mut rank) = matcher_engine.match_rank(item.as_ref()) {
+                                let batch_index = chunk_start + i;
+                                // `take()` reverses each tac batch, so recover the
+                                // item's stable ordinal in the original input stream.
+                                let index = input_index(tac, start, total, batch_index);
+                                rank.index = i32::try_from(index).unwrap_or(i32::MAX);
+                                local_matches.push(MatchedItem::new(Arc::clone(item), rank, &rank_builder_for_work));
+                            }
                         }
-                    }
-                    let chunk_matched = local_matches.len();
+                        local_matches.len()
+                    };
 
                     // Flush counters for this chunk so the UI sees progress.
                     processed_for_work.fetch_add(chunk.len(), Ordering::Relaxed);
@@ -425,6 +465,7 @@ impl Matcher {
 
                     merge_worker_results(
                         worker_results,
+                        all,
                         engine_for_merge,
                         no_sort,
                         &processed_items,
@@ -538,6 +579,7 @@ mod tests {
         let generation = AtomicUsize::new(0);
         merge_worker_results(
             worker_results,
+            None,
             all_engine(),
             no_sort,
             processed_items,
@@ -569,6 +611,7 @@ mod tests {
 
         merge_worker_results(
             vec![vec![matched("stale", 0)]],
+            None,
             all_engine(),
             false,
             &processed,
@@ -589,12 +632,14 @@ mod tests {
             merge: MergeStrategy::SortedMerge,
             generation: 0,
             engine: None,
+            all: None,
         }));
         let needs_render = AtomicBool::new(false);
         let generation = AtomicUsize::new(1);
 
         merge_worker_results(
             vec![vec![matched("current", 1)]],
+            None,
             all_engine(),
             false,
             &processed,

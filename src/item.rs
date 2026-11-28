@@ -96,6 +96,26 @@ impl RankBuilder {
         })
     }
 
+    /// Order of the empty query results, where all ranks are equal but the
+    /// index: `Some(true)` for highest index first, `Some(false)` for input
+    /// order, `None` when the order also depends on the item text.
+    #[must_use]
+    pub(crate) fn empty_query_order(&self) -> Option<bool> {
+        let uses_text = self.criterion.iter().any(|c| {
+            matches!(
+                c,
+                RankCriteria::Length | RankCriteria::NegLength | RankCriteria::PathName | RankCriteria::NegPathName
+            )
+        });
+        let key = |index| {
+            self.sort_key(&Rank {
+                index,
+                ..Default::default()
+            })
+        };
+        (!uses_text).then(|| key(1) < key(0))
+    }
+
     /// Builds a `Rank` from raw match measurements.
     ///
     /// The values are stored as-is; the tiebreak ordering and sign-flipping are
@@ -553,6 +573,11 @@ impl ItemPool {
         }
         drop(guard); // Explicitly release lock
         items
+    }
+
+    /// Returns the item at `index` (its position in the input)
+    pub fn get(&self, index: usize) -> Option<Arc<dyn SkimItem>> {
+        self.pool.lock().get(index).cloned()
     }
 
     /// Frees the spare capacity of the pool (it grows by doubling while items

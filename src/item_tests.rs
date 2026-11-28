@@ -297,3 +297,25 @@ fn item_pool_tac_reverses_take_order() {
     let taken: Vec<String> = pool.take().iter().map(|i| i.text().into_owned()).collect();
     assert_eq!(taken, vec!["c", "b", "a"]);
 }
+
+#[test]
+fn empty_query_order_follows_index_criteria() {
+    assert_eq!(RankBuilder::default().empty_query_order(), Some(false));
+    assert_eq!(RankBuilder::default().tac(true).empty_query_order(), Some(true));
+    assert_eq!(
+        RankBuilder::new(vec![RankCriteria::NegIndex]).empty_query_order(),
+        Some(true)
+    );
+    assert_eq!(
+        RankBuilder::new(vec![RankCriteria::NegIndex])
+            .tac(true)
+            .empty_query_order(),
+        Some(false)
+    );
+    // The order also depends on the item text: no shortcut.
+    assert_eq!(RankBuilder::new(vec![RankCriteria::Length]).empty_query_order(), None);
+    assert_eq!(
+        RankBuilder::new(vec![RankCriteria::NegPathName]).empty_query_order(),
+        None
+    );
+}

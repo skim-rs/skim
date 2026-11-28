@@ -1488,6 +1488,31 @@ fn restart_matcher_after_query_change_rematches_everything() {
     assert_eq!(texts, ["bar"]);
 }
 
+/// The empty query publishes a view of the pool, not one `MatchedItem` per item.
+#[test]
+fn empty_query_matcher_publishes_pool_view() {
+    let mut app = App::default();
+    app.matcher = crate::matcher::Matcher::from_options(&app.options);
+    app.item_pool
+        .append(vec![Arc::new("foo".to_string()), Arc::new("bar".to_string())]);
+    let run = |app: &mut App, query: &str| {
+        app.input.value = query.to_string();
+        app.restart_matcher(true);
+        while !app.matcher_control.stopped() {
+            std::thread::yield_now();
+        }
+        app.item_list.processed_items.lock().unwrap().take().unwrap()
+    };
+    let processed = run(&mut app, "");
+    assert_eq!(processed.items.len(), 0);
+    assert_eq!(processed.all.as_ref().map(|all| all.len), Some(2));
+    assert_eq!(app.matcher_control.get_num_matched(), 2);
+
+    let processed = run(&mut app, "bar");
+    assert!(processed.all.is_none());
+    assert_eq!(processed.items.len(), 1);
+}
+
 #[test]
 fn restart_matcher_no_sort_uses_append_strategy() {
     // A non-force restart with no_sort takes the Append merge-strategy branch.

@@ -871,6 +871,8 @@ impl App {
                 warn!("Received invalid input");
             }
             Event::ClearItems => {
+                // The old items stay displayed until the new results arrive.
+                self.item_list.detach_from_pool();
                 self.item_pool.clear();
                 self.restart_matcher(true);
             }
@@ -999,9 +1001,9 @@ impl App {
                     ..Default::default()
                 };
                 self.item_pool.append(vec![item.clone()]);
-                self.item_list
-                    .append(&mut vec![MatchedItem::new(item, rank, &self.matcher.rank_builder)]);
-                self.item_list.select_row(self.item_list.items.len() - 1);
+                let item = MatchedItem::new(item, rank, &self.matcher.rank_builder);
+                self.item_list.append(&mut vec![item.clone()]);
+                self.item_list.selection.insert(item);
                 self.restart_matcher_debounced();
                 return Ok(self.on_selection_changed());
             }
@@ -1116,7 +1118,7 @@ impl App {
                 return self.dispatch_conditional(!self.input.is_empty(), then, otherwise.as_deref());
             }
             IfNonMatched(then, otherwise) => {
-                return self.dispatch_conditional(self.item_list.items.is_empty(), then, otherwise.as_deref());
+                return self.dispatch_conditional(self.item_list.is_empty(), then, otherwise.as_deref());
             }
             // `ignore` is a no-op. `suppress` is also a no-op on its own; its
             // suppression effect is applied in `handle_action` when it appears in
@@ -1491,6 +1493,7 @@ impl App {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
             self.item_list.items.clear();
+            self.item_list.all = None;
             self.item_list.current = 0;
             self.item_list.offset = 0;
             return;
@@ -1616,7 +1619,7 @@ impl App {
     #[must_use]
     pub fn child_env(&self) -> Vec<(String, String)> {
         // The list length, used to clamp `POS` the way fzf does.
-        let item_count = self.item_list.items.len();
+        let item_count = self.item_list.len();
         let mut vars: Vec<(&str, String)> = vec![
             ("QUERY", self.input.value.clone()),
             ("POS", (self.item_list.current + 1).min(item_count).to_string()),
@@ -1790,8 +1793,7 @@ impl App {
     fn scrollbar_column(&self) -> Option<(ratatui::layout::Rect, u16)> {
         let inner = self.list_inner_area();
         let available_rows = inner.height as usize;
-        if inner.width == 0 || self.item_list.scrollbar_thumb.is_empty() || self.item_list.items.len() <= available_rows
-        {
+        if inner.width == 0 || self.item_list.scrollbar_thumb.is_empty() || self.item_list.len() <= available_rows {
             return None;
         }
         Some((inner, inner.x + inner.width - 1))
@@ -1801,7 +1803,7 @@ impl App {
     fn scroll(&mut self, mouse_pos: ratatui::layout::Position) {
         let inner = self.list_inner_area();
         let track_height = inner.height as usize;
-        let total = self.item_list.items.len();
+        let total = self.item_list.len();
         let click_row = usize::from(mouse_pos.y).saturating_sub(inner.y.into());
         self.item_list.current = click_row * total / track_height;
     }

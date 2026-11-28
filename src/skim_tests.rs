@@ -132,7 +132,7 @@ fn no_clear_start_keeps_items_until_reload_results_or_completion() {
         skim.handle_reload(&command);
         wait_until(|| skim.matcher_stopped());
         render(&mut skim);
-        assert_eq!(skim.app.item_list.items[0].item.text(), "old");
+        assert_eq!(skim.app.item_list.get(0).unwrap().item.text(), "old");
         std::fs::write(gate, "").unwrap();
         wait_until(|| {
             skim.check_reader();
@@ -145,13 +145,13 @@ fn no_clear_start_keeps_items_until_reload_results_or_completion() {
             skim.app.item_list.selection.len(),
             usize::from(replacement.is_empty() && no_clear_if_empty)
         );
-        let items = &skim.app.item_list.items;
+        let items = &skim.app.item_list;
         if replacement.is_empty() && !no_clear_if_empty {
-            assert_eq!(items.as_slice(), []);
+            assert!(items.is_empty());
         } else {
             assert_eq!(items.len(), 1);
             assert_eq!(
-                items[0].item.text(),
+                items.get(0).unwrap().item.text(),
                 if replacement.is_empty() { "old" } else { replacement }
             );
         }

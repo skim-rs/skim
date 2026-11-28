@@ -362,12 +362,14 @@ where
         if let Some(rc) = self.reader_control.as_mut() {
             rc.kill();
         }
-        // Clear items
-        self.app.item_pool.clear();
         // Keep the old display until replacement results arrive when requested.
         if !self.app.options.no_clear_if_empty && !self.app.options.no_clear_start {
             self.app.item_list.clear();
+        } else {
+            self.app.item_list.detach_from_pool();
         }
+        // Clear items
+        self.app.item_pool.clear();
         self.app.item_list.keep_on_reload = self.app.options.no_clear_start || self.app.options.no_clear_if_empty;
         self.app.restart_matcher(true);
         self.start_reader(new_cmd, &env, &unset);
@@ -611,7 +613,7 @@ where
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take()
                 .unwrap_or_default()
-                .items
+                .into_items()
                 .into_iter()
                 .filter(|i| !i.item.disabled())
                 .collect();
@@ -667,7 +669,7 @@ where
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .take()
                     .unwrap_or_default()
-                    .items;
+                    .into_items();
                 debug!("early exit, result: {:?}", app.results());
                 return false;
             }

@@ -243,6 +243,7 @@ fn set_processed(il: &ItemList, items: Vec<MatchedItem>, merge: MergeStrategy) {
         merge,
         generation: il.matcher_generation.load(std::sync::atomic::Ordering::Acquire),
         engine: None,
+        all: None,
     });
 }
 
@@ -267,6 +268,7 @@ fn render_computes_matched_range_for_visible_items_only() {
         merge: MergeStrategy::Replace,
         generation: 0,
         engine: Some(std::sync::Arc::new(engine)),
+        all: None,
     });
     render_list(&mut il, 20, 3);
     let mut cached: Vec<i32> = il.highlights.keys().copied().collect();
@@ -290,6 +292,7 @@ fn render_discards_results_from_stale_generation() {
         merge: MergeStrategy::Replace,
         generation: 0,
         engine: None,
+        all: None,
     });
     il.matcher_generation.store(1, std::sync::atomic::Ordering::Release);
 
@@ -370,4 +373,98 @@ fn render_scrolled_list_shows_lower_items() {
     // Rendering a tall list with the cursor far down exercises the scroll path.
     render_list(&mut il, 20, 6);
     assert!(il.current < il.items.len());
+}
+
+fn pool_of(n: usize) -> std::sync::Arc<crate::item::ItemPool> {
+    let pool = crate::item::ItemPool::new();
+    pool.append(
+        (0..n)
+            .map(|i| std::sync::Arc::new(format!("item{i}")) as std::sync::Arc<dyn crate::SkimItem>)
+            .collect(),
+    );
+    std::sync::Arc::new(pool)
+}
+
+fn all_items(pool: &std::sync::Arc<crate::item::ItemPool>, len: usize, descending: bool) -> AllItems {
+    AllItems {
+        pool: pool.clone(),
+        len,
+        descending,
+        rank_builder: std::sync::Arc::new(RankBuilder::default()),
+    }
+}
+
+fn texts(il: &ItemList) -> Vec<String> {
+    (0..il.len()).map(|i| il.get(i).unwrap().text().into_owned()).collect()
+}
+
+/// The empty query lists the pool items without a `MatchedItem` each.
+#[test]
+fn empty_query_lists_pool_in_index_order() {
+    let pool = pool_of(3);
+    for (descending, expected) in [
+        (false, ["item0", "item1", "item2"]),
+        (true, ["item2", "item1", "item0"]),
+    ] {
+        let mut il = ItemList::default();
+        *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+            all: Some(all_items(&pool, 3, descending)),
+            ..ProcessedItems::default()
+        });
+        render_list(&mut il, 20, 5);
+        assert_eq!(il.items.len(), 0);
+        assert_eq!(texts(&il), expected);
+        assert_eq!(il.get(0).unwrap().rank.index, if descending { 2 } else { 0 });
+        // Out of range, and items beyond `len` (not matched yet) are not listed.
+        assert!(il.get(3).is_none());
+    }
+}
+
+/// New items come before the list when descending: keep the focused item.
+#[test]
+fn empty_query_descending_growth_keeps_focus() {
+    let pool = pool_of(5);
+    let mut il = ItemList::default();
+    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+        all: Some(all_items(&pool, 3, true)),
+        ..ProcessedItems::default()
+    });
+    render_list(&mut il, 20, 5);
+    il.current = 1; // "item1"
+    *il.processed_items.lock().unwrap() = Some(ProcessedItems {
+        all: Some(all_items(&pool, 5, true)),
+        merge: MergeStrategy::SortedMerge,
+        ..ProcessedItems::default()
+    });
+    render_list(&mut il, 20, 5);
+    assert_eq!(il.len(), 5);
+    assert_eq!(il.get(il.current).unwrap().text(), "item1");
+    // A real result list replaces the view.
+    set_processed(&il, vec![matched("x", 0)], MergeStrategy::Replace);
+    render_list(&mut il, 20, 5);
+    assert!(il.all.is_none());
+    assert_eq!(texts(&il), ["x"]);
+}
+
+#[test]
+fn processed_into_items_builds_the_view() {
+    let pool = pool_of(2);
+    let processed = ProcessedItems {
+        all: Some(all_items(&pool, 2, true)),
+        ..ProcessedItems::default()
+    };
+    let texts: Vec<_> = processed.into_items().iter().map(|i| i.text().into_owned()).collect();
+    assert_eq!(texts, ["item1", "item0"]);
+}
+
+/// A reload clears the pool: a view that must stay displayed keeps its items.
+#[test]
+fn detach_from_pool_survives_pool_clear() {
+    let pool = pool_of(2);
+    let mut il = ItemList::default();
+    il.all = Some(all_items(&pool, 2, false));
+    il.detach_from_pool();
+    pool.clear();
+    assert!(il.all.is_none());
+    assert_eq!(texts(&il), ["item0", "item1"]);
 }

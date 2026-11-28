@@ -11,14 +11,14 @@ use ratatui::widgets::{
 };
 use regex::Regex;
 
-use crate::item::MatchedItem;
+use crate::item::{ItemPool, MatchedItem, RankBuilder};
 use crate::options::feature_flag;
 use crate::theme::ColorTheme;
 use crate::tui::BorderType;
 use crate::tui::item_renderer::ItemRenderer;
 use crate::tui::options::TuiLayout;
 use crate::tui::widget::{SkimRender, SkimWidget};
-use crate::{MatchEngine, MatchRange, Selector, SkimOptions};
+use crate::{MatchEngine, MatchRange, Rank, Selector, SkimOptions};
 
 /// How to apply processed items to the display list
 #[derive(Default, Clone, Copy)]
@@ -34,9 +34,44 @@ pub(crate) enum MergeStrategy {
     Prepend,
 }
 
+/// Empty query: all the first `len` items of the pool are matched, in index
+/// order. They are listed without a `MatchedItem` each (64 bytes per item):
+/// `get` builds the ones that are read.
+#[derive(Clone)]
+pub(crate) struct AllItems {
+    pub(crate) pool: Arc<ItemPool>,
+    pub(crate) len: usize,
+    /// Highest index first (`--tac`, `-index` tiebreak)
+    pub(crate) descending: bool,
+    pub(crate) rank_builder: Arc<RankBuilder>,
+}
+
+impl AllItems {
+    fn to_items(&self) -> Vec<MatchedItem> {
+        (0..self.len).filter_map(|position| self.get(position)).collect()
+    }
+
+    fn get(&self, position: usize) -> Option<MatchedItem> {
+        let index = if self.descending {
+            self.len.checked_sub(position + 1)?
+        } else {
+            position
+        };
+        let item = self.pool.get(index).filter(|_| position < self.len)?;
+        // Same rank as `MatchAllEngine` gives.
+        let rank = Rank {
+            index: i32::try_from(index).unwrap_or(i32::MAX),
+            ..self.rank_builder.build_rank(0, 0, 0, &item.text())
+        };
+        Some(MatchedItem::new(item, rank, &self.rank_builder))
+    }
+}
+
 /// Processed items ready for rendering
 pub(crate) struct ProcessedItems {
     pub(crate) items: Vec<MatchedItem>,
+    /// Set instead of `items` for the empty query
+    pub(crate) all: Option<AllItems>,
     pub(crate) merge: MergeStrategy,
     pub(crate) generation: usize,
     /// Engine that matched `items`, used to compute highlights for the displayed items
@@ -50,14 +85,38 @@ impl Default for ProcessedItems {
             merge: MergeStrategy::Replace,
             generation: 0,
             engine: None,
+            all: None,
         }
+    }
+}
+
+/// Number of listed items: `all` if set, else `items`
+fn listed_len(items: &[MatchedItem], all: Option<&AllItems>) -> usize {
+    all.map_or(items.len(), |all| all.len)
+}
+
+/// Listed item at `position`: from `all` if set, else from `items`
+fn listed_get(items: &[MatchedItem], all: Option<&AllItems>, position: usize) -> Option<MatchedItem> {
+    match all {
+        Some(all) => all.get(position),
+        None => items.get(position).cloned(),
+    }
+}
+
+impl ProcessedItems {
+    /// The items as a list of `MatchedItem`s (built for the empty query)
+    pub(crate) fn into_items(self) -> Vec<MatchedItem> {
+        self.all.map_or(self.items, |all| all.to_items())
     }
 }
 
 /// Widget for displaying and managing the list of filtered items
 #[allow(clippy::struct_excessive_bools)]
 pub struct ItemList {
+    /// The listed items, unless `all` is set. Read them with `len` and `get`.
     pub(crate) items: Vec<MatchedItem>,
+    /// Empty query: the listed items are all the items of the pool
+    pub(crate) all: Option<AllItems>,
     pub(crate) selection: IndexSet<MatchedItem>,
     pub(crate) processed_items: Arc<Mutex<Option<ProcessedItems>>>,
     pub(crate) matcher_generation: Arc<AtomicUsize>,
@@ -115,28 +174,53 @@ impl ItemList {
         self.current
     }
 
+    /// Number of listed items
+    #[must_use]
+    pub fn len(&self) -> usize {
+        listed_len(&self.items, self.all.as_ref())
+    }
+
+    /// Whether no item is listed
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The listed item at `position`
+    #[must_use]
+    pub fn get(&self, position: usize) -> Option<MatchedItem> {
+        listed_get(&self.items, self.all.as_ref(), position)
+    }
+
+    /// Call before the pool is cleared when the list must stay displayed: a
+    /// view of the pool (empty query) would empty with it, so build its items.
+    pub(crate) fn detach_from_pool(&mut self) {
+        if let Some(all) = self.all.take() {
+            self.items = all.to_items();
+        }
+    }
+
     /// Returns the count of items for status display.
     ///
     /// This may differ from `items.len()` when `no_clear_if_empty` is active and showing stale items
     #[must_use]
     pub fn count(&self) -> usize {
-        if self.showing_stale_items { 0 } else { self.items.len() }
+        if self.showing_stale_items { 0 } else { self.len() }
     }
 
     /// Returns the currently selected item, if any
     #[must_use]
     pub fn selected(&self) -> Option<MatchedItem> {
-        let item = self.items.get(self.cursor());
-        if item.is_some_and(|i| !i.item.disabled()) {
-            item.cloned()
-        } else {
-            None
-        }
+        self.get(self.cursor()).filter(|i| !i.item.disabled())
     }
 
     /// Appends new matched items to the list
+    /// (With the empty query the list shows the pool: the items must be in it,
+    /// and they are listed after the next matcher run.)
     pub fn append(&mut self, items: &mut Vec<MatchedItem>) {
-        self.items.append(items);
+        if self.all.is_none() {
+            self.items.append(items);
+        }
         self.showing_stale_items = false;
     }
 
@@ -148,11 +232,15 @@ impl ItemList {
         }
 
         let added = items.len();
-        let follows_head = self.current == 0;
         items.append(&mut self.items);
         self.items = items;
+        self.keep_focus_after_prepend(added);
+    }
 
-        if follows_head {
+    /// `added` items were put before the list: stay at the head if the cursor
+    /// is there, else keep the focused item.
+    fn keep_focus_after_prepend(&mut self, added: usize) {
+        if self.current == 0 {
             self.offset = 0;
             self.sub_offset = 0;
         } else {
@@ -163,12 +251,11 @@ impl ItemList {
 
     /// Toggles the selection state of the item at the given index
     pub fn toggle_at(&mut self, index: usize) {
-        if self.items.is_empty() {
+        let Some(item) = self.get(index) else {
             return;
-        }
-        let item = &self.items[index];
+        };
         trace!("Toggled item {} at index {}", item.text(), index);
-        toggle_item(&mut self.selection, item);
+        toggle_item(&mut self.selection, &item);
         trace!(
             "Selection is now {:#?}",
             self.selection.iter().map(|item| item.item.text()).collect::<Vec<_>>()
@@ -180,8 +267,10 @@ impl ItemList {
     }
     /// Toggles the selection state of all items
     pub fn toggle_all(&mut self) {
-        for item in &self.items {
-            toggle_item(&mut self.selection, item);
+        for position in 0..self.len() {
+            if let Some(item) = self.get(position) {
+                toggle_item(&mut self.selection, &item);
+            }
         }
     }
 
@@ -193,16 +282,15 @@ impl ItemList {
 
     /// Add row to selection
     pub fn select_row(&mut self, index: usize) {
-        let item = self.items[index].clone();
-        if !item.disabled() {
+        if let Some(item) = self.get(index).filter(|item| !item.disabled()) {
             self.selection.insert(item);
         }
     }
     /// Selects all items
     pub fn select_all(&mut self) {
-        for item in self.items.clone() {
-            if !item.disabled() {
-                self.selection.insert(item.clone());
+        for position in 0..self.len() {
+            if let Some(item) = self.get(position).filter(|item| !item.disabled()) {
+                self.selection.insert(item);
             }
         }
     }
@@ -213,6 +301,7 @@ impl ItemList {
     /// Clears all items from the list
     pub fn clear(&mut self) {
         self.items.clear();
+        self.all = None;
         self.selection.clear();
         self.highlights.clear();
         self.current = 0;
@@ -224,10 +313,10 @@ impl ItemList {
     /// Scrolls the list by `rows` terminal rows, counting each item's sub-lines.
     /// Positive = toward higher indices (up the screen in default layout).
     pub fn scroll_by_rows(&mut self, rows: i32) {
-        if self.reserved >= self.items.len() || rows == 0 {
+        if self.reserved >= self.len() || rows == 0 {
             return;
         }
-        let total = self.items.len();
+        let total = self.len();
         let reserved = self.reserved;
 
         if rows > 0 {
@@ -253,11 +342,11 @@ impl ItemList {
 
     /// Scrolls the list by the given offset
     pub fn scroll_by(&mut self, offset: i32) {
-        if self.reserved >= self.items.len() {
+        if self.reserved >= self.len() {
             return;
         }
         let reserved = i32::try_from(self.reserved).unwrap_or(0);
-        let total = i32::try_from(self.items.len()).unwrap_or(i32::MAX);
+        let total = i32::try_from(self.len()).unwrap_or(i32::MAX);
         let mut new = i32::try_from(self.current).unwrap_or(0) + offset;
         if self.cycle {
             let n = total - reserved;
@@ -279,7 +368,7 @@ impl ItemList {
     }
     /// Jump to the first selectable item (respecting reserved header lines)
     pub fn jump_to_first(&mut self) {
-        if self.items.len() > self.reserved {
+        if self.len() > self.reserved {
             self.current = self.reserved;
             self.offset = self.reserved;
             self.sub_offset = 0;
@@ -294,7 +383,7 @@ impl ItemList {
     #[must_use]
     pub fn item_at_visual_row(&self, row: usize) -> Option<usize> {
         let available_rows = self.height as usize;
-        if row >= available_rows || self.items.is_empty() {
+        if row >= available_rows || self.is_empty() {
             return None;
         }
         // In BottomToTop, flat_rows[0] is rendered at the BOTTOM terminal row.
@@ -305,7 +394,7 @@ impl ItemList {
         };
         // Walk items from `offset`, counting sub-lines, until we cover `flat_row`.
         let mut rows_counted = 0;
-        for idx in self.offset..self.items.len() {
+        for idx in self.offset..self.len() {
             let item_rows = if idx == self.offset {
                 self.item_row_count(idx).saturating_sub(self.sub_offset)
             } else {
@@ -324,8 +413,8 @@ impl ItemList {
 
     /// Jump to the last item in the list
     pub fn jump_to_last(&mut self) {
-        if !self.items.is_empty() {
-            self.current = self.items.len().saturating_sub(1);
+        if !self.is_empty() {
+            self.current = self.len().saturating_sub(1);
             self.sub_offset = 0;
         }
     }
@@ -336,7 +425,7 @@ impl ItemList {
     /// splitting on the separator; otherwise every item is exactly 1 row.
     fn item_row_count(&self, index: usize) -> usize {
         if let Some(sep) = self.multiline.as_deref()
-            && let Some(item) = self.items.get(index)
+            && let Some(item) = self.get(index)
         {
             item.item.text().split(sep).count().max(1)
         } else {
@@ -469,6 +558,7 @@ impl SkimWidget for ItemList {
             keep_on_reload: false,
             manual_hscroll: 0,
             items: Default::default(),
+            all: None,
             selection: Default::default(),
             offset: Default::default(),
             sub_offset: 0,
@@ -511,11 +601,11 @@ impl SkimWidget for ItemList {
         let available_rows = inner_area.height as usize;
 
         // Clamp current to valid range after any item list replacement.
-        if this.items.is_empty() {
+        if this.is_empty() {
             this.current = 0;
             this.offset = 0;
         } else {
-            this.current = this.current.min(this.items.len() - 1).max(this.reserved);
+            this.current = this.current.min(this.len() - 1).max(this.reserved);
         }
 
         if this.current < this.offset {
@@ -539,19 +629,21 @@ impl SkimWidget for ItemList {
         let current_generation = this.matcher_generation.load(Ordering::Acquire);
         let processed = processed.filter(|result| result.generation == current_generation);
         let items_updated = if let Some(processed) = processed {
-            debug!("Render: Got {} processed items", processed.items.len());
+            let processed_len = listed_len(&processed.items, processed.all.as_ref());
+            debug!("Render: Got {processed_len} processed items");
 
             // Check if items are empty or blank for no_clear_if_empty handling
-            let items_are_empty_or_blank =
-                processed.items.is_empty() || processed.items.iter().all(|item| item.item.text().trim().is_empty());
+            let items_are_empty_or_blank = (0..processed_len)
+                .filter_map(|position| listed_get(&processed.items, processed.all.as_ref(), position))
+                .all(|item| item.item.text().trim().is_empty());
 
-            if !this.items.is_empty()
-                && ((this.keep_on_reload && processed.items.is_empty())
+            if !this.is_empty()
+                && ((this.keep_on_reload && processed_len == 0)
                     || (this.interactive && this.no_clear_if_empty && items_are_empty_or_blank))
             {
                 debug!(
                     "no_clear_if_empty: keeping {} old items for display (new items are empty/blank)",
-                    this.items.len()
+                    this.len()
                 );
                 this.showing_stale_items = true;
             } else {
@@ -561,21 +653,34 @@ impl SkimWidget for ItemList {
                 } else {
                     processed.merge
                 };
-                match merge {
-                    MergeStrategy::Replace => {
-                        this.items = processed.items;
-                        this.sub_offset = 0;
-                    }
-                    MergeStrategy::SortedMerge => {
-                        let existing = std::mem::take(&mut this.items);
-                        this.items = MatchedItem::sorted_merge(existing, processed.items);
-                        this.sub_offset = 0;
-                    }
-                    MergeStrategy::Append => {
-                        this.items.extend(processed.items);
-                    }
-                    MergeStrategy::Prepend => {
-                        this.prepend(processed.items);
+                if let Some(all) = processed.all {
+                    // Empty query: new items come after the list, or before it
+                    // when descending.
+                    let added = match merge {
+                        MergeStrategy::Replace => 0,
+                        _ => all.len.saturating_sub(this.len()) * usize::from(all.descending),
+                    };
+                    this.items = Vec::new();
+                    this.all = Some(all);
+                    this.keep_focus_after_prepend(added);
+                } else {
+                    this.all = None;
+                    match merge {
+                        MergeStrategy::Replace => {
+                            this.items = processed.items;
+                            this.sub_offset = 0;
+                        }
+                        MergeStrategy::SortedMerge => {
+                            let existing = std::mem::take(&mut this.items);
+                            this.items = MatchedItem::sorted_merge(existing, processed.items);
+                            this.sub_offset = 0;
+                        }
+                        MergeStrategy::Append => {
+                            this.items.extend(processed.items);
+                        }
+                        MergeStrategy::Prepend => {
+                            this.prepend(processed.items);
+                        }
                     }
                 }
                 this.showing_stale_items = false;
@@ -593,18 +698,19 @@ impl SkimWidget for ItemList {
                 {
                     debug!(
                         "Applying pre-selection to {} items (currently {} selected, target {})",
-                        this.items.len(),
+                        this.len(),
                         this.selection.len(),
                         this.pre_select_target
                     );
-                    for (index, item) in this.items.iter().enumerate() {
+                    for index in 0..this.len() {
                         if this.selection.len() >= this.pre_select_target {
                             break;
                         }
+                        let Some(item) = this.get(index) else { continue };
                         let should_select = selector.should_select(index, item.item.as_ref());
                         if should_select {
                             debug!("Pre-selecting item[{}]: '{}'", index, item.item.text());
-                            this.selection.insert(item.clone());
+                            this.selection.insert(item);
                         }
                     }
                     debug!("Pre-selected {} items total", this.selection.len());
@@ -621,12 +727,12 @@ impl SkimWidget for ItemList {
         let mut highlights = HashMap::with_capacity(available_rows);
         if let Some(engine) = &this.engine {
             let mut rows = 0usize;
-            for idx in this.offset..this.items.len() {
+            for idx in this.offset..this.len() {
                 if rows >= available_rows {
                     break;
                 }
                 rows += this.item_row_count(idx);
-                let item = &this.items[idx];
+                let Some(item) = this.get(idx) else { break };
                 let range = this
                     .highlights
                     .remove(&item.rank.index)
@@ -645,14 +751,16 @@ impl SkimWidget for ItemList {
         let mut flat_rows: Vec<ListItem<'static>> = Vec::with_capacity(available_rows + 1);
         let mut rows_used = 0usize;
 
-        for (idx, item) in this.items.iter().enumerate().skip(this.offset) {
+        for idx in this.offset..this.len() {
             if rows_used >= available_rows {
                 break;
             }
+            let Some(item) = this.get(idx) else { break };
+            let item = &item;
             let is_current = idx == this.current;
             let is_selected = this.selection.contains(item);
-            let matched_range = this.highlights.get(&item.rank.index).and_then(Option::as_ref);
             let skip_subs = if idx == this.offset { sub_offset } else { 0 };
+            let matched_range = this.highlights.get(&item.rank.index).and_then(Option::as_ref);
             rows_used += renderer.render_item(
                 item,
                 matched_range,
@@ -685,12 +793,12 @@ impl SkimWidget for ItemList {
 
         // Render the scrollbar on top of the rightmost column of inner_area, but only
         // when there are more items than fit on screen (nothing to scroll → no bar).
-        if !this.scrollbar_thumb.is_empty() && this.items.len() > available_rows {
+        if !this.scrollbar_thumb.is_empty() && this.len() > available_rows {
             // Use offset directly as the scroll position for all layout directions:
             // offset == 0           → thumb at top    (beginning of content)
             // offset == max_offset  → thumb at bottom (end of content)
             // This matches conventional scrollbar behaviour regardless of list direction.
-            let mut scrollbar_state = ScrollbarState::new(this.items.len()).position(this.current);
+            let mut scrollbar_state = ScrollbarState::new(this.len()).position(this.current);
             // .viewport_content_length(available_rows);
 
             // Both Default and Custom use a thumb-only style (no track/begin/end arrows).
